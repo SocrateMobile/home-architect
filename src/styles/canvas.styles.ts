@@ -46,6 +46,46 @@ export const canvasStyles = css`
     stroke-width: 1;
   }
 
+  /* Background Image Layer */
+  .background-image-layer {
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+  }
+
+  /* Room Floor Polygons */
+  .room-polygon {
+    stroke: rgba(56, 189, 248, 0.4);
+    stroke-width: 1.5;
+    transition: fill 0.2s ease, stroke 0.2s ease;
+    cursor: pointer;
+  }
+
+  .room-polygon:hover {
+    stroke: #38bdf8;
+    filter: drop-shadow(0 0 8px rgba(56, 189, 248, 0.3));
+  }
+
+  .room-label-group {
+    pointer-events: none;
+  }
+
+  .room-label-name {
+    fill: #f8fafc;
+    font-size: 13px;
+    font-weight: 700;
+    text-anchor: middle;
+    filter: drop-shadow(0 1px 3px rgba(0,0,0,0.8));
+  }
+
+  .room-label-area {
+    fill: #38bdf8;
+    font-size: 11px;
+    font-weight: 600;
+    text-anchor: middle;
+    font-family: ui-monospace, SFMono-Regular, monospace;
+    filter: drop-shadow(0 1px 3px rgba(0,0,0,0.8));
+  }
+
   /* Walls */
   .wall-rect {
     fill: #334155;
@@ -67,6 +107,47 @@ export const canvasStyles = css`
     opacity: 0.5;
   }
 
+  /* Wall cut-out mask for openings */
+  .wall-cutout {
+    fill: #0f172a;
+    stroke: none;
+  }
+
+  /* Doors & Windows */
+  .opening-door-frame {
+    stroke: #cbd5e1;
+    stroke-width: 2.5;
+  }
+
+  .opening-door-leaf {
+    stroke: #38bdf8;
+    stroke-width: 2;
+    stroke-linecap: round;
+  }
+
+  .opening-door-arc {
+    fill: rgba(56, 189, 248, 0.08);
+    stroke: #38bdf8;
+    stroke-width: 1.2;
+    stroke-dasharray: 3, 3;
+  }
+
+  .opening-window-frame {
+    stroke: #94a3b8;
+    stroke-width: 2.5;
+  }
+
+  .opening-window-glass {
+    stroke: #38bdf8;
+    stroke-width: 1.5;
+  }
+
+  .opening-preview {
+    opacity: 0.85;
+    filter: drop-shadow(0 0 6px #38bdf8);
+    pointer-events: none;
+  }
+
   /* Preview Wall */
   .preview-wall-rect {
     fill: rgba(56, 189, 248, 0.35);
@@ -78,6 +159,20 @@ export const canvasStyles = css`
   .preview-wall-line {
     stroke: #38bdf8;
     stroke-width: 2;
+  }
+
+  /* Calibration segment */
+  .calibration-line {
+    stroke: #f59e0b;
+    stroke-width: 2.5;
+    stroke-dasharray: 5, 4;
+    filter: drop-shadow(0 0 8px rgba(245, 158, 11, 0.6));
+  }
+
+  .calibration-endpoint {
+    fill: #f59e0b;
+    stroke: #ffffff;
+    stroke-width: 1.5;
   }
 
   /* Snapping & Guides */
@@ -187,5 +282,24 @@ export const canvasStyles = css`
     font-family: ui-monospace, SFMono-Regular, monospace;
     z-index: 50;
     pointer-events: none;
+  }
+
+  /* Help Tooltip HUD */
+  .help-hud {
+    position: absolute;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(30, 41, 59, 0.9);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(56, 189, 248, 0.3);
+    border-radius: 20px;
+    padding: 6px 16px;
+    font-size: 12px;
+    font-weight: 500;
+    color: #e2e8f0;
+    z-index: 50;
+    pointer-events: none;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
   }
 `;

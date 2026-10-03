@@ -1,4 +1,4 @@
-import { Point, Wall, GridConfig } from './types';
+import { Point, Wall, GridConfig, WallSnapResult } from './types';
 
 export class SnappingEngine {
   /**
@@ -50,7 +50,6 @@ export class SnappingEngine {
         let angleDeg = (angleRad * 180) / Math.PI;
         if (angleDeg < 0) angleDeg += 360;
 
-        // Cibles angulaires principales
         const step = 45; // 0, 45, 90, 135, 180, 225, 270, 315, 360
         const nearestAngle = Math.round(angleDeg / step) * step;
         const angleDiff = Math.abs(angleDeg - nearestAngle);
@@ -80,6 +79,47 @@ export class SnappingEngine {
     }
 
     return { point: rawPoint, snappedTo: 'none' };
+  }
+
+  /**
+   * Snaps a point to the nearest wall centerline for placing doors and windows
+   */
+  public static snapPointToWall(
+    point: Point,
+    walls: Wall[],
+    maxDistanceMeters: number = 0.6
+  ): WallSnapResult | null {
+    let closestSnap: WallSnapResult | null = null;
+    let minDistance = maxDistanceMeters;
+
+    for (const wall of walls) {
+      const dx = wall.end.x - wall.start.x;
+      const dy = wall.end.y - wall.start.y;
+      const wallLen = Math.sqrt(dx * dx + dy * dy);
+      if (wallLen === 0) continue;
+
+      // Projection scalaire t
+      const t = Math.max(0, Math.min(1,
+        ((point.x - wall.start.x) * dx + (point.y - wall.start.y) * dy) / (wallLen * wallLen)
+      ));
+
+      const projX = wall.start.x + t * dx;
+      const projY = wall.start.y + t * dy;
+      const dist = Math.sqrt((point.x - projX) ** 2 + (point.y - projY) ** 2);
+
+      if (dist < minDistance) {
+        minDistance = dist;
+        closestSnap = {
+          wall,
+          projectionPoint: { x: projX, y: projY },
+          offset: t * wallLen,
+          distance: dist,
+          angleRad: Math.atan2(dy, dx)
+        };
+      }
+    }
+
+    return closestSnap;
   }
 
   public static distance(p1: Point, p2: Point): number {
