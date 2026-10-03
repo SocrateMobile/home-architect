@@ -539,6 +539,57 @@ export class HomeArchitectCanvas extends LitElement {
     `;
   }
 
+  private pointToSegmentDistance(p: Point, a: Point, b: Point): number {
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const l2 = dx * dx + dy * dy;
+    if (l2 === 0) return SnappingEngine.distance(p, a);
+    let t = ((p.x - a.x) * dx + (p.y - a.y) * dy) / l2;
+    t = Math.max(0, Math.min(1, t));
+    const proj = { x: a.x + t * dx, y: a.y + t * dy };
+    return SnappingEngine.distance(p, proj);
+  }
+
+  private getWallHeight(wall: Wall): number {
+    const defaultH = this.project.defaultCeilingHeight || 2.50;
+    const mid = {
+      x: (wall.start.x + wall.end.x) / 2,
+      y: (wall.start.y + wall.end.y) / 2
+    };
+
+    const adjacentRooms = (this.project.rooms || []).filter(room => {
+      if (!room.polygon || room.polygon.length < 3) return false;
+      if (PolygonUtils.isPointInPolygon(mid, room.polygon)) return true;
+      for (let i = 0; i < room.polygon.length; i++) {
+        const pA = room.polygon[i];
+        const pB = room.polygon[(i + 1) % room.polygon.length];
+        if (this.pointToSegmentDistance(mid, pA, pB) <= (wall.thickness / 2 + 0.35)) {
+          return true;
+        }
+      }
+      return false;
+    });
+
+    if (adjacentRooms.length > 0) {
+      const roomHeights = adjacentRooms.map(r => r.height || defaultH);
+      return Math.max(...roomHeights, wall.height || 0);
+    }
+
+    return wall.height || defaultH;
+  }
+
+  private handleRoomClick(e: MouseEvent, room: Room) {
+    if (this.drawingWallStart || this.calibrateStart || this.rescaleStart) {
+      return;
+    }
+    e.stopPropagation();
+    this.dispatchEvent(new CustomEvent('room-selected', {
+      detail: { room },
+      bubbles: true,
+      composed: true
+    }));
+  }
+
   // Rendu des Pièces avec détection d'illumination si lumière allumée
   private renderRooms() {
     return this.project.rooms.map((room) => {
@@ -556,17 +607,22 @@ export class HomeArchitectCanvas extends LitElement {
         });
 
       const centroid = PolygonUtils.calculateCentroid(screenPts);
+      const roomH = room.height || this.project.defaultCeilingHeight || 2.50;
+      const roomVolume = (room.areaM2 * roomH).toFixed(1);
 
       return svg`
-        <g class="room-group" data-room-id="${room.id}">
+        <g class="room-group" data-room-id="${room.id}" @click=${(e: MouseEvent) => this.handleRoomClick(e, room)}>
           <polygon 
             points="${pointsAttr}" 
             class="room-polygon ${isRoomIlluminated ? 'illuminated' : ''}"
-            style="fill: ${room.color || 'rgba(56, 189, 248, 0.12)'};"
+            style="fill: ${room.color || 'rgba(56, 189, 248, 0.12)'}; cursor: pointer;"
           />
           <g class="room-label-group" transform="translate(${centroid.x}, ${centroid.y})">
-            <text class="room-label-name" y="-6">${room.name}</text>
-            <text class="room-label-area" y="12">${room.areaM2.toFixed(1)} m²</text>
+            <text class="room-label-name" y="${this.is3DMode ? -14 : -6}">${room.name}</text>
+            <text class="room-label-area" y="${this.is3DMode ? 4 : 12}">${room.areaM2.toFixed(1)} m²</text>
+            ${this.is3DMode ? svg`
+              <text class="room-label-height" y="20">H: ${roomH.toFixed(2)}m · ${roomVolume} m³</text>
+            ` : null}
           </g>
         </g>
       `;
@@ -604,9 +660,10 @@ export class HomeArchitectCanvas extends LitElement {
 
   private renderWalls() {
     const ppm = this.project.pixelsPerMeter * this.viewport.zoom;
-    const wallExtrusionH = this.is3DMode ? 40 * this.viewport.zoom : 0; // Hauteur d'extrusion 3D en px
 
     return this.project.walls.map((wall) => {
+      const wallHeight = this.getWallHeight(wall);
+      const wallExtrusionH = this.is3DMode ? wallHeight * ppm * 0.55 : 0; // Hauteur d'extrusion 3D métrique
       const p = this.computeWallPolygon(wall.start, wall.end, wall.thickness);
       const sp = p.map(pt => this.worldToScreen(pt));
       const sStart = this.worldToScreen(wall.start);

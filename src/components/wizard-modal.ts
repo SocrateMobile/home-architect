@@ -308,11 +308,15 @@ export class HomeArchitectWizardModal extends LitElement {
   @state()
   private roomName: string = PREDEFINED_TEMPLATES[0].name;
 
+  @state()
+  private height: number = 2.50;
+
   private selectTemplate(tmpl: RoomTemplate) {
     this.selectedTemplate = tmpl;
     this.width = tmpl.widthMeters;
     this.length = tmpl.lengthMeters;
     this.thickness = tmpl.wallThickness;
+    this.height = tmpl.heightMeters || 2.50;
     this.addDoor = tmpl.addDoor;
     this.addWindow = tmpl.addWindow;
     this.roomName = tmpl.name;
@@ -325,6 +329,7 @@ export class HomeArchitectWizardModal extends LitElement {
         width: this.width,
         length: this.length,
         thickness: this.thickness,
+        height: this.height,
         color: this.selectedTemplate.color,
         icon: this.selectedTemplate.icon,
         addDoor: this.addDoor,
@@ -408,6 +413,21 @@ export class HomeArchitectWizardModal extends LitElement {
           <div class="field-row">
             <span class="field-label">Superficie calculée :</span>
             <span class="surface-badge">${areaM2} m²</span>
+          </div>
+
+          <div class="field-row">
+            <span class="field-label">Hauteur sous plafond (3D) :</span>
+            <div class="field-inputs">
+              <input 
+                type="number" 
+                step="0.1" 
+                min="1.5" 
+                max="10"
+                .value=${this.height}
+                @input=${(e: any) => this.height = parseFloat(e.target.value) || 2.5}
+              />
+              <span>m</span>
+            </div>
           </div>
 
           <div class="field-row">

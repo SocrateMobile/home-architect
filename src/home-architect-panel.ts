@@ -3,6 +3,7 @@ import { customElement, property, state } from 'lit/decorators.js';
 import './components/canvas-view';
 import './components/toolbar';
 import './components/wizard-modal';
+import './components/room-modal';
 import './components/calibrate-modal';
 import './components/entity-drawer';
 import './components/import-modal';
@@ -347,6 +348,9 @@ export class HomeArchitectPanel extends LitElement {
   private rescaleMeasuredMeters: number = 0;
 
   @state()
+  private selectedRoomForEdit: Room | null = null;
+
+  @state()
   private project: HomeArchitectProject = {
     id: 'rdc',
     name: 'Rez-de-Chaussée',
@@ -392,7 +396,8 @@ export class HomeArchitectPanel extends LitElement {
   }
 
   private handleCreateRoomFromWizard(e: CustomEvent<any>) {
-    const { name, width, length, thickness, color, icon, addDoor, addWindow } = e.detail;
+    const { name, width, length, thickness, height, color, icon, addDoor, addWindow } = e.detail;
+    const roomH = height || 2.50;
 
     const startX = 2.0;
     const startY = 2.0;
@@ -407,6 +412,7 @@ export class HomeArchitectPanel extends LitElement {
       start: p1,
       end: p2,
       thickness,
+      height: roomH,
       type: 'standard'
     };
     const wRight: Wall = {
@@ -414,6 +420,7 @@ export class HomeArchitectPanel extends LitElement {
       start: p2,
       end: p3,
       thickness,
+      height: roomH,
       type: 'standard'
     };
     const wBottom: Wall = {
@@ -421,6 +428,7 @@ export class HomeArchitectPanel extends LitElement {
       start: p3,
       end: p4,
       thickness,
+      height: roomH,
       type: 'standard'
     };
     const wLeft: Wall = {
@@ -428,6 +436,7 @@ export class HomeArchitectPanel extends LitElement {
       start: p4,
       end: p1,
       thickness,
+      height: roomH,
       type: 'standard'
     };
 
@@ -463,7 +472,8 @@ export class HomeArchitectPanel extends LitElement {
       polygon: [p1, p2, p3, p4],
       areaM2: width * length,
       color,
-      icon
+      icon,
+      height: roomH
     };
 
     this.project = {
@@ -731,6 +741,41 @@ export class HomeArchitectPanel extends LitElement {
     }
   }
 
+  private handleDefaultCeilingChange(val: number) {
+    this.project = {
+      ...this.project,
+      defaultCeilingHeight: val
+    };
+    this.showToast(`📐 Hauteur plafond 3D par défaut : ${val.toFixed(2)} m`);
+  }
+
+  private handleSaveRoom(e: CustomEvent<any>) {
+    const { roomId, name, height, color } = e.detail;
+    const updatedRooms = this.project.rooms.map(r => {
+      if (r.id === roomId) {
+        return { ...r, name, height, color };
+      }
+      return r;
+    });
+
+    this.project = {
+      ...this.project,
+      rooms: updatedRooms
+    };
+    this.selectedRoomForEdit = null;
+    this.showToast(`✨ Pièce "${name}" mise à jour (H: ${height.toFixed(2)} m) !`);
+  }
+
+  private handleDeleteRoom(e: CustomEvent<any>) {
+    const { roomId } = e.detail;
+    this.project = {
+      ...this.project,
+      rooms: this.project.rooms.filter(r => r.id !== roomId)
+    };
+    this.selectedRoomForEdit = null;
+    this.showToast('🗑️ Pièce supprimée');
+  }
+
   private saveProject() {
     if (this.hass && this.hass.callWS) {
       this.hass.callWS({
@@ -835,6 +880,21 @@ export class HomeArchitectPanel extends LitElement {
             </div>
           ` : null}
 
+          <!-- Hauteur sous plafond globale en mode 3D -->
+          ${this.is3DMode ? html`
+            <div class="control-group" title="Hauteur sous plafond par défaut (3D)">
+              <label>Plafond 3D :</label>
+              <select @change=${(e: any) => this.handleDefaultCeilingChange(parseFloat(e.target.value))}>
+                <option value="2.10" ?selected=${(this.project.defaultCeilingHeight || 2.50) === 2.10}>2.10 m (Sous-sol)</option>
+                <option value="2.30" ?selected=${(this.project.defaultCeilingHeight || 2.50) === 2.30}>2.30 m (Combles)</option>
+                <option value="2.50" ?selected=${!this.project.defaultCeilingHeight || this.project.defaultCeilingHeight === 2.50}>2.50 m (Standard)</option>
+                <option value="2.70" ?selected=${(this.project.defaultCeilingHeight || 2.50) === 2.70}>2.70 m (Élevé)</option>
+                <option value="3.00" ?selected=${(this.project.defaultCeilingHeight || 2.50) === 3.00}>3.00 m (Haussmann)</option>
+                <option value="3.50" ?selected=${(this.project.defaultCeilingHeight || 2.50) === 3.50}>3.50 m (Cathédrale)</option>
+              </select>
+            </div>
+          ` : null}
+
           <!-- Opacité du fond -->
           ${hasBg ? html`
             <div class="control-group">
@@ -881,6 +941,7 @@ export class HomeArchitectPanel extends LitElement {
             .currentOpeningWidth=${this.currentOpeningWidth}
             .is3DMode=${this.is3DMode}
             @toggle-3d=${(e: any) => this.is3DMode = e.detail.is3DMode}
+            @room-selected=${(e: any) => this.selectedRoomForEdit = e.detail.room}
             @project-changed=${this.handleProjectChanged}
             @request-calibration=${this.handleRequestCalibration}
             @request-rescale=${this.handleRequestRescale}
@@ -918,6 +979,16 @@ export class HomeArchitectPanel extends LitElement {
           @create-room=${this.handleCreateRoomFromWizard}
           @close=${() => this.isWizardOpen = false}
         ></home-architect-wizard-modal>
+      ` : null}
+
+      <!-- Modal Propriétés de la Pièce (Hauteur sous plafond 3D, etc.) -->
+      ${this.selectedRoomForEdit ? html`
+        <home-architect-room-modal
+          .room=${this.selectedRoomForEdit}
+          @save-room=${this.handleSaveRoom}
+          @delete-room=${this.handleDeleteRoom}
+          @close=${() => this.selectedRoomForEdit = null}
+        ></home-architect-room-modal>
       ` : null}
 
       <!-- Modal Étalonnage Mesure de Mur -->
