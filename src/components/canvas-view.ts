@@ -298,6 +298,26 @@ export class HomeArchitectCanvas extends LitElement {
 
   private handleDrop(e: DragEvent): void {
     e.preventDefault();
+
+    // 1. Dépose d'un fichier image (Glisser-Déposer depuis le bureau ou le Finder)
+    if (e.dataTransfer?.files && e.dataTransfer.files.length > 0) {
+      const file = e.dataTransfer.files[0];
+      if (file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onload = (loadEvt) => {
+          const dataUrl = loadEvt.target?.result as string;
+          this.dispatchEvent(new CustomEvent('background-image-loaded', {
+            detail: { dataUrl },
+            bubbles: true,
+            composed: true
+          }));
+        };
+        reader.readAsDataURL(file);
+        return;
+      }
+    }
+
+    // 2. Dépose d'une entité Home Assistant depuis le tiroir
     const rawData = e.dataTransfer?.getData('application/json');
     if (!rawData) return;
 

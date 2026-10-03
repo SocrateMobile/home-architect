@@ -222,6 +222,33 @@ export class HomeArchitectPanel extends LitElement {
       font-family: ui-monospace, SFMono-Regular, monospace;
       padding: 2px 6px;
     }
+
+    .toast-notification {
+      position: absolute;
+      top: 72px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(15, 23, 42, 0.95);
+      backdrop-filter: blur(12px);
+      border: 1px solid #38bdf8;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), 0 0 15px rgba(56, 189, 248, 0.35);
+      border-radius: 12px;
+      padding: 10px 22px;
+      font-size: 0.88rem;
+      font-weight: 600;
+      color: #f8fafc;
+      z-index: 80;
+      animation: popToast 0.25s ease-out;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      pointer-events: none;
+    }
+
+    @keyframes popToast {
+      from { transform: translate(-50%, -12px); opacity: 0; }
+      to { transform: translate(-50%, 0); opacity: 1; }
+    }
   `;
 
   @property({ type: Object })
@@ -388,6 +415,89 @@ export class HomeArchitectPanel extends LitElement {
     this.activeTool = 'select';
   }
 
+  @state()
+  private toastMessage: string | null = null;
+  private toastTimeout: any = null;
+  private _boundPaste: any = null;
+
+  connectedCallback() {
+    super.connectedCallback();
+    this._boundPaste = this.handlePaste.bind(this);
+    window.addEventListener('paste', this._boundPaste);
+  }
+
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    if (this._boundPaste) {
+      window.removeEventListener('paste', this._boundPaste);
+    }
+    if (this.toastTimeout) {
+      clearTimeout(this.toastTimeout);
+    }
+  }
+
+  public showToast(msg: string) {
+    this.toastMessage = msg;
+    if (this.toastTimeout) clearTimeout(this.toastTimeout);
+    this.toastTimeout = setTimeout(() => {
+      this.toastMessage = null;
+    }, 4500);
+  }
+
+  public loadBackgroundImage(dataUrl: string, sourceLabel: string = 'Plan chargé !') {
+    const img = new Image();
+    img.onload = () => {
+      this.project = {
+        ...this.project,
+        background: {
+          imageUrl: dataUrl,
+          opacity: 0.40,
+          visible: true,
+          offset: { x: 0, y: 0 },
+          scale: 1.0,
+          rotation: 0,
+          widthPx: img.naturalWidth,
+          heightPx: img.naturalHeight
+        }
+      };
+      this.activeTool = 'calibrate';
+      this.showToast(`${sourceLabel} Tracez un segment sur un mur mesuré pour étalonner l'échelle (📏).`);
+    };
+    img.onerror = () => {
+      this.showToast('❌ Erreur lors du chargement de l\'image.');
+    };
+    img.src = dataUrl;
+  }
+
+  private handlePaste(e: ClipboardEvent) {
+    if (!e.clipboardData) return;
+
+    // 1. Image brute dans le presse-papier (ex: capture d'écran Cmd+Shift+4 / Cmd+C)
+    const items = e.clipboardData.items;
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.indexOf('image') !== -1) {
+        const file = items[i].getAsFile();
+        if (file) {
+          e.preventDefault();
+          const reader = new FileReader();
+          reader.onload = (loadEvt) => {
+            const dataUrl = loadEvt.target?.result as string;
+            this.loadBackgroundImage(dataUrl, '📋 Image collée depuis le presse-papier !');
+          };
+          reader.readAsDataURL(file);
+          return;
+        }
+      }
+    }
+
+    // 2. URL ou data-url en texte brut
+    const text = e.clipboardData.getData('text/plain')?.trim();
+    if (text && (text.startsWith('data:image/') || text.match(/\.(png|jpe?g|svg|webp)(\?.*)?$/i))) {
+      e.preventDefault();
+      this.loadBackgroundImage(text, '📋 Image chargée depuis l\'URL collée !');
+    }
+  }
+
   private triggerFileInput() {
     if (!this.fileInputRef) {
       const input = document.createElement('input');
@@ -408,24 +518,7 @@ export class HomeArchitectPanel extends LitElement {
     const reader = new FileReader();
     reader.onload = (loadEvent) => {
       const dataUrl = loadEvent.target?.result as string;
-      const img = new Image();
-      img.onload = () => {
-        this.project = {
-          ...this.project,
-          background: {
-            imageUrl: dataUrl,
-            opacity: 0.40,
-            visible: true,
-            offset: { x: 0, y: 0 },
-            scale: 1.0,
-            rotation: 0,
-            widthPx: img.naturalWidth,
-            heightPx: img.naturalHeight
-          }
-        };
-        this.activeTool = 'calibrate';
-      };
-      img.src = dataUrl;
+      this.loadBackgroundImage(dataUrl, '🖼️ Image importée depuis votre ordinateur !');
     };
     reader.readAsDataURL(file);
   }
@@ -590,7 +683,15 @@ export class HomeArchitectPanel extends LitElement {
           @toggle-3d=${(e: any) => this.is3DMode = e.detail.is3DMode}
           @project-changed=${this.handleProjectChanged}
           @request-calibration=${this.handleRequestCalibration}
+          @background-image-loaded=${(e: any) => this.loadBackgroundImage(e.detail.dataUrl, '🖼️ Image de plan glissée-déposée !')}
         ></home-architect-canvas>
+
+        <!-- Notification Toast -->
+        ${this.toastMessage ? html`
+          <div class="toast-notification">
+            ${this.toastMessage}
+          </div>
+        ` : null}
 
         <!-- Tiroir latéral des entités HA -->
         ${this.isDrawerOpen ? html`
