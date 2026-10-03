@@ -156,7 +156,7 @@ export class HomeArchitectToolbar extends LitElement {
       <button 
         class="tool-btn" 
         @click=${this.triggerImageUpload} 
-        title="Importer un plan en fond (PNG/JPG/PDF)"
+        title="Importer un plan (PNG/JPG/PDF) ou Coller directement (Cmd+V / Ctrl+V)"
       >
         🖼️
       </button>
