@@ -2,7 +2,11 @@ import { LitElement, html, css } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import './components/canvas-view';
 import './components/toolbar';
-import { ActiveTool, HomeArchitectProject } from './core/types';
+import './components/wizard-modal';
+import './components/calibrate-modal';
+import { 
+  ActiveTool, HomeArchitectProject, Wall, Opening, Room, Point 
+} from './core/types';
 
 @customElement('home-architect-panel')
 export class HomeArchitectPanel extends LitElement {
@@ -65,7 +69,7 @@ export class HomeArchitectPanel extends LitElement {
       background: rgba(15, 23, 42, 0.6);
       border: 1px solid rgba(255, 255, 255, 0.1);
       border-radius: 8px;
-      padding: 2px 6px;
+      padding: 2px 8px;
       gap: 6px;
       font-size: 0.85rem;
     }
@@ -75,7 +79,7 @@ export class HomeArchitectPanel extends LitElement {
       font-size: 0.8rem;
     }
 
-    select, button.btn-action {
+    select, input[type="range"], button.btn-action {
       background: transparent;
       color: #f8fafc;
       border: none;
@@ -107,6 +111,26 @@ export class HomeArchitectPanel extends LitElement {
     button.btn-primary:hover {
       background: #0369a1;
       box-shadow: 0 0 12px rgba(56, 189, 248, 0.4);
+    }
+
+    button.btn-wizard {
+      background: rgba(245, 158, 11, 0.2);
+      color: #f59e0b;
+      border: 1px solid rgba(245, 158, 11, 0.4);
+      border-radius: 8px;
+      padding: 6px 12px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s ease;
+    }
+
+    button.btn-wizard:hover {
+      background: #f59e0b;
+      color: #ffffff;
     }
 
     .workspace {
@@ -146,9 +170,15 @@ export class HomeArchitectPanel extends LitElement {
       color: #38bdf8;
       font-weight: 600;
     }
+
+    .scale-indicator {
+      font-size: 0.8rem;
+      color: #38bdf8;
+      font-family: ui-monospace, SFMono-Regular, monospace;
+      padding: 2px 6px;
+    }
   `;
 
-  // Home Assistant Connection (Injecté automatiquement par HA)
   @property({ type: Object })
   public hass: any;
 
@@ -159,10 +189,22 @@ export class HomeArchitectPanel extends LitElement {
   private activeTool: ActiveTool = 'wall';
 
   @state()
-  private currentThickness: number = 0.20; // 20cm
+  private currentThickness: number = 0.20;
+
+  @state()
+  private currentOpeningWidth: number = 0.90;
 
   @state()
   private activeLevel: string = 'rdc';
+
+  @state()
+  private isWizardOpen: boolean = false;
+
+  @state()
+  private isCalibrateModalOpen: boolean = false;
+
+  @state()
+  private calibrationData: { pixelDistance: number; defaultMeters: number } | null = null;
 
   @state()
   private project: HomeArchitectProject = {
@@ -184,21 +226,201 @@ export class HomeArchitectPanel extends LitElement {
     bindings: []
   };
 
+  private fileInputRef: HTMLInputElement | null = null;
+
   private handleToolSelected(e: CustomEvent<{ tool: ActiveTool }>) {
     this.activeTool = e.detail.tool;
+    if (this.activeTool === 'door') {
+      this.currentOpeningWidth = 0.90;
+    } else if (this.activeTool === 'window') {
+      this.currentOpeningWidth = 1.20;
+    } else if (this.activeTool === 'french_window') {
+      this.currentOpeningWidth = 2.00;
+    }
   }
 
   private handleProjectChanged(e: CustomEvent<{ project: HomeArchitectProject }>) {
-    this.project = e.detail.project;
+    this.project = { ...e.detail.project };
   }
 
   private handleThicknessChange(e: Event) {
-    const val = parseFloat((e.target as HTMLSelectElement).value);
-    this.currentThickness = val;
+    this.currentThickness = parseFloat((e.target as HTMLSelectElement).value);
+  }
+
+  private handleOpeningWidthChange(e: Event) {
+    this.currentOpeningWidth = parseFloat((e.target as HTMLSelectElement).value);
+  }
+
+  // ==========================================
+  // ASSISTANT DÉBUTANT (CRÉATION DE PIÈCE)
+  // ==========================================
+
+  private handleCreateRoomFromWizard(e: CustomEvent<any>) {
+    const { name, width, length, thickness, color, icon, addDoor, addWindow } = e.detail;
+
+    // Calcul du point de placement (centre de la pièce au centre de la grille ou à (2, 2))
+    const startX = 2.0;
+    const startY = 2.0;
+
+    const p1: Point = { x: startX, y: startY };
+    const p2: Point = { x: startX + width, y: startY };
+    const p3: Point = { x: startX + width, y: startY + length };
+    const p4: Point = { x: startX, y: startY + length };
+
+    // 4 Murs
+    const wTop: Wall = {
+      id: `w_top_${Date.now()}`,
+      start: p1,
+      end: p2,
+      thickness,
+      type: 'standard'
+    };
+    const wRight: Wall = {
+      id: `w_right_${Date.now()}`,
+      start: p2,
+      end: p3,
+      thickness,
+      type: 'standard'
+    };
+    const wBottom: Wall = {
+      id: `w_bottom_${Date.now()}`,
+      start: p3,
+      end: p4,
+      thickness,
+      type: 'standard'
+    };
+    const wLeft: Wall = {
+      id: `w_left_${Date.now()}`,
+      start: p4,
+      end: p1,
+      thickness,
+      type: 'standard'
+    };
+
+    const newOpenings: Opening[] = [];
+
+    // Ajout Porte en bas
+    if (addDoor) {
+      newOpenings.push({
+        id: `op_door_${Date.now()}`,
+        wallId: wBottom.id,
+        type: 'door',
+        offset: width / 2,
+        width: 0.90,
+        flipSide: false,
+        flipDirection: false
+      });
+    }
+
+    // Ajout Fenêtre en haut
+    if (addWindow) {
+      newOpenings.push({
+        id: `op_win_${Date.now()}`,
+        wallId: wTop.id,
+        type: 'window',
+        offset: width / 2,
+        width: 1.20,
+        flipSide: false,
+        flipDirection: false
+      });
+    }
+
+    // Objet Pièce
+    const newRoom: Room = {
+      id: `room_${Date.now()}`,
+      name,
+      polygon: [p1, p2, p3, p4],
+      areaM2: width * length,
+      color,
+      icon
+    };
+
+    this.project = {
+      ...this.project,
+      walls: [...this.project.walls, wTop, wRight, wBottom, wLeft],
+      openings: [...this.project.openings, ...newOpenings],
+      rooms: [...this.project.rooms, newRoom]
+    };
+
+    this.isWizardOpen = false;
+    this.activeTool = 'select';
+  }
+
+  // ==========================================
+  // IMPORT D'IMAGE DE FOND & ÉTALONNAGE
+  // ==========================================
+
+  private triggerFileInput() {
+    if (!this.fileInputRef) {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'image/*';
+      input.style.display = 'none';
+      input.addEventListener('change', (e: any) => this.handleFileSelected(e));
+      document.body.appendChild(input);
+      this.fileInputRef = input;
+    }
+    this.fileInputRef.click();
+  }
+
+  private handleFileSelected(e: Event) {
+    const file = (e.target as HTMLInputElement).files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (loadEvent) => {
+      const dataUrl = loadEvent.target?.result as string;
+      const img = new Image();
+      img.onload = () => {
+        this.project = {
+          ...this.project,
+          background: {
+            imageUrl: dataUrl,
+            opacity: 0.40,
+            visible: true,
+            offset: { x: 0, y: 0 },
+            scale: 1.0,
+            rotation: 0,
+            widthPx: img.naturalWidth,
+            heightPx: img.naturalHeight
+          }
+        };
+
+        // Passe automatiquement à l'outil Étalonnage pour faciliter le calibrage
+        this.activeTool = 'calibrate';
+      };
+      img.src = dataUrl;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  private handleRequestCalibration(e: CustomEvent<{ pixelDistance: number; defaultMeters: number }>) {
+    this.calibrationData = e.detail;
+    this.isCalibrateModalOpen = true;
+  }
+
+  private handleCalibrateConfirmed(e: CustomEvent<{ pixelsPerMeter: number }>) {
+    const { pixelsPerMeter } = e.detail;
+    this.project = {
+      ...this.project,
+      pixelsPerMeter: Math.round(pixelsPerMeter * 10) / 10
+    };
+    this.isCalibrateModalOpen = false;
+    this.calibrationData = null;
+    this.activeTool = 'wall';
+  }
+
+  private handleOpacityChange(e: Event) {
+    const opacity = parseFloat((e.target as HTMLInputElement).value);
+    if (this.project.background) {
+      this.project = {
+        ...this.project,
+        background: { ...this.project.background, opacity }
+      };
+    }
   }
 
   private saveProject() {
-    // Appel WebSocket vers custom_component Home Assistant
     if (this.hass && this.hass.callWS) {
       this.hass.callWS({
         type: 'home_architect/save_project',
@@ -206,10 +428,9 @@ export class HomeArchitectPanel extends LitElement {
       }).then(() => {
         alert('Plan sauvegardé avec succès dans Home Assistant !');
       }).catch((err: any) => {
-        console.error('Erreur de sauvegarde HA:', err);
-        // Sauvegarde locale de secours
+        console.error('Erreur sauvegarde HA:', err);
         localStorage.setItem(`home_architect_${this.project.id}`, JSON.stringify(this.project));
-        alert('Sauvegardé localement dans le navigateur (Mode autonome).');
+        alert('Sauvegardé localement dans le navigateur.');
       });
     } else {
       localStorage.setItem(`home_architect_${this.project.id}`, JSON.stringify(this.project));
@@ -218,12 +439,14 @@ export class HomeArchitectPanel extends LitElement {
   }
 
   render() {
+    const hasBg = !!this.project.background?.imageUrl;
+
     return html`
       <header class="top-bar">
         <div class="brand">
           <span class="brand-icon">📐</span>
           <span>Home Architect</span>
-          <span class="brand-tag">Studio 2D/3D</span>
+          <span class="brand-tag">Studio & Décalque</span>
         </div>
 
         <div class="level-selector">
@@ -234,33 +457,63 @@ export class HomeArchitectPanel extends LitElement {
         </div>
 
         <div class="top-controls">
-          <!-- Épaisseur de mur -->
-          <div class="control-group">
-            <label>Épaisseur :</label>
-            <select @change=${this.handleThicknessChange}>
-              <option value="0.10">Cloison 10 cm</option>
-              <option value="0.15">Mur 15 cm</option>
-              <option value="0.20" selected>Porteur 20 cm</option>
-              <option value="0.30">Extérieur 30 cm</option>
-            </select>
+          <!-- Assistant Débutant -->
+          <button class="btn-wizard" @click=${() => this.isWizardOpen = true}>
+            🪄 Assistant Pièce
+          </button>
+
+          <!-- Épaisseur mur -->
+          ${this.activeTool === 'wall' ? html`
+            <div class="control-group">
+              <label>Épaisseur :</label>
+              <select @change=${this.handleThicknessChange}>
+                <option value="0.10">Cloison 10 cm</option>
+                <option value="0.15">Mur 15 cm</option>
+                <option value="0.20" selected>Porteur 20 cm</option>
+                <option value="0.30">Extérieur 30 cm</option>
+              </select>
+            </div>
+          ` : null}
+
+          <!-- Largeur ouvrant -->
+          ${this.activeTool === 'door' || this.activeTool === 'window' || this.activeTool === 'french_window' ? html`
+            <div class="control-group">
+              <label>Largeur :</label>
+              <select @change=${this.handleOpeningWidthChange}>
+                <option value="0.73">73 cm (Étroite)</option>
+                <option value="0.83">83 cm (Chambre)</option>
+                <option value="0.90" selected>90 cm (Standard)</option>
+                <option value="1.20">1.20 m (Fenêtre)</option>
+                <option value="1.40">1.40 m (Double)</option>
+                <option value="2.00">2.00 m (Baie)</option>
+                <option value="2.40">2.40 m (Grande baie)</option>
+              </select>
+            </div>
+          ` : null}
+
+          <!-- Opacité de l'image de fond si présente -->
+          ${hasBg ? html`
+            <div class="control-group">
+              <label>Fond :</label>
+              <input 
+                type="range" 
+                min="0.05" 
+                max="1.0" 
+                step="0.05" 
+                .value=${this.project.background?.opacity || 0.4}
+                @input=${this.handleOpacityChange}
+                style="width: 70px;"
+                title="Opacité du plan de fond"
+              />
+            </div>
+          ` : null}
+
+          <!-- Indicateur d'échelle -->
+          <div class="scale-indicator" title="Échelle : pixels par mètre">
+            1 m = ${this.project.pixelsPerMeter} px
           </div>
 
-          <!-- Aimantation -->
-          <div class="control-group">
-            <label>Grille :</label>
-            <input 
-              type="checkbox" 
-              ?checked=${this.project.grid.snapToGrid}
-              @change=${(e: any) => {
-                this.project = {
-                  ...this.project,
-                  grid: { ...this.project.grid, snapToGrid: e.target.checked }
-                };
-              }}
-            />
-          </div>
-
-          <!-- Bouton de Sauvegarde -->
+          <!-- Sauvegarde -->
           <button class="btn-primary" @click=${this.saveProject}>
             💾 Sauvegarder
           </button>
@@ -268,21 +521,41 @@ export class HomeArchitectPanel extends LitElement {
       </header>
 
       <div class="workspace">
-        <!-- Barre d'outils flottante -->
         <home-architect-toolbar 
           class="floating-toolbar"
           .activeTool=${this.activeTool}
           @tool-selected=${this.handleToolSelected}
+          @open-wizard=${() => this.isWizardOpen = true}
+          @trigger-upload-background=${this.triggerFileInput}
         ></home-architect-toolbar>
 
-        <!-- Canevas interactif SVG -->
         <home-architect-canvas
           .project=${this.project}
           .activeTool=${this.activeTool}
           .currentWallThickness=${this.currentThickness}
+          .currentOpeningWidth=${this.currentOpeningWidth}
           @project-changed=${this.handleProjectChanged}
+          @request-calibration=${this.handleRequestCalibration}
         ></home-architect-canvas>
       </div>
+
+      <!-- Modale Assistant Débutant -->
+      ${this.isWizardOpen ? html`
+        <home-architect-wizard-modal
+          @create-room=${this.handleCreateRoomFromWizard}
+          @close=${() => this.isWizardOpen = false}
+        ></home-architect-wizard-modal>
+      ` : null}
+
+      <!-- Modale Étalonnage Échelle -->
+      ${this.isCalibrateModalOpen && this.calibrationData ? html`
+        <home-architect-calibrate-modal
+          .pixelDistance=${this.calibrationData.pixelDistance}
+          .defaultMeters=${this.calibrationData.defaultMeters}
+          @calibrate-confirmed=${this.handleCalibrateConfirmed}
+          @close=${() => this.isCalibrateModalOpen = false}
+        ></home-architect-calibrate-modal>
+      ` : null}
     `;
   }
 }
