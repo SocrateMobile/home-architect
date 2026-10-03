@@ -7,8 +7,12 @@ import './components/calibrate-modal';
 import './components/entity-drawer';
 import './components/import-modal';
 import { ImportModalResult } from './components/import-modal';
+import './components/rescale-modal';
+import { RescaleModalResult } from './components/rescale-modal';
+import { SnappingEngine } from './core/snapping';
+import { PolygonUtils } from './core/polygon';
 import { 
-  ActiveTool, HomeArchitectProject, Wall, Opening, Room, Point 
+  ActiveTool, HomeArchitectProject, Wall, Opening, Room, Point, EntityBinding 
 } from './core/types';
 
 @customElement('home-architect-panel')
@@ -137,6 +141,28 @@ export class HomeArchitectPanel extends LitElement {
       background: #10b981;
       color: #ffffff;
       box-shadow: 0 0 14px rgba(16, 185, 129, 0.45);
+    }
+
+    button.btn-rescale {
+      background: rgba(56, 189, 248, 0.15);
+      color: #38bdf8;
+      border: 1px solid rgba(56, 189, 248, 0.35);
+      border-radius: 8px;
+      padding: 6px 13px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s ease;
+    }
+
+    button.btn-rescale:hover, button.btn-rescale.active {
+      background: #0284c7;
+      color: #ffffff;
+      border-color: #38bdf8;
+      box-shadow: 0 0 14px rgba(56, 189, 248, 0.45);
     }
 
     button.btn-drawer {
@@ -313,6 +339,12 @@ export class HomeArchitectPanel extends LitElement {
 
   @state()
   private calibrationData: { pixelDistance: number; defaultMeters: number } | null = null;
+
+  @state()
+  private isRescaleModalOpen: boolean = false;
+
+  @state()
+  private rescaleMeasuredMeters: number = 0;
 
   @state()
   private project: HomeArchitectProject = {
@@ -603,6 +635,92 @@ export class HomeArchitectPanel extends LitElement {
     this.activeTool = 'wall';
   }
 
+  private handleRequestRescale(e: CustomEvent<{ measuredMeters: number }>) {
+    this.rescaleMeasuredMeters = e.detail.measuredMeters;
+    this.isRescaleModalOpen = true;
+  }
+
+  private handleRescaleConfirmed(e: CustomEvent<RescaleModalResult>) {
+    const { currentMeters, targetMeters, scaleFactor, adjustBackground } = e.detail;
+    this.isRescaleModalOpen = false;
+
+    if (scaleFactor <= 0 || isNaN(scaleFactor)) return;
+
+    // 1. Recalcul de tous les murs (coordonnées et cotes)
+    const newWalls: Wall[] = this.project.walls.map(w => ({
+      ...w,
+      start: {
+        x: SnappingEngine.roundMeters(w.start.x * scaleFactor),
+        y: SnappingEngine.roundMeters(w.start.y * scaleFactor)
+      },
+      end: {
+        x: SnappingEngine.roundMeters(w.end.x * scaleFactor),
+        y: SnappingEngine.roundMeters(w.end.y * scaleFactor)
+      }
+    }));
+
+    // 2. Recalcul de toutes les ouvertures
+    const newOpenings: Opening[] = this.project.openings.map(op => ({
+      ...op,
+      offset: SnappingEngine.roundMeters(op.offset * scaleFactor),
+      width: SnappingEngine.roundMeters(op.width * scaleFactor)
+    }));
+
+    // 3. Recalcul de toutes les pièces et de leurs surfaces en m²
+    const newRooms: Room[] = this.project.rooms.map(room => {
+      const newPolygon = room.polygon.map(p => ({
+        x: SnappingEngine.roundMeters(p.x * scaleFactor),
+        y: SnappingEngine.roundMeters(p.y * scaleFactor)
+      }));
+      const newArea = PolygonUtils.computeArea(newPolygon);
+      return {
+        ...room,
+        polygon: newPolygon,
+        areaM2: newArea || SnappingEngine.roundMeters(room.areaM2 * scaleFactor * scaleFactor)
+      };
+    });
+
+    // 4. Recalcul des liaisons d'entités domotiques
+    const newBindings: EntityBinding[] = this.project.bindings.map(b => ({
+      ...b,
+      position: {
+        x: SnappingEngine.roundMeters(b.position.x * scaleFactor),
+        y: SnappingEngine.roundMeters(b.position.y * scaleFactor)
+      }
+    }));
+
+    // 5. Ajustement de l'échelle du calque de fond (si présent)
+    let newPpm = this.project.pixelsPerMeter;
+    let newBg = this.project.background ? { ...this.project.background } : undefined;
+    if (adjustBackground && newBg) {
+      newPpm = Math.round((this.project.pixelsPerMeter / scaleFactor) * 10) / 10;
+      if (newBg.offset) {
+        newBg = {
+          ...newBg,
+          offset: {
+            x: SnappingEngine.roundMeters(newBg.offset.x * scaleFactor),
+            y: SnappingEngine.roundMeters(newBg.offset.y * scaleFactor)
+          }
+        };
+      }
+    }
+
+    this.project = {
+      ...this.project,
+      pixelsPerMeter: newPpm,
+      walls: newWalls,
+      openings: newOpenings,
+      rooms: newRooms,
+      bindings: newBindings,
+      background: newBg
+    };
+
+    this.activeTool = 'select';
+    this.showToast(
+      `✅ Plan mis à l'échelle (×${scaleFactor.toFixed(3)}) : ${newWalls.length} murs et ${newRooms.length} pièces recalculés !`
+    );
+  }
+
   private handleOpacityChange(e: Event) {
     const opacity = parseFloat((e.target as HTMLInputElement).value);
     if (this.project.background) {
@@ -654,6 +772,16 @@ export class HomeArchitectPanel extends LitElement {
           <button class="btn-import" @click=${() => this.isImportModalOpen = true} title="Importer et calibrer un plan image (PNG, JPG, SVG)">
             <span>📥</span>
             <span>Importer un plan</span>
+          </button>
+
+          <!-- Bouton Mettre à l'échelle (Recalculer toutes les cotes) -->
+          <button 
+            class="btn-rescale ${this.activeTool === 'rescale' ? 'active' : ''}" 
+            @click=${() => this.activeTool = 'rescale'} 
+            title="Mettre à l'échelle : mesurer un mur ou deux points pour recalculer toutes les cotes (S)"
+          >
+            <span>📐</span>
+            <span>Mettre à l'échelle</span>
           </button>
 
           <!-- Bascule 2D / 3D -->
@@ -755,6 +883,7 @@ export class HomeArchitectPanel extends LitElement {
             @toggle-3d=${(e: any) => this.is3DMode = e.detail.is3DMode}
             @project-changed=${this.handleProjectChanged}
             @request-calibration=${this.handleRequestCalibration}
+            @request-rescale=${this.handleRequestRescale}
             @background-image-loaded=${(e: any) => this.loadBackgroundImage(e.detail.dataUrl, '🖼️ Image de plan glissée-déposée !')}
           ></home-architect-canvas>
 
@@ -799,6 +928,18 @@ export class HomeArchitectPanel extends LitElement {
           @calibrate-confirmed=${this.handleCalibrateConfirmed}
           @close=${() => this.isCalibrateModalOpen = false}
         ></home-architect-calibrate-modal>
+      ` : null}
+
+      <!-- Modal Mettre à l'échelle (Recalcul de toutes les cotes) -->
+      ${this.isRescaleModalOpen ? html`
+        <home-architect-rescale-modal
+          .measuredMeters=${this.rescaleMeasuredMeters}
+          .wallCount=${this.project.walls.length}
+          .roomCount=${this.project.rooms.length}
+          .openingCount=${this.project.openings.length}
+          @rescale-confirmed=${this.handleRescaleConfirmed}
+          @close=${() => this.isRescaleModalOpen = false}
+        ></home-architect-rescale-modal>
       ` : null}
     `;
   }

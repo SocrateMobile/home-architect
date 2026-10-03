@@ -290,13 +290,22 @@ export class HomeArchitectToolbar extends LitElement {
         🖼️
       </button>
 
-      <!-- Étalonnage d'échelle -->
+      <!-- Étalonnage d'échelle (calque image) -->
       <button 
         class="tool-btn ${this.activeTool === 'calibrate' ? 'active' : ''}" 
         @click=${() => this.selectTool('calibrate')} 
-        title="Étalonnage d'échelle : tracer un mur mesuré (M)"
+        title="Étalonnage d'échelle : tracer un mur mesuré sur l'image (M)"
       >
         📏
+      </button>
+
+      <!-- Mettre à l'échelle le plan (Recalculer toutes les cotes) -->
+      <button 
+        class="tool-btn ${this.activeTool === 'rescale' ? 'active' : ''}" 
+        @click=${() => this.selectTool('rescale')} 
+        title="Mettre à l'échelle : mesurer un mur pour recalculer toutes les cotes (S)"
+      >
+        📐
       </button>
     `;
   }

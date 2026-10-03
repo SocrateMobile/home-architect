@@ -47,4 +47,19 @@ export class PolygonUtils {
       y: sumY / polygon.length
     };
   }
+
+  /**
+   * Computes the geometric area (in m²) of a polygon using the Shoelace formula
+   */
+  public static computeArea(polygon: Point[]): number {
+    if (!polygon || polygon.length < 3) return 0;
+    let area = 0;
+    for (let i = 0; i < polygon.length; i++) {
+      const j = (i + 1) % polygon.length;
+      area += polygon[i].x * polygon[j].y;
+      area -= polygon[j].x * polygon[i].y;
+    }
+    return Math.round(Math.abs(area / 2) * 100) / 100;
+  }
 }
+

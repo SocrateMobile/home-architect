@@ -90,6 +90,7 @@ export type ActiveTool =
   | 'window'
   | 'french_window'
   | 'calibrate'
+  | 'rescale'
   | 'entity_bind';
 
 export interface ViewportTransform {
