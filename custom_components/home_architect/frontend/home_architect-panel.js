@@ -3,222 +3,222 @@
  * Copyright 2019 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
  */
-const ot = globalThis, gt = ot.ShadowRoot && (ot.ShadyCSS === void 0 || ot.ShadyCSS.nativeShadow) && "adoptedStyleSheets" in Document.prototype && "replace" in CSSStyleSheet.prototype, ft = Symbol(), vt = /* @__PURE__ */ new WeakMap();
-let Et = class {
-  constructor(t, e, o) {
-    if (this._$cssResult$ = !0, o !== ft) throw Error("CSSResult is not constructable. Use `unsafeCSS` or `css` instead.");
-    this.cssText = t, this.t = e;
+const re = globalThis, me = re.ShadowRoot && (re.ShadyCSS === void 0 || re.ShadyCSS.nativeShadow) && "adoptedStyleSheets" in Document.prototype && "replace" in CSSStyleSheet.prototype, xe = Symbol(), $e = /* @__PURE__ */ new WeakMap();
+let Oe = class {
+  constructor(e, i, o) {
+    if (this._$cssResult$ = !0, o !== xe) throw Error("CSSResult is not constructable. Use `unsafeCSS` or `css` instead.");
+    this.cssText = e, this.t = i;
   }
   get styleSheet() {
-    let t = this.o;
-    const e = this.t;
-    if (gt && t === void 0) {
-      const o = e !== void 0 && e.length === 1;
-      o && (t = vt.get(e)), t === void 0 && ((this.o = t = new CSSStyleSheet()).replaceSync(this.cssText), o && vt.set(e, t));
+    let e = this.o;
+    const i = this.t;
+    if (me && e === void 0) {
+      const o = i !== void 0 && i.length === 1;
+      o && (e = $e.get(i)), e === void 0 && ((this.o = e = new CSSStyleSheet()).replaceSync(this.cssText), o && $e.set(i, e));
     }
-    return t;
+    return e;
   }
   toString() {
     return this.cssText;
   }
 };
-const Lt = (i) => new Et(typeof i == "string" ? i : i + "", void 0, ft), z = (i, ...t) => {
-  const e = i.length === 1 ? i[0] : t.reduce((o, s, r) => o + ((a) => {
+const He = (t) => new Oe(typeof t == "string" ? t : t + "", void 0, xe), T = (t, ...e) => {
+  const i = t.length === 1 ? t[0] : e.reduce((o, s, r) => o + ((a) => {
     if (a._$cssResult$ === !0) return a.cssText;
     if (typeof a == "number") return a;
     throw Error("Value passed to 'css' function must be a 'css' function result: " + a + ". Use 'unsafeCSS' to pass non-literal values, but take care to ensure page security.");
-  })(s) + i[r + 1], i[0]);
-  return new Et(e, i, ft);
-}, Ht = (i, t) => {
-  if (gt) i.adoptedStyleSheets = t.map((e) => e instanceof CSSStyleSheet ? e : e.styleSheet);
-  else for (const e of t) {
-    const o = document.createElement("style"), s = ot.litNonce;
-    s !== void 0 && o.setAttribute("nonce", s), o.textContent = e.cssText, i.appendChild(o);
+  })(s) + t[r + 1], t[0]);
+  return new Oe(i, t, xe);
+}, Be = (t, e) => {
+  if (me) t.adoptedStyleSheets = e.map((i) => i instanceof CSSStyleSheet ? i : i.styleSheet);
+  else for (const i of e) {
+    const o = document.createElement("style"), s = re.litNonce;
+    s !== void 0 && o.setAttribute("nonce", s), o.textContent = i.cssText, t.appendChild(o);
   }
-}, yt = gt ? (i) => i : (i) => i instanceof CSSStyleSheet ? ((t) => {
-  let e = "";
-  for (const o of t.cssRules) e += o.cssText;
-  return Lt(e);
-})(i) : i;
+}, ke = me ? (t) => t : (t) => t instanceof CSSStyleSheet ? ((e) => {
+  let i = "";
+  for (const o of e.cssRules) i += o.cssText;
+  return He(i);
+})(t) : t;
 /**
  * @license
  * Copyright 2017 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
  */
-const { is: Nt, defineProperty: Bt, getOwnPropertyDescriptor: qt, getOwnPropertyNames: Vt, getOwnPropertySymbols: Gt, getPrototypeOf: Yt } = Object, A = globalThis, wt = A.trustedTypes, Xt = wt ? wt.emptyScript : "", ct = A.reactiveElementPolyfillSupport, X = (i, t) => i, st = { toAttribute(i, t) {
-  switch (t) {
+const { is: qe, defineProperty: Ve, getOwnPropertyDescriptor: Ge, getOwnPropertyNames: Ye, getOwnPropertySymbols: Xe, getPrototypeOf: Je } = Object, E = globalThis, Me = E.trustedTypes, Ze = Me ? Me.emptyScript : "", he = E.reactiveElementPolyfillSupport, Z = (t, e) => t, ae = { toAttribute(t, e) {
+  switch (e) {
     case Boolean:
-      i = i ? Xt : null;
+      t = t ? Ze : null;
       break;
     case Object:
     case Array:
-      i = i == null ? i : JSON.stringify(i);
+      t = t == null ? t : JSON.stringify(t);
   }
-  return i;
-}, fromAttribute(i, t) {
-  let e = i;
-  switch (t) {
+  return t;
+}, fromAttribute(t, e) {
+  let i = t;
+  switch (e) {
     case Boolean:
-      e = i !== null;
+      i = t !== null;
       break;
     case Number:
-      e = i === null ? null : Number(i);
+      i = t === null ? null : Number(t);
       break;
     case Object:
     case Array:
       try {
-        e = JSON.parse(i);
+        i = JSON.parse(t);
       } catch {
-        e = null;
+        i = null;
       }
   }
-  return e;
-} }, bt = (i, t) => !Nt(i, t), $t = { attribute: !0, type: String, converter: st, reflect: !1, useDefault: !1, hasChanged: bt };
-Symbol.metadata ?? (Symbol.metadata = Symbol("metadata")), A.litPropertyMetadata ?? (A.litPropertyMetadata = /* @__PURE__ */ new WeakMap());
-let H = class extends HTMLElement {
-  static addInitializer(t) {
-    this._$Ei(), (this.l ?? (this.l = [])).push(t);
+  return i;
+} }, ve = (t, e) => !qe(t, e), _e = { attribute: !0, type: String, converter: ae, reflect: !1, useDefault: !1, hasChanged: ve };
+Symbol.metadata ?? (Symbol.metadata = Symbol("metadata")), E.litPropertyMetadata ?? (E.litPropertyMetadata = /* @__PURE__ */ new WeakMap());
+let B = class extends HTMLElement {
+  static addInitializer(e) {
+    this._$Ei(), (this.l ?? (this.l = [])).push(e);
   }
   static get observedAttributes() {
     return this.finalize(), this._$Eh && [...this._$Eh.keys()];
   }
-  static createProperty(t, e = $t) {
-    if (e.state && (e.attribute = !1), this._$Ei(), this.prototype.hasOwnProperty(t) && ((e = Object.create(e)).wrapped = !0), this.elementProperties.set(t, e), !e.noAccessor) {
-      const o = Symbol(), s = this.getPropertyDescriptor(t, o, e);
-      s !== void 0 && Bt(this.prototype, t, s);
+  static createProperty(e, i = _e) {
+    if (i.state && (i.attribute = !1), this._$Ei(), this.prototype.hasOwnProperty(e) && ((i = Object.create(i)).wrapped = !0), this.elementProperties.set(e, i), !i.noAccessor) {
+      const o = Symbol(), s = this.getPropertyDescriptor(e, o, i);
+      s !== void 0 && Ve(this.prototype, e, s);
     }
   }
-  static getPropertyDescriptor(t, e, o) {
-    const { get: s, set: r } = qt(this.prototype, t) ?? { get() {
-      return this[e];
+  static getPropertyDescriptor(e, i, o) {
+    const { get: s, set: r } = Ge(this.prototype, e) ?? { get() {
+      return this[i];
     }, set(a) {
-      this[e] = a;
+      this[i] = a;
     } };
     return { get: s, set(a) {
       const n = s == null ? void 0 : s.call(this);
-      r == null || r.call(this, a), this.requestUpdate(t, n, o);
+      r == null || r.call(this, a), this.requestUpdate(e, n, o);
     }, configurable: !0, enumerable: !0 };
   }
-  static getPropertyOptions(t) {
-    return this.elementProperties.get(t) ?? $t;
+  static getPropertyOptions(e) {
+    return this.elementProperties.get(e) ?? _e;
   }
   static _$Ei() {
-    if (this.hasOwnProperty(X("elementProperties"))) return;
-    const t = Yt(this);
-    t.finalize(), t.l !== void 0 && (this.l = [...t.l]), this.elementProperties = new Map(t.elementProperties);
+    if (this.hasOwnProperty(Z("elementProperties"))) return;
+    const e = Je(this);
+    e.finalize(), e.l !== void 0 && (this.l = [...e.l]), this.elementProperties = new Map(e.elementProperties);
   }
   static finalize() {
-    if (this.hasOwnProperty(X("finalized"))) return;
-    if (this.finalized = !0, this._$Ei(), this.hasOwnProperty(X("properties"))) {
-      const e = this.properties, o = [...Vt(e), ...Gt(e)];
-      for (const s of o) this.createProperty(s, e[s]);
+    if (this.hasOwnProperty(Z("finalized"))) return;
+    if (this.finalized = !0, this._$Ei(), this.hasOwnProperty(Z("properties"))) {
+      const i = this.properties, o = [...Ye(i), ...Xe(i)];
+      for (const s of o) this.createProperty(s, i[s]);
     }
-    const t = this[Symbol.metadata];
-    if (t !== null) {
-      const e = litPropertyMetadata.get(t);
-      if (e !== void 0) for (const [o, s] of e) this.elementProperties.set(o, s);
+    const e = this[Symbol.metadata];
+    if (e !== null) {
+      const i = litPropertyMetadata.get(e);
+      if (i !== void 0) for (const [o, s] of i) this.elementProperties.set(o, s);
     }
     this._$Eh = /* @__PURE__ */ new Map();
-    for (const [e, o] of this.elementProperties) {
-      const s = this._$Eu(e, o);
-      s !== void 0 && this._$Eh.set(s, e);
+    for (const [i, o] of this.elementProperties) {
+      const s = this._$Eu(i, o);
+      s !== void 0 && this._$Eh.set(s, i);
     }
     this.elementStyles = this.finalizeStyles(this.styles);
   }
-  static finalizeStyles(t) {
-    const e = [];
-    if (Array.isArray(t)) {
-      const o = new Set(t.flat(1 / 0).reverse());
-      for (const s of o) e.unshift(yt(s));
-    } else t !== void 0 && e.push(yt(t));
-    return e;
+  static finalizeStyles(e) {
+    const i = [];
+    if (Array.isArray(e)) {
+      const o = new Set(e.flat(1 / 0).reverse());
+      for (const s of o) i.unshift(ke(s));
+    } else e !== void 0 && i.push(ke(e));
+    return i;
   }
-  static _$Eu(t, e) {
-    const o = e.attribute;
-    return o === !1 ? void 0 : typeof o == "string" ? o : typeof t == "string" ? t.toLowerCase() : void 0;
+  static _$Eu(e, i) {
+    const o = i.attribute;
+    return o === !1 ? void 0 : typeof o == "string" ? o : typeof e == "string" ? e.toLowerCase() : void 0;
   }
   constructor() {
     super(), this._$Ep = void 0, this.isUpdatePending = !1, this.hasUpdated = !1, this._$Em = null, this._$Ev();
   }
   _$Ev() {
-    var t;
-    this._$ES = new Promise((e) => this.enableUpdating = e), this._$AL = /* @__PURE__ */ new Map(), this._$E_(), this.requestUpdate(), (t = this.constructor.l) == null || t.forEach((e) => e(this));
-  }
-  addController(t) {
     var e;
-    (this._$EO ?? (this._$EO = /* @__PURE__ */ new Set())).add(t), this.renderRoot !== void 0 && this.isConnected && ((e = t.hostConnected) == null || e.call(t));
+    this._$ES = new Promise((i) => this.enableUpdating = i), this._$AL = /* @__PURE__ */ new Map(), this._$E_(), this.requestUpdate(), (e = this.constructor.l) == null || e.forEach((i) => i(this));
   }
-  removeController(t) {
-    var e;
-    (e = this._$EO) == null || e.delete(t);
+  addController(e) {
+    var i;
+    (this._$EO ?? (this._$EO = /* @__PURE__ */ new Set())).add(e), this.renderRoot !== void 0 && this.isConnected && ((i = e.hostConnected) == null || i.call(e));
+  }
+  removeController(e) {
+    var i;
+    (i = this._$EO) == null || i.delete(e);
   }
   _$E_() {
-    const t = /* @__PURE__ */ new Map(), e = this.constructor.elementProperties;
-    for (const o of e.keys()) this.hasOwnProperty(o) && (t.set(o, this[o]), delete this[o]);
-    t.size > 0 && (this._$Ep = t);
+    const e = /* @__PURE__ */ new Map(), i = this.constructor.elementProperties;
+    for (const o of i.keys()) this.hasOwnProperty(o) && (e.set(o, this[o]), delete this[o]);
+    e.size > 0 && (this._$Ep = e);
   }
   createRenderRoot() {
-    const t = this.shadowRoot ?? this.attachShadow(this.constructor.shadowRootOptions);
-    return Ht(t, this.constructor.elementStyles), t;
+    const e = this.shadowRoot ?? this.attachShadow(this.constructor.shadowRootOptions);
+    return Be(e, this.constructor.elementStyles), e;
   }
   connectedCallback() {
-    var t;
-    this.renderRoot ?? (this.renderRoot = this.createRenderRoot()), this.enableUpdating(!0), (t = this._$EO) == null || t.forEach((e) => {
+    var e;
+    this.renderRoot ?? (this.renderRoot = this.createRenderRoot()), this.enableUpdating(!0), (e = this._$EO) == null || e.forEach((i) => {
       var o;
-      return (o = e.hostConnected) == null ? void 0 : o.call(e);
+      return (o = i.hostConnected) == null ? void 0 : o.call(i);
     });
   }
-  enableUpdating(t) {
+  enableUpdating(e) {
   }
   disconnectedCallback() {
-    var t;
-    (t = this._$EO) == null || t.forEach((e) => {
+    var e;
+    (e = this._$EO) == null || e.forEach((i) => {
       var o;
-      return (o = e.hostDisconnected) == null ? void 0 : o.call(e);
+      return (o = i.hostDisconnected) == null ? void 0 : o.call(i);
     });
   }
-  attributeChangedCallback(t, e, o) {
-    this._$AK(t, o);
+  attributeChangedCallback(e, i, o) {
+    this._$AK(e, o);
   }
-  _$ET(t, e) {
+  _$ET(e, i) {
     var r;
-    const o = this.constructor.elementProperties.get(t), s = this.constructor._$Eu(t, o);
+    const o = this.constructor.elementProperties.get(e), s = this.constructor._$Eu(e, o);
     if (s !== void 0 && o.reflect === !0) {
-      const a = (((r = o.converter) == null ? void 0 : r.toAttribute) !== void 0 ? o.converter : st).toAttribute(e, o.type);
-      this._$Em = t, a == null ? this.removeAttribute(s) : this.setAttribute(s, a), this._$Em = null;
+      const a = (((r = o.converter) == null ? void 0 : r.toAttribute) !== void 0 ? o.converter : ae).toAttribute(i, o.type);
+      this._$Em = e, a == null ? this.removeAttribute(s) : this.setAttribute(s, a), this._$Em = null;
     }
   }
-  _$AK(t, e) {
+  _$AK(e, i) {
     var r, a;
-    const o = this.constructor, s = o._$Eh.get(t);
+    const o = this.constructor, s = o._$Eh.get(e);
     if (s !== void 0 && this._$Em !== s) {
-      const n = o.getPropertyOptions(s), l = typeof n.converter == "function" ? { fromAttribute: n.converter } : ((r = n.converter) == null ? void 0 : r.fromAttribute) !== void 0 ? n.converter : st;
+      const n = o.getPropertyOptions(s), l = typeof n.converter == "function" ? { fromAttribute: n.converter } : ((r = n.converter) == null ? void 0 : r.fromAttribute) !== void 0 ? n.converter : ae;
       this._$Em = s;
-      const d = l.fromAttribute(e, n.type);
-      this[s] = d ?? ((a = this._$Ej) == null ? void 0 : a.get(s)) ?? d, this._$Em = null;
+      const c = l.fromAttribute(i, n.type);
+      this[s] = c ?? ((a = this._$Ej) == null ? void 0 : a.get(s)) ?? c, this._$Em = null;
     }
   }
-  requestUpdate(t, e, o, s = !1, r) {
+  requestUpdate(e, i, o, s = !1, r) {
     var a;
-    if (t !== void 0) {
+    if (e !== void 0) {
       const n = this.constructor;
-      if (s === !1 && (r = this[t]), o ?? (o = n.getPropertyOptions(t)), !((o.hasChanged ?? bt)(r, e) || o.useDefault && o.reflect && r === ((a = this._$Ej) == null ? void 0 : a.get(t)) && !this.hasAttribute(n._$Eu(t, o)))) return;
-      this.C(t, e, o);
+      if (s === !1 && (r = this[e]), o ?? (o = n.getPropertyOptions(e)), !((o.hasChanged ?? ve)(r, i) || o.useDefault && o.reflect && r === ((a = this._$Ej) == null ? void 0 : a.get(e)) && !this.hasAttribute(n._$Eu(e, o)))) return;
+      this.C(e, i, o);
     }
     this.isUpdatePending === !1 && (this._$ES = this._$EP());
   }
-  C(t, e, { useDefault: o, reflect: s, wrapped: r }, a) {
-    o && !(this._$Ej ?? (this._$Ej = /* @__PURE__ */ new Map())).has(t) && (this._$Ej.set(t, a ?? e ?? this[t]), r !== !0 || a !== void 0) || (this._$AL.has(t) || (this.hasUpdated || o || (e = void 0), this._$AL.set(t, e)), s === !0 && this._$Em !== t && (this._$Eq ?? (this._$Eq = /* @__PURE__ */ new Set())).add(t));
+  C(e, i, { useDefault: o, reflect: s, wrapped: r }, a) {
+    o && !(this._$Ej ?? (this._$Ej = /* @__PURE__ */ new Map())).has(e) && (this._$Ej.set(e, a ?? i ?? this[e]), r !== !0 || a !== void 0) || (this._$AL.has(e) || (this.hasUpdated || o || (i = void 0), this._$AL.set(e, i)), s === !0 && this._$Em !== e && (this._$Eq ?? (this._$Eq = /* @__PURE__ */ new Set())).add(e));
   }
   async _$EP() {
     this.isUpdatePending = !0;
     try {
       await this._$ES;
-    } catch (e) {
-      Promise.reject(e);
+    } catch (i) {
+      Promise.reject(i);
     }
-    const t = this.scheduleUpdate();
-    return t != null && await t, !this.isUpdatePending;
+    const e = this.scheduleUpdate();
+    return e != null && await e, !this.isUpdatePending;
   }
   scheduleUpdate() {
     return this.performUpdate();
@@ -237,26 +237,26 @@ let H = class extends HTMLElement {
         n !== !0 || this._$AL.has(r) || l === void 0 || this.C(r, void 0, a, l);
       }
     }
-    let t = !1;
-    const e = this._$AL;
+    let e = !1;
+    const i = this._$AL;
     try {
-      t = this.shouldUpdate(e), t ? (this.willUpdate(e), (o = this._$EO) == null || o.forEach((s) => {
+      e = this.shouldUpdate(i), e ? (this.willUpdate(i), (o = this._$EO) == null || o.forEach((s) => {
         var r;
         return (r = s.hostUpdate) == null ? void 0 : r.call(s);
-      }), this.update(e)) : this._$EM();
+      }), this.update(i)) : this._$EM();
     } catch (s) {
-      throw t = !1, this._$EM(), s;
+      throw e = !1, this._$EM(), s;
     }
-    t && this._$AE(e);
+    e && this._$AE(i);
   }
-  willUpdate(t) {
+  willUpdate(e) {
   }
-  _$AE(t) {
-    var e;
-    (e = this._$EO) == null || e.forEach((o) => {
+  _$AE(e) {
+    var i;
+    (i = this._$EO) == null || i.forEach((o) => {
       var s;
       return (s = o.hostUpdated) == null ? void 0 : s.call(o);
-    }), this.hasUpdated || (this.hasUpdated = !0, this.firstUpdated(t)), this.updated(t);
+    }), this.hasUpdated || (this.hasUpdated = !0, this.firstUpdated(e)), this.updated(e);
   }
   _$EM() {
     this._$AL = /* @__PURE__ */ new Map(), this.isUpdatePending = !1;
@@ -267,89 +267,89 @@ let H = class extends HTMLElement {
   getUpdateComplete() {
     return this._$ES;
   }
-  shouldUpdate(t) {
+  shouldUpdate(e) {
     return !0;
   }
-  update(t) {
-    this._$Eq && (this._$Eq = this._$Eq.forEach((e) => this._$ET(e, this[e]))), this._$EM();
+  update(e) {
+    this._$Eq && (this._$Eq = this._$Eq.forEach((i) => this._$ET(i, this[i]))), this._$EM();
   }
-  updated(t) {
+  updated(e) {
   }
-  firstUpdated(t) {
+  firstUpdated(e) {
   }
 };
-H.elementStyles = [], H.shadowRootOptions = { mode: "open" }, H[X("elementProperties")] = /* @__PURE__ */ new Map(), H[X("finalized")] = /* @__PURE__ */ new Map(), ct == null || ct({ ReactiveElement: H }), (A.reactiveElementVersions ?? (A.reactiveElementVersions = [])).push("2.1.2");
+B.elementStyles = [], B.shadowRootOptions = { mode: "open" }, B[Z("elementProperties")] = /* @__PURE__ */ new Map(), B[Z("finalized")] = /* @__PURE__ */ new Map(), he == null || he({ ReactiveElement: B }), (E.reactiveElementVersions ?? (E.reactiveElementVersions = [])).push("2.1.2");
 /**
  * @license
  * Copyright 2017 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
  */
-const J = globalThis, _t = (i) => i, rt = J.trustedTypes, kt = rt ? rt.createPolicy("lit-html", { createHTML: (i) => i }) : void 0, jt = "$lit$", T = `lit$${Math.random().toFixed(9).slice(2)}$`, Ot = "?" + T, Jt = `<${Ot}>`, R = document, Z = () => R.createComment(""), K = (i) => i === null || typeof i != "object" && typeof i != "function", mt = Array.isArray, Zt = (i) => mt(i) || typeof (i == null ? void 0 : i[Symbol.iterator]) == "function", pt = `[ 	
-\f\r]`, Y = /<(?:(!--|\/[^a-zA-Z])|(\/?[a-zA-Z][^>\s]*)|(\/?$))/g, St = /-->/g, Mt = />/g, O = RegExp(`>|${pt}(?:([^\\s"'>=/]+)(${pt}*=${pt}*(?:[^ 	
-\f\r"'\`<>=]|("|')|))|$)`, "g"), Dt = /'/g, Pt = /"/g, It = /^(?:script|style|textarea|title)$/i, Wt = (i) => (t, ...e) => ({ _$litType$: i, strings: t, values: e }), f = Wt(1), m = Wt(2), N = Symbol.for("lit-noChange"), x = Symbol.for("lit-nothing"), Ct = /* @__PURE__ */ new WeakMap(), I = R.createTreeWalker(R, 129);
-function Rt(i, t) {
-  if (!mt(i) || !i.hasOwnProperty("raw")) throw Error("invalid template strings array");
-  return kt !== void 0 ? kt.createHTML(t) : t;
+const Q = globalThis, Se = (t) => t, ne = Q.trustedTypes, Ce = ne ? ne.createPolicy("lit-html", { createHTML: (t) => t }) : void 0, Ie = "$lit$", z = `lit$${Math.random().toFixed(9).slice(2)}$`, We = "?" + z, Qe = `<${We}>`, F = document, K = () => F.createComment(""), ee = (t) => t === null || typeof t != "object" && typeof t != "function", ye = Array.isArray, Ke = (t) => ye(t) || typeof (t == null ? void 0 : t[Symbol.iterator]) == "function", ue = `[ 	
+\f\r]`, J = /<(?:(!--|\/[^a-zA-Z])|(\/?[a-zA-Z][^>\s]*)|(\/?$))/g, Pe = /-->/g, De = />/g, I = RegExp(`>|${ue}(?:([^\\s"'>=/]+)(${ue}*=${ue}*(?:[^ 	
+\f\r"'\`<>=]|("|')|))|$)`, "g"), Te = /'/g, Ae = /"/g, Re = /^(?:script|style|textarea|title)$/i, Fe = (t) => (e, ...i) => ({ _$litType$: t, strings: e, values: i }), b = Fe(1), x = Fe(2), q = Symbol.for("lit-noChange"), $ = Symbol.for("lit-nothing"), je = /* @__PURE__ */ new WeakMap(), W = F.createTreeWalker(F, 129);
+function Ue(t, e) {
+  if (!ye(t) || !t.hasOwnProperty("raw")) throw Error("invalid template strings array");
+  return Ce !== void 0 ? Ce.createHTML(e) : e;
 }
-const Kt = (i, t) => {
-  const e = i.length - 1, o = [];
-  let s, r = t === 2 ? "<svg>" : t === 3 ? "<math>" : "", a = Y;
-  for (let n = 0; n < e; n++) {
-    const l = i[n];
-    let d, p, c = -1, u = 0;
-    for (; u < l.length && (a.lastIndex = u, p = a.exec(l), p !== null); ) u = a.lastIndex, a === Y ? p[1] === "!--" ? a = St : p[1] !== void 0 ? a = Mt : p[2] !== void 0 ? (It.test(p[2]) && (s = RegExp("</" + p[2], "g")), a = O) : p[3] !== void 0 && (a = O) : a === O ? p[0] === ">" ? (a = s ?? Y, c = -1) : p[1] === void 0 ? c = -2 : (c = a.lastIndex - p[2].length, d = p[1], a = p[3] === void 0 ? O : p[3] === '"' ? Pt : Dt) : a === Pt || a === Dt ? a = O : a === St || a === Mt ? a = Y : (a = O, s = void 0);
-    const g = a === O && i[n + 1].startsWith("/>") ? " " : "";
-    r += a === Y ? l + Jt : c >= 0 ? (o.push(d), l.slice(0, c) + jt + l.slice(c) + T + g) : l + T + (c === -2 ? n : g);
+const et = (t, e) => {
+  const i = t.length - 1, o = [];
+  let s, r = e === 2 ? "<svg>" : e === 3 ? "<math>" : "", a = J;
+  for (let n = 0; n < i; n++) {
+    const l = t[n];
+    let c, p, d = -1, g = 0;
+    for (; g < l.length && (a.lastIndex = g, p = a.exec(l), p !== null); ) g = a.lastIndex, a === J ? p[1] === "!--" ? a = Pe : p[1] !== void 0 ? a = De : p[2] !== void 0 ? (Re.test(p[2]) && (s = RegExp("</" + p[2], "g")), a = I) : p[3] !== void 0 && (a = I) : a === I ? p[0] === ">" ? (a = s ?? J, d = -1) : p[1] === void 0 ? d = -2 : (d = a.lastIndex - p[2].length, c = p[1], a = p[3] === void 0 ? I : p[3] === '"' ? Ae : Te) : a === Ae || a === Te ? a = I : a === Pe || a === De ? a = J : (a = I, s = void 0);
+    const f = a === I && t[n + 1].startsWith("/>") ? " " : "";
+    r += a === J ? l + Qe : d >= 0 ? (o.push(c), l.slice(0, d) + Ie + l.slice(d) + z + f) : l + z + (d === -2 ? n : f);
   }
-  return [Rt(i, r + (i[e] || "<?>") + (t === 2 ? "</svg>" : t === 3 ? "</math>" : "")), o];
+  return [Ue(t, r + (t[i] || "<?>") + (e === 2 ? "</svg>" : e === 3 ? "</math>" : "")), o];
 };
-class Q {
-  constructor({ strings: t, _$litType$: e }, o) {
+class te {
+  constructor({ strings: e, _$litType$: i }, o) {
     let s;
     this.parts = [];
     let r = 0, a = 0;
-    const n = t.length - 1, l = this.parts, [d, p] = Kt(t, e);
-    if (this.el = Q.createElement(d, o), I.currentNode = this.el.content, e === 2 || e === 3) {
-      const c = this.el.content.firstChild;
-      c.replaceWith(...c.childNodes);
+    const n = e.length - 1, l = this.parts, [c, p] = et(e, i);
+    if (this.el = te.createElement(c, o), W.currentNode = this.el.content, i === 2 || i === 3) {
+      const d = this.el.content.firstChild;
+      d.replaceWith(...d.childNodes);
     }
-    for (; (s = I.nextNode()) !== null && l.length < n; ) {
+    for (; (s = W.nextNode()) !== null && l.length < n; ) {
       if (s.nodeType === 1) {
-        if (s.hasAttributes()) for (const c of s.getAttributeNames()) if (c.endsWith(jt)) {
-          const u = p[a++], g = s.getAttribute(c).split(T), M = /([.?@])?(.*)/.exec(u);
-          l.push({ type: 1, index: r, name: M[2], strings: g, ctor: M[1] === "." ? te : M[1] === "?" ? ee : M[1] === "@" ? ie : at }), s.removeAttribute(c);
-        } else c.startsWith(T) && (l.push({ type: 6, index: r }), s.removeAttribute(c));
-        if (It.test(s.tagName)) {
-          const c = s.textContent.split(T), u = c.length - 1;
-          if (u > 0) {
-            s.textContent = rt ? rt.emptyScript : "";
-            for (let g = 0; g < u; g++) s.append(c[g], Z()), I.nextNode(), l.push({ type: 2, index: ++r });
-            s.append(c[u], Z());
+        if (s.hasAttributes()) for (const d of s.getAttributeNames()) if (d.endsWith(Ie)) {
+          const g = p[a++], f = s.getAttribute(d).split(z), M = /([.?@])?(.*)/.exec(g);
+          l.push({ type: 1, index: r, name: M[2], strings: f, ctor: M[1] === "." ? it : M[1] === "?" ? ot : M[1] === "@" ? st : le }), s.removeAttribute(d);
+        } else d.startsWith(z) && (l.push({ type: 6, index: r }), s.removeAttribute(d));
+        if (Re.test(s.tagName)) {
+          const d = s.textContent.split(z), g = d.length - 1;
+          if (g > 0) {
+            s.textContent = ne ? ne.emptyScript : "";
+            for (let f = 0; f < g; f++) s.append(d[f], K()), W.nextNode(), l.push({ type: 2, index: ++r });
+            s.append(d[g], K());
           }
         }
-      } else if (s.nodeType === 8) if (s.data === Ot) l.push({ type: 2, index: r });
+      } else if (s.nodeType === 8) if (s.data === We) l.push({ type: 2, index: r });
       else {
-        let c = -1;
-        for (; (c = s.data.indexOf(T, c + 1)) !== -1; ) l.push({ type: 7, index: r }), c += T.length - 1;
+        let d = -1;
+        for (; (d = s.data.indexOf(z, d + 1)) !== -1; ) l.push({ type: 7, index: r }), d += z.length - 1;
       }
       r++;
     }
   }
-  static createElement(t, e) {
-    const o = R.createElement("template");
-    return o.innerHTML = t, o;
+  static createElement(e, i) {
+    const o = F.createElement("template");
+    return o.innerHTML = e, o;
   }
 }
-function B(i, t, e = i, o) {
+function V(t, e, i = t, o) {
   var a, n;
-  if (t === N) return t;
-  let s = o !== void 0 ? (a = e._$Co) == null ? void 0 : a[o] : e._$Cl;
-  const r = K(t) ? void 0 : t._$litDirective$;
-  return (s == null ? void 0 : s.constructor) !== r && ((n = s == null ? void 0 : s._$AO) == null || n.call(s, !1), r === void 0 ? s = void 0 : (s = new r(i), s._$AT(i, e, o)), o !== void 0 ? (e._$Co ?? (e._$Co = []))[o] = s : e._$Cl = s), s !== void 0 && (t = B(i, s._$AS(i, t.values), s, o)), t;
+  if (e === q) return e;
+  let s = o !== void 0 ? (a = i._$Co) == null ? void 0 : a[o] : i._$Cl;
+  const r = ee(e) ? void 0 : e._$litDirective$;
+  return (s == null ? void 0 : s.constructor) !== r && ((n = s == null ? void 0 : s._$AO) == null || n.call(s, !1), r === void 0 ? s = void 0 : (s = new r(t), s._$AT(t, i, o)), o !== void 0 ? (i._$Co ?? (i._$Co = []))[o] = s : i._$Cl = s), s !== void 0 && (e = V(t, s._$AS(t, e.values), s, o)), e;
 }
-class Qt {
-  constructor(t, e) {
-    this._$AV = [], this._$AN = void 0, this._$AD = t, this._$AM = e;
+class tt {
+  constructor(e, i) {
+    this._$AV = [], this._$AN = void 0, this._$AD = e, this._$AM = i;
   }
   get parentNode() {
     return this._$AM.parentNode;
@@ -357,36 +357,36 @@ class Qt {
   get _$AU() {
     return this._$AM._$AU;
   }
-  u(t) {
-    const { el: { content: e }, parts: o } = this._$AD, s = ((t == null ? void 0 : t.creationScope) ?? R).importNode(e, !0);
-    I.currentNode = s;
-    let r = I.nextNode(), a = 0, n = 0, l = o[0];
+  u(e) {
+    const { el: { content: i }, parts: o } = this._$AD, s = ((e == null ? void 0 : e.creationScope) ?? F).importNode(i, !0);
+    W.currentNode = s;
+    let r = W.nextNode(), a = 0, n = 0, l = o[0];
     for (; l !== void 0; ) {
       if (a === l.index) {
-        let d;
-        l.type === 2 ? d = new tt(r, r.nextSibling, this, t) : l.type === 1 ? d = new l.ctor(r, l.name, l.strings, this, t) : l.type === 6 && (d = new oe(r, this, t)), this._$AV.push(d), l = o[++n];
+        let c;
+        l.type === 2 ? c = new ie(r, r.nextSibling, this, e) : l.type === 1 ? c = new l.ctor(r, l.name, l.strings, this, e) : l.type === 6 && (c = new rt(r, this, e)), this._$AV.push(c), l = o[++n];
       }
-      a !== (l == null ? void 0 : l.index) && (r = I.nextNode(), a++);
+      a !== (l == null ? void 0 : l.index) && (r = W.nextNode(), a++);
     }
-    return I.currentNode = R, s;
+    return W.currentNode = F, s;
   }
-  p(t) {
-    let e = 0;
-    for (const o of this._$AV) o !== void 0 && (o.strings !== void 0 ? (o._$AI(t, o, e), e += o.strings.length - 2) : o._$AI(t[e])), e++;
+  p(e) {
+    let i = 0;
+    for (const o of this._$AV) o !== void 0 && (o.strings !== void 0 ? (o._$AI(e, o, i), i += o.strings.length - 2) : o._$AI(e[i])), i++;
   }
 }
-class tt {
+class ie {
   get _$AU() {
-    var t;
-    return ((t = this._$AM) == null ? void 0 : t._$AU) ?? this._$Cv;
+    var e;
+    return ((e = this._$AM) == null ? void 0 : e._$AU) ?? this._$Cv;
   }
-  constructor(t, e, o, s) {
-    this.type = 2, this._$AH = x, this._$AN = void 0, this._$AA = t, this._$AB = e, this._$AM = o, this.options = s, this._$Cv = (s == null ? void 0 : s.isConnected) ?? !0;
+  constructor(e, i, o, s) {
+    this.type = 2, this._$AH = $, this._$AN = void 0, this._$AA = e, this._$AB = i, this._$AM = o, this.options = s, this._$Cv = (s == null ? void 0 : s.isConnected) ?? !0;
   }
   get parentNode() {
-    let t = this._$AA.parentNode;
-    const e = this._$AM;
-    return e !== void 0 && (t == null ? void 0 : t.nodeType) === 11 && (t = e.parentNode), t;
+    let e = this._$AA.parentNode;
+    const i = this._$AM;
+    return i !== void 0 && (e == null ? void 0 : e.nodeType) === 11 && (e = i.parentNode), e;
   }
   get startNode() {
     return this._$AA;
@@ -394,214 +394,214 @@ class tt {
   get endNode() {
     return this._$AB;
   }
-  _$AI(t, e = this) {
-    t = B(this, t, e), K(t) ? t === x || t == null || t === "" ? (this._$AH !== x && this._$AR(), this._$AH = x) : t !== this._$AH && t !== N && this._(t) : t._$litType$ !== void 0 ? this.$(t) : t.nodeType !== void 0 ? this.T(t) : Zt(t) ? this.k(t) : this._(t);
+  _$AI(e, i = this) {
+    e = V(this, e, i), ee(e) ? e === $ || e == null || e === "" ? (this._$AH !== $ && this._$AR(), this._$AH = $) : e !== this._$AH && e !== q && this._(e) : e._$litType$ !== void 0 ? this.$(e) : e.nodeType !== void 0 ? this.T(e) : Ke(e) ? this.k(e) : this._(e);
   }
-  O(t) {
-    return this._$AA.parentNode.insertBefore(t, this._$AB);
+  O(e) {
+    return this._$AA.parentNode.insertBefore(e, this._$AB);
   }
-  T(t) {
-    this._$AH !== t && (this._$AR(), this._$AH = this.O(t));
+  T(e) {
+    this._$AH !== e && (this._$AR(), this._$AH = this.O(e));
   }
-  _(t) {
-    this._$AH !== x && K(this._$AH) ? this._$AA.nextSibling.data = t : this.T(R.createTextNode(t)), this._$AH = t;
+  _(e) {
+    this._$AH !== $ && ee(this._$AH) ? this._$AA.nextSibling.data = e : this.T(F.createTextNode(e)), this._$AH = e;
   }
-  $(t) {
+  $(e) {
     var r;
-    const { values: e, _$litType$: o } = t, s = typeof o == "number" ? this._$AC(t) : (o.el === void 0 && (o.el = Q.createElement(Rt(o.h, o.h[0]), this.options)), o);
-    if (((r = this._$AH) == null ? void 0 : r._$AD) === s) this._$AH.p(e);
+    const { values: i, _$litType$: o } = e, s = typeof o == "number" ? this._$AC(e) : (o.el === void 0 && (o.el = te.createElement(Ue(o.h, o.h[0]), this.options)), o);
+    if (((r = this._$AH) == null ? void 0 : r._$AD) === s) this._$AH.p(i);
     else {
-      const a = new Qt(s, this), n = a.u(this.options);
-      a.p(e), this.T(n), this._$AH = a;
+      const a = new tt(s, this), n = a.u(this.options);
+      a.p(i), this.T(n), this._$AH = a;
     }
   }
-  _$AC(t) {
-    let e = Ct.get(t.strings);
-    return e === void 0 && Ct.set(t.strings, e = new Q(t)), e;
+  _$AC(e) {
+    let i = je.get(e.strings);
+    return i === void 0 && je.set(e.strings, i = new te(e)), i;
   }
-  k(t) {
-    mt(this._$AH) || (this._$AH = [], this._$AR());
-    const e = this._$AH;
+  k(e) {
+    ye(this._$AH) || (this._$AH = [], this._$AR());
+    const i = this._$AH;
     let o, s = 0;
-    for (const r of t) s === e.length ? e.push(o = new tt(this.O(Z()), this.O(Z()), this, this.options)) : o = e[s], o._$AI(r), s++;
-    s < e.length && (this._$AR(o && o._$AB.nextSibling, s), e.length = s);
+    for (const r of e) s === i.length ? i.push(o = new ie(this.O(K()), this.O(K()), this, this.options)) : o = i[s], o._$AI(r), s++;
+    s < i.length && (this._$AR(o && o._$AB.nextSibling, s), i.length = s);
   }
-  _$AR(t = this._$AA.nextSibling, e) {
+  _$AR(e = this._$AA.nextSibling, i) {
     var o;
-    for ((o = this._$AP) == null ? void 0 : o.call(this, !1, !0, e); t !== this._$AB; ) {
-      const s = _t(t).nextSibling;
-      _t(t).remove(), t = s;
+    for ((o = this._$AP) == null ? void 0 : o.call(this, !1, !0, i); e !== this._$AB; ) {
+      const s = Se(e).nextSibling;
+      Se(e).remove(), e = s;
     }
   }
-  setConnected(t) {
-    var e;
-    this._$AM === void 0 && (this._$Cv = t, (e = this._$AP) == null || e.call(this, t));
+  setConnected(e) {
+    var i;
+    this._$AM === void 0 && (this._$Cv = e, (i = this._$AP) == null || i.call(this, e));
   }
 }
-class at {
+class le {
   get tagName() {
     return this.element.tagName;
   }
   get _$AU() {
     return this._$AM._$AU;
   }
-  constructor(t, e, o, s, r) {
-    this.type = 1, this._$AH = x, this._$AN = void 0, this.element = t, this.name = e, this._$AM = s, this.options = r, o.length > 2 || o[0] !== "" || o[1] !== "" ? (this._$AH = Array(o.length - 1).fill(new String()), this.strings = o) : this._$AH = x;
+  constructor(e, i, o, s, r) {
+    this.type = 1, this._$AH = $, this._$AN = void 0, this.element = e, this.name = i, this._$AM = s, this.options = r, o.length > 2 || o[0] !== "" || o[1] !== "" ? (this._$AH = Array(o.length - 1).fill(new String()), this.strings = o) : this._$AH = $;
   }
-  _$AI(t, e = this, o, s) {
+  _$AI(e, i = this, o, s) {
     const r = this.strings;
     let a = !1;
-    if (r === void 0) t = B(this, t, e, 0), a = !K(t) || t !== this._$AH && t !== N, a && (this._$AH = t);
+    if (r === void 0) e = V(this, e, i, 0), a = !ee(e) || e !== this._$AH && e !== q, a && (this._$AH = e);
     else {
-      const n = t;
-      let l, d;
-      for (t = r[0], l = 0; l < r.length - 1; l++) d = B(this, n[o + l], e, l), d === N && (d = this._$AH[l]), a || (a = !K(d) || d !== this._$AH[l]), d === x ? t = x : t !== x && (t += (d ?? "") + r[l + 1]), this._$AH[l] = d;
+      const n = e;
+      let l, c;
+      for (e = r[0], l = 0; l < r.length - 1; l++) c = V(this, n[o + l], i, l), c === q && (c = this._$AH[l]), a || (a = !ee(c) || c !== this._$AH[l]), c === $ ? e = $ : e !== $ && (e += (c ?? "") + r[l + 1]), this._$AH[l] = c;
     }
-    a && !s && this.j(t);
+    a && !s && this.j(e);
   }
-  j(t) {
-    t === x ? this.element.removeAttribute(this.name) : this.element.setAttribute(this.name, t ?? "");
+  j(e) {
+    e === $ ? this.element.removeAttribute(this.name) : this.element.setAttribute(this.name, e ?? "");
   }
 }
-class te extends at {
+class it extends le {
   constructor() {
     super(...arguments), this.type = 3;
   }
-  j(t) {
-    this.element[this.name] = t === x ? void 0 : t;
+  j(e) {
+    this.element[this.name] = e === $ ? void 0 : e;
   }
 }
-class ee extends at {
+class ot extends le {
   constructor() {
     super(...arguments), this.type = 4;
   }
-  j(t) {
-    this.element.toggleAttribute(this.name, !!t && t !== x);
+  j(e) {
+    this.element.toggleAttribute(this.name, !!e && e !== $);
   }
 }
-class ie extends at {
-  constructor(t, e, o, s, r) {
-    super(t, e, o, s, r), this.type = 5;
+class st extends le {
+  constructor(e, i, o, s, r) {
+    super(e, i, o, s, r), this.type = 5;
   }
-  _$AI(t, e = this) {
-    if ((t = B(this, t, e, 0) ?? x) === N) return;
-    const o = this._$AH, s = t === x && o !== x || t.capture !== o.capture || t.once !== o.once || t.passive !== o.passive, r = t !== x && (o === x || s);
-    s && this.element.removeEventListener(this.name, this, o), r && this.element.addEventListener(this.name, this, t), this._$AH = t;
+  _$AI(e, i = this) {
+    if ((e = V(this, e, i, 0) ?? $) === q) return;
+    const o = this._$AH, s = e === $ && o !== $ || e.capture !== o.capture || e.once !== o.once || e.passive !== o.passive, r = e !== $ && (o === $ || s);
+    s && this.element.removeEventListener(this.name, this, o), r && this.element.addEventListener(this.name, this, e), this._$AH = e;
   }
-  handleEvent(t) {
-    var e;
-    typeof this._$AH == "function" ? this._$AH.call(((e = this.options) == null ? void 0 : e.host) ?? this.element, t) : this._$AH.handleEvent(t);
+  handleEvent(e) {
+    var i;
+    typeof this._$AH == "function" ? this._$AH.call(((i = this.options) == null ? void 0 : i.host) ?? this.element, e) : this._$AH.handleEvent(e);
   }
 }
-class oe {
-  constructor(t, e, o) {
-    this.element = t, this.type = 6, this._$AN = void 0, this._$AM = e, this.options = o;
+class rt {
+  constructor(e, i, o) {
+    this.element = e, this.type = 6, this._$AN = void 0, this._$AM = i, this.options = o;
   }
   get _$AU() {
     return this._$AM._$AU;
   }
-  _$AI(t) {
-    B(this, t);
+  _$AI(e) {
+    V(this, e);
   }
 }
-const ht = J.litHtmlPolyfillSupport;
-ht == null || ht(Q, tt), (J.litHtmlVersions ?? (J.litHtmlVersions = [])).push("3.3.3");
-const se = (i, t, e) => {
-  const o = (e == null ? void 0 : e.renderBefore) ?? t;
+const ge = Q.litHtmlPolyfillSupport;
+ge == null || ge(te, ie), (Q.litHtmlVersions ?? (Q.litHtmlVersions = [])).push("3.3.3");
+const at = (t, e, i) => {
+  const o = (i == null ? void 0 : i.renderBefore) ?? e;
   let s = o._$litPart$;
   if (s === void 0) {
-    const r = (e == null ? void 0 : e.renderBefore) ?? null;
-    o._$litPart$ = s = new tt(t.insertBefore(Z(), r), r, void 0, e ?? {});
+    const r = (i == null ? void 0 : i.renderBefore) ?? null;
+    o._$litPart$ = s = new ie(e.insertBefore(K(), r), r, void 0, i ?? {});
   }
-  return s._$AI(i), s;
+  return s._$AI(t), s;
 };
 /**
  * @license
  * Copyright 2017 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
  */
-const W = globalThis;
-class k extends H {
+const R = globalThis;
+class _ extends B {
   constructor() {
     super(...arguments), this.renderOptions = { host: this }, this._$Do = void 0;
   }
   createRenderRoot() {
-    var e;
-    const t = super.createRenderRoot();
-    return (e = this.renderOptions).renderBefore ?? (e.renderBefore = t.firstChild), t;
+    var i;
+    const e = super.createRenderRoot();
+    return (i = this.renderOptions).renderBefore ?? (i.renderBefore = e.firstChild), e;
   }
-  update(t) {
-    const e = this.render();
-    this.hasUpdated || (this.renderOptions.isConnected = this.isConnected), super.update(t), this._$Do = se(e, this.renderRoot, this.renderOptions);
+  update(e) {
+    const i = this.render();
+    this.hasUpdated || (this.renderOptions.isConnected = this.isConnected), super.update(e), this._$Do = at(i, this.renderRoot, this.renderOptions);
   }
   connectedCallback() {
-    var t;
-    super.connectedCallback(), (t = this._$Do) == null || t.setConnected(!0);
+    var e;
+    super.connectedCallback(), (e = this._$Do) == null || e.setConnected(!0);
   }
   disconnectedCallback() {
-    var t;
-    super.disconnectedCallback(), (t = this._$Do) == null || t.setConnected(!1);
+    var e;
+    super.disconnectedCallback(), (e = this._$Do) == null || e.setConnected(!1);
   }
   render() {
-    return N;
+    return q;
   }
 }
-var zt;
-k._$litElement$ = !0, k.finalized = !0, (zt = W.litElementHydrateSupport) == null || zt.call(W, { LitElement: k });
-const ut = W.litElementPolyfillSupport;
-ut == null || ut({ LitElement: k });
-(W.litElementVersions ?? (W.litElementVersions = [])).push("4.2.2");
+var Ee;
+_._$litElement$ = !0, _.finalized = !0, (Ee = R.litElementHydrateSupport) == null || Ee.call(R, { LitElement: _ });
+const fe = R.litElementPolyfillSupport;
+fe == null || fe({ LitElement: _ });
+(R.litElementVersions ?? (R.litElementVersions = [])).push("4.2.2");
 /**
  * @license
  * Copyright 2017 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
  */
-const E = (i) => (t, e) => {
-  e !== void 0 ? e.addInitializer(() => {
-    customElements.define(i, t);
-  }) : customElements.define(i, t);
+const A = (t) => (e, i) => {
+  i !== void 0 ? i.addInitializer(() => {
+    customElements.define(t, e);
+  }) : customElements.define(t, e);
 };
 /**
  * @license
  * Copyright 2017 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
  */
-const re = { attribute: !0, type: String, converter: st, reflect: !1, hasChanged: bt }, ae = (i = re, t, e) => {
-  const { kind: o, metadata: s } = e;
+const nt = { attribute: !0, type: String, converter: ae, reflect: !1, hasChanged: ve }, lt = (t = nt, e, i) => {
+  const { kind: o, metadata: s } = i;
   let r = globalThis.litPropertyMetadata.get(s);
-  if (r === void 0 && globalThis.litPropertyMetadata.set(s, r = /* @__PURE__ */ new Map()), o === "setter" && ((i = Object.create(i)).wrapped = !0), r.set(e.name, i), o === "accessor") {
-    const { name: a } = e;
+  if (r === void 0 && globalThis.litPropertyMetadata.set(s, r = /* @__PURE__ */ new Map()), o === "setter" && ((t = Object.create(t)).wrapped = !0), r.set(i.name, t), o === "accessor") {
+    const { name: a } = i;
     return { set(n) {
-      const l = t.get.call(this);
-      t.set.call(this, n), this.requestUpdate(a, l, i, !0, n);
+      const l = e.get.call(this);
+      e.set.call(this, n), this.requestUpdate(a, l, t, !0, n);
     }, init(n) {
-      return n !== void 0 && this.C(a, void 0, i, n), n;
+      return n !== void 0 && this.C(a, void 0, t, n), n;
     } };
   }
   if (o === "setter") {
-    const { name: a } = e;
+    const { name: a } = i;
     return function(n) {
       const l = this[a];
-      t.call(this, n), this.requestUpdate(a, l, i, !0, n);
+      e.call(this, n), this.requestUpdate(a, l, t, !0, n);
     };
   }
   throw Error("Unsupported decorator location: " + o);
 };
-function w(i) {
-  return (t, e) => typeof e == "object" ? ae(i, t, e) : ((o, s, r) => {
+function v(t) {
+  return (e, i) => typeof i == "object" ? lt(t, e, i) : ((o, s, r) => {
     const a = s.hasOwnProperty(r);
     return s.constructor.createProperty(r, o), a ? Object.getOwnPropertyDescriptor(s, r) : void 0;
-  })(i, t, e);
+  })(t, e, i);
 }
 /**
  * @license
  * Copyright 2017 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
  */
-function h(i) {
-  return w({ ...i, state: !0, attribute: !1 });
+function h(t) {
+  return v({ ...t, state: !0, attribute: !1 });
 }
-const ne = z`
+const ct = T`
   :host {
     display: block;
     position: relative;
@@ -1020,18 +1020,18 @@ const ne = z`
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
   }
 `;
-class _ {
+class u {
   /**
    * Snaps a world point (in meters) to grid, existing vertices, and angle guides.
    */
-  static snapPoint(t, e, o = [], s, r = 0.25) {
-    let a = { ...t };
-    if (e.snapToElements && o.length > 0) {
-      let d = r, p = null;
-      for (const c of o)
-        for (const u of [c.start, c.end]) {
-          const g = this.distance(t, u);
-          g < d && (d = g, p = u);
+  static snapPoint(e, i, o = [], s, r = 0.25) {
+    let a = { ...e };
+    if (i.snapToElements && o.length > 0) {
+      let c = r, p = null;
+      for (const d of o)
+        for (const g of [d.start, d.end]) {
+          const f = this.distance(e, g);
+          f < c && (c = f, p = g);
         }
       if (p)
         return {
@@ -1040,104 +1040,116 @@ class _ {
         };
     }
     let n = !1, l;
-    if (e.snapToAngles && s) {
-      const d = t.x - s.x, p = t.y - s.y, c = Math.sqrt(d * d + p * p);
-      if (c > 0.05) {
-        let g = Math.atan2(p, d) * 180 / Math.PI;
-        g < 0 && (g += 360);
-        const M = 45, L = Math.round(g / M) * M;
-        if (Math.abs(g - L) <= 6) {
-          const G = L * Math.PI / 180;
+    if (i.snapToAngles && s) {
+      const c = e.x - s.x, p = e.y - s.y, d = Math.sqrt(c * c + p * p);
+      if (d > 0.05) {
+        let f = Math.atan2(p, c) * 180 / Math.PI;
+        f < 0 && (f += 360);
+        const M = 45, H = Math.round(f / M) * M;
+        if (Math.abs(f - H) <= 6) {
+          const X = H * Math.PI / 180;
           a = {
-            x: s.x + c * Math.cos(G),
-            y: s.y + c * Math.sin(G)
-          }, n = !0, l = L;
+            x: s.x + d * Math.cos(X),
+            y: s.y + d * Math.sin(X)
+          }, n = !0, l = H;
         }
       }
     }
-    if (e.snapToGrid && !n) {
-      const d = e.size || 0.5;
+    if (i.snapToGrid && !n) {
+      const c = i.size || 0.5;
       return a = {
-        x: Math.round(a.x / d) * d,
-        y: Math.round(a.y / d) * d
+        x: Math.round(a.x / c) * c,
+        y: Math.round(a.y / c) * c
       }, { point: a, snappedTo: "grid" };
     } else if (n)
       return { point: a, snappedTo: "angle", guideAngle: l };
-    return { point: t, snappedTo: "none" };
+    return { point: e, snappedTo: "none" };
   }
   /**
    * Snaps a point to the nearest wall centerline for placing doors and windows
    */
-  static snapPointToWall(t, e, o = 0.6) {
+  static snapPointToWall(e, i, o = 0.6) {
     let s = null, r = o;
-    for (const a of e) {
-      const n = a.end.x - a.start.x, l = a.end.y - a.start.y, d = Math.sqrt(n * n + l * l);
-      if (d === 0) continue;
+    for (const a of i) {
+      const n = a.end.x - a.start.x, l = a.end.y - a.start.y, c = Math.sqrt(n * n + l * l);
+      if (c === 0) continue;
       const p = Math.max(0, Math.min(
         1,
-        ((t.x - a.start.x) * n + (t.y - a.start.y) * l) / (d * d)
-      )), c = a.start.x + p * n, u = a.start.y + p * l, g = Math.sqrt((t.x - c) ** 2 + (t.y - u) ** 2);
-      g < r && (r = g, s = {
+        ((e.x - a.start.x) * n + (e.y - a.start.y) * l) / (c * c)
+      )), d = a.start.x + p * n, g = a.start.y + p * l, f = Math.sqrt((e.x - d) ** 2 + (e.y - g) ** 2);
+      f < r && (r = f, s = {
         wall: a,
-        projectionPoint: { x: c, y: u },
-        offset: p * d,
-        distance: g,
+        projectionPoint: { x: d, y: g },
+        offset: p * c,
+        distance: f,
         angleRad: Math.atan2(l, n)
       });
     }
     return s;
   }
-  static distance(t, e) {
-    const o = t.x - e.x, s = t.y - e.y;
+  static distance(e, i) {
+    const o = e.x - i.x, s = e.y - i.y;
     return Math.sqrt(o * o + s * s);
   }
-  static roundMeters(t, e = 2) {
-    const o = Math.pow(10, e);
-    return Math.round(t * o) / o;
+  static roundMeters(e, i = 2) {
+    const o = Math.pow(10, i);
+    return Math.round(e * o) / o;
   }
 }
-class Tt {
+class be {
   /**
    * Ray-casting algorithm to test if a 2D point is inside a polygon
    */
-  static isPointInPolygon(t, e) {
-    if (!e || e.length < 3) return !1;
+  static isPointInPolygon(e, i) {
+    if (!i || i.length < 3) return !1;
     let o = !1;
-    for (let s = 0, r = e.length - 1; s < e.length; r = s++) {
-      const a = e[s].x, n = e[s].y, l = e[r].x, d = e[r].y;
-      n > t.y != d > t.y && t.x < (l - a) * (t.y - n) / (d - n) + a && (o = !o);
+    for (let s = 0, r = i.length - 1; s < i.length; r = s++) {
+      const a = i[s].x, n = i[s].y, l = i[r].x, c = i[r].y;
+      n > e.y != c > e.y && e.x < (l - a) * (e.y - n) / (c - n) + a && (o = !o);
     }
     return o;
   }
   /**
    * Finds the room containing the specified world point (if any)
    */
-  static findRoomContainingPoint(t, e) {
-    for (const o of e)
-      if (this.isPointInPolygon(t, o.polygon))
+  static findRoomContainingPoint(e, i) {
+    for (const o of i)
+      if (this.isPointInPolygon(e, o.polygon))
         return o;
     return null;
   }
   /**
    * Calculates the centroid of a polygon
    */
-  static calculateCentroid(t) {
-    if (!t || t.length === 0) return { x: 0, y: 0 };
-    let e = 0, o = 0;
-    for (const s of t)
-      e += s.x, o += s.y;
+  static calculateCentroid(e) {
+    if (!e || e.length === 0) return { x: 0, y: 0 };
+    let i = 0, o = 0;
+    for (const s of e)
+      i += s.x, o += s.y;
     return {
-      x: e / t.length,
-      y: o / t.length
+      x: i / e.length,
+      y: o / e.length
     };
   }
+  /**
+   * Computes the geometric area (in m²) of a polygon using the Shoelace formula
+   */
+  static computeArea(e) {
+    if (!e || e.length < 3) return 0;
+    let i = 0;
+    for (let o = 0; o < e.length; o++) {
+      const s = (o + 1) % e.length;
+      i += e[o].x * e[s].y, i -= e[s].x * e[o].y;
+    }
+    return Math.round(Math.abs(i / 2) * 100) / 100;
+  }
 }
-var le = Object.defineProperty, de = Object.getOwnPropertyDescriptor, v = (i, t, e, o) => {
-  for (var s = o > 1 ? void 0 : o ? de(t, e) : t, r = i.length - 1, a; r >= 0; r--)
-    (a = i[r]) && (s = (o ? a(t, e, s) : a(s)) || s);
-  return o && s && le(t, e, s), s;
+var dt = Object.defineProperty, pt = Object.getOwnPropertyDescriptor, y = (t, e, i, o) => {
+  for (var s = o > 1 ? void 0 : o ? pt(e, i) : e, r = t.length - 1, a; r >= 0; r--)
+    (a = t[r]) && (s = (o ? a(e, i, s) : a(s)) || s);
+  return o && s && dt(e, i, s), s;
 };
-let b = class extends k {
+let m = class extends _ {
   constructor() {
     super(...arguments), this.project = {
       id: "default",
@@ -1156,44 +1168,44 @@ let b = class extends k {
       openings: [],
       rooms: [],
       bindings: []
-    }, this.activeTool = "wall", this.currentWallThickness = 0.2, this.currentOpeningWidth = 0.9, this.is3DMode = !1, this.viewport = { x: 300, y: 300, zoom: 1 }, this.isPanning = !1, this.panStart = { x: 0, y: 0 }, this.drawingWallStart = null, this.previewPoint = null, this.snapInfo = { snappedTo: "none" }, this.cursorCoords = { x: 0, y: 0 }, this.wallSnap = null, this.openingFlipSide = !1, this.openingFlipDirection = !1, this.calibrateStart = null, this.calibrateCurrent = null;
+    }, this.activeTool = "wall", this.currentWallThickness = 0.2, this.currentOpeningWidth = 0.9, this.is3DMode = !1, this.viewport = { x: 300, y: 300, zoom: 1 }, this.isPanning = !1, this.panStart = { x: 0, y: 0 }, this.drawingWallStart = null, this.previewPoint = null, this.snapInfo = { snappedTo: "none" }, this.cursorCoords = { x: 0, y: 0 }, this.wallSnap = null, this.openingFlipSide = !1, this.openingFlipDirection = !1, this.calibrateStart = null, this.calibrateCurrent = null, this.rescaleStart = null, this.rescaleCurrent = null;
   }
   // ==========================================
   // CONVERSIONS DE COORDONNÉES
   // ==========================================
-  screenToWorld(i, t) {
-    const e = this.getBoundingClientRect(), o = i - e.left, s = t - e.top, r = this.project.pixelsPerMeter * this.viewport.zoom;
+  screenToWorld(t, e) {
+    const i = this.getBoundingClientRect(), o = t - i.left, s = e - i.top, r = this.project.pixelsPerMeter * this.viewport.zoom;
     return {
       x: (o - this.viewport.x) / r,
       y: (s - this.viewport.y) / r
     };
   }
-  worldToScreen(i) {
-    const t = this.project.pixelsPerMeter * this.viewport.zoom;
+  worldToScreen(t) {
+    const e = this.project.pixelsPerMeter * this.viewport.zoom;
     return {
-      x: i.x * t + this.viewport.x,
-      y: i.y * t + this.viewport.y
+      x: t.x * e + this.viewport.x,
+      y: t.y * e + this.viewport.y
     };
   }
   // ==========================================
   // GESTION DU PAN & ZOOM
   // ==========================================
-  handleWheel(i) {
-    i.preventDefault();
-    const t = this.getBoundingClientRect(), e = i.clientX - t.left, o = i.clientY - t.top, s = i.deltaY < 0 ? 1.12 : 0.89, r = Math.min(Math.max(this.viewport.zoom * s, 0.15), 8), a = e - (e - this.viewport.x) * (r / this.viewport.zoom), n = o - (o - this.viewport.y) * (r / this.viewport.zoom);
+  handleWheel(t) {
+    t.preventDefault();
+    const e = this.getBoundingClientRect(), i = t.clientX - e.left, o = t.clientY - e.top, s = t.deltaY < 0 ? 1.12 : 0.89, r = Math.min(Math.max(this.viewport.zoom * s, 0.15), 8), a = i - (i - this.viewport.x) * (r / this.viewport.zoom), n = o - (o - this.viewport.y) * (r / this.viewport.zoom);
     this.viewport = { x: a, y: n, zoom: r };
   }
-  handlePointerDown(i) {
-    var e, o;
-    if (i.button === 1 || this.activeTool === "select" || i.shiftKey) {
-      this.isPanning = !0, this.panStart = { x: i.clientX - this.viewport.x, y: i.clientY - this.viewport.y }, (o = (e = i.target).setPointerCapture) == null || o.call(e, i.pointerId);
+  handlePointerDown(t) {
+    var i, o;
+    if (t.button === 1 || this.activeTool === "select" || t.shiftKey) {
+      this.isPanning = !0, this.panStart = { x: t.clientX - this.viewport.x, y: t.clientY - this.viewport.y }, (o = (i = t.target).setPointerCapture) == null || o.call(i, t.pointerId);
       return;
     }
-    if (i.button !== 0) return;
-    const t = this.screenToWorld(i.clientX, i.clientY);
+    if (t.button !== 0) return;
+    const e = this.screenToWorld(t.clientX, t.clientY);
     if (this.activeTool === "wall") {
-      const s = _.snapPoint(
-        t,
+      const s = u.snapPoint(
+        e,
         this.project.grid,
         this.project.walls,
         this.drawingWallStart || void 0
@@ -1202,7 +1214,7 @@ let b = class extends k {
         this.drawingWallStart = s.point;
       else {
         const r = this.drawingWallStart, a = s.point;
-        if (_.distance(r, a) >= 0.15) {
+        if (u.distance(r, a) >= 0.15) {
           const l = {
             id: `wall_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
             start: { ...r },
@@ -1222,7 +1234,7 @@ let b = class extends k {
           id: `op_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
           wallId: this.wallSnap.wall.id,
           type: s,
-          offset: _.roundMeters(this.wallSnap.offset),
+          offset: u.roundMeters(this.wallSnap.offset),
           width: this.currentOpeningWidth || (s === "door" ? 0.9 : 1.2),
           flipSide: this.openingFlipSide,
           flipDirection: this.openingFlipDirection
@@ -1233,68 +1245,104 @@ let b = class extends k {
         }, this.dispatchProjectChanged();
       }
     } else if (this.activeTool === "calibrate") {
-      const s = this.getBoundingClientRect(), r = { x: i.clientX - s.left, y: i.clientY - s.top };
+      const s = this.getBoundingClientRect(), r = { x: t.clientX - s.left, y: t.clientY - s.top };
       if (!this.calibrateStart)
         this.calibrateStart = r, this.calibrateCurrent = r;
       else {
         const a = r.x - this.calibrateStart.x, n = r.y - this.calibrateStart.y, l = Math.sqrt(a * a + n * n);
         if (l >= 10) {
-          const d = l / this.viewport.zoom;
+          const c = l / this.viewport.zoom;
           this.dispatchEvent(new CustomEvent("request-calibration", {
             detail: {
-              pixelDistance: d,
-              defaultMeters: _.roundMeters(d / this.project.pixelsPerMeter)
+              pixelDistance: c,
+              defaultMeters: u.roundMeters(c / this.project.pixelsPerMeter)
             },
             bubbles: !0,
             composed: !0
           })), this.calibrateStart = null, this.calibrateCurrent = null;
         }
       }
+    } else if (this.activeTool === "rescale") {
+      const s = this.screenToWorld(t.clientX, t.clientY);
+      let r = u.snapPoint(
+        s,
+        this.project.grid,
+        this.project.walls,
+        this.rescaleStart || void 0
+      );
+      if (r.snappedTo === "none" && this.project.walls.length > 0) {
+        const a = u.snapPointToWall(s, this.project.walls, 0.6);
+        a && (r = { point: a.projectionPoint, snappedTo: "vertex" });
+      }
+      if (!this.rescaleStart)
+        this.rescaleStart = r.point, this.rescaleCurrent = r.point;
+      else {
+        const a = this.rescaleStart, n = r.point, l = u.distance(a, n);
+        l >= 0.05 && (this.dispatchEvent(new CustomEvent("request-rescale", {
+          detail: {
+            measuredMeters: u.roundMeters(l)
+          },
+          bubbles: !0,
+          composed: !0
+        })), this.rescaleStart = null, this.rescaleCurrent = null, this.previewPoint = null);
+      }
     }
   }
-  handlePointerMove(i) {
+  handlePointerMove(t) {
     if (this.isPanning) {
       this.viewport = {
         ...this.viewport,
-        x: i.clientX - this.panStart.x,
-        y: i.clientY - this.panStart.y
+        x: t.clientX - this.panStart.x,
+        y: t.clientY - this.panStart.y
       };
       return;
     }
-    const t = this.screenToWorld(i.clientX, i.clientY);
+    const e = this.screenToWorld(t.clientX, t.clientY);
     if (this.cursorCoords = {
-      x: _.roundMeters(t.x),
-      y: _.roundMeters(t.y)
+      x: u.roundMeters(e.x),
+      y: u.roundMeters(e.y)
     }, this.activeTool === "wall") {
-      const e = _.snapPoint(
-        t,
+      const i = u.snapPoint(
+        e,
         this.project.grid,
         this.project.walls,
         this.drawingWallStart || void 0
       );
-      this.previewPoint = e.point, this.snapInfo = { snappedTo: e.snappedTo, guideAngle: e.guideAngle }, this.wallSnap = null;
+      this.previewPoint = i.point, this.snapInfo = { snappedTo: i.snappedTo, guideAngle: i.guideAngle }, this.wallSnap = null;
     } else if (this.activeTool === "door" || this.activeTool === "window" || this.activeTool === "french_window")
-      this.wallSnap = _.snapPointToWall(t, this.project.walls, 0.8), this.previewPoint = null;
+      this.wallSnap = u.snapPointToWall(e, this.project.walls, 0.8), this.previewPoint = null;
     else if (this.activeTool === "calibrate" && this.calibrateStart) {
-      const e = this.getBoundingClientRect();
-      this.calibrateCurrent = { x: i.clientX - e.left, y: i.clientY - e.top };
+      const i = this.getBoundingClientRect();
+      this.calibrateCurrent = { x: t.clientX - i.left, y: t.clientY - i.top };
+    } else if (this.activeTool === "rescale") {
+      let i = u.snapPoint(
+        e,
+        this.project.grid,
+        this.project.walls,
+        this.rescaleStart || void 0
+      );
+      if (i.snappedTo === "none" && this.project.walls.length > 0) {
+        const o = u.snapPointToWall(e, this.project.walls, 0.6);
+        o && (i = { point: o.projectionPoint, snappedTo: "vertex" });
+      }
+      this.previewPoint = i.point, this.snapInfo = { snappedTo: i.snappedTo, guideAngle: i.guideAngle }, this.wallSnap = null, this.rescaleStart && (this.rescaleCurrent = i.point);
     } else
       this.previewPoint = null, this.wallSnap = null;
   }
-  handlePointerUp(i) {
-    var t, e;
-    this.isPanning && (this.isPanning = !1, (e = (t = i.target).releasePointerCapture) == null || e.call(t, i.pointerId));
+  handlePointerUp(t) {
+    var e, i;
+    this.isPanning && (this.isPanning = !1, (i = (e = t.target).releasePointerCapture) == null || i.call(e, t.pointerId));
   }
   // ==========================================
   // DRAG & DROP ENTITÉS HOME ASSISTANT
   // ==========================================
-  handleDragOver(i) {
-    i.preventDefault(), i.dataTransfer && (i.dataTransfer.dropEffect = "copy");
+  handleDragOver(t) {
+    t.preventDefault(), t.dataTransfer && (t.dataTransfer.dropEffect = "copy");
   }
-  handleDrop(i) {
-    var e, o;
-    if (i.preventDefault(), (e = i.dataTransfer) != null && e.files && i.dataTransfer.files.length > 0) {
-      const s = i.dataTransfer.files[0];
+  handleDrop(t) {
+    var i, o;
+    if (t.preventDefault(), (i = t.dataTransfer) != null && i.files && t.dataTransfer.files.length > 0) {
+      const s = t.dataTransfer.files[0];
       if (s.type.startsWith("image/")) {
         const r = new FileReader();
         r.onload = (a) => {
@@ -1309,17 +1357,17 @@ let b = class extends k {
         return;
       }
     }
-    const t = (o = i.dataTransfer) == null ? void 0 : o.getData("application/json");
-    if (t)
+    const e = (o = t.dataTransfer) == null ? void 0 : o.getData("application/json");
+    if (e)
       try {
-        const { entityId: s, domain: r, name: a, icon: n } = JSON.parse(t), l = this.screenToWorld(i.clientX, i.clientY), d = Tt.findRoomContainingPoint(l, this.project.rooms), p = {
+        const { entityId: s, domain: r, name: a, icon: n } = JSON.parse(e), l = this.screenToWorld(t.clientX, t.clientY), c = be.findRoomContainingPoint(l, this.project.rooms), p = {
           id: `bind_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
           entityId: s,
           position: {
-            x: _.roundMeters(l.x),
-            y: _.roundMeters(l.y)
+            x: u.roundMeters(l.x),
+            y: u.roundMeters(l.y)
           },
-          roomId: d == null ? void 0 : d.id,
+          roomId: c == null ? void 0 : c.id,
           icon: n,
           customName: a,
           tapAction: "toggle"
@@ -1332,24 +1380,24 @@ let b = class extends k {
         console.error("Erreur lors de la liaison entité HA:", s);
       }
   }
-  handleEntityClick(i, t) {
-    if (t.stopPropagation(), this.hass && this.hass.callService) {
-      const e = i.entityId.split(".")[0];
-      this.hass.callService(e, "toggle", { entity_id: i.entityId }).catch(() => {
-        this.hass.callService("homeassistant", "toggle", { entity_id: i.entityId });
+  handleEntityClick(t, e) {
+    if (e.stopPropagation(), this.hass && this.hass.callService) {
+      const i = t.entityId.split(".")[0];
+      this.hass.callService(i, "toggle", { entity_id: t.entityId }).catch(() => {
+        this.hass.callService("homeassistant", "toggle", { entity_id: t.entityId });
       });
     } else
-      console.log(`[Demo Standalone] Toggle entité: ${i.entityId}`);
+      console.log(`[Demo Standalone] Toggle entité: ${t.entityId}`);
   }
-  handleEntityDblClick(i, t) {
-    t.stopPropagation(), this.dispatchEvent(new CustomEvent("hass-more-info", {
-      detail: { entityId: i.entityId },
+  handleEntityDblClick(t, e) {
+    e.stopPropagation(), this.dispatchEvent(new CustomEvent("hass-more-info", {
+      detail: { entityId: t.entityId },
       bubbles: !0,
       composed: !0
     }));
   }
-  handleKeyDown(i) {
-    i.key === "Escape" ? (this.drawingWallStart = null, this.previewPoint = null, this.calibrateStart = null, this.calibrateCurrent = null, this.wallSnap = null, this.requestUpdate()) : i.key === " " || i.key === "Spacebar" ? this.wallSnap && (i.preventDefault(), this.openingFlipSide = !this.openingFlipSide, this.requestUpdate()) : i.key.toLowerCase() === "f" && this.wallSnap && (this.openingFlipDirection = !this.openingFlipDirection, this.requestUpdate());
+  handleKeyDown(t) {
+    t.key === "Escape" ? (this.drawingWallStart = null, this.previewPoint = null, this.calibrateStart = null, this.calibrateCurrent = null, this.rescaleStart = null, this.rescaleCurrent = null, this.wallSnap = null, this.requestUpdate()) : t.key === " " || t.key === "Spacebar" ? this.wallSnap && (t.preventDefault(), this.openingFlipSide = !this.openingFlipSide, this.requestUpdate()) : t.key.toLowerCase() === "f" && this.wallSnap && (this.openingFlipDirection = !this.openingFlipDirection, this.requestUpdate());
   }
   connectedCallback() {
     super.connectedCallback(), window.addEventListener("keydown", this.handleKeyDown.bind(this));
@@ -1367,55 +1415,55 @@ let b = class extends k {
   // ==========================================
   // RENDU GÉOMÉTRIQUE & 3D
   // ==========================================
-  computeWallPolygon(i, t, e) {
-    const o = t.x - i.x, s = t.y - i.y, r = Math.sqrt(o * o + s * s);
-    if (r === 0) return [i, i, t, t];
-    const a = e / 2, n = -s / r * a, l = o / r * a;
+  computeWallPolygon(t, e, i) {
+    const o = e.x - t.x, s = e.y - t.y, r = Math.sqrt(o * o + s * s);
+    if (r === 0) return [t, t, e, e];
+    const a = i / 2, n = -s / r * a, l = o / r * a;
     return [
-      { x: i.x + n, y: i.y + l },
       { x: t.x + n, y: t.y + l },
-      { x: t.x - n, y: t.y - l },
-      { x: i.x - n, y: i.y - l }
+      { x: e.x + n, y: e.y + l },
+      { x: e.x - n, y: e.y - l },
+      { x: t.x - n, y: t.y - l }
     ];
   }
   renderBackgroundLayer() {
-    const i = this.project.background;
-    if (!i || !i.imageUrl || !i.visible) return null;
-    const t = this.worldToScreen(i.offset || { x: 0, y: 0 }), e = i.scale || 1;
-    return m`
+    const t = this.project.background;
+    if (!t || !t.imageUrl || !t.visible) return null;
+    const e = this.worldToScreen(t.offset || { x: 0, y: 0 }), i = t.scale || 1;
+    return x`
       <g 
         class="background-image-layer" 
-        transform="translate(${t.x}, ${t.y}) scale(${this.viewport.zoom * e})"
-        style="opacity: ${i.opacity};"
+        transform="translate(${e.x}, ${e.y}) scale(${this.viewport.zoom * i})"
+        style="opacity: ${t.opacity};"
       >
         <image 
-          href="${i.imageUrl}" 
+          href="${t.imageUrl}" 
           x="0" 
           y="0" 
-          width="${i.widthPx || 1200}" 
-          height="${i.heightPx || 900}" 
+          width="${t.widthPx || 1200}" 
+          height="${t.heightPx || 900}" 
         />
       </g>
     `;
   }
   // Rendu des Pièces avec détection d'illumination si lumière allumée
   renderRooms() {
-    return this.project.rooms.map((i) => {
-      if (!i.polygon || i.polygon.length < 3) return null;
-      const t = i.polygon.map((r) => this.worldToScreen(r)), e = t.map((r) => `${r.x},${r.y}`).join(" "), o = this.project.bindings.filter((r) => r.roomId === i.id && r.entityId.startsWith("light.")).some((r) => {
-        var n, l, d;
-        return ((d = (l = (n = this.hass) == null ? void 0 : n.states) == null ? void 0 : l[r.entityId]) == null ? void 0 : d.state) === "on";
-      }), s = Tt.calculateCentroid(t);
-      return m`
-        <g class="room-group" data-room-id="${i.id}">
+    return this.project.rooms.map((t) => {
+      if (!t.polygon || t.polygon.length < 3) return null;
+      const e = t.polygon.map((r) => this.worldToScreen(r)), i = e.map((r) => `${r.x},${r.y}`).join(" "), o = this.project.bindings.filter((r) => r.roomId === t.id && r.entityId.startsWith("light.")).some((r) => {
+        var n, l, c;
+        return ((c = (l = (n = this.hass) == null ? void 0 : n.states) == null ? void 0 : l[r.entityId]) == null ? void 0 : c.state) === "on";
+      }), s = be.calculateCentroid(e);
+      return x`
+        <g class="room-group" data-room-id="${t.id}">
           <polygon 
-            points="${e}" 
+            points="${i}" 
             class="room-polygon ${o ? "illuminated" : ""}"
-            style="fill: ${i.color || "rgba(56, 189, 248, 0.12)"};"
+            style="fill: ${t.color || "rgba(56, 189, 248, 0.12)"};"
           />
           <g class="room-label-group" transform="translate(${s.x}, ${s.y})">
-            <text class="room-label-name" y="-6">${i.name}</text>
-            <text class="room-label-area" y="12">${i.areaM2.toFixed(1)} m²</text>
+            <text class="room-label-name" y="-6">${t.name}</text>
+            <text class="room-label-area" y="12">${t.areaM2.toFixed(1)} m²</text>
           </g>
         </g>
       `;
@@ -1423,15 +1471,15 @@ let b = class extends k {
   }
   renderGrid() {
     if (this.is3DMode) return null;
-    const i = this.project.pixelsPerMeter * this.viewport.zoom, e = (this.project.grid.size || 0.5) * i;
-    if (e < 12) return null;
-    const o = e * 2;
-    return m`
+    const t = this.project.pixelsPerMeter * this.viewport.zoom, i = (this.project.grid.size || 0.5) * t;
+    if (i < 12) return null;
+    const o = i * 2;
+    return x`
       <defs>
-        <pattern id="grid-sub" width="${e}" height="${e}" patternUnits="userSpaceOnUse"
-          patternTransform="translate(${this.viewport.x % e}, ${this.viewport.y % e})">
-          <line x1="0" y1="0" x2="${e}" y2="0" stroke="rgba(255,255,255,0.06)" stroke-width="0.5" />
-          <line x1="0" y1="0" x2="0" y2="${e}" stroke="rgba(255,255,255,0.06)" stroke-width="0.5" />
+        <pattern id="grid-sub" width="${i}" height="${i}" patternUnits="userSpaceOnUse"
+          patternTransform="translate(${this.viewport.x % i}, ${this.viewport.y % i})">
+          <line x1="0" y1="0" x2="${i}" y2="0" stroke="rgba(255,255,255,0.06)" stroke-width="0.5" />
+          <line x1="0" y1="0" x2="0" y2="${i}" stroke="rgba(255,255,255,0.06)" stroke-width="0.5" />
         </pattern>
         <pattern id="grid-major" width="${o}" height="${o}" patternUnits="userSpaceOnUse"
           patternTransform="translate(${this.viewport.x % o}, ${this.viewport.y % o})">
@@ -1445,34 +1493,34 @@ let b = class extends k {
   }
   renderWalls() {
     this.project.pixelsPerMeter * this.viewport.zoom;
-    const i = this.is3DMode ? 40 * this.viewport.zoom : 0;
-    return this.project.walls.map((t) => {
-      const o = this.computeWallPolygon(t.start, t.end, t.thickness).map((d) => this.worldToScreen(d)), s = this.worldToScreen(t.start), r = this.worldToScreen(t.end), a = o.map((d) => `${d.x},${d.y}`).join(" "), n = _.distance(t.start, t.end), l = {
+    const t = this.is3DMode ? 40 * this.viewport.zoom : 0;
+    return this.project.walls.map((e) => {
+      const o = this.computeWallPolygon(e.start, e.end, e.thickness).map((c) => this.worldToScreen(c)), s = this.worldToScreen(e.start), r = this.worldToScreen(e.end), a = o.map((c) => `${c.x},${c.y}`).join(" "), n = u.distance(e.start, e.end), l = {
         x: (s.x + r.x) / 2,
         y: (s.y + r.y) / 2
       };
       if (this.is3DMode) {
-        const d = o.map((c) => ({ x: c.x, y: c.y - i })), p = d.map((c) => `${c.x},${c.y}`).join(" ");
-        return m`
-          <g class="wall-element-3d" data-wall-id="${t.id}">
+        const c = o.map((d) => ({ x: d.x, y: d.y - t })), p = c.map((d) => `${d.x},${d.y}`).join(" ");
+        return x`
+          <g class="wall-element-3d" data-wall-id="${e.id}">
             <!-- Paroi latérale ombrée 1 -->
-            <polygon points="${o[0].x},${o[0].y} ${o[1].x},${o[1].y} ${d[1].x},${d[1].y} ${d[0].x},${d[0].y}" class="wall-3d-side-shaded" />
+            <polygon points="${o[0].x},${o[0].y} ${o[1].x},${o[1].y} ${c[1].x},${c[1].y} ${c[0].x},${c[0].y}" class="wall-3d-side-shaded" />
             <!-- Paroi latérale ombrée 2 -->
-            <polygon points="${o[1].x},${o[1].y} ${o[2].x},${o[2].y} ${d[2].x},${d[2].y} ${d[1].x},${d[1].y}" class="wall-3d-side-light" />
+            <polygon points="${o[1].x},${o[1].y} ${o[2].x},${o[2].y} ${c[2].x},${c[2].y} ${c[1].x},${c[1].y}" class="wall-3d-side-light" />
             <!-- Chapeau supérieur du mur -->
             <polygon points="${p}" class="wall-3d-top" />
           </g>
         `;
       }
-      return m`
-        <g class="wall-element" data-wall-id="${t.id}">
+      return x`
+        <g class="wall-element" data-wall-id="${e.id}">
           <polygon points="${a}" class="wall-rect" />
           <line x1="${s.x}" y1="${s.y}" x2="${r.x}" y2="${r.y}" class="wall-centerline" />
           
-          ${n >= 0.6 ? m`
+          ${n >= 0.6 ? x`
             <g class="dimension-badge" transform="translate(${l.x}, ${l.y - 14})">
               <rect x="-26" y="-10" width="52" height="20" />
-              <text>${_.roundMeters(n).toFixed(2)} m</text>
+              <text>${u.roundMeters(n).toFixed(2)} m</text>
             </g>
           ` : null}
         </g>
@@ -1480,70 +1528,70 @@ let b = class extends k {
     });
   }
   renderOpenings() {
-    return this.project.openings.map((i) => {
-      const t = this.project.walls.find((g) => g.id === i.wallId);
-      if (!t) return null;
-      const e = t.end.x - t.start.x, o = t.end.y - t.start.y, s = Math.sqrt(e * e + o * o);
+    return this.project.openings.map((t) => {
+      const e = this.project.walls.find((f) => f.id === t.wallId);
+      if (!e) return null;
+      const i = e.end.x - e.start.x, o = e.end.y - e.start.y, s = Math.sqrt(i * i + o * o);
       if (s === 0) return null;
-      const a = Math.atan2(o, e) * 180 / Math.PI, n = t.start.x + i.offset / s * e, l = t.start.y + i.offset / s * o, d = this.worldToScreen({ x: n, y: l }), p = this.project.pixelsPerMeter * this.viewport.zoom, c = i.width * p, u = t.thickness * p;
-      return m`
+      const a = Math.atan2(o, i) * 180 / Math.PI, n = e.start.x + t.offset / s * i, l = e.start.y + t.offset / s * o, c = this.worldToScreen({ x: n, y: l }), p = this.project.pixelsPerMeter * this.viewport.zoom, d = t.width * p, g = e.thickness * p;
+      return x`
         <g 
           class="opening-element" 
-          transform="translate(${d.x}, ${d.y}) rotate(${a})"
+          transform="translate(${c.x}, ${c.y}) rotate(${a})"
         >
           <rect 
-            x="${-c / 2}" 
-            y="${-u / 2 - 1}" 
-            width="${c}" 
-            height="${u + 2}" 
+            x="${-d / 2}" 
+            y="${-g / 2 - 1}" 
+            width="${d}" 
+            height="${g + 2}" 
             class="wall-cutout"
           />
 
-          ${i.type === "door" ? this.renderDoorSymbol(c, u, i.flipSide, i.flipDirection) : null}
-          ${i.type === "window" ? this.renderWindowSymbol(c, u) : null}
-          ${i.type === "french_window" ? this.renderFrenchWindowSymbol(c, u) : null}
+          ${t.type === "door" ? this.renderDoorSymbol(d, g, t.flipSide, t.flipDirection) : null}
+          ${t.type === "window" ? this.renderWindowSymbol(d, g) : null}
+          ${t.type === "french_window" ? this.renderFrenchWindowSymbol(d, g) : null}
         </g>
       `;
     });
   }
-  renderDoorSymbol(i, t, e, o) {
-    const s = i / 2, r = e ? -1 : 1, a = o ? s : -s, n = o ? -1 : 1;
-    return m`
+  renderDoorSymbol(t, e, i, o) {
+    const s = t / 2, r = i ? -1 : 1, a = o ? s : -s, n = o ? -1 : 1;
+    return x`
       <g>
-        <rect x="${-s}" y="${-t / 2}" width="4" height="${t}" fill="#94a3b8" />
-        <rect x="${s - 4}" y="${-t / 2}" width="4" height="${t}" fill="#94a3b8" />
+        <rect x="${-s}" y="${-e / 2}" width="4" height="${e}" fill="#94a3b8" />
+        <rect x="${s - 4}" y="${-e / 2}" width="4" height="${e}" fill="#94a3b8" />
         <line 
           x1="${a}" 
           y1="0" 
           x2="${a}" 
-          y2="${r * i}" 
+          y2="${r * t}" 
           class="opening-door-leaf" 
         />
         <path 
-          d="M ${a + n * i} 0 A ${i} ${i} 0 0 ${r > 0 ? o ? 0 : 1 : o ? 1 : 0} ${a} ${r * i}" 
+          d="M ${a + n * t} 0 A ${t} ${t} 0 0 ${r > 0 ? o ? 0 : 1 : o ? 1 : 0} ${a} ${r * t}" 
           class="opening-door-arc" 
         />
       </g>
     `;
   }
-  renderWindowSymbol(i, t) {
-    const e = i / 2;
-    return m`
+  renderWindowSymbol(t, e) {
+    const i = t / 2;
+    return x`
       <g>
-        <rect x="${-e}" y="${-t / 2}" width="${i}" height="${t}" fill="none" class="opening-window-frame" />
-        <line x1="${-e}" y1="0" x2="${e}" y2="0" class="opening-window-glass" />
-        <line x1="${-e + 4}" y1="${-t / 4}" x2="${e - 4}" y2="${-t / 4}" stroke="rgba(56, 189, 248, 0.4)" stroke-width="1" />
-        <line x1="${-e + 4}" y1="${t / 4}" x2="${e - 4}" y2="${t / 4}" stroke="rgba(56, 189, 248, 0.4)" stroke-width="1" />
+        <rect x="${-i}" y="${-e / 2}" width="${t}" height="${e}" fill="none" class="opening-window-frame" />
+        <line x1="${-i}" y1="0" x2="${i}" y2="0" class="opening-window-glass" />
+        <line x1="${-i + 4}" y1="${-e / 4}" x2="${i - 4}" y2="${-e / 4}" stroke="rgba(56, 189, 248, 0.4)" stroke-width="1" />
+        <line x1="${-i + 4}" y1="${e / 4}" x2="${i - 4}" y2="${e / 4}" stroke="rgba(56, 189, 248, 0.4)" stroke-width="1" />
       </g>
     `;
   }
-  renderFrenchWindowSymbol(i, t) {
-    const e = i / 2;
-    return m`
+  renderFrenchWindowSymbol(t, e) {
+    const i = t / 2;
+    return x`
       <g>
-        <rect x="${-e}" y="${-t / 2}" width="${i}" height="${t}" fill="none" class="opening-window-frame" />
-        <rect x="${-e}" y="${-t / 4}" width="${e}" height="3" fill="#38bdf8" />
-        <rect x="0" y="${t / 4}" width="${e}" height="3" fill="#38bdf8" />
+        <rect x="${-i}" y="${-e / 2}" width="${t}" height="${e}" fill="none" class="opening-window-frame" />
+        <rect x="${-i}" y="${-e / 4}" width="${i}" height="3" fill="#38bdf8" />
+        <rect x="0" y="${e / 4}" width="${i}" height="3" fill="#38bdf8" />
       </g>
     `;
   }
@@ -1551,35 +1599,35 @@ let b = class extends k {
   // RENDU DES PINS D'ENTITÉS HOME ASSISTANT
   // ==========================================
   renderEntityBindings() {
-    return this.project.bindings.map((i) => {
-      var l, d, p;
-      const t = this.worldToScreen(i.position), e = (d = (l = this.hass) == null ? void 0 : l.states) == null ? void 0 : d[i.entityId], o = (e == null ? void 0 : e.state) || "off", s = i.entityId.startsWith("light.") && o === "on", r = i.entityId.startsWith("binary_sensor.") && (o === "on" || o === "detected"), a = i.entityId.startsWith("sensor.") || i.entityId.startsWith("climate."), n = ((p = e == null ? void 0 : e.attributes) == null ? void 0 : p.unit_of_measurement) || (a ? "°" : "");
-      return m`
+    return this.project.bindings.map((t) => {
+      var l, c, p;
+      const e = this.worldToScreen(t.position), i = (c = (l = this.hass) == null ? void 0 : l.states) == null ? void 0 : c[t.entityId], o = (i == null ? void 0 : i.state) || "off", s = t.entityId.startsWith("light.") && o === "on", r = t.entityId.startsWith("binary_sensor.") && (o === "on" || o === "detected"), a = t.entityId.startsWith("sensor.") || t.entityId.startsWith("climate."), n = ((p = i == null ? void 0 : i.attributes) == null ? void 0 : p.unit_of_measurement) || (a ? "°" : "");
+      return x`
         <g 
           class="entity-pin ${s ? "active-light" : ""} ${r ? "active-radar" : ""}"
-          transform="translate(${t.x}, ${t.y})"
-          @click=${(c) => this.handleEntityClick(i, c)}
-          @dblclick=${(c) => this.handleEntityDblClick(i, c)}
-          title="${i.customName || i.entityId} : ${o} (Clic pour basculer)"
+          transform="translate(${e.x}, ${e.y})"
+          @click=${(d) => this.handleEntityClick(t, d)}
+          @dblclick=${(d) => this.handleEntityDblClick(t, d)}
+          title="${t.customName || t.entityId} : ${o} (Clic pour basculer)"
         >
           <!-- Onde radar animée si mouvement détecté -->
-          ${r ? m`<circle cx="0" cy="0" r="16" class="radar-pulse-ring" />` : null}
+          ${r ? x`<circle cx="0" cy="0" r="16" class="radar-pulse-ring" />` : null}
 
           <!-- Pastille de fond -->
           <circle cx="0" cy="0" r="16" class="entity-pin-bg" />
 
           <!-- Pictogramme -->
           <text x="0" y="0" class="entity-pin-icon">
-            ${i.icon || "⚡"}
+            ${t.icon || "⚡"}
           </text>
 
           <!-- Étiquette Nom -->
           <text x="0" y="27" class="entity-pin-label">
-            ${i.customName || i.entityId.split(".")[1]}
+            ${t.customName || t.entityId.split(".")[1]}
           </text>
 
           <!-- Badge Valeur (Thermostat / Capteur) -->
-          ${a && o !== "unknown" ? m`
+          ${a && o !== "unknown" ? x`
             <g class="entity-pin-value-badge" transform="translate(14, -14)">
               <rect x="-14" y="-8" width="28" height="16" />
               <text>${o}${n}</text>
@@ -1591,53 +1639,53 @@ let b = class extends k {
   }
   renderOpeningPreview() {
     if (!this.wallSnap) return null;
-    const i = this.project.pixelsPerMeter * this.viewport.zoom, t = (this.currentOpeningWidth || 0.9) * i, e = this.wallSnap.wall.thickness * i, o = this.worldToScreen(this.wallSnap.projectionPoint), s = this.wallSnap.angleRad * 180 / Math.PI;
-    return m`
+    const t = this.project.pixelsPerMeter * this.viewport.zoom, e = (this.currentOpeningWidth || 0.9) * t, i = this.wallSnap.wall.thickness * t, o = this.worldToScreen(this.wallSnap.projectionPoint), s = this.wallSnap.angleRad * 180 / Math.PI;
+    return x`
       <g 
         class="opening-preview" 
         transform="translate(${o.x}, ${o.y}) rotate(${s})"
       >
-        <rect x="${-t / 2}" y="${-e / 2}" width="${t}" height="${e}" fill="rgba(56, 189, 248, 0.3)" stroke="#38bdf8" stroke-dasharray="4, 2" />
-        ${this.activeTool === "door" ? this.renderDoorSymbol(t, e, this.openingFlipSide, this.openingFlipDirection) : null}
-        ${this.activeTool === "window" ? this.renderWindowSymbol(t, e) : null}
-        ${this.activeTool === "french_window" ? this.renderFrenchWindowSymbol(t, e) : null}
+        <rect x="${-e / 2}" y="${-i / 2}" width="${e}" height="${i}" fill="rgba(56, 189, 248, 0.3)" stroke="#38bdf8" stroke-dasharray="4, 2" />
+        ${this.activeTool === "door" ? this.renderDoorSymbol(e, i, this.openingFlipSide, this.openingFlipDirection) : null}
+        ${this.activeTool === "window" ? this.renderWindowSymbol(e, i) : null}
+        ${this.activeTool === "french_window" ? this.renderFrenchWindowSymbol(e, i) : null}
       </g>
     `;
   }
   renderPreviewWall() {
     if (!this.drawingWallStart || !this.previewPoint) return null;
-    const t = this.computeWallPolygon(
+    const e = this.computeWallPolygon(
       this.drawingWallStart,
       this.previewPoint,
       this.currentWallThickness
-    ).map((n) => this.worldToScreen(n)), e = this.worldToScreen(this.drawingWallStart), o = this.worldToScreen(this.previewPoint), s = t.map((n) => `${n.x},${n.y}`).join(" "), r = _.distance(this.drawingWallStart, this.previewPoint), a = {
-      x: (e.x + o.x) / 2,
-      y: (e.y + o.y) / 2
+    ).map((n) => this.worldToScreen(n)), i = this.worldToScreen(this.drawingWallStart), o = this.worldToScreen(this.previewPoint), s = e.map((n) => `${n.x},${n.y}`).join(" "), r = u.distance(this.drawingWallStart, this.previewPoint), a = {
+      x: (i.x + o.x) / 2,
+      y: (i.y + o.y) / 2
     };
-    return m`
+    return x`
       <g class="preview-wall-group">
         <polygon points="${s}" class="preview-wall-rect" />
-        <line x1="${e.x}" y1="${e.y}" x2="${o.x}" y2="${o.y}" class="preview-wall-line" />
+        <line x1="${i.x}" y1="${i.y}" x2="${o.x}" y2="${o.y}" class="preview-wall-line" />
 
-        ${this.snapInfo.guideAngle !== void 0 ? m`
-          <line x1="${e.x}" y1="${e.y}" x2="${o.x}" y2="${o.y}" class="angle-guide-line" />
+        ${this.snapInfo.guideAngle !== void 0 ? x`
+          <line x1="${i.x}" y1="${i.y}" x2="${o.x}" y2="${o.y}" class="angle-guide-line" />
         ` : null}
 
         <g class="dimension-badge" transform="translate(${a.x}, ${a.y - 16})">
           <rect x="-30" y="-11" width="60" height="22" />
-          <text>${_.roundMeters(r).toFixed(2)} m</text>
+          <text>${u.roundMeters(r).toFixed(2)} m</text>
         </g>
       </g>
     `;
   }
   renderCalibrationLine() {
     if (!this.calibrateStart || !this.calibrateCurrent) return null;
-    const i = this.calibrateStart, t = this.calibrateCurrent, e = t.x - i.x, o = t.y - i.y, s = Math.sqrt(e * e + o * o), r = { x: (i.x + t.x) / 2, y: (i.y + t.y) / 2 };
-    return m`
+    const t = this.calibrateStart, e = this.calibrateCurrent, i = e.x - t.x, o = e.y - t.y, s = Math.sqrt(i * i + o * o), r = { x: (t.x + e.x) / 2, y: (t.y + e.y) / 2 };
+    return x`
       <g class="calibration-preview-group">
-        <line x1="${i.x}" y1="${i.y}" x2="${t.x}" y2="${t.y}" class="calibration-line" />
-        <circle cx="${i.x}" cy="${i.y}" r="6" class="calibration-endpoint" />
+        <line x1="${t.x}" y1="${t.y}" x2="${e.x}" y2="${e.y}" class="calibration-line" />
         <circle cx="${t.x}" cy="${t.y}" r="6" class="calibration-endpoint" />
+        <circle cx="${e.x}" cy="${e.y}" r="6" class="calibration-endpoint" />
 
         <g class="dimension-badge" transform="translate(${r.x}, ${r.y - 18})">
           <rect x="-35" y="-11" width="70" height="22" style="stroke: #f59e0b;" />
@@ -1646,13 +1694,40 @@ let b = class extends k {
       </g>
     `;
   }
+  renderRescaleLine() {
+    if (!this.rescaleStart || !this.rescaleCurrent) return null;
+    const t = this.worldToScreen(this.rescaleStart), e = this.worldToScreen(this.rescaleCurrent), i = u.distance(this.rescaleStart, this.rescaleCurrent), o = {
+      x: (t.x + e.x) / 2,
+      y: (t.y + e.y) / 2
+    };
+    return x`
+      <g class="rescale-preview-group">
+        <line 
+          x1="${t.x}" y1="${t.y}" 
+          x2="${e.x}" y2="${e.y}" 
+          stroke="#38bdf8" 
+          stroke-width="3" 
+          stroke-dasharray="6, 4" 
+        />
+        <circle cx="${t.x}" cy="${t.y}" r="6" fill="#38bdf8" stroke="#ffffff" stroke-width="2" />
+        <circle cx="${e.x}" cy="${e.y}" r="6" fill="#0284c7" stroke="#38bdf8" stroke-width="2" />
+
+        <g class="dimension-badge" transform="translate(${o.x}, ${o.y - 18})">
+          <rect x="-48" y="-13" width="96" height="26" rx="6" fill="#0f172a" stroke="#38bdf8" stroke-width="1.8" />
+          <text fill="#38bdf8" font-size="12px" font-weight="800" text-anchor="middle" dy="5">
+            📐 ${u.roundMeters(i).toFixed(2)} m
+          </text>
+        </g>
+      </g>
+    `;
+  }
   renderSnapIndicator() {
     if (!this.previewPoint || this.snapInfo.snappedTo === "none") return null;
-    const i = this.worldToScreen(this.previewPoint), t = this.snapInfo.snappedTo === "vertex";
-    return m`
-      <g transform="translate(${i.x}, ${i.y})">
-        <circle r="${t ? 7 : 5}" class="snap-indicator" />
-        ${t ? m`<circle r="2" fill="#38bdf8" />` : null}
+    const t = this.worldToScreen(this.previewPoint), e = this.snapInfo.snappedTo === "vertex";
+    return x`
+      <g transform="translate(${t.x}, ${t.y})">
+        <circle r="${e ? 7 : 5}" class="snap-indicator" />
+        ${e ? x`<circle r="2" fill="#38bdf8" />` : null}
       </g>
     `;
   }
@@ -1673,11 +1748,11 @@ let b = class extends k {
     }));
   }
   getHelpMessage() {
-    return this.is3DMode ? "Vue 3D Isométrique : Murs extrudés avec éclairage dynamique." : this.activeTool === "wall" ? this.drawingWallStart ? "Cliquez pour terminer le mur. Échap pour annuler." : "Cliquez pour démarrer un mur." : this.activeTool === "door" ? "Survolez un mur. Espace = inverser intérieur/extérieur. F = gauche/droite." : this.activeTool === "window" || this.activeTool === "french_window" ? "Survolez un mur pour insérer la fenêtre." : this.activeTool === "calibrate" ? this.calibrateStart ? "Cliquez sur la 2ème extrémité du mur mesuré." : "Tracez un segment sur un mur pour étalonner l'échelle." : null;
+    return this.is3DMode ? "Vue 3D Isométrique : Murs extrudés avec éclairage dynamique." : this.activeTool === "wall" ? this.drawingWallStart ? "Cliquez pour terminer le mur. Échap pour annuler." : "Cliquez pour démarrer un mur." : this.activeTool === "door" ? "Survolez un mur. Espace = inverser intérieur/extérieur. F = gauche/droite." : this.activeTool === "window" || this.activeTool === "french_window" ? "Survolez un mur pour insérer la fenêtre." : this.activeTool === "calibrate" ? this.calibrateStart ? "Cliquez sur la 2ème extrémité du mur mesuré." : "Tracez un segment sur un mur pour étalonner l'échelle." : this.activeTool === "rescale" ? this.rescaleStart ? "Tracez la ligne jusqu'au 2ème point (autre extrémité du mur ou point de référence)." : "Mettre à l'échelle : Sélectionnez un mur ou cliquez sur le 1er point de mesure." : null;
   }
   render() {
-    const i = this.getHelpMessage();
-    return f`
+    const t = this.getHelpMessage();
+    return b`
       <div 
         class="canvas-container ${this.isPanning ? "is-panning" : ""}"
         @wheel=${this.handleWheel}
@@ -1697,12 +1772,13 @@ let b = class extends k {
             ${this.renderOpeningPreview()}
             ${this.renderPreviewWall()}
             ${this.renderCalibrationLine()}
+            ${this.renderRescaleLine()}
             ${this.renderSnapIndicator()}
             ${this.renderEntityBindings()}
           </svg>
         </div>
 
-        ${i ? f`<div class="help-hud">${i}</div>` : null}
+        ${t ? b`<div class="help-hud">${t}</div>` : null}
 
         <div class="coords-hud">
           X: ${this.cursorCoords.x.toFixed(2)} m | Y: ${this.cursorCoords.y.toFixed(2)} m | Outil: ${this.activeTool.toUpperCase()}
@@ -1726,103 +1802,109 @@ let b = class extends k {
     `;
   }
 };
-b.styles = ne;
-v([
-  w({ type: Object })
-], b.prototype, "hass", 2);
-v([
-  w({ type: Object })
-], b.prototype, "project", 2);
-v([
-  w({ type: String })
-], b.prototype, "activeTool", 2);
-v([
-  w({ type: Number })
-], b.prototype, "currentWallThickness", 2);
-v([
-  w({ type: Number })
-], b.prototype, "currentOpeningWidth", 2);
-v([
-  w({ type: Boolean })
-], b.prototype, "is3DMode", 2);
-v([
+m.styles = ct;
+y([
+  v({ type: Object })
+], m.prototype, "hass", 2);
+y([
+  v({ type: Object })
+], m.prototype, "project", 2);
+y([
+  v({ type: String })
+], m.prototype, "activeTool", 2);
+y([
+  v({ type: Number })
+], m.prototype, "currentWallThickness", 2);
+y([
+  v({ type: Number })
+], m.prototype, "currentOpeningWidth", 2);
+y([
+  v({ type: Boolean })
+], m.prototype, "is3DMode", 2);
+y([
   h()
-], b.prototype, "viewport", 2);
-v([
+], m.prototype, "viewport", 2);
+y([
   h()
-], b.prototype, "isPanning", 2);
-v([
+], m.prototype, "isPanning", 2);
+y([
   h()
-], b.prototype, "drawingWallStart", 2);
-v([
+], m.prototype, "drawingWallStart", 2);
+y([
   h()
-], b.prototype, "previewPoint", 2);
-v([
+], m.prototype, "previewPoint", 2);
+y([
   h()
-], b.prototype, "snapInfo", 2);
-v([
+], m.prototype, "snapInfo", 2);
+y([
   h()
-], b.prototype, "cursorCoords", 2);
-v([
+], m.prototype, "cursorCoords", 2);
+y([
   h()
-], b.prototype, "wallSnap", 2);
-v([
+], m.prototype, "wallSnap", 2);
+y([
   h()
-], b.prototype, "openingFlipSide", 2);
-v([
+], m.prototype, "openingFlipSide", 2);
+y([
   h()
-], b.prototype, "openingFlipDirection", 2);
-v([
+], m.prototype, "openingFlipDirection", 2);
+y([
   h()
-], b.prototype, "calibrateStart", 2);
-v([
+], m.prototype, "calibrateStart", 2);
+y([
   h()
-], b.prototype, "calibrateCurrent", 2);
-b = v([
-  E("home-architect-canvas")
-], b);
-var ce = Object.defineProperty, pe = Object.getOwnPropertyDescriptor, nt = (i, t, e, o) => {
-  for (var s = o > 1 ? void 0 : o ? pe(t, e) : t, r = i.length - 1, a; r >= 0; r--)
-    (a = i[r]) && (s = (o ? a(t, e, s) : a(s)) || s);
-  return o && s && ce(t, e, s), s;
+], m.prototype, "calibrateCurrent", 2);
+y([
+  h()
+], m.prototype, "rescaleStart", 2);
+y([
+  h()
+], m.prototype, "rescaleCurrent", 2);
+m = y([
+  A("home-architect-canvas")
+], m);
+var ht = Object.defineProperty, ut = Object.getOwnPropertyDescriptor, ce = (t, e, i, o) => {
+  for (var s = o > 1 ? void 0 : o ? ut(e, i) : e, r = t.length - 1, a; r >= 0; r--)
+    (a = t[r]) && (s = (o ? a(e, i, s) : a(s)) || s);
+  return o && s && ht(e, i, s), s;
 };
-let q = class extends k {
+let G = class extends _ {
   constructor() {
     super(...arguments), this.activeTool = "wall", this.position = { x: 20, y: 20 }, this.isDragging = !1, this.dragStartPointer = { x: 0, y: 0 }, this.dragStartPosition = { x: 20, y: 20 };
   }
   connectedCallback() {
     super.connectedCallback();
     try {
-      const i = localStorage.getItem("home_architect_toolbar_pos");
-      if (i) {
-        const t = JSON.parse(i);
-        typeof t.x == "number" && typeof t.y == "number" && (this.position = t);
+      const t = localStorage.getItem("home_architect_toolbar_pos");
+      if (t) {
+        const e = JSON.parse(t);
+        typeof e.x == "number" && typeof e.y == "number" && (this.position = e);
       }
     } catch {
     }
     this.updateHostPosition();
   }
-  updated(i) {
-    super.updated(i), i.has("position") && this.updateHostPosition();
+  updated(t) {
+    super.updated(t), t.has("position") && this.updateHostPosition();
   }
   updateHostPosition() {
     this.style.left = `${this.position.x}px`, this.style.top = `${this.position.y}px`;
   }
-  handleDragStart(i) {
-    if (i.button !== 0) return;
-    i.preventDefault(), i.stopPropagation(), this.isDragging = !0, this.dragStartPointer = { x: i.clientX, y: i.clientY }, this.dragStartPosition = { ...this.position }, i.currentTarget.setPointerCapture(i.pointerId);
+  handleDragStart(t) {
+    if (t.button !== 0) return;
+    t.preventDefault(), t.stopPropagation(), this.isDragging = !0, this.dragStartPointer = { x: t.clientX, y: t.clientY }, this.dragStartPosition = { ...this.position }, t.currentTarget.setPointerCapture(t.pointerId);
   }
-  handleDragMove(i) {
+  handleDragMove(t) {
     if (!this.isDragging) return;
-    i.preventDefault(), i.stopPropagation();
-    const t = i.clientX - this.dragStartPointer.x, e = i.clientY - this.dragStartPointer.y, s = (this.parentElement || document.body).getBoundingClientRect(), r = this.getBoundingClientRect(), a = 8, n = Math.max(a, s.width - r.width - 8), l = 8, d = Math.max(l, s.height - r.height - 8), p = Math.min(Math.max(this.dragStartPosition.x + t, a), n), c = Math.min(Math.max(this.dragStartPosition.y + e, l), d);
-    this.position = { x: Math.round(p), y: Math.round(c) }, this.updateHostPosition();
+    t.preventDefault(), t.stopPropagation();
+    const e = t.clientX - this.dragStartPointer.x, i = t.clientY - this.dragStartPointer.y, s = (this.parentElement || document.body).getBoundingClientRect(), r = this.getBoundingClientRect(), a = 8, n = Math.max(a, s.width - r.width - 8), l = 8, c = Math.max(l, s.height - r.height - 8), p = Math.min(Math.max(this.dragStartPosition.x + e, a), n), d = Math.min(Math.max(this.dragStartPosition.y + i, l), c);
+    this.position = { x: Math.round(p), y: Math.round(d) }, this.updateHostPosition();
   }
-  handleDragEnd(i) {
+  handleDragEnd(t) {
     if (this.isDragging) {
       this.isDragging = !1;
       try {
-        i.currentTarget.releasePointerCapture(i.pointerId);
+        t.currentTarget.releasePointerCapture(t.pointerId);
       } catch {
       }
       try {
@@ -1831,9 +1913,9 @@ let q = class extends k {
       }
     }
   }
-  selectTool(i) {
+  selectTool(t) {
     this.dispatchEvent(new CustomEvent("tool-selected", {
-      detail: { tool: i },
+      detail: { tool: t },
       bubbles: !0,
       composed: !0
     }));
@@ -1851,7 +1933,7 @@ let q = class extends k {
     }));
   }
   render() {
-    return f`
+    return b`
       <!-- Poignée de déplacement de la boîte à outils -->
       <div 
         class="drag-handle ${this.isDragging ? "dragging" : ""}"
@@ -1933,18 +2015,27 @@ let q = class extends k {
         🖼️
       </button>
 
-      <!-- Étalonnage d'échelle -->
+      <!-- Étalonnage d'échelle (calque image) -->
       <button 
         class="tool-btn ${this.activeTool === "calibrate" ? "active" : ""}" 
         @click=${() => this.selectTool("calibrate")} 
-        title="Étalonnage d'échelle : tracer un mur mesuré (M)"
+        title="Étalonnage d'échelle : tracer un mur mesuré sur l'image (M)"
       >
         📏
+      </button>
+
+      <!-- Mettre à l'échelle le plan (Recalculer toutes les cotes) -->
+      <button 
+        class="tool-btn ${this.activeTool === "rescale" ? "active" : ""}" 
+        @click=${() => this.selectTool("rescale")} 
+        title="Mettre à l'échelle : mesurer un mur pour recalculer toutes les cotes (S)"
+      >
+        📐
       </button>
     `;
   }
 };
-q.styles = z`
+G.styles = T`
     :host {
       position: absolute;
       left: 20px;
@@ -2037,24 +2128,24 @@ q.styles = z`
       margin: 3px 2px;
     }
   `;
-nt([
-  w({ type: String })
-], q.prototype, "activeTool", 2);
-nt([
+ce([
+  v({ type: String })
+], G.prototype, "activeTool", 2);
+ce([
   h()
-], q.prototype, "position", 2);
-nt([
+], G.prototype, "position", 2);
+ce([
   h()
-], q.prototype, "isDragging", 2);
-q = nt([
-  E("home-architect-toolbar")
-], q);
-var he = Object.defineProperty, ue = Object.getOwnPropertyDescriptor, j = (i, t, e, o) => {
-  for (var s = o > 1 ? void 0 : o ? ue(t, e) : t, r = i.length - 1, a; r >= 0; r--)
-    (a = i[r]) && (s = (o ? a(t, e, s) : a(s)) || s);
-  return o && s && he(t, e, s), s;
+], G.prototype, "isDragging", 2);
+G = ce([
+  A("home-architect-toolbar")
+], G);
+var gt = Object.defineProperty, ft = Object.getOwnPropertyDescriptor, O = (t, e, i, o) => {
+  for (var s = o > 1 ? void 0 : o ? ft(e, i) : e, r = t.length - 1, a; r >= 0; r--)
+    (a = t[r]) && (s = (o ? a(e, i, s) : a(s)) || s);
+  return o && s && gt(e, i, s), s;
 };
-const C = [
+const j = [
   {
     id: "living",
     name: "Salon / Séjour",
@@ -2122,12 +2213,12 @@ const C = [
     addWindow: !0
   }
 ];
-let D = class extends k {
+let C = class extends _ {
   constructor() {
-    super(...arguments), this.selectedTemplate = C[0], this.width = C[0].widthMeters, this.length = C[0].lengthMeters, this.thickness = C[0].wallThickness, this.addDoor = C[0].addDoor, this.addWindow = C[0].addWindow, this.roomName = C[0].name;
+    super(...arguments), this.selectedTemplate = j[0], this.width = j[0].widthMeters, this.length = j[0].lengthMeters, this.thickness = j[0].wallThickness, this.addDoor = j[0].addDoor, this.addWindow = j[0].addWindow, this.roomName = j[0].name;
   }
-  selectTemplate(i) {
-    this.selectedTemplate = i, this.width = i.widthMeters, this.length = i.lengthMeters, this.thickness = i.wallThickness, this.addDoor = i.addDoor, this.addWindow = i.addWindow, this.roomName = i.name;
+  selectTemplate(t) {
+    this.selectedTemplate = t, this.width = t.widthMeters, this.length = t.lengthMeters, this.thickness = t.wallThickness, this.addDoor = t.addDoor, this.addWindow = t.addWindow, this.roomName = t.name;
   }
   handleCreate() {
     this.dispatchEvent(new CustomEvent("create-room", {
@@ -2152,8 +2243,8 @@ let D = class extends k {
     }));
   }
   render() {
-    const i = (this.width * this.length).toFixed(1);
-    return f`
+    const t = (this.width * this.length).toFixed(1);
+    return b`
       <div class="modal-card">
         <div class="modal-header">
           <div class="modal-title">
@@ -2165,14 +2256,14 @@ let D = class extends k {
 
         <!-- Gabarits prédéfinis -->
         <div class="templates-grid">
-          ${C.map((t) => f`
+          ${j.map((e) => b`
             <div 
-              class="template-card ${this.selectedTemplate.id === t.id ? "selected" : ""}"
-              @click=${() => this.selectTemplate(t)}
+              class="template-card ${this.selectedTemplate.id === e.id ? "selected" : ""}"
+              @click=${() => this.selectTemplate(e)}
             >
-              <div class="template-icon">${t.icon}</div>
-              <div class="template-name">${t.name}</div>
-              <div class="template-dims">${t.widthMeters}m × ${t.lengthMeters}m</div>
+              <div class="template-icon">${e.icon}</div>
+              <div class="template-name">${e.name}</div>
+              <div class="template-dims">${e.widthMeters}m × ${e.lengthMeters}m</div>
             </div>
           `)}
         </div>
@@ -2185,7 +2276,7 @@ let D = class extends k {
               type="text" 
               style="width: 160px; text-align: left; padding-left: 8px;"
               .value=${this.roomName}
-              @input=${(t) => this.roomName = t.target.value}
+              @input=${(e) => this.roomName = e.target.value}
             />
           </div>
 
@@ -2198,7 +2289,7 @@ let D = class extends k {
                 min="1" 
                 max="30"
                 .value=${this.width}
-                @input=${(t) => this.width = parseFloat(t.target.value) || 1}
+                @input=${(e) => this.width = parseFloat(e.target.value) || 1}
               />
               <span>m ×</span>
               <input 
@@ -2207,7 +2298,7 @@ let D = class extends k {
                 min="1" 
                 max="30"
                 .value=${this.length}
-                @input=${(t) => this.length = parseFloat(t.target.value) || 1}
+                @input=${(e) => this.length = parseFloat(e.target.value) || 1}
               />
               <span>m</span>
             </div>
@@ -2215,14 +2306,14 @@ let D = class extends k {
 
           <div class="field-row">
             <span class="field-label">Superficie calculée :</span>
-            <span class="surface-badge">${i} m²</span>
+            <span class="surface-badge">${t} m²</span>
           </div>
 
           <div class="field-row">
             <span class="field-label">Épaisseur des murs :</span>
             <select 
               .value=${this.thickness.toString()}
-              @change=${(t) => this.thickness = parseFloat(t.target.value)}
+              @change=${(e) => this.thickness = parseFloat(e.target.value)}
             >
               <option value="0.10">Cloison 10 cm</option>
               <option value="0.15">Mur 15 cm</option>
@@ -2236,7 +2327,7 @@ let D = class extends k {
               <input 
                 type="checkbox" 
                 ?checked=${this.addDoor} 
-                @change=${(t) => this.addDoor = t.target.checked}
+                @change=${(e) => this.addDoor = e.target.checked}
               />
               <span>Porte standard (0.90 m)</span>
             </label>
@@ -2245,7 +2336,7 @@ let D = class extends k {
               <input 
                 type="checkbox" 
                 ?checked=${this.addWindow} 
-                @change=${(t) => this.addWindow = t.target.checked}
+                @change=${(e) => this.addWindow = e.target.checked}
               />
               <span>Fenêtre (1.20 m)</span>
             </label>
@@ -2262,7 +2353,7 @@ let D = class extends k {
     `;
   }
 };
-D.styles = z`
+C.styles = T`
     :host {
       position: fixed;
       inset: 0;
@@ -2475,36 +2566,36 @@ D.styles = z`
       transform: translateY(-1px);
     }
   `;
-j([
+O([
   h()
-], D.prototype, "selectedTemplate", 2);
-j([
+], C.prototype, "selectedTemplate", 2);
+O([
   h()
-], D.prototype, "width", 2);
-j([
+], C.prototype, "width", 2);
+O([
   h()
-], D.prototype, "length", 2);
-j([
+], C.prototype, "length", 2);
+O([
   h()
-], D.prototype, "thickness", 2);
-j([
+], C.prototype, "thickness", 2);
+O([
   h()
-], D.prototype, "addDoor", 2);
-j([
+], C.prototype, "addDoor", 2);
+O([
   h()
-], D.prototype, "addWindow", 2);
-j([
+], C.prototype, "addWindow", 2);
+O([
   h()
-], D.prototype, "roomName", 2);
-D = j([
-  E("home-architect-wizard-modal")
-], D);
-var ge = Object.defineProperty, fe = Object.getOwnPropertyDescriptor, lt = (i, t, e, o) => {
-  for (var s = o > 1 ? void 0 : o ? fe(t, e) : t, r = i.length - 1, a; r >= 0; r--)
-    (a = i[r]) && (s = (o ? a(t, e, s) : a(s)) || s);
-  return o && s && ge(t, e, s), s;
+], C.prototype, "roomName", 2);
+C = O([
+  A("home-architect-wizard-modal")
+], C);
+var bt = Object.defineProperty, mt = Object.getOwnPropertyDescriptor, de = (t, e, i, o) => {
+  for (var s = o > 1 ? void 0 : o ? mt(e, i) : e, r = t.length - 1, a; r >= 0; r--)
+    (a = t[r]) && (s = (o ? a(e, i, s) : a(s)) || s);
+  return o && s && bt(e, i, s), s;
 };
-let V = class extends k {
+let Y = class extends _ {
   constructor() {
     super(...arguments), this.pixelDistance = 200, this.defaultMeters = 4, this.realMeters = 4;
   }
@@ -2513,12 +2604,12 @@ let V = class extends k {
   }
   handleApply() {
     if (this.realMeters <= 0.05) return;
-    const i = this.pixelDistance / this.realMeters;
+    const t = this.pixelDistance / this.realMeters;
     this.dispatchEvent(new CustomEvent("calibrate-confirmed", {
       detail: {
         realMeters: this.realMeters,
         pixelDistance: this.pixelDistance,
-        pixelsPerMeter: i
+        pixelsPerMeter: t
       },
       bubbles: !0,
       composed: !0
@@ -2531,8 +2622,8 @@ let V = class extends k {
     }));
   }
   render() {
-    const i = (this.pixelDistance / (this.realMeters || 1)).toFixed(1);
-    return f`
+    const t = (this.pixelDistance / (this.realMeters || 1)).toFixed(1);
+    return b`
       <div class="modal-card">
         <div class="modal-header">
           <div class="modal-title">
@@ -2556,15 +2647,15 @@ let V = class extends k {
                 min="0.1" 
                 max="50"
                 .value=${this.realMeters}
-                @input=${(t) => this.realMeters = parseFloat(t.target.value) || 0}
-                @keydown=${(t) => t.key === "Enter" && this.handleApply()}
+                @input=${(e) => this.realMeters = parseFloat(e.target.value) || 0}
+                @keydown=${(e) => e.key === "Enter" && this.handleApply()}
               />
               <span style="font-weight:600; color:#38bdf8;">mètres</span>
             </div>
           </div>
 
           <div class="measured-info">
-            Distance tracée à l'écran : ${Math.round(this.pixelDistance)} px | Échelle résultante : ${i} px/m
+            Distance tracée à l'écran : ${Math.round(this.pixelDistance)} px | Échelle résultante : ${t} px/m
           </div>
         </div>
 
@@ -2578,7 +2669,7 @@ let V = class extends k {
     `;
   }
 };
-V.styles = z`
+Y.styles = T`
     :host {
       position: fixed;
       inset: 0;
@@ -2720,24 +2811,24 @@ V.styles = z`
       transform: translateY(-1px);
     }
   `;
-lt([
-  w({ type: Number })
-], V.prototype, "pixelDistance", 2);
-lt([
-  w({ type: Number })
-], V.prototype, "defaultMeters", 2);
-lt([
+de([
+  v({ type: Number })
+], Y.prototype, "pixelDistance", 2);
+de([
+  v({ type: Number })
+], Y.prototype, "defaultMeters", 2);
+de([
   h()
-], V.prototype, "realMeters", 2);
-V = lt([
-  E("home-architect-calibrate-modal")
-], V);
-var be = Object.defineProperty, me = Object.getOwnPropertyDescriptor, et = (i, t, e, o) => {
-  for (var s = o > 1 ? void 0 : o ? me(t, e) : t, r = i.length - 1, a; r >= 0; r--)
-    (a = i[r]) && (s = (o ? a(t, e, s) : a(s)) || s);
-  return o && s && be(t, e, s), s;
+], Y.prototype, "realMeters", 2);
+Y = de([
+  A("home-architect-calibrate-modal")
+], Y);
+var xt = Object.defineProperty, vt = Object.getOwnPropertyDescriptor, oe = (t, e, i, o) => {
+  for (var s = o > 1 ? void 0 : o ? vt(e, i) : e, r = t.length - 1, a; r >= 0; r--)
+    (a = t[r]) && (s = (o ? a(e, i, s) : a(s)) || s);
+  return o && s && xt(e, i, s), s;
 };
-const At = {
+const ze = {
   light: "💡",
   switch: "🔌",
   binary_sensor: "🚨",
@@ -2749,22 +2840,22 @@ const At = {
   fan: "💨",
   default: "⚡"
 };
-let U = class extends k {
+let U = class extends _ {
   constructor() {
     super(...arguments), this.collapsed = !1, this.searchQuery = "", this.activeCategory = "all";
   }
   getEntities() {
-    var i;
-    return (i = this.hass) != null && i.states ? Object.values(this.hass.states).map((t) => {
+    var t;
+    return (t = this.hass) != null && t.states ? Object.values(this.hass.states).map((e) => {
       var s, r;
-      const e = t.entity_id.split(".")[0], o = At[e] || At.default;
+      const i = e.entity_id.split(".")[0], o = ze[i] || ze.default;
       return {
-        entity_id: t.entity_id,
-        name: ((s = t.attributes) == null ? void 0 : s.friendly_name) || t.entity_id,
-        state: t.state,
-        domain: e,
+        entity_id: e.entity_id,
+        name: ((s = e.attributes) == null ? void 0 : s.friendly_name) || e.entity_id,
+        state: e.state,
+        domain: i,
         icon: o,
-        unit: (r = t.attributes) == null ? void 0 : r.unit_of_measurement
+        unit: (r = e.attributes) == null ? void 0 : r.unit_of_measurement
       };
     }) : [
       { entity_id: "light.salon_plafonnier", name: "Plafonnier Salon", state: "on", domain: "light", icon: "💡" },
@@ -2777,13 +2868,13 @@ let U = class extends k {
       { entity_id: "camera.jardin", name: "Caméra Jardin Extérieur", state: "idle", domain: "camera", icon: "📷" }
     ];
   }
-  handleDragStart(i, t) {
-    i.dataTransfer && (i.dataTransfer.setData("application/json", JSON.stringify({
-      entityId: t.entity_id,
-      domain: t.domain,
-      name: t.name,
-      icon: t.icon
-    })), i.dataTransfer.effectAllowed = "copy");
+  handleDragStart(t, e) {
+    t.dataTransfer && (t.dataTransfer.setData("application/json", JSON.stringify({
+      entityId: e.entity_id,
+      domain: e.domain,
+      name: e.name,
+      icon: e.icon
+    })), t.dataTransfer.effectAllowed = "copy");
   }
   toggleCollapse() {
     this.dispatchEvent(new CustomEvent("toggle-collapse", {
@@ -2793,17 +2884,17 @@ let U = class extends k {
   }
   render() {
     if (this.collapsed) return null;
-    let t = this.getEntities();
-    if (this.activeCategory !== "all" && (t = t.filter((e) => e.domain === this.activeCategory)), this.searchQuery.trim()) {
-      const e = this.searchQuery.toLowerCase();
-      t = t.filter((o) => o.name.toLowerCase().includes(e) || o.entity_id.toLowerCase().includes(e));
+    let e = this.getEntities();
+    if (this.activeCategory !== "all" && (e = e.filter((i) => i.domain === this.activeCategory)), this.searchQuery.trim()) {
+      const i = this.searchQuery.toLowerCase();
+      e = e.filter((o) => o.name.toLowerCase().includes(i) || o.entity_id.toLowerCase().includes(i));
     }
-    return f`
+    return b`
       <div class="drawer-header">
         <div class="drawer-title">
           <span>⚡</span>
           <span>Entités HA</span>
-          <span class="count-badge">${t.length}</span>
+          <span class="count-badge">${e.length}</span>
         </div>
         <button class="btn-toggle" @click=${this.toggleCollapse} title="Masquer / Réduire le volet">
           ⇤
@@ -2817,7 +2908,7 @@ let U = class extends k {
             class="search-input" 
             placeholder="Rechercher une entité..."
             .value=${this.searchQuery}
-            @input=${(e) => this.searchQuery = e.target.value}
+            @input=${(i) => this.searchQuery = i.target.value}
           />
         </div>
 
@@ -2832,25 +2923,25 @@ let U = class extends k {
       </div>
 
       <div class="entities-list">
-        ${t.length === 0 ? f`
+        ${e.length === 0 ? b`
           <div class="empty-message">Aucune entité trouvée</div>
-        ` : t.map((e) => f`
+        ` : e.map((i) => b`
           <div 
             class="entity-card" 
             draggable="true"
-            @dragstart=${(o) => this.handleDragStart(o, e)}
+            @dragstart=${(o) => this.handleDragStart(o, i)}
             title="Glissez et déposez sur une pièce du plan"
           >
             <div class="entity-info">
-              <span class="entity-icon">${e.icon}</span>
+              <span class="entity-icon">${i.icon}</span>
               <div class="entity-details">
-                <span class="entity-name">${e.name}</span>
-                <span class="entity-id">${e.entity_id}</span>
+                <span class="entity-name">${i.name}</span>
+                <span class="entity-id">${i.entity_id}</span>
               </div>
             </div>
 
-            <span class="entity-state-badge ${e.state === "on" ? "state-on" : "state-off"}">
-              ${e.state}${e.unit ? " " + e.unit : ""}
+            <span class="entity-state-badge ${i.state === "on" ? "state-on" : "state-off"}">
+              ${i.state}${i.unit ? " " + i.unit : ""}
             </span>
           </div>
         `)}
@@ -2863,7 +2954,7 @@ let U = class extends k {
     `;
   }
 };
-U.styles = z`
+U.styles = T`
     :host {
       width: 320px;
       height: 100%;
@@ -3113,27 +3204,27 @@ U.styles = z`
       font-size: 0.83rem;
     }
   `;
-et([
-  w({ type: Object })
+oe([
+  v({ type: Object })
 ], U.prototype, "hass", 2);
-et([
-  w({ type: Boolean, reflect: !0 })
+oe([
+  v({ type: Boolean, reflect: !0 })
 ], U.prototype, "collapsed", 2);
-et([
+oe([
   h()
 ], U.prototype, "searchQuery", 2);
-et([
+oe([
   h()
 ], U.prototype, "activeCategory", 2);
-U = et([
-  E("home-architect-entity-drawer")
+U = oe([
+  A("home-architect-entity-drawer")
 ], U);
-var xe = Object.defineProperty, ve = Object.getOwnPropertyDescriptor, P = (i, t, e, o) => {
-  for (var s = o > 1 ? void 0 : o ? ve(t, e) : t, r = i.length - 1, a; r >= 0; r--)
-    (a = i[r]) && (s = (o ? a(t, e, s) : a(s)) || s);
-  return o && s && xe(t, e, s), s;
+var yt = Object.defineProperty, wt = Object.getOwnPropertyDescriptor, P = (t, e, i, o) => {
+  for (var s = o > 1 ? void 0 : o ? wt(e, i) : e, r = t.length - 1, a; r >= 0; r--)
+    (a = t[r]) && (s = (o ? a(e, i, s) : a(s)) || s);
+  return o && s && yt(e, i, s), s;
 };
-let S = class extends k {
+let S = class extends _ {
   constructor() {
     super(...arguments), this.currentLevel = "rdc", this.imageDataUrl = null, this.imageWidth = 0, this.imageHeight = 0, this.imageName = "", this.calibrateMode = "auto_dimension", this.totalWidthMeters = 12, this.opacity = 0.4, this.isDragOver = !1, this.fileInputRef = null, this._boundPasteListener = null;
   }
@@ -3143,49 +3234,49 @@ let S = class extends k {
   disconnectedCallback() {
     super.disconnectedCallback(), this._boundPasteListener && window.removeEventListener("paste", this._boundPasteListener);
   }
-  handleModalPaste(i) {
-    if (!i.clipboardData) return;
-    const t = i.clipboardData.items;
-    for (let e = 0; e < t.length; e++)
-      if (t[e].type.indexOf("image") !== -1) {
-        const o = t[e].getAsFile();
+  handleModalPaste(t) {
+    if (!t.clipboardData) return;
+    const e = t.clipboardData.items;
+    for (let i = 0; i < e.length; i++)
+      if (e[i].type.indexOf("image") !== -1) {
+        const o = e[i].getAsFile();
         if (o) {
-          i.preventDefault(), this.processFile(o);
+          t.preventDefault(), this.processFile(o);
           return;
         }
       }
   }
   triggerFileInput() {
     if (!this.fileInputRef) {
-      const i = document.createElement("input");
-      i.type = "file", i.accept = "image/*", i.style.display = "none", i.addEventListener("change", (t) => {
+      const t = document.createElement("input");
+      t.type = "file", t.accept = "image/*", t.style.display = "none", t.addEventListener("change", (e) => {
         var o;
-        const e = (o = t.target.files) == null ? void 0 : o[0];
-        e && this.processFile(e);
-      }), this.fileInputRef = i;
+        const i = (o = e.target.files) == null ? void 0 : o[0];
+        i && this.processFile(i);
+      }), this.fileInputRef = t;
     }
     this.fileInputRef.click();
   }
-  processFile(i) {
-    this.imageName = i.name || "Plan importé";
-    const t = new FileReader();
-    t.onload = (e) => {
+  processFile(t) {
+    this.imageName = t.name || "Plan importé";
+    const e = new FileReader();
+    e.onload = (i) => {
       var r;
-      const o = (r = e.target) == null ? void 0 : r.result, s = new Image();
+      const o = (r = i.target) == null ? void 0 : r.result, s = new Image();
       s.onload = () => {
         this.imageDataUrl = o, this.imageWidth = s.naturalWidth, this.imageHeight = s.naturalHeight;
       }, s.src = o;
-    }, t.readAsDataURL(i);
+    }, e.readAsDataURL(t);
   }
-  handleDrop(i) {
-    var t;
-    if (i.preventDefault(), this.isDragOver = !1, (t = i.dataTransfer) != null && t.files && i.dataTransfer.files.length > 0) {
-      const e = i.dataTransfer.files[0];
-      e.type.startsWith("image/") && this.processFile(e);
+  handleDrop(t) {
+    var e;
+    if (t.preventDefault(), this.isDragOver = !1, (e = t.dataTransfer) != null && e.files && t.dataTransfer.files.length > 0) {
+      const i = t.dataTransfer.files[0];
+      i.type.startsWith("image/") && this.processFile(i);
     }
   }
-  handleDragOver(i) {
-    i.preventDefault(), this.isDragOver = !0;
+  handleDragOver(t) {
+    t.preventDefault(), this.isDragOver = !0;
   }
   handleDragLeave() {
     this.isDragOver = !1;
@@ -3193,11 +3284,11 @@ let S = class extends k {
   async handlePasteButtonClick() {
     try {
       if (navigator.clipboard && navigator.clipboard.read) {
-        const i = await navigator.clipboard.read();
-        for (const t of i) {
-          const e = t.types.find((o) => o.startsWith("image/"));
-          if (e) {
-            const o = await t.getType(e), s = new File([o], "clipboard_image.png", { type: e });
+        const t = await navigator.clipboard.read();
+        for (const e of t) {
+          const i = e.types.find((o) => o.startsWith("image/"));
+          if (i) {
+            const o = await e.getType(i), s = new File([o], "clipboard_image.png", { type: i });
             this.processFile(s);
             return;
           }
@@ -3227,7 +3318,7 @@ let S = class extends k {
     }));
   }
   render() {
-    return f`
+    return b`
       <div class="modal-card">
         <div class="modal-header">
           <div class="modal-title-group">
@@ -3242,7 +3333,7 @@ let S = class extends k {
 
         <div class="modal-body">
           <!-- Zone de Dépôt ou Aperçu -->
-          ${this.imageDataUrl ? f`
+          ${this.imageDataUrl ? b`
             <div class="preview-card">
               <img class="preview-thumb" src="${this.imageDataUrl}" alt="Aperçu du plan" />
               <div class="preview-meta">
@@ -3258,7 +3349,7 @@ let S = class extends k {
                 </button>
               </div>
             </div>
-          ` : f`
+          ` : b`
             <div 
               class="drop-zone ${this.isDragOver ? "dragover" : ""}"
               @dragover=${this.handleDragOver}
@@ -3270,7 +3361,7 @@ let S = class extends k {
               <div class="drop-text">Glissez-déposez l'image de votre plan ici</div>
               <div class="drop-subtext">Prend en charge PNG, JPG, JPEG, SVG et WebP</div>
 
-              <div class="drop-actions" @click=${(i) => i.stopPropagation()}>
+              <div class="drop-actions" @click=${(t) => t.stopPropagation()}>
                 <button class="btn-action-small" @click=${this.triggerFileInput}>
                   📁 Choisir un fichier
                 </button>
@@ -3310,8 +3401,8 @@ let S = class extends k {
                     Indiquez la largeur totale estimée de la façade ou du bâtiment. L'échelle sera calculée automatiquement.
                   </div>
 
-                  ${this.calibrateMode === "auto_dimension" ? f`
-                    <div class="input-row" @click=${(i) => i.stopPropagation()}>
+                  ${this.calibrateMode === "auto_dimension" ? b`
+                    <div class="input-row" @click=${(t) => t.stopPropagation()}>
                       <label style="font-size: 0.82rem; color: #94a3b8;">Largeur totale :</label>
                       <input 
                         type="number" 
@@ -3320,7 +3411,7 @@ let S = class extends k {
                         max="100" 
                         class="dimension-input"
                         .value=${this.totalWidthMeters}
-                        @input=${(i) => this.totalWidthMeters = parseFloat(i.target.value) || 10}
+                        @input=${(t) => this.totalWidthMeters = parseFloat(t.target.value) || 10}
                       />
                       <span class="unit-tag">mètres</span>
                     </div>
@@ -3362,7 +3453,7 @@ let S = class extends k {
               max="1.0" 
               step="0.05"
               .value=${this.opacity}
-              @input=${(i) => this.opacity = parseFloat(i.target.value)}
+              @input=${(t) => this.opacity = parseFloat(t.target.value)}
             />
             <span class="slider-val">${Math.round(this.opacity * 100)}%</span>
           </div>
@@ -3383,7 +3474,7 @@ let S = class extends k {
     `;
   }
 };
-S.styles = z`
+S.styles = T`
     :host {
       position: fixed;
       inset: 0;
@@ -3794,7 +3885,7 @@ S.styles = z`
     }
   `;
 P([
-  w({ type: String })
+  v({ type: String })
 ], S.prototype, "currentLevel", 2);
 P([
   h()
@@ -3821,16 +3912,438 @@ P([
   h()
 ], S.prototype, "isDragOver", 2);
 S = P([
-  E("home-architect-import-modal")
+  A("home-architect-import-modal")
 ], S);
-var ye = Object.defineProperty, we = Object.getOwnPropertyDescriptor, $ = (i, t, e, o) => {
-  for (var s = o > 1 ? void 0 : o ? we(t, e) : t, r = i.length - 1, a; r >= 0; r--)
-    (a = i[r]) && (s = (o ? a(t, e, s) : a(s)) || s);
-  return o && s && ye(t, e, s), s;
+var $t = Object.defineProperty, kt = Object.getOwnPropertyDescriptor, L = (t, e, i, o) => {
+  for (var s = o > 1 ? void 0 : o ? kt(e, i) : e, r = t.length - 1, a; r >= 0; r--)
+    (a = t[r]) && (s = (o ? a(e, i, s) : a(s)) || s);
+  return o && s && $t(e, i, s), s;
 };
-let y = class extends k {
+let D = class extends _ {
   constructor() {
-    super(...arguments), this.narrow = !1, this.activeTool = "wall", this.currentThickness = 0.2, this.currentOpeningWidth = 0.9, this.activeLevel = "rdc", this.is3DMode = !1, this.isDrawerCollapsed = !1, this.isWizardOpen = !1, this.isImportModalOpen = !1, this.isCalibrateModalOpen = !1, this.calibrationData = null, this.project = {
+    super(...arguments), this.measuredMeters = 0, this.wallCount = 0, this.roomCount = 0, this.openingCount = 0, this.targetMeters = 0, this.adjustBackground = !0;
+  }
+  connectedCallback() {
+    super.connectedCallback(), this.targetMeters = this.measuredMeters;
+  }
+  handleInputChange(t) {
+    const e = parseFloat(t.target.value);
+    this.targetMeters = isNaN(e) ? 0 : e;
+  }
+  close() {
+    this.dispatchEvent(new CustomEvent("close", { bubbles: !0, composed: !0 }));
+  }
+  confirm() {
+    if (this.targetMeters <= 0 || this.measuredMeters <= 0) return;
+    const t = this.targetMeters / this.measuredMeters;
+    this.dispatchEvent(new CustomEvent("rescale-confirmed", {
+      detail: {
+        currentMeters: this.measuredMeters,
+        targetMeters: this.targetMeters,
+        scaleFactor: t,
+        adjustBackground: this.adjustBackground
+      },
+      bubbles: !0,
+      composed: !0
+    }));
+  }
+  render() {
+    const t = this.measuredMeters > 0 && this.targetMeters > 0 ? this.targetMeters / this.measuredMeters : 1, e = (t - 1) * 100, i = this.targetMeters > 0 && Math.abs(t - 1) > 1e-4;
+    return b`
+      <div class="modal-card">
+        <div class="modal-header">
+          <div class="modal-title-group">
+            <span class="modal-icon">📐</span>
+            <div>
+              <h3 class="modal-title">Mettre à l'échelle le plan</h3>
+              <p class="modal-subtitle">Recalcule automatiquement toutes les dimensions et cotes</p>
+            </div>
+          </div>
+          <button class="btn-close" @click=${this.close}>✕</button>
+        </div>
+
+        <div class="modal-body">
+          <div class="metric-compare">
+            <div class="metric-box">
+              <span class="metric-label">Cote mesurée actuelle</span>
+              <span class="metric-val">${this.measuredMeters.toFixed(2)} m</span>
+            </div>
+            <div class="metric-box active">
+              <span class="metric-label">Nouvelle cote cible</span>
+              <span class="metric-val" style="color: #38bdf8;">${this.targetMeters > 0 ? this.targetMeters.toFixed(2) : "--"} m</span>
+            </div>
+          </div>
+
+          <div class="input-group">
+            <label class="input-label">Quelle est la taille réelle de ce segment en mètres ?</label>
+            <div class="input-row">
+              <input 
+                type="number" 
+                step="0.05" 
+                min="0.10" 
+                max="500" 
+                class="target-input" 
+                .value=${this.targetMeters}
+                @input=${this.handleInputChange}
+                autofocus
+              />
+              <span class="unit-badge">mètres</span>
+            </div>
+          </div>
+
+          <div class="ratio-indicator">
+            <span style="color: #94a3b8;">Facteur d'ajustement global :</span>
+            <span class="ratio-pill ${t > 1.001 ? "ratio-expand" : t < 0.999 ? "ratio-shrink" : "ratio-neutral"}">
+              × ${t.toFixed(3)} (${e >= 0 ? "+" : ""}${e.toFixed(1)}%)
+            </span>
+          </div>
+
+          <div class="impact-list">
+            <div class="impact-item">
+              <span class="impact-icon">🧱</span>
+              <span><strong>${this.wallCount} murs</strong> : toutes les longueurs et cotes seront recalculées</span>
+            </div>
+            ${this.openingCount > 0 ? b`
+              <div class="impact-item">
+                <span class="impact-icon">🚪</span>
+                <span><strong>${this.openingCount} ouvertures</strong> : positions ajustées proportionnellement</span>
+              </div>
+            ` : null}
+            ${this.roomCount > 0 ? b`
+              <div class="impact-item">
+                <span class="impact-icon">🏡</span>
+                <span><strong>${this.roomCount} pièces</strong> : toutes les surfaces en m² seront actualisées</span>
+              </div>
+            ` : null}
+            <div class="impact-item">
+              <span class="impact-icon">🖼️</span>
+              <span><strong>Calque de fond</strong> : échelle synchronisée pour conserver la superposition</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button class="btn-cancel" @click=${this.close}>Annuler</button>
+          <button 
+            class="btn-confirm" 
+            ?disabled=${!i} 
+            @click=${this.confirm}
+          >
+            <span>📐</span>
+            <span>Recalculer toutes les cotes</span>
+          </button>
+        </div>
+      </div>
+    `;
+  }
+};
+D.styles = T`
+    :host {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(12px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      font-family: var(--ha-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
+      color: #f8fafc;
+      animation: fadeIn 0.2s ease-out;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: scale(0.98); }
+      to { opacity: 1; transform: scale(1); }
+    }
+
+    .modal-card {
+      background: #1e293b;
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      border-radius: 16px;
+      width: 480px;
+      max-width: 92vw;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6), 0 0 25px rgba(56, 189, 248, 0.25);
+      overflow: hidden;
+    }
+
+    .modal-header {
+      padding: 18px 24px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: rgba(15, 23, 42, 0.6);
+    }
+
+    .modal-title-group {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .modal-icon {
+      font-size: 1.6rem;
+    }
+
+    .modal-title {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: #f1f5f9;
+      margin: 0;
+    }
+
+    .modal-subtitle {
+      font-size: 0.8rem;
+      color: #94a3b8;
+      margin: 2px 0 0 0;
+    }
+
+    .btn-close {
+      background: transparent;
+      border: none;
+      color: #94a3b8;
+      font-size: 20px;
+      cursor: pointer;
+      padding: 4px;
+      border-radius: 6px;
+      transition: all 0.15s ease;
+    }
+
+    .btn-close:hover {
+      color: #ffffff;
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    .modal-body {
+      padding: 22px 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    .metric-compare {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .metric-box {
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 12px;
+      padding: 12px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .metric-box.active {
+      border-color: #38bdf8;
+      background: rgba(2, 132, 199, 0.15);
+      box-shadow: 0 0 15px rgba(56, 189, 248, 0.15);
+    }
+
+    .metric-label {
+      font-size: 0.78rem;
+      color: #94a3b8;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .metric-val {
+      font-size: 1.3rem;
+      font-weight: 800;
+      color: #cbd5e1;
+      font-family: ui-monospace, SFMono-Regular, monospace;
+    }
+
+    .input-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .input-label {
+      font-size: 0.88rem;
+      font-weight: 600;
+      color: #f1f5f9;
+    }
+
+    .input-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .target-input {
+      flex: 1;
+      background: #0f172a;
+      border: 2px solid #0284c7;
+      border-radius: 10px;
+      color: #ffffff;
+      padding: 10px 14px;
+      font-size: 1.25rem;
+      font-weight: 800;
+      font-family: ui-monospace, SFMono-Regular, monospace;
+      outline: none;
+      transition: all 0.2s ease;
+    }
+
+    .target-input:focus {
+      border-color: #38bdf8;
+      box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.3);
+    }
+
+    .unit-badge {
+      font-size: 1rem;
+      font-weight: 700;
+      color: #38bdf8;
+      padding: 0 4px;
+    }
+
+    .ratio-indicator {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: rgba(15, 23, 42, 0.5);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-size: 0.85rem;
+    }
+
+    .ratio-pill {
+      font-size: 0.82rem;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 9999px;
+      font-family: ui-monospace, SFMono-Regular, monospace;
+    }
+
+    .ratio-expand {
+      background: rgba(16, 185, 129, 0.2);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.4);
+    }
+
+    .ratio-shrink {
+      background: rgba(245, 158, 11, 0.2);
+      color: #f59e0b;
+      border: 1px solid rgba(245, 158, 11, 0.4);
+    }
+
+    .ratio-neutral {
+      background: rgba(100, 116, 139, 0.2);
+      color: #94a3b8;
+    }
+
+    .impact-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      background: rgba(15, 23, 42, 0.4);
+      border-radius: 10px;
+      padding: 12px 14px;
+      font-size: 0.8rem;
+      color: #94a3b8;
+    }
+
+    .impact-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .impact-icon {
+      font-size: 1rem;
+    }
+
+    .modal-footer {
+      padding: 16px 24px;
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
+      background: rgba(15, 23, 42, 0.6);
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 12px;
+    }
+
+    .btn-cancel {
+      background: transparent;
+      color: #94a3b8;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 8px;
+      padding: 8px 16px;
+      font-size: 0.88rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .btn-cancel:hover {
+      background: rgba(255, 255, 255, 0.08);
+      color: #ffffff;
+    }
+
+    .btn-confirm {
+      background: #0284c7;
+      color: #ffffff;
+      border: 1px solid #38bdf8;
+      border-radius: 8px;
+      padding: 8px 20px;
+      font-size: 0.88rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s ease;
+      box-shadow: 0 0 15px rgba(56, 189, 248, 0.35);
+    }
+
+    .btn-confirm:hover:not(:disabled) {
+      background: #0369a1;
+      box-shadow: 0 0 20px rgba(56, 189, 248, 0.55);
+    }
+
+    .btn-confirm:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+      box-shadow: none;
+    }
+  `;
+L([
+  v({ type: Number })
+], D.prototype, "measuredMeters", 2);
+L([
+  v({ type: Number })
+], D.prototype, "wallCount", 2);
+L([
+  v({ type: Number })
+], D.prototype, "roomCount", 2);
+L([
+  v({ type: Number })
+], D.prototype, "openingCount", 2);
+L([
+  h()
+], D.prototype, "targetMeters", 2);
+L([
+  h()
+], D.prototype, "adjustBackground", 2);
+D = L([
+  A("home-architect-rescale-modal")
+], D);
+var Mt = Object.defineProperty, _t = Object.getOwnPropertyDescriptor, k = (t, e, i, o) => {
+  for (var s = o > 1 ? void 0 : o ? _t(e, i) : e, r = t.length - 1, a; r >= 0; r--)
+    (a = t[r]) && (s = (o ? a(e, i, s) : a(s)) || s);
+  return o && s && Mt(e, i, s), s;
+};
+let w = class extends _ {
+  constructor() {
+    super(...arguments), this.narrow = !1, this.activeTool = "wall", this.currentThickness = 0.2, this.currentOpeningWidth = 0.9, this.activeLevel = "rdc", this.is3DMode = !1, this.isDrawerCollapsed = !1, this.isWizardOpen = !1, this.isImportModalOpen = !1, this.isCalibrateModalOpen = !1, this.calibrationData = null, this.isRescaleModalOpen = !1, this.rescaleMeasuredMeters = 0, this.project = {
       id: "rdc",
       name: "Rez-de-Chaussée",
       created_at: (/* @__PURE__ */ new Date()).toISOString(),
@@ -3849,74 +4362,74 @@ let y = class extends k {
       bindings: []
     }, this.fileInputRef = null, this.toastMessage = null, this.toastTimeout = null, this._boundPaste = null;
   }
-  handleToolSelected(i) {
-    this.activeTool = i.detail.tool, this.activeTool === "door" ? this.currentOpeningWidth = 0.9 : this.activeTool === "window" ? this.currentOpeningWidth = 1.2 : this.activeTool === "french_window" && (this.currentOpeningWidth = 2);
+  handleToolSelected(t) {
+    this.activeTool = t.detail.tool, this.activeTool === "door" ? this.currentOpeningWidth = 0.9 : this.activeTool === "window" ? this.currentOpeningWidth = 1.2 : this.activeTool === "french_window" && (this.currentOpeningWidth = 2);
   }
-  handleProjectChanged(i) {
-    this.project = { ...i.detail.project };
+  handleProjectChanged(t) {
+    this.project = { ...t.detail.project };
   }
-  handleThicknessChange(i) {
-    this.currentThickness = parseFloat(i.target.value);
+  handleThicknessChange(t) {
+    this.currentThickness = parseFloat(t.target.value);
   }
-  handleOpeningWidthChange(i) {
-    this.currentOpeningWidth = parseFloat(i.target.value);
+  handleOpeningWidthChange(t) {
+    this.currentOpeningWidth = parseFloat(t.target.value);
   }
-  handleCreateRoomFromWizard(i) {
-    const { name: t, width: e, length: o, thickness: s, color: r, icon: a, addDoor: n, addWindow: l } = i.detail, d = 2, p = 2, c = { x: d, y: p }, u = { x: d + e, y: p }, g = { x: d + e, y: p + o }, M = { x: d, y: p + o }, L = {
+  handleCreateRoomFromWizard(t) {
+    const { name: e, width: i, length: o, thickness: s, color: r, icon: a, addDoor: n, addWindow: l } = t.detail, c = 2, p = 2, d = { x: c, y: p }, g = { x: c + i, y: p }, f = { x: c + i, y: p + o }, M = { x: c, y: p + o }, H = {
       id: `w_top_${Date.now()}`,
-      start: c,
-      end: u,
-      thickness: s,
-      type: "standard"
-    }, xt = {
-      id: `w_right_${Date.now()}`,
-      start: u,
+      start: d,
       end: g,
       thickness: s,
       type: "standard"
-    }, G = {
-      id: `w_bottom_${Date.now()}`,
+    }, we = {
+      id: `w_right_${Date.now()}`,
       start: g,
+      end: f,
+      thickness: s,
+      type: "standard"
+    }, X = {
+      id: `w_bottom_${Date.now()}`,
+      start: f,
       end: M,
       thickness: s,
       type: "standard"
-    }, Ut = {
+    }, Ne = {
       id: `w_left_${Date.now()}`,
       start: M,
-      end: c,
+      end: d,
       thickness: s,
       type: "standard"
-    }, dt = [];
-    n && dt.push({
+    }, pe = [];
+    n && pe.push({
       id: `op_door_${Date.now()}`,
-      wallId: G.id,
+      wallId: X.id,
       type: "door",
-      offset: e / 2,
+      offset: i / 2,
       width: 0.9,
       flipSide: !1,
       flipDirection: !1
-    }), l && dt.push({
+    }), l && pe.push({
       id: `op_win_${Date.now()}`,
-      wallId: L.id,
+      wallId: H.id,
       type: "window",
-      offset: e / 2,
+      offset: i / 2,
       width: 1.2,
       flipSide: !1,
       flipDirection: !1
     });
-    const Ft = {
+    const Le = {
       id: `room_${Date.now()}`,
-      name: t,
-      polygon: [c, u, g, M],
-      areaM2: e * o,
+      name: e,
+      polygon: [d, g, f, M],
+      areaM2: i * o,
       color: r,
       icon: a
     };
     this.project = {
       ...this.project,
-      walls: [...this.project.walls, L, xt, G, Ut],
-      openings: [...this.project.openings, ...dt],
-      rooms: [...this.project.rooms, Ft]
+      walls: [...this.project.walls, H, we, X, Ne],
+      openings: [...this.project.openings, ...pe],
+      rooms: [...this.project.rooms, Le]
     }, this.isWizardOpen = !1, this.activeTool = "select";
   }
   connectedCallback() {
@@ -3925,104 +4438,160 @@ let y = class extends k {
   disconnectedCallback() {
     super.disconnectedCallback(), this._boundPaste && window.removeEventListener("paste", this._boundPaste), this.toastTimeout && clearTimeout(this.toastTimeout);
   }
-  showToast(i) {
-    this.toastMessage = i, this.toastTimeout && clearTimeout(this.toastTimeout), this.toastTimeout = setTimeout(() => {
+  showToast(t) {
+    this.toastMessage = t, this.toastTimeout && clearTimeout(this.toastTimeout), this.toastTimeout = setTimeout(() => {
       this.toastMessage = null;
     }, 4500);
   }
-  loadBackgroundImage(i, t = "Plan chargé !") {
-    const e = new Image();
-    e.onload = () => {
+  loadBackgroundImage(t, e = "Plan chargé !") {
+    const i = new Image();
+    i.onload = () => {
       this.project = {
         ...this.project,
         background: {
-          imageUrl: i,
+          imageUrl: t,
           opacity: 0.4,
           visible: !0,
           offset: { x: 0, y: 0 },
           scale: 1,
           rotation: 0,
-          widthPx: e.naturalWidth,
-          heightPx: e.naturalHeight
+          widthPx: i.naturalWidth,
+          heightPx: i.naturalHeight
         }
-      }, this.activeTool = "calibrate", this.showToast(`${t} Tracez un segment sur un mur mesuré pour étalonner l'échelle (📏).`);
-    }, e.onerror = () => {
+      }, this.activeTool = "calibrate", this.showToast(`${e} Tracez un segment sur un mur mesuré pour étalonner l'échelle (📏).`);
+    }, i.onerror = () => {
       this.showToast("❌ Erreur lors du chargement de l'image.");
-    }, e.src = i;
+    }, i.src = t;
   }
-  handleImportConfirmed(i) {
-    const { dataUrl: t, widthPx: e, heightPx: o, opacity: s, mode: r, totalWidthMeters: a } = i.detail;
+  handleImportConfirmed(t) {
+    const { dataUrl: e, widthPx: i, heightPx: o, opacity: s, mode: r, totalWidthMeters: a } = t.detail;
     this.isImportModalOpen = !1;
     let n = this.project.pixelsPerMeter;
-    r === "auto_dimension" && a && a > 0 && (n = Math.round(e / a * 10) / 10), this.project = {
+    r === "auto_dimension" && a && a > 0 && (n = Math.round(i / a * 10) / 10), this.project = {
       ...this.project,
       pixelsPerMeter: n,
       background: {
-        imageUrl: t,
+        imageUrl: e,
         opacity: s !== void 0 ? s : 0.4,
         visible: !0,
         offset: { x: 0, y: 0 },
         scale: 1,
         rotation: 0,
-        widthPx: e,
+        widthPx: i,
         heightPx: o
       }
     }, r === "auto_dimension" ? (this.activeTool = "wall", this.showToast(`✅ Plan importé et étalonné automatiquement (1 m = ${n} px) ! Vous pouvez tracer vos murs (🧱).`)) : (this.activeTool = "calibrate", this.showToast("📏 Plan importé ! Tracez un segment sur un mur mesuré pour étalonner l'échelle."));
   }
-  handlePaste(i) {
+  handlePaste(t) {
     var o;
-    if (this.isImportModalOpen || !i.clipboardData) return;
-    const t = i.clipboardData.items;
-    for (let s = 0; s < t.length; s++)
-      if (t[s].type.indexOf("image") !== -1) {
-        const r = t[s].getAsFile();
+    if (this.isImportModalOpen || !t.clipboardData) return;
+    const e = t.clipboardData.items;
+    for (let s = 0; s < e.length; s++)
+      if (e[s].type.indexOf("image") !== -1) {
+        const r = e[s].getAsFile();
         if (r) {
-          i.preventDefault();
+          t.preventDefault();
           const a = new FileReader();
           a.onload = (n) => {
-            var d;
-            const l = (d = n.target) == null ? void 0 : d.result;
+            var c;
+            const l = (c = n.target) == null ? void 0 : c.result;
             this.loadBackgroundImage(l, "📋 Image collée depuis le presse-papier !");
           }, a.readAsDataURL(r);
           return;
         }
       }
-    const e = (o = i.clipboardData.getData("text/plain")) == null ? void 0 : o.trim();
-    e && (e.startsWith("data:image/") || e.match(/\.(png|jpe?g|svg|webp)(\?.*)?$/i)) && (i.preventDefault(), this.loadBackgroundImage(e, "📋 Image chargée depuis l'URL collée !"));
+    const i = (o = t.clipboardData.getData("text/plain")) == null ? void 0 : o.trim();
+    i && (i.startsWith("data:image/") || i.match(/\.(png|jpe?g|svg|webp)(\?.*)?$/i)) && (t.preventDefault(), this.loadBackgroundImage(i, "📋 Image chargée depuis l'URL collée !"));
   }
   triggerFileInput() {
     if (!this.fileInputRef) {
-      const i = document.createElement("input");
-      i.type = "file", i.accept = "image/*", i.style.display = "none", i.addEventListener("change", (t) => this.handleFileSelected(t)), document.body.appendChild(i), this.fileInputRef = i;
+      const t = document.createElement("input");
+      t.type = "file", t.accept = "image/*", t.style.display = "none", t.addEventListener("change", (e) => this.handleFileSelected(e)), document.body.appendChild(t), this.fileInputRef = t;
     }
     this.fileInputRef.click();
   }
-  handleFileSelected(i) {
+  handleFileSelected(t) {
     var o;
-    const t = (o = i.target.files) == null ? void 0 : o[0];
-    if (!t) return;
-    const e = new FileReader();
-    e.onload = (s) => {
+    const e = (o = t.target.files) == null ? void 0 : o[0];
+    if (!e) return;
+    const i = new FileReader();
+    i.onload = (s) => {
       var a;
       const r = (a = s.target) == null ? void 0 : a.result;
       this.loadBackgroundImage(r, "🖼️ Image importée depuis votre ordinateur !");
-    }, e.readAsDataURL(t);
+    }, i.readAsDataURL(e);
   }
-  handleRequestCalibration(i) {
-    this.calibrationData = i.detail, this.isCalibrateModalOpen = !0;
+  handleRequestCalibration(t) {
+    this.calibrationData = t.detail, this.isCalibrateModalOpen = !0;
   }
-  handleCalibrateConfirmed(i) {
-    const { pixelsPerMeter: t } = i.detail;
+  handleCalibrateConfirmed(t) {
+    const { pixelsPerMeter: e } = t.detail;
     this.project = {
       ...this.project,
-      pixelsPerMeter: Math.round(t * 10) / 10
+      pixelsPerMeter: Math.round(e * 10) / 10
     }, this.isCalibrateModalOpen = !1, this.calibrationData = null, this.activeTool = "wall";
   }
-  handleOpacityChange(i) {
-    const t = parseFloat(i.target.value);
+  handleRequestRescale(t) {
+    this.rescaleMeasuredMeters = t.detail.measuredMeters, this.isRescaleModalOpen = !0;
+  }
+  handleRescaleConfirmed(t) {
+    const { currentMeters: e, targetMeters: i, scaleFactor: o, adjustBackground: s } = t.detail;
+    if (this.isRescaleModalOpen = !1, o <= 0 || isNaN(o)) return;
+    const r = this.project.walls.map((d) => ({
+      ...d,
+      start: {
+        x: u.roundMeters(d.start.x * o),
+        y: u.roundMeters(d.start.y * o)
+      },
+      end: {
+        x: u.roundMeters(d.end.x * o),
+        y: u.roundMeters(d.end.y * o)
+      }
+    })), a = this.project.openings.map((d) => ({
+      ...d,
+      offset: u.roundMeters(d.offset * o),
+      width: u.roundMeters(d.width * o)
+    })), n = this.project.rooms.map((d) => {
+      const g = d.polygon.map((M) => ({
+        x: u.roundMeters(M.x * o),
+        y: u.roundMeters(M.y * o)
+      })), f = be.computeArea(g);
+      return {
+        ...d,
+        polygon: g,
+        areaM2: f || u.roundMeters(d.areaM2 * o * o)
+      };
+    }), l = this.project.bindings.map((d) => ({
+      ...d,
+      position: {
+        x: u.roundMeters(d.position.x * o),
+        y: u.roundMeters(d.position.y * o)
+      }
+    }));
+    let c = this.project.pixelsPerMeter, p = this.project.background ? { ...this.project.background } : void 0;
+    s && p && (c = Math.round(this.project.pixelsPerMeter / o * 10) / 10, p.offset && (p = {
+      ...p,
+      offset: {
+        x: u.roundMeters(p.offset.x * o),
+        y: u.roundMeters(p.offset.y * o)
+      }
+    })), this.project = {
+      ...this.project,
+      pixelsPerMeter: c,
+      walls: r,
+      openings: a,
+      rooms: n,
+      bindings: l,
+      background: p
+    }, this.activeTool = "select", this.showToast(
+      `✅ Plan mis à l'échelle (×${o.toFixed(3)}) : ${r.length} murs et ${n.length} pièces recalculés !`
+    );
+  }
+  handleOpacityChange(t) {
+    const e = parseFloat(t.target.value);
     this.project.background && (this.project = {
       ...this.project,
-      background: { ...this.project.background, opacity: t }
+      background: { ...this.project.background, opacity: e }
     });
   }
   saveProject() {
@@ -4031,14 +4600,14 @@ let y = class extends k {
       project: this.project
     }).then(() => {
       alert("Plan sauvegardé avec succès dans Home Assistant !");
-    }).catch((i) => {
-      console.error("Erreur sauvegarde HA:", i), localStorage.setItem(`home_architect_${this.project.id}`, JSON.stringify(this.project)), alert("Sauvegardé localement dans le navigateur.");
+    }).catch((t) => {
+      console.error("Erreur sauvegarde HA:", t), localStorage.setItem(`home_architect_${this.project.id}`, JSON.stringify(this.project)), alert("Sauvegardé localement dans le navigateur.");
     }) : (localStorage.setItem(`home_architect_${this.project.id}`, JSON.stringify(this.project)), alert("Plan sauvegardé localement !"));
   }
   render() {
-    var t, e;
-    const i = !!((t = this.project.background) != null && t.imageUrl);
-    return f`
+    var e, i;
+    const t = !!((e = this.project.background) != null && e.imageUrl);
+    return b`
       <header class="top-bar">
         <div class="brand">
           <span class="brand-icon">📐</span>
@@ -4058,6 +4627,16 @@ let y = class extends k {
           <button class="btn-import" @click=${() => this.isImportModalOpen = !0} title="Importer et calibrer un plan image (PNG, JPG, SVG)">
             <span>📥</span>
             <span>Importer un plan</span>
+          </button>
+
+          <!-- Bouton Mettre à l'échelle (Recalculer toutes les cotes) -->
+          <button 
+            class="btn-rescale ${this.activeTool === "rescale" ? "active" : ""}" 
+            @click=${() => this.activeTool = "rescale"} 
+            title="Mettre à l'échelle : mesurer un mur ou deux points pour recalculer toutes les cotes (S)"
+          >
+            <span>📐</span>
+            <span>Mettre à l'échelle</span>
           </button>
 
           <!-- Bascule 2D / 3D -->
@@ -4083,7 +4662,7 @@ let y = class extends k {
           </button>
 
           <!-- Épaisseur mur -->
-          ${this.activeTool === "wall" ? f`
+          ${this.activeTool === "wall" ? b`
             <div class="control-group">
               <label>Épaisseur :</label>
               <select @change=${this.handleThicknessChange}>
@@ -4096,7 +4675,7 @@ let y = class extends k {
           ` : null}
 
           <!-- Largeur ouvrant -->
-          ${this.activeTool === "door" || this.activeTool === "window" || this.activeTool === "french_window" ? f`
+          ${this.activeTool === "door" || this.activeTool === "window" || this.activeTool === "french_window" ? b`
             <div class="control-group">
               <label>Largeur :</label>
               <select @change=${this.handleOpeningWidthChange}>
@@ -4112,7 +4691,7 @@ let y = class extends k {
           ` : null}
 
           <!-- Opacité du fond -->
-          ${i ? f`
+          ${t ? b`
             <div class="control-group">
               <label>Fond :</label>
               <input 
@@ -4120,7 +4699,7 @@ let y = class extends k {
                 min="0.05" 
                 max="1.0" 
                 step="0.05" 
-                .value=${((e = this.project.background) == null ? void 0 : e.opacity) || 0.4}
+                .value=${((i = this.project.background) == null ? void 0 : i.opacity) || 0.4}
                 @input=${this.handleOpacityChange}
                 style="width: 70px;"
                 title="Opacité du plan de fond"
@@ -4159,11 +4738,12 @@ let y = class extends k {
             @toggle-3d=${(o) => this.is3DMode = o.detail.is3DMode}
             @project-changed=${this.handleProjectChanged}
             @request-calibration=${this.handleRequestCalibration}
+            @request-rescale=${this.handleRequestRescale}
             @background-image-loaded=${(o) => this.loadBackgroundImage(o.detail.dataUrl, "🖼️ Image de plan glissée-déposée !")}
           ></home-architect-canvas>
 
           <!-- Notification Toast -->
-          ${this.toastMessage ? f`
+          ${this.toastMessage ? b`
             <div class="toast-notification">
               ${this.toastMessage}
             </div>
@@ -4179,7 +4759,7 @@ let y = class extends k {
       </div>
 
       <!-- Modal d'Import Automatisé -->
-      ${this.isImportModalOpen ? f`
+      ${this.isImportModalOpen ? b`
         <home-architect-import-modal
           .currentLevel=${this.activeLevel}
           @import-confirmed=${this.handleImportConfirmed}
@@ -4188,7 +4768,7 @@ let y = class extends k {
       ` : null}
 
       <!-- Modal Assistant Pièce Débutant -->
-      ${this.isWizardOpen ? f`
+      ${this.isWizardOpen ? b`
         <home-architect-wizard-modal
           @create-room=${this.handleCreateRoomFromWizard}
           @close=${() => this.isWizardOpen = !1}
@@ -4196,7 +4776,7 @@ let y = class extends k {
       ` : null}
 
       <!-- Modal Étalonnage Mesure de Mur -->
-      ${this.isCalibrateModalOpen && this.calibrationData ? f`
+      ${this.isCalibrateModalOpen && this.calibrationData ? b`
         <home-architect-calibrate-modal
           .pixelDistance=${this.calibrationData.pixelDistance}
           .defaultMeters=${this.calibrationData.defaultMeters}
@@ -4204,10 +4784,22 @@ let y = class extends k {
           @close=${() => this.isCalibrateModalOpen = !1}
         ></home-architect-calibrate-modal>
       ` : null}
+
+      <!-- Modal Mettre à l'échelle (Recalcul de toutes les cotes) -->
+      ${this.isRescaleModalOpen ? b`
+        <home-architect-rescale-modal
+          .measuredMeters=${this.rescaleMeasuredMeters}
+          .wallCount=${this.project.walls.length}
+          .roomCount=${this.project.rooms.length}
+          .openingCount=${this.project.openings.length}
+          @rescale-confirmed=${this.handleRescaleConfirmed}
+          @close=${() => this.isRescaleModalOpen = !1}
+        ></home-architect-rescale-modal>
+      ` : null}
     `;
   }
 };
-y.styles = z`
+w.styles = T`
     :host {
       display: flex;
       flex-direction: column;
@@ -4331,6 +4923,28 @@ y.styles = z`
       background: #10b981;
       color: #ffffff;
       box-shadow: 0 0 14px rgba(16, 185, 129, 0.45);
+    }
+
+    button.btn-rescale {
+      background: rgba(56, 189, 248, 0.15);
+      color: #38bdf8;
+      border: 1px solid rgba(56, 189, 248, 0.35);
+      border-radius: 8px;
+      padding: 6px 13px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s ease;
+    }
+
+    button.btn-rescale:hover, button.btn-rescale.active {
+      background: #0284c7;
+      color: #ffffff;
+      border-color: #38bdf8;
+      box-shadow: 0 0 14px rgba(56, 189, 248, 0.45);
     }
 
     button.btn-drawer {
@@ -4471,57 +5085,63 @@ y.styles = z`
       to { transform: translate(-50%, 0); opacity: 1; }
     }
   `;
-$([
-  w({ type: Object })
-], y.prototype, "hass", 2);
-$([
-  w({ type: Boolean })
-], y.prototype, "narrow", 2);
-$([
+k([
+  v({ type: Object })
+], w.prototype, "hass", 2);
+k([
+  v({ type: Boolean })
+], w.prototype, "narrow", 2);
+k([
   h()
-], y.prototype, "activeTool", 2);
-$([
+], w.prototype, "activeTool", 2);
+k([
   h()
-], y.prototype, "currentThickness", 2);
-$([
+], w.prototype, "currentThickness", 2);
+k([
   h()
-], y.prototype, "currentOpeningWidth", 2);
-$([
+], w.prototype, "currentOpeningWidth", 2);
+k([
   h()
-], y.prototype, "activeLevel", 2);
-$([
+], w.prototype, "activeLevel", 2);
+k([
   h()
-], y.prototype, "is3DMode", 2);
-$([
+], w.prototype, "is3DMode", 2);
+k([
   h()
-], y.prototype, "isDrawerCollapsed", 2);
-$([
+], w.prototype, "isDrawerCollapsed", 2);
+k([
   h()
-], y.prototype, "isWizardOpen", 2);
-$([
+], w.prototype, "isWizardOpen", 2);
+k([
   h()
-], y.prototype, "isImportModalOpen", 2);
-$([
+], w.prototype, "isImportModalOpen", 2);
+k([
   h()
-], y.prototype, "isCalibrateModalOpen", 2);
-$([
+], w.prototype, "isCalibrateModalOpen", 2);
+k([
   h()
-], y.prototype, "calibrationData", 2);
-$([
+], w.prototype, "calibrationData", 2);
+k([
   h()
-], y.prototype, "project", 2);
-$([
+], w.prototype, "isRescaleModalOpen", 2);
+k([
   h()
-], y.prototype, "toastMessage", 2);
-y = $([
-  E("home-architect-panel")
-], y);
-var $e = Object.defineProperty, _e = Object.getOwnPropertyDescriptor, it = (i, t, e, o) => {
-  for (var s = o > 1 ? void 0 : o ? _e(t, e) : t, r = i.length - 1, a; r >= 0; r--)
-    (a = i[r]) && (s = (o ? a(t, e, s) : a(s)) || s);
-  return o && s && $e(t, e, s), s;
+], w.prototype, "rescaleMeasuredMeters", 2);
+k([
+  h()
+], w.prototype, "project", 2);
+k([
+  h()
+], w.prototype, "toastMessage", 2);
+w = k([
+  A("home-architect-panel")
+], w);
+var St = Object.defineProperty, Ct = Object.getOwnPropertyDescriptor, se = (t, e, i, o) => {
+  for (var s = o > 1 ? void 0 : o ? Ct(e, i) : e, r = t.length - 1, a; r >= 0; r--)
+    (a = t[r]) && (s = (o ? a(e, i, s) : a(s)) || s);
+  return o && s && St(e, i, s), s;
 };
-let F = class extends k {
+let N = class extends _ {
   constructor() {
     super(...arguments), this.project = {
       id: "rdc",
@@ -4536,9 +5156,9 @@ let F = class extends k {
       bindings: []
     }, this.is3DMode = !1;
   }
-  setConfig(i) {
-    if (!i) throw new Error("Configuration invalide");
-    this.config = i, this.is3DMode = i.view_mode === "3d";
+  setConfig(t) {
+    if (!t) throw new Error("Configuration invalide");
+    this.config = t, this.is3DMode = t.view_mode === "3d";
   }
   getCardSize() {
     return 6;
@@ -4547,11 +5167,11 @@ let F = class extends k {
     this.loadProject();
   }
   async loadProject() {
-    var e;
-    const i = this.config.project_id || "rdc";
+    var i;
+    const t = this.config.project_id || "rdc";
     if (this.hass && this.hass.callWS)
       try {
-        const o = await this.hass.callWS({ type: "home_architect/get_projects" }), s = (e = o == null ? void 0 : o.projects) == null ? void 0 : e.find((r) => r.id === i);
+        const o = await this.hass.callWS({ type: "home_architect/get_projects" }), s = (i = o == null ? void 0 : o.projects) == null ? void 0 : i.find((r) => r.id === t);
         if (s) {
           this.project = s;
           return;
@@ -4559,18 +5179,18 @@ let F = class extends k {
       } catch (o) {
         console.warn("WebSocket get_projects échoué, essai localStorage:", o);
       }
-    const t = localStorage.getItem(`home_architect_${i}`);
-    if (t)
+    const e = localStorage.getItem(`home_architect_${t}`);
+    if (e)
       try {
-        this.project = JSON.parse(t);
+        this.project = JSON.parse(e);
       } catch {
       }
   }
   render() {
-    var i;
-    return f`
+    var t;
+    return b`
       <div class="card-header">
-        <div class="card-title">${((i = this.config) == null ? void 0 : i.title) || this.project.name || "Home Architect"}</div>
+        <div class="card-title">${((t = this.config) == null ? void 0 : t.title) || this.project.name || "Home Architect"}</div>
         <button class="view-toggle" @click=${() => this.is3DMode = !this.is3DMode}>
           ${this.is3DMode ? "🧊 3D" : "📐 2D"}
         </button>
@@ -4587,7 +5207,7 @@ let F = class extends k {
     `;
   }
 };
-F.styles = z`
+N.styles = T`
     :host {
       display: block;
       height: 480px;
@@ -4649,21 +5269,21 @@ F.styles = z`
       height: 100%;
     }
   `;
-it([
-  w({ type: Object })
-], F.prototype, "hass", 2);
-it([
+se([
+  v({ type: Object })
+], N.prototype, "hass", 2);
+se([
   h()
-], F.prototype, "config", 2);
-it([
+], N.prototype, "config", 2);
+se([
   h()
-], F.prototype, "project", 2);
-it([
+], N.prototype, "project", 2);
+se([
   h()
-], F.prototype, "is3DMode", 2);
-F = it([
-  E("home-architect-card")
-], F);
+], N.prototype, "is3DMode", 2);
+N = se([
+  A("home-architect-card")
+], N);
 window.customCards = window.customCards || [];
 window.customCards.push({
   type: "home-architect-card",

@@ -8,6 +8,10 @@ Inspiré de la brique *Plan Interactif* de **DomoLink**, cette intégration offr
 
 ## 🌟 Fonctionnalités
 
+* **Fonction « Mettre à l'échelle » (Recalcul automatique de toutes les cotes)** :
+  * Outil de référence dédié (`📐` ou touche `S`) : sélectionnez un mur ou tracez un segment entre deux points de référence sur le plan.
+  * Saisie de la dimension réelle souhaitée en mètres (ex: `4.80 m`).
+  * **Recalcul proportionnel instantané** de l'ensemble du projet : longueurs de tous les murs, cotes dynamiques, ouvertures, surfaces des pièces ($m^2$) et calque de fond image.
 * **Bouton d'import automatisé & Décalque vectoriel** :
   * Dialogue dédié guidé avec glisser-déposer de plan (PNG, JPG, SVG, WebP) et support natif du presse-papier (`Cmd+V` / `Ctrl+V`).
   * Étalonnage automatique instantané : saisissez la largeur globale de la maison (ex: 12 m) pour calibrer le projet en 1 clic sans tracer.

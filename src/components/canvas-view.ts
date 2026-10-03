@@ -79,12 +79,19 @@ export class HomeArchitectCanvas extends LitElement {
   @state()
   private openingFlipDirection: boolean = false;
 
-  // État d'étalonnage
+  // État d'étalonnage calque image
   @state()
   private calibrateStart: Point | null = null;
 
   @state()
   private calibrateCurrent: Point | null = null;
+
+  // État de mise à l'échelle du plan (Recalcul des cotes)
+  @state()
+  private rescaleStart: Point | null = null;
+
+  @state()
+  private rescaleCurrent: Point | null = null;
 
   // ==========================================
   // CONVERSIONS DE COORDONNÉES
@@ -234,6 +241,48 @@ export class HomeArchitectCanvas extends LitElement {
         }
       }
     }
+
+    // 4. Outil Mettre à l'échelle le plan (Recalcul de toutes les cotes)
+    else if (this.activeTool === 'rescale') {
+      const worldPoint = this.screenToWorld(e.clientX, e.clientY);
+      let snapped = SnappingEngine.snapPoint(
+        worldPoint,
+        this.project.grid,
+        this.project.walls,
+        this.rescaleStart || undefined
+      );
+
+      // Si pas de vertex direct mais qu'on clique sur un mur, s'accrocher à la projection du mur
+      if (snapped.snappedTo === 'none' && this.project.walls.length > 0) {
+        const wallSnap = SnappingEngine.snapPointToWall(worldPoint, this.project.walls, 0.6);
+        if (wallSnap) {
+          snapped = { point: wallSnap.projectionPoint, snappedTo: 'vertex' };
+        }
+      }
+
+      if (!this.rescaleStart) {
+        this.rescaleStart = snapped.point;
+        this.rescaleCurrent = snapped.point;
+      } else {
+        const p1 = this.rescaleStart;
+        const p2 = snapped.point;
+        const dist = SnappingEngine.distance(p1, p2);
+
+        if (dist >= 0.05) {
+          this.dispatchEvent(new CustomEvent('request-rescale', {
+            detail: {
+              measuredMeters: SnappingEngine.roundMeters(dist)
+            },
+            bubbles: true,
+            composed: true
+          }));
+
+          this.rescaleStart = null;
+          this.rescaleCurrent = null;
+          this.previewPoint = null;
+        }
+      }
+    }
   }
 
   private handlePointerMove(e: PointerEvent): void {
@@ -271,6 +320,29 @@ export class HomeArchitectCanvas extends LitElement {
     else if (this.activeTool === 'calibrate' && this.calibrateStart) {
       const rect = this.getBoundingClientRect();
       this.calibrateCurrent = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    } 
+    else if (this.activeTool === 'rescale') {
+      let snapped = SnappingEngine.snapPoint(
+        worldPoint,
+        this.project.grid,
+        this.project.walls,
+        this.rescaleStart || undefined
+      );
+
+      if (snapped.snappedTo === 'none' && this.project.walls.length > 0) {
+        const wallSnap = SnappingEngine.snapPointToWall(worldPoint, this.project.walls, 0.6);
+        if (wallSnap) {
+          snapped = { point: wallSnap.projectionPoint, snappedTo: 'vertex' };
+        }
+      }
+
+      this.previewPoint = snapped.point;
+      this.snapInfo = { snappedTo: snapped.snappedTo, guideAngle: snapped.guideAngle };
+      this.wallSnap = null;
+
+      if (this.rescaleStart) {
+        this.rescaleCurrent = snapped.point;
+      }
     } 
     else {
       this.previewPoint = null;
@@ -385,6 +457,8 @@ export class HomeArchitectCanvas extends LitElement {
       this.previewPoint = null;
       this.calibrateStart = null;
       this.calibrateCurrent = null;
+      this.rescaleStart = null;
+      this.rescaleCurrent = null;
       this.wallSnap = null;
       this.requestUpdate();
     } else if (e.key === ' ' || e.key === 'Spacebar') {
@@ -801,6 +875,39 @@ export class HomeArchitectCanvas extends LitElement {
     `;
   }
 
+  private renderRescaleLine() {
+    if (!this.rescaleStart || !this.rescaleCurrent) return null;
+
+    const sStart = this.worldToScreen(this.rescaleStart);
+    const sEnd = this.worldToScreen(this.rescaleCurrent);
+    const distMeters = SnappingEngine.distance(this.rescaleStart, this.rescaleCurrent);
+    const mid = {
+      x: (sStart.x + sEnd.x) / 2,
+      y: (sStart.y + sEnd.y) / 2
+    };
+
+    return svg`
+      <g class="rescale-preview-group">
+        <line 
+          x1="${sStart.x}" y1="${sStart.y}" 
+          x2="${sEnd.x}" y2="${sEnd.y}" 
+          stroke="#38bdf8" 
+          stroke-width="3" 
+          stroke-dasharray="6, 4" 
+        />
+        <circle cx="${sStart.x}" cy="${sStart.y}" r="6" fill="#38bdf8" stroke="#ffffff" stroke-width="2" />
+        <circle cx="${sEnd.x}" cy="${sEnd.y}" r="6" fill="#0284c7" stroke="#38bdf8" stroke-width="2" />
+
+        <g class="dimension-badge" transform="translate(${mid.x}, ${mid.y - 18})">
+          <rect x="-48" y="-13" width="96" height="26" rx="6" fill="#0f172a" stroke="#38bdf8" stroke-width="1.8" />
+          <text fill="#38bdf8" font-size="12px" font-weight="800" text-anchor="middle" dy="5">
+            📐 ${SnappingEngine.roundMeters(distMeters).toFixed(2)} m
+          </text>
+        </g>
+      </g>
+    `;
+  }
+
   private renderSnapIndicator() {
     if (!this.previewPoint || this.snapInfo.snappedTo === 'none') return null;
 
@@ -850,6 +957,11 @@ export class HomeArchitectCanvas extends LitElement {
     if (this.activeTool === 'calibrate') {
       return this.calibrateStart ? "Cliquez sur la 2ème extrémité du mur mesuré." : "Tracez un segment sur un mur pour étalonner l'échelle.";
     }
+    if (this.activeTool === 'rescale') {
+      return this.rescaleStart 
+        ? "Tracez la ligne jusqu'au 2ème point (autre extrémité du mur ou point de référence)." 
+        : "Mettre à l'échelle : Sélectionnez un mur ou cliquez sur le 1er point de mesure.";
+    }
     return null;
   }
 
@@ -876,6 +988,7 @@ export class HomeArchitectCanvas extends LitElement {
             ${this.renderOpeningPreview()}
             ${this.renderPreviewWall()}
             ${this.renderCalibrationLine()}
+            ${this.renderRescaleLine()}
             ${this.renderSnapIndicator()}
             ${this.renderEntityBindings()}
           </svg>
