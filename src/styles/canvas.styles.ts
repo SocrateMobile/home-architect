@@ -107,6 +107,15 @@ export const canvasStyles = css`
     filter: drop-shadow(0 1px 3px rgba(0,0,0,0.8));
   }
 
+  .room-label-height {
+    fill: #a5f3fc;
+    font-size: 10px;
+    font-weight: 700;
+    text-anchor: middle;
+    font-family: ui-monospace, SFMono-Regular, monospace;
+    filter: drop-shadow(0 1px 3px rgba(0,0,0,0.9));
+  }
+
   /* Walls 2D */
   .wall-rect {
     fill: #334155;

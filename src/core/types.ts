@@ -36,6 +36,7 @@ export interface Room {
   areaM2: number;   // Calculated area in m²
   color?: string;   // Hex / RGBA color for floor
   icon?: string;    // MDI icon e.g. 'mdi:sofa'
+  height?: number;  // Ceiling height in meters (e.g. 2.50m)
 }
 
 export interface EntityBinding {
@@ -74,6 +75,7 @@ export interface HomeArchitectProject {
   created_at: string;
   updated_at: string;
   pixelsPerMeter: number; // Default 50 px/m
+  defaultCeilingHeight?: number; // Default ceiling height in meters, e.g. 2.50m
   grid: GridConfig;
   background?: BackgroundPlan;
   walls: Wall[];
@@ -114,6 +116,7 @@ export interface RoomTemplate {
   widthMeters: number;
   lengthMeters: number;
   wallThickness: number;
+  heightMeters?: number; // Ceiling height, e.g. 2.50m
   color: string;
   addDoor: boolean;
   addWindow: boolean;
