@@ -8,9 +8,21 @@ Inspiré de la brique *Plan Interactif* de **DomoLink**, cette intégration offr
 
 ## 🌟 Fonctionnalités
 
-* **Moteur de dessin vectoriel SVG pur sous Lit** : Zéro dépendance graphique lourde, bundle ultra-léger (~50 ko), netteté vectorielle infinie.
+* **Bouton d'import automatisé & Décalque vectoriel** :
+  * Dialogue dédié guidé avec glisser-déposer de plan (PNG, JPG, SVG, WebP) et support natif du presse-papier (`Cmd+V` / `Ctrl+V`).
+  * Étalonnage automatique instantané : saisissez la largeur globale de la maison (ex: 12 m) pour calibrer le projet en 1 clic sans tracer.
+  * Outil règle d'étalonnage assisté (📏) pour mesurer un mur spécifique.
+  * Réglage d'opacité en filigrane pour redessiner facilement par-dessus le plan original.
+* **Boîte à outils déplaçable (Floating & Draggable Toolbar)** :
+  * Déplacement libre de la barre d'outils CAD par glisser-déposer sur toute la surface de l'écran avec poignée de préhension.
+  * Mémorisation automatique de la position préférée dans le navigateur (`localStorage`).
+* **Volet latéral des Entités HA toujours visible (Docked Sidebar)** :
+  * Volet latéral ancré en permanence à droite de la fenêtre pour avoir sous les yeux toutes ses lumières, prises, capteurs et thermostats.
+  * Recherche textuelle instantanée, filtres par domaine (Lumières, Capteurs, Climat, Prises, Caméras).
+  * Glisser-déposer direct sur une pièce avec détection automatique de la zone (area/room) et état en direct.
+* **Moteur de dessin vectoriel SVG pur sous Lit** : Zéro dépendance graphique lourde, bundle ultra-léger, netteté vectorielle infinie.
 * **Système métrique mondial** : Coordonnées réelles en mètres ($m$), échelle configurable ($px/m$).
-* **Pan & Zoom cinématique** : Centré sur le curseur avec molette souris, boutons HUD, et support tactile multi-touch (tablette murale / smartphone).
+* **Bascule Vue 2D / 3D Isométrique** : Extrusion 3D temps réel des cloisons avec éclairage dynamique et badges d'états.
 * **Accroche magnétique intelligente (Snapping)** :
   * Grille métrique adaptative ($0.50\,\text{m}, 1.0\,\text{m}$).
   * Contraintes angulaires automatiques ($0^\circ, 45^\circ, 90^\circ, 135^\circ, 180^\circ$).

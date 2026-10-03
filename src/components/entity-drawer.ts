@@ -27,38 +27,38 @@ const DOMAIN_ICONS: Record<string, string> = {
 export class HomeArchitectEntityDrawer extends LitElement {
   static styles = css`
     :host {
-      position: absolute;
-      top: 0;
-      right: 0;
-      bottom: 0;
-      width: 340px;
-      background: rgba(15, 23, 42, 0.94);
-      backdrop-filter: blur(20px);
+      width: 320px;
+      height: 100%;
+      flex-shrink: 0;
+      background: rgba(15, 23, 42, 0.96);
       border-left: 1px solid rgba(255, 255, 255, 0.12);
-      box-shadow: -10px 0 30px rgba(0, 0, 0, 0.5);
+      box-shadow: -6px 0 24px rgba(0, 0, 0, 0.35);
       display: flex;
       flex-direction: column;
-      z-index: 60;
+      z-index: 25;
       font-family: var(--ha-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
       color: #f8fafc;
-      animation: slideIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      position: relative;
+      transition: width 0.25s cubic-bezier(0.16, 1, 0.3, 1);
     }
 
-    @keyframes slideIn {
-      from { transform: translateX(100%); }
-      to { transform: translateX(0); }
+    :host([collapsed]) {
+      width: 0 !important;
+      overflow: hidden;
+      border-left: none;
     }
 
     .drawer-header {
-      padding: 16px;
+      padding: 14px 16px;
       border-bottom: 1px solid rgba(255, 255, 255, 0.1);
       display: flex;
       align-items: center;
       justify-content: space-between;
+      background: rgba(30, 41, 59, 0.4);
     }
 
     .drawer-title {
-      font-size: 1.05rem;
+      font-size: 0.95rem;
       font-weight: 700;
       display: flex;
       align-items: center;
@@ -66,37 +66,60 @@ export class HomeArchitectEntityDrawer extends LitElement {
       color: #38bdf8;
     }
 
-    .btn-close {
-      background: transparent;
-      border: none;
-      color: #94a3b8;
-      font-size: 18px;
-      cursor: pointer;
-      padding: 4px;
+    .count-badge {
+      font-size: 0.72rem;
+      padding: 2px 7px;
+      background: rgba(56, 189, 248, 0.15);
+      color: #38bdf8;
+      border-radius: 9999px;
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      font-weight: 700;
+      font-family: ui-monospace, SFMono-Regular, monospace;
     }
 
-    .btn-close:hover {
+    .btn-toggle {
+      background: transparent;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 6px;
+      color: #94a3b8;
+      font-size: 14px;
+      cursor: pointer;
+      padding: 4px 8px;
+      transition: all 0.2s ease;
+    }
+
+    .btn-toggle:hover {
       color: #ffffff;
+      background: rgba(255, 255, 255, 0.1);
+      border-color: #38bdf8;
     }
 
     .search-section {
-      padding: 12px 16px;
+      padding: 12px 14px;
       display: flex;
       flex-direction: column;
       gap: 10px;
       border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(15, 23, 42, 0.3);
+    }
+
+    .search-input-wrapper {
+      position: relative;
+      display: flex;
+      align-items: center;
     }
 
     .search-input {
-      background: rgba(30, 41, 59, 0.8);
+      background: rgba(30, 41, 59, 0.85);
       border: 1px solid rgba(255, 255, 255, 0.15);
       border-radius: 8px;
       color: #f8fafc;
-      padding: 8px 12px;
-      font-size: 0.85rem;
+      padding: 7px 12px;
+      font-size: 0.83rem;
       outline: none;
       width: 100%;
       box-sizing: border-box;
+      transition: border-color 0.2s;
     }
 
     .search-input:focus {
@@ -106,9 +129,14 @@ export class HomeArchitectEntityDrawer extends LitElement {
 
     .categories-bar {
       display: flex;
-      gap: 6px;
+      gap: 5px;
       overflow-x: auto;
       padding-bottom: 4px;
+      scrollbar-width: none;
+    }
+
+    .categories-bar::-webkit-scrollbar {
+      display: none;
     }
 
     .cat-btn {
@@ -117,7 +145,7 @@ export class HomeArchitectEntityDrawer extends LitElement {
       border-radius: 6px;
       color: #94a3b8;
       padding: 4px 8px;
-      font-size: 0.75rem;
+      font-size: 0.73rem;
       font-weight: 600;
       cursor: pointer;
       white-space: nowrap;
@@ -133,34 +161,35 @@ export class HomeArchitectEntityDrawer extends LitElement {
       background: #0284c7;
       color: #ffffff;
       border-color: #38bdf8;
+      box-shadow: 0 0 8px rgba(56, 189, 248, 0.3);
     }
 
     .entities-list {
       flex: 1;
       overflow-y: auto;
-      padding: 12px 16px;
+      padding: 10px 14px;
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: 7px;
     }
 
     .entity-card {
-      background: rgba(30, 41, 59, 0.6);
+      background: rgba(30, 41, 59, 0.65);
       border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 10px;
-      padding: 10px 12px;
+      border-radius: 9px;
+      padding: 9px 11px;
       display: flex;
       align-items: center;
       justify-content: space-between;
       cursor: grab;
-      transition: all 0.2s ease;
+      transition: all 0.18s ease;
       user-select: none;
     }
 
     .entity-card:hover {
-      background: rgba(51, 65, 85, 0.8);
+      background: rgba(51, 65, 85, 0.9);
       border-color: #38bdf8;
-      transform: translateY(-1px);
+      transform: translateX(-2px);
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
     }
 
@@ -176,8 +205,8 @@ export class HomeArchitectEntityDrawer extends LitElement {
     }
 
     .entity-icon {
-      font-size: 1.3rem;
-      min-width: 28px;
+      font-size: 1.25rem;
+      min-width: 26px;
       text-align: center;
     }
 
@@ -188,7 +217,7 @@ export class HomeArchitectEntityDrawer extends LitElement {
     }
 
     .entity-name {
-      font-size: 0.85rem;
+      font-size: 0.82rem;
       font-weight: 600;
       color: #f1f5f9;
       white-space: nowrap;
@@ -197,7 +226,7 @@ export class HomeArchitectEntityDrawer extends LitElement {
     }
 
     .entity-id {
-      font-size: 0.72rem;
+      font-size: 0.70rem;
       color: #64748b;
       white-space: nowrap;
       overflow: hidden;
@@ -206,9 +235,9 @@ export class HomeArchitectEntityDrawer extends LitElement {
     }
 
     .entity-state-badge {
-      font-size: 0.75rem;
+      font-size: 0.72rem;
       font-weight: 700;
-      padding: 3px 8px;
+      padding: 2px 7px;
       border-radius: 9999px;
       text-transform: uppercase;
       font-family: ui-monospace, SFMono-Regular, monospace;
@@ -227,10 +256,10 @@ export class HomeArchitectEntityDrawer extends LitElement {
     }
 
     .drag-hint {
-      padding: 12px 16px;
-      background: rgba(2, 132, 199, 0.15);
+      padding: 10px 14px;
+      background: rgba(2, 132, 199, 0.12);
       border-top: 1px solid rgba(56, 189, 248, 0.2);
-      font-size: 0.75rem;
+      font-size: 0.74rem;
       color: #38bdf8;
       text-align: center;
       display: flex;
@@ -238,10 +267,20 @@ export class HomeArchitectEntityDrawer extends LitElement {
       justify-content: center;
       gap: 6px;
     }
+
+    .empty-message {
+      padding: 30px 16px;
+      text-align: center;
+      color: #64748b;
+      font-size: 0.83rem;
+    }
   `;
 
   @property({ type: Object })
   public hass: any;
+
+  @property({ type: Boolean, reflect: true })
+  public collapsed: boolean = false;
 
   @state()
   private searchQuery: string = '';
@@ -290,15 +329,18 @@ export class HomeArchitectEntityDrawer extends LitElement {
     }
   }
 
-  private closeDrawer() {
-    this.dispatchEvent(new CustomEvent('close', {
+  private toggleCollapse() {
+    this.dispatchEvent(new CustomEvent('toggle-collapse', {
       bubbles: true,
       composed: true
     }));
   }
 
   render() {
-    let entities = this.getEntities();
+    if (this.collapsed) return null;
+
+    let allEntities = this.getEntities();
+    let entities = allEntities;
 
     if (this.activeCategory !== 'all') {
       entities = entities.filter(e => e.domain === this.activeCategory);
@@ -313,19 +355,24 @@ export class HomeArchitectEntityDrawer extends LitElement {
       <div class="drawer-header">
         <div class="drawer-title">
           <span>⚡</span>
-          <span>Entités Home Assistant</span>
+          <span>Entités HA</span>
+          <span class="count-badge">${entities.length}</span>
         </div>
-        <button class="btn-close" @click=${this.closeDrawer}>✕</button>
+        <button class="btn-toggle" @click=${this.toggleCollapse} title="Masquer / Réduire le volet">
+          ⇤
+        </button>
       </div>
 
       <div class="search-section">
-        <input 
-          type="text" 
-          class="search-input" 
-          placeholder="Rechercher une lumière, un capteur..."
-          .value=${this.searchQuery}
-          @input=${(e: any) => this.searchQuery = e.target.value}
-        />
+        <div class="search-input-wrapper">
+          <input 
+            type="text" 
+            class="search-input" 
+            placeholder="Rechercher une entité..."
+            .value=${this.searchQuery}
+            @input=${(e: any) => this.searchQuery = e.target.value}
+          />
+        </div>
 
         <div class="categories-bar">
           <button class="cat-btn ${this.activeCategory === 'all' ? 'active' : ''}" @click=${() => this.activeCategory = 'all'}>Tous</button>
@@ -333,11 +380,14 @@ export class HomeArchitectEntityDrawer extends LitElement {
           <button class="cat-btn ${this.activeCategory === 'binary_sensor' ? 'active' : ''}" @click=${() => this.activeCategory = 'binary_sensor'}>Capteurs</button>
           <button class="cat-btn ${this.activeCategory === 'climate' ? 'active' : ''}" @click=${() => this.activeCategory = 'climate'}>Climat</button>
           <button class="cat-btn ${this.activeCategory === 'switch' ? 'active' : ''}" @click=${() => this.activeCategory = 'switch'}>Prises</button>
+          <button class="cat-btn ${this.activeCategory === 'camera' ? 'active' : ''}" @click=${() => this.activeCategory = 'camera'}>Caméras</button>
         </div>
       </div>
 
       <div class="entities-list">
-        ${entities.map(item => html`
+        ${entities.length === 0 ? html`
+          <div class="empty-message">Aucune entité trouvée</div>
+        ` : entities.map(item => html`
           <div 
             class="entity-card" 
             draggable="true"
@@ -361,7 +411,7 @@ export class HomeArchitectEntityDrawer extends LitElement {
 
       <div class="drag-hint">
         <span>👆</span>
-        <span>Glissez-déposez une entité sur une pièce du plan</span>
+        <span>Glissez une entité sur une pièce du plan</span>
       </div>
     `;
   }

@@ -5,6 +5,8 @@ import './components/toolbar';
 import './components/wizard-modal';
 import './components/calibrate-modal';
 import './components/entity-drawer';
+import './components/import-modal';
+import { ImportModalResult } from './components/import-modal';
 import { 
   ActiveTool, HomeArchitectProject, Wall, Opening, Room, Point 
 } from './core/types';
@@ -34,6 +36,7 @@ export class HomeArchitectPanel extends LitElement {
       justify-content: space-between;
       padding: 0 18px;
       z-index: 30;
+      flex-shrink: 0;
     }
 
     .brand {
@@ -115,6 +118,27 @@ export class HomeArchitectPanel extends LitElement {
       box-shadow: 0 0 12px rgba(56, 189, 248, 0.4);
     }
 
+    button.btn-import {
+      background: rgba(16, 185, 129, 0.2);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.4);
+      border-radius: 8px;
+      padding: 6px 13px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s ease;
+    }
+
+    button.btn-import:hover {
+      background: #10b981;
+      color: #ffffff;
+      box-shadow: 0 0 14px rgba(16, 185, 129, 0.45);
+    }
+
     button.btn-drawer {
       background: rgba(56, 189, 248, 0.15);
       color: #38bdf8;
@@ -179,17 +203,20 @@ export class HomeArchitectPanel extends LitElement {
 
     .workspace {
       flex: 1;
-      position: relative;
+      display: flex;
+      flex-direction: row;
       width: 100%;
       height: calc(100vh - 56px);
       overflow: hidden;
+      position: relative;
     }
 
-    .floating-toolbar {
-      position: absolute;
-      top: 20px;
-      left: 20px;
-      z-index: 20;
+    .canvas-area {
+      flex: 1;
+      min-width: 0;
+      height: 100%;
+      position: relative;
+      overflow: hidden;
     }
 
     .level-selector {
@@ -225,7 +252,7 @@ export class HomeArchitectPanel extends LitElement {
 
     .toast-notification {
       position: absolute;
-      top: 72px;
+      top: 20px;
       left: 50%;
       transform: translateX(-50%);
       background: rgba(15, 23, 42, 0.95);
@@ -273,10 +300,13 @@ export class HomeArchitectPanel extends LitElement {
   private is3DMode: boolean = false;
 
   @state()
-  private isDrawerOpen: boolean = false;
+  private isDrawerCollapsed: boolean = false;
 
   @state()
   private isWizardOpen: boolean = false;
+
+  @state()
+  private isImportModalOpen: boolean = false;
 
   @state()
   private isCalibrateModalOpen: boolean = false;
@@ -469,10 +499,44 @@ export class HomeArchitectPanel extends LitElement {
     img.src = dataUrl;
   }
 
+  private handleImportConfirmed(e: CustomEvent<ImportModalResult>) {
+    const { dataUrl, widthPx, heightPx, opacity, mode, totalWidthMeters } = e.detail;
+    this.isImportModalOpen = false;
+
+    let calculatedPpm = this.project.pixelsPerMeter;
+    if (mode === 'auto_dimension' && totalWidthMeters && totalWidthMeters > 0) {
+      calculatedPpm = Math.round((widthPx / totalWidthMeters) * 10) / 10;
+    }
+
+    this.project = {
+      ...this.project,
+      pixelsPerMeter: calculatedPpm,
+      background: {
+        imageUrl: dataUrl,
+        opacity: opacity !== undefined ? opacity : 0.40,
+        visible: true,
+        offset: { x: 0, y: 0 },
+        scale: 1.0,
+        rotation: 0,
+        widthPx,
+        heightPx
+      }
+    };
+
+    if (mode === 'auto_dimension') {
+      this.activeTool = 'wall';
+      this.showToast(`✅ Plan importé et étalonné automatiquement (1 m = ${calculatedPpm} px) ! Vous pouvez tracer vos murs (🧱).`);
+    } else {
+      this.activeTool = 'calibrate';
+      this.showToast('📏 Plan importé ! Tracez un segment sur un mur mesuré pour étalonner l\'échelle.');
+    }
+  }
+
   private handlePaste(e: ClipboardEvent) {
+    if (this.isImportModalOpen) return; // Le modal gère lui-même son collage si ouvert
     if (!e.clipboardData) return;
 
-    // 1. Image brute dans le presse-papier (ex: capture d'écran Cmd+Shift+4 / Cmd+C)
+    // 1. Image brute dans le presse-papier
     const items = e.clipboardData.items;
     for (let i = 0; i < items.length; i++) {
       if (items[i].type.indexOf('image') !== -1) {
@@ -586,6 +650,12 @@ export class HomeArchitectPanel extends LitElement {
         </div>
 
         <div class="top-controls">
+          <!-- Bouton Importer un plan (Automatisé) -->
+          <button class="btn-import" @click=${() => this.isImportModalOpen = true} title="Importer et calibrer un plan image (PNG, JPG, SVG)">
+            <span>📥</span>
+            <span>Importer un plan</span>
+          </button>
+
           <!-- Bascule 2D / 3D -->
           <button 
             class="btn-3d ${this.is3DMode ? 'active' : ''}" 
@@ -599,10 +669,11 @@ export class HomeArchitectPanel extends LitElement {
             🪄 Assistant Pièce
           </button>
 
-          <!-- Tiroir Entités HA -->
+          <!-- Volet Entités HA -->
           <button 
-            class="btn-drawer ${this.isDrawerOpen ? 'active' : ''}" 
-            @click=${() => this.isDrawerOpen = !this.isDrawerOpen}
+            class="btn-drawer ${!this.isDrawerCollapsed ? 'active' : ''}" 
+            @click=${() => this.isDrawerCollapsed = !this.isDrawerCollapsed}
+            title="Afficher / Masquer le volet des entités"
           >
             ⚡ Entités HA (${this.project.bindings.length})
           </button>
@@ -665,43 +736,54 @@ export class HomeArchitectPanel extends LitElement {
       </header>
 
       <div class="workspace">
-        <home-architect-toolbar 
-          class="floating-toolbar"
-          .activeTool=${this.activeTool}
-          @tool-selected=${this.handleToolSelected}
-          @open-wizard=${() => this.isWizardOpen = true}
-          @trigger-upload-background=${this.triggerFileInput}
-        ></home-architect-toolbar>
+        <div class="canvas-area">
+          <home-architect-toolbar 
+            .activeTool=${this.activeTool}
+            @tool-selected=${this.handleToolSelected}
+            @open-wizard=${() => this.isWizardOpen = true}
+            @open-import-modal=${() => this.isImportModalOpen = true}
+            @trigger-upload-background=${() => this.isImportModalOpen = true}
+          ></home-architect-toolbar>
 
-        <home-architect-canvas
-          .hass=${this.hass}
-          .project=${this.project}
-          .activeTool=${this.activeTool}
-          .currentWallThickness=${this.currentThickness}
-          .currentOpeningWidth=${this.currentOpeningWidth}
-          .is3DMode=${this.is3DMode}
-          @toggle-3d=${(e: any) => this.is3DMode = e.detail.is3DMode}
-          @project-changed=${this.handleProjectChanged}
-          @request-calibration=${this.handleRequestCalibration}
-          @background-image-loaded=${(e: any) => this.loadBackgroundImage(e.detail.dataUrl, '🖼️ Image de plan glissée-déposée !')}
-        ></home-architect-canvas>
-
-        <!-- Notification Toast -->
-        ${this.toastMessage ? html`
-          <div class="toast-notification">
-            ${this.toastMessage}
-          </div>
-        ` : null}
-
-        <!-- Tiroir latéral des entités HA -->
-        ${this.isDrawerOpen ? html`
-          <home-architect-entity-drawer
+          <home-architect-canvas
             .hass=${this.hass}
-            @close=${() => this.isDrawerOpen = false}
-          ></home-architect-entity-drawer>
-        ` : null}
+            .project=${this.project}
+            .activeTool=${this.activeTool}
+            .currentWallThickness=${this.currentThickness}
+            .currentOpeningWidth=${this.currentOpeningWidth}
+            .is3DMode=${this.is3DMode}
+            @toggle-3d=${(e: any) => this.is3DMode = e.detail.is3DMode}
+            @project-changed=${this.handleProjectChanged}
+            @request-calibration=${this.handleRequestCalibration}
+            @background-image-loaded=${(e: any) => this.loadBackgroundImage(e.detail.dataUrl, '🖼️ Image de plan glissée-déposée !')}
+          ></home-architect-canvas>
+
+          <!-- Notification Toast -->
+          ${this.toastMessage ? html`
+            <div class="toast-notification">
+              ${this.toastMessage}
+            </div>
+          ` : null}
+        </div>
+
+        <!-- Volet latéral des entités HA : Toujours visible et docké -->
+        <home-architect-entity-drawer
+          .hass=${this.hass}
+          ?collapsed=${this.isDrawerCollapsed}
+          @toggle-collapse=${() => this.isDrawerCollapsed = !this.isDrawerCollapsed}
+        ></home-architect-entity-drawer>
       </div>
 
+      <!-- Modal d'Import Automatisé -->
+      ${this.isImportModalOpen ? html`
+        <home-architect-import-modal
+          .currentLevel=${this.activeLevel}
+          @import-confirmed=${this.handleImportConfirmed}
+          @close=${() => this.isImportModalOpen = false}
+        ></home-architect-import-modal>
+      ` : null}
+
+      <!-- Modal Assistant Pièce Débutant -->
       ${this.isWizardOpen ? html`
         <home-architect-wizard-modal
           @create-room=${this.handleCreateRoomFromWizard}
@@ -709,6 +791,7 @@ export class HomeArchitectPanel extends LitElement {
         ></home-architect-wizard-modal>
       ` : null}
 
+      <!-- Modal Étalonnage Mesure de Mur -->
       ${this.isCalibrateModalOpen && this.calibrationData ? html`
         <home-architect-calibrate-modal
           .pixelDistance=${this.calibrationData.pixelDistance}

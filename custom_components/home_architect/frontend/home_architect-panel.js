@@ -3,18 +3,18 @@
  * Copyright 2019 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
  */
-const Q = globalThis, pt = Q.ShadowRoot && (Q.ShadyCSS === void 0 || Q.ShadyCSS.nativeShadow) && "adoptedStyleSheets" in Document.prototype && "replace" in CSSStyleSheet.prototype, ht = Symbol(), bt = /* @__PURE__ */ new WeakMap();
-let Pt = class {
-  constructor(t, e, s) {
-    if (this._$cssResult$ = !0, s !== ht) throw Error("CSSResult is not constructable. Use `unsafeCSS` or `css` instead.");
+const ot = globalThis, gt = ot.ShadowRoot && (ot.ShadyCSS === void 0 || ot.ShadyCSS.nativeShadow) && "adoptedStyleSheets" in Document.prototype && "replace" in CSSStyleSheet.prototype, ft = Symbol(), vt = /* @__PURE__ */ new WeakMap();
+let Et = class {
+  constructor(t, e, o) {
+    if (this._$cssResult$ = !0, o !== ft) throw Error("CSSResult is not constructable. Use `unsafeCSS` or `css` instead.");
     this.cssText = t, this.t = e;
   }
   get styleSheet() {
     let t = this.o;
     const e = this.t;
-    if (pt && t === void 0) {
-      const s = e !== void 0 && e.length === 1;
-      s && (t = bt.get(e)), t === void 0 && ((this.o = t = new CSSStyleSheet()).replaceSync(this.cssText), s && bt.set(e, t));
+    if (gt && t === void 0) {
+      const o = e !== void 0 && e.length === 1;
+      o && (t = vt.get(e)), t === void 0 && ((this.o = t = new CSSStyleSheet()).replaceSync(this.cssText), o && vt.set(e, t));
     }
     return t;
   }
@@ -22,33 +22,33 @@ let Pt = class {
     return this.cssText;
   }
 };
-const Ut = (i) => new Pt(typeof i == "string" ? i : i + "", void 0, ht), I = (i, ...t) => {
-  const e = i.length === 1 ? i[0] : t.reduce((s, o, r) => s + ((n) => {
-    if (n._$cssResult$ === !0) return n.cssText;
-    if (typeof n == "number") return n;
-    throw Error("Value passed to 'css' function must be a 'css' function result: " + n + ". Use 'unsafeCSS' to pass non-literal values, but take care to ensure page security.");
-  })(o) + i[r + 1], i[0]);
-  return new Pt(e, i, ht);
-}, Ft = (i, t) => {
-  if (pt) i.adoptedStyleSheets = t.map((e) => e instanceof CSSStyleSheet ? e : e.styleSheet);
+const Lt = (i) => new Et(typeof i == "string" ? i : i + "", void 0, ft), z = (i, ...t) => {
+  const e = i.length === 1 ? i[0] : t.reduce((o, s, r) => o + ((a) => {
+    if (a._$cssResult$ === !0) return a.cssText;
+    if (typeof a == "number") return a;
+    throw Error("Value passed to 'css' function must be a 'css' function result: " + a + ". Use 'unsafeCSS' to pass non-literal values, but take care to ensure page security.");
+  })(s) + i[r + 1], i[0]);
+  return new Et(e, i, ft);
+}, Ht = (i, t) => {
+  if (gt) i.adoptedStyleSheets = t.map((e) => e instanceof CSSStyleSheet ? e : e.styleSheet);
   else for (const e of t) {
-    const s = document.createElement("style"), o = Q.litNonce;
-    o !== void 0 && s.setAttribute("nonce", o), s.textContent = e.cssText, i.appendChild(s);
+    const o = document.createElement("style"), s = ot.litNonce;
+    s !== void 0 && o.setAttribute("nonce", s), o.textContent = e.cssText, i.appendChild(o);
   }
-}, mt = pt ? (i) => i : (i) => i instanceof CSSStyleSheet ? ((t) => {
+}, yt = gt ? (i) => i : (i) => i instanceof CSSStyleSheet ? ((t) => {
   let e = "";
-  for (const s of t.cssRules) e += s.cssText;
-  return Ut(e);
+  for (const o of t.cssRules) e += o.cssText;
+  return Lt(e);
 })(i) : i;
 /**
  * @license
  * Copyright 2017 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
  */
-const { is: Ht, defineProperty: Nt, getOwnPropertyDescriptor: Lt, getOwnPropertyNames: Bt, getOwnPropertySymbols: qt, getPrototypeOf: Yt } = Object, D = globalThis, yt = D.trustedTypes, Vt = yt ? yt.emptyScript : "", at = D.reactiveElementPolyfillSupport, Y = (i, t) => i, tt = { toAttribute(i, t) {
+const { is: Nt, defineProperty: Bt, getOwnPropertyDescriptor: qt, getOwnPropertyNames: Vt, getOwnPropertySymbols: Gt, getPrototypeOf: Yt } = Object, A = globalThis, wt = A.trustedTypes, Xt = wt ? wt.emptyScript : "", ct = A.reactiveElementPolyfillSupport, X = (i, t) => i, st = { toAttribute(i, t) {
   switch (t) {
     case Boolean:
-      i = i ? Vt : null;
+      i = i ? Xt : null;
       break;
     case Object:
     case Array:
@@ -73,69 +73,69 @@ const { is: Ht, defineProperty: Nt, getOwnPropertyDescriptor: Lt, getOwnProperty
       }
   }
   return e;
-} }, ut = (i, t) => !Ht(i, t), xt = { attribute: !0, type: String, converter: tt, reflect: !1, useDefault: !1, hasChanged: ut };
-Symbol.metadata ?? (Symbol.metadata = Symbol("metadata")), D.litPropertyMetadata ?? (D.litPropertyMetadata = /* @__PURE__ */ new WeakMap());
-let U = class extends HTMLElement {
+} }, bt = (i, t) => !Nt(i, t), $t = { attribute: !0, type: String, converter: st, reflect: !1, useDefault: !1, hasChanged: bt };
+Symbol.metadata ?? (Symbol.metadata = Symbol("metadata")), A.litPropertyMetadata ?? (A.litPropertyMetadata = /* @__PURE__ */ new WeakMap());
+let H = class extends HTMLElement {
   static addInitializer(t) {
     this._$Ei(), (this.l ?? (this.l = [])).push(t);
   }
   static get observedAttributes() {
     return this.finalize(), this._$Eh && [...this._$Eh.keys()];
   }
-  static createProperty(t, e = xt) {
+  static createProperty(t, e = $t) {
     if (e.state && (e.attribute = !1), this._$Ei(), this.prototype.hasOwnProperty(t) && ((e = Object.create(e)).wrapped = !0), this.elementProperties.set(t, e), !e.noAccessor) {
-      const s = Symbol(), o = this.getPropertyDescriptor(t, s, e);
-      o !== void 0 && Nt(this.prototype, t, o);
+      const o = Symbol(), s = this.getPropertyDescriptor(t, o, e);
+      s !== void 0 && Bt(this.prototype, t, s);
     }
   }
-  static getPropertyDescriptor(t, e, s) {
-    const { get: o, set: r } = Lt(this.prototype, t) ?? { get() {
+  static getPropertyDescriptor(t, e, o) {
+    const { get: s, set: r } = qt(this.prototype, t) ?? { get() {
       return this[e];
-    }, set(n) {
-      this[e] = n;
+    }, set(a) {
+      this[e] = a;
     } };
-    return { get: o, set(n) {
-      const a = o == null ? void 0 : o.call(this);
-      r == null || r.call(this, n), this.requestUpdate(t, a, s);
+    return { get: s, set(a) {
+      const n = s == null ? void 0 : s.call(this);
+      r == null || r.call(this, a), this.requestUpdate(t, n, o);
     }, configurable: !0, enumerable: !0 };
   }
   static getPropertyOptions(t) {
-    return this.elementProperties.get(t) ?? xt;
+    return this.elementProperties.get(t) ?? $t;
   }
   static _$Ei() {
-    if (this.hasOwnProperty(Y("elementProperties"))) return;
+    if (this.hasOwnProperty(X("elementProperties"))) return;
     const t = Yt(this);
     t.finalize(), t.l !== void 0 && (this.l = [...t.l]), this.elementProperties = new Map(t.elementProperties);
   }
   static finalize() {
-    if (this.hasOwnProperty(Y("finalized"))) return;
-    if (this.finalized = !0, this._$Ei(), this.hasOwnProperty(Y("properties"))) {
-      const e = this.properties, s = [...Bt(e), ...qt(e)];
-      for (const o of s) this.createProperty(o, e[o]);
+    if (this.hasOwnProperty(X("finalized"))) return;
+    if (this.finalized = !0, this._$Ei(), this.hasOwnProperty(X("properties"))) {
+      const e = this.properties, o = [...Vt(e), ...Gt(e)];
+      for (const s of o) this.createProperty(s, e[s]);
     }
     const t = this[Symbol.metadata];
     if (t !== null) {
       const e = litPropertyMetadata.get(t);
-      if (e !== void 0) for (const [s, o] of e) this.elementProperties.set(s, o);
+      if (e !== void 0) for (const [o, s] of e) this.elementProperties.set(o, s);
     }
     this._$Eh = /* @__PURE__ */ new Map();
-    for (const [e, s] of this.elementProperties) {
-      const o = this._$Eu(e, s);
-      o !== void 0 && this._$Eh.set(o, e);
+    for (const [e, o] of this.elementProperties) {
+      const s = this._$Eu(e, o);
+      s !== void 0 && this._$Eh.set(s, e);
     }
     this.elementStyles = this.finalizeStyles(this.styles);
   }
   static finalizeStyles(t) {
     const e = [];
     if (Array.isArray(t)) {
-      const s = new Set(t.flat(1 / 0).reverse());
-      for (const o of s) e.unshift(mt(o));
-    } else t !== void 0 && e.push(mt(t));
+      const o = new Set(t.flat(1 / 0).reverse());
+      for (const s of o) e.unshift(yt(s));
+    } else t !== void 0 && e.push(yt(t));
     return e;
   }
   static _$Eu(t, e) {
-    const s = e.attribute;
-    return s === !1 ? void 0 : typeof s == "string" ? s : typeof t == "string" ? t.toLowerCase() : void 0;
+    const o = e.attribute;
+    return o === !1 ? void 0 : typeof o == "string" ? o : typeof t == "string" ? t.toLowerCase() : void 0;
   }
   constructor() {
     super(), this._$Ep = void 0, this.isUpdatePending = !1, this.hasUpdated = !1, this._$Em = null, this._$Ev();
@@ -154,18 +154,18 @@ let U = class extends HTMLElement {
   }
   _$E_() {
     const t = /* @__PURE__ */ new Map(), e = this.constructor.elementProperties;
-    for (const s of e.keys()) this.hasOwnProperty(s) && (t.set(s, this[s]), delete this[s]);
+    for (const o of e.keys()) this.hasOwnProperty(o) && (t.set(o, this[o]), delete this[o]);
     t.size > 0 && (this._$Ep = t);
   }
   createRenderRoot() {
     const t = this.shadowRoot ?? this.attachShadow(this.constructor.shadowRootOptions);
-    return Ft(t, this.constructor.elementStyles), t;
+    return Ht(t, this.constructor.elementStyles), t;
   }
   connectedCallback() {
     var t;
     this.renderRoot ?? (this.renderRoot = this.createRenderRoot()), this.enableUpdating(!0), (t = this._$EO) == null || t.forEach((e) => {
-      var s;
-      return (s = e.hostConnected) == null ? void 0 : s.call(e);
+      var o;
+      return (o = e.hostConnected) == null ? void 0 : o.call(e);
     });
   }
   enableUpdating(t) {
@@ -173,42 +173,42 @@ let U = class extends HTMLElement {
   disconnectedCallback() {
     var t;
     (t = this._$EO) == null || t.forEach((e) => {
-      var s;
-      return (s = e.hostDisconnected) == null ? void 0 : s.call(e);
+      var o;
+      return (o = e.hostDisconnected) == null ? void 0 : o.call(e);
     });
   }
-  attributeChangedCallback(t, e, s) {
-    this._$AK(t, s);
+  attributeChangedCallback(t, e, o) {
+    this._$AK(t, o);
   }
   _$ET(t, e) {
     var r;
-    const s = this.constructor.elementProperties.get(t), o = this.constructor._$Eu(t, s);
-    if (o !== void 0 && s.reflect === !0) {
-      const n = (((r = s.converter) == null ? void 0 : r.toAttribute) !== void 0 ? s.converter : tt).toAttribute(e, s.type);
-      this._$Em = t, n == null ? this.removeAttribute(o) : this.setAttribute(o, n), this._$Em = null;
+    const o = this.constructor.elementProperties.get(t), s = this.constructor._$Eu(t, o);
+    if (s !== void 0 && o.reflect === !0) {
+      const a = (((r = o.converter) == null ? void 0 : r.toAttribute) !== void 0 ? o.converter : st).toAttribute(e, o.type);
+      this._$Em = t, a == null ? this.removeAttribute(s) : this.setAttribute(s, a), this._$Em = null;
     }
   }
   _$AK(t, e) {
-    var r, n;
-    const s = this.constructor, o = s._$Eh.get(t);
-    if (o !== void 0 && this._$Em !== o) {
-      const a = s.getPropertyOptions(o), l = typeof a.converter == "function" ? { fromAttribute: a.converter } : ((r = a.converter) == null ? void 0 : r.fromAttribute) !== void 0 ? a.converter : tt;
-      this._$Em = o;
-      const c = l.fromAttribute(e, a.type);
-      this[o] = c ?? ((n = this._$Ej) == null ? void 0 : n.get(o)) ?? c, this._$Em = null;
+    var r, a;
+    const o = this.constructor, s = o._$Eh.get(t);
+    if (s !== void 0 && this._$Em !== s) {
+      const n = o.getPropertyOptions(s), l = typeof n.converter == "function" ? { fromAttribute: n.converter } : ((r = n.converter) == null ? void 0 : r.fromAttribute) !== void 0 ? n.converter : st;
+      this._$Em = s;
+      const d = l.fromAttribute(e, n.type);
+      this[s] = d ?? ((a = this._$Ej) == null ? void 0 : a.get(s)) ?? d, this._$Em = null;
     }
   }
-  requestUpdate(t, e, s, o = !1, r) {
-    var n;
+  requestUpdate(t, e, o, s = !1, r) {
+    var a;
     if (t !== void 0) {
-      const a = this.constructor;
-      if (o === !1 && (r = this[t]), s ?? (s = a.getPropertyOptions(t)), !((s.hasChanged ?? ut)(r, e) || s.useDefault && s.reflect && r === ((n = this._$Ej) == null ? void 0 : n.get(t)) && !this.hasAttribute(a._$Eu(t, s)))) return;
-      this.C(t, e, s);
+      const n = this.constructor;
+      if (s === !1 && (r = this[t]), o ?? (o = n.getPropertyOptions(t)), !((o.hasChanged ?? bt)(r, e) || o.useDefault && o.reflect && r === ((a = this._$Ej) == null ? void 0 : a.get(t)) && !this.hasAttribute(n._$Eu(t, o)))) return;
+      this.C(t, e, o);
     }
     this.isUpdatePending === !1 && (this._$ES = this._$EP());
   }
-  C(t, e, { useDefault: s, reflect: o, wrapped: r }, n) {
-    s && !(this._$Ej ?? (this._$Ej = /* @__PURE__ */ new Map())).has(t) && (this._$Ej.set(t, n ?? e ?? this[t]), r !== !0 || n !== void 0) || (this._$AL.has(t) || (this.hasUpdated || s || (e = void 0), this._$AL.set(t, e)), o === !0 && this._$Em !== t && (this._$Eq ?? (this._$Eq = /* @__PURE__ */ new Set())).add(t));
+  C(t, e, { useDefault: o, reflect: s, wrapped: r }, a) {
+    o && !(this._$Ej ?? (this._$Ej = /* @__PURE__ */ new Map())).has(t) && (this._$Ej.set(t, a ?? e ?? this[t]), r !== !0 || a !== void 0) || (this._$AL.has(t) || (this.hasUpdated || o || (e = void 0), this._$AL.set(t, e)), s === !0 && this._$Em !== t && (this._$Eq ?? (this._$Eq = /* @__PURE__ */ new Set())).add(t));
   }
   async _$EP() {
     this.isUpdatePending = !0;
@@ -224,28 +224,28 @@ let U = class extends HTMLElement {
     return this.performUpdate();
   }
   performUpdate() {
-    var s;
+    var o;
     if (!this.isUpdatePending) return;
     if (!this.hasUpdated) {
       if (this.renderRoot ?? (this.renderRoot = this.createRenderRoot()), this._$Ep) {
-        for (const [r, n] of this._$Ep) this[r] = n;
+        for (const [r, a] of this._$Ep) this[r] = a;
         this._$Ep = void 0;
       }
-      const o = this.constructor.elementProperties;
-      if (o.size > 0) for (const [r, n] of o) {
-        const { wrapped: a } = n, l = this[r];
-        a !== !0 || this._$AL.has(r) || l === void 0 || this.C(r, void 0, n, l);
+      const s = this.constructor.elementProperties;
+      if (s.size > 0) for (const [r, a] of s) {
+        const { wrapped: n } = a, l = this[r];
+        n !== !0 || this._$AL.has(r) || l === void 0 || this.C(r, void 0, a, l);
       }
     }
     let t = !1;
     const e = this._$AL;
     try {
-      t = this.shouldUpdate(e), t ? (this.willUpdate(e), (s = this._$EO) == null || s.forEach((o) => {
+      t = this.shouldUpdate(e), t ? (this.willUpdate(e), (o = this._$EO) == null || o.forEach((s) => {
         var r;
-        return (r = o.hostUpdate) == null ? void 0 : r.call(o);
+        return (r = s.hostUpdate) == null ? void 0 : r.call(s);
       }), this.update(e)) : this._$EM();
-    } catch (o) {
-      throw t = !1, this._$EM(), o;
+    } catch (s) {
+      throw t = !1, this._$EM(), s;
     }
     t && this._$AE(e);
   }
@@ -253,9 +253,9 @@ let U = class extends HTMLElement {
   }
   _$AE(t) {
     var e;
-    (e = this._$EO) == null || e.forEach((s) => {
-      var o;
-      return (o = s.hostUpdated) == null ? void 0 : o.call(s);
+    (e = this._$EO) == null || e.forEach((o) => {
+      var s;
+      return (s = o.hostUpdated) == null ? void 0 : s.call(o);
     }), this.hasUpdated || (this.hasUpdated = !0, this.firstUpdated(t)), this.updated(t);
   }
   _$EM() {
@@ -278,76 +278,76 @@ let U = class extends HTMLElement {
   firstUpdated(t) {
   }
 };
-U.elementStyles = [], U.shadowRootOptions = { mode: "open" }, U[Y("elementProperties")] = /* @__PURE__ */ new Map(), U[Y("finalized")] = /* @__PURE__ */ new Map(), at == null || at({ ReactiveElement: U }), (D.reactiveElementVersions ?? (D.reactiveElementVersions = [])).push("2.1.2");
+H.elementStyles = [], H.shadowRootOptions = { mode: "open" }, H[X("elementProperties")] = /* @__PURE__ */ new Map(), H[X("finalized")] = /* @__PURE__ */ new Map(), ct == null || ct({ ReactiveElement: H }), (A.reactiveElementVersions ?? (A.reactiveElementVersions = [])).push("2.1.2");
 /**
  * @license
  * Copyright 2017 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
  */
-const V = globalThis, vt = (i) => i, et = V.trustedTypes, wt = et ? et.createPolicy("lit-html", { createHTML: (i) => i }) : void 0, At = "$lit$", C = `lit$${Math.random().toFixed(9).slice(2)}$`, jt = "?" + C, Xt = `<${jt}>`, z = document, X = () => z.createComment(""), G = (i) => i === null || typeof i != "object" && typeof i != "function", ft = Array.isArray, Gt = (i) => ft(i) || typeof (i == null ? void 0 : i[Symbol.iterator]) == "function", lt = `[ 	
-\f\r]`, q = /<(?:(!--|\/[^a-zA-Z])|(\/?[a-zA-Z][^>\s]*)|(\/?$))/g, $t = /-->/g, _t = />/g, A = RegExp(`>|${lt}(?:([^\\s"'>=/]+)(${lt}*=${lt}*(?:[^ 	
-\f\r"'\`<>=]|("|')|))|$)`, "g"), kt = /'/g, St = /"/g, Et = /^(?:script|style|textarea|title)$/i, zt = (i) => (t, ...e) => ({ _$litType$: i, strings: t, values: e }), x = zt(1), b = zt(2), F = Symbol.for("lit-noChange"), m = Symbol.for("lit-nothing"), Mt = /* @__PURE__ */ new WeakMap(), j = z.createTreeWalker(z, 129);
-function Ot(i, t) {
-  if (!ft(i) || !i.hasOwnProperty("raw")) throw Error("invalid template strings array");
-  return wt !== void 0 ? wt.createHTML(t) : t;
+const J = globalThis, _t = (i) => i, rt = J.trustedTypes, kt = rt ? rt.createPolicy("lit-html", { createHTML: (i) => i }) : void 0, jt = "$lit$", T = `lit$${Math.random().toFixed(9).slice(2)}$`, Ot = "?" + T, Jt = `<${Ot}>`, R = document, Z = () => R.createComment(""), K = (i) => i === null || typeof i != "object" && typeof i != "function", mt = Array.isArray, Zt = (i) => mt(i) || typeof (i == null ? void 0 : i[Symbol.iterator]) == "function", pt = `[ 	
+\f\r]`, Y = /<(?:(!--|\/[^a-zA-Z])|(\/?[a-zA-Z][^>\s]*)|(\/?$))/g, St = /-->/g, Mt = />/g, O = RegExp(`>|${pt}(?:([^\\s"'>=/]+)(${pt}*=${pt}*(?:[^ 	
+\f\r"'\`<>=]|("|')|))|$)`, "g"), Dt = /'/g, Pt = /"/g, It = /^(?:script|style|textarea|title)$/i, Wt = (i) => (t, ...e) => ({ _$litType$: i, strings: t, values: e }), f = Wt(1), m = Wt(2), N = Symbol.for("lit-noChange"), x = Symbol.for("lit-nothing"), Ct = /* @__PURE__ */ new WeakMap(), I = R.createTreeWalker(R, 129);
+function Rt(i, t) {
+  if (!mt(i) || !i.hasOwnProperty("raw")) throw Error("invalid template strings array");
+  return kt !== void 0 ? kt.createHTML(t) : t;
 }
-const Jt = (i, t) => {
-  const e = i.length - 1, s = [];
-  let o, r = t === 2 ? "<svg>" : t === 3 ? "<math>" : "", n = q;
-  for (let a = 0; a < e; a++) {
-    const l = i[a];
-    let c, p, d = -1, u = 0;
-    for (; u < l.length && (n.lastIndex = u, p = n.exec(l), p !== null); ) u = n.lastIndex, n === q ? p[1] === "!--" ? n = $t : p[1] !== void 0 ? n = _t : p[2] !== void 0 ? (Et.test(p[2]) && (o = RegExp("</" + p[2], "g")), n = A) : p[3] !== void 0 && (n = A) : n === A ? p[0] === ">" ? (n = o ?? q, d = -1) : p[1] === void 0 ? d = -2 : (d = n.lastIndex - p[2].length, c = p[1], n = p[3] === void 0 ? A : p[3] === '"' ? St : kt) : n === St || n === kt ? n = A : n === $t || n === _t ? n = q : (n = A, o = void 0);
-    const f = n === A && i[a + 1].startsWith("/>") ? " " : "";
-    r += n === q ? l + Xt : d >= 0 ? (s.push(c), l.slice(0, d) + At + l.slice(d) + C + f) : l + C + (d === -2 ? a : f);
+const Kt = (i, t) => {
+  const e = i.length - 1, o = [];
+  let s, r = t === 2 ? "<svg>" : t === 3 ? "<math>" : "", a = Y;
+  for (let n = 0; n < e; n++) {
+    const l = i[n];
+    let d, p, c = -1, u = 0;
+    for (; u < l.length && (a.lastIndex = u, p = a.exec(l), p !== null); ) u = a.lastIndex, a === Y ? p[1] === "!--" ? a = St : p[1] !== void 0 ? a = Mt : p[2] !== void 0 ? (It.test(p[2]) && (s = RegExp("</" + p[2], "g")), a = O) : p[3] !== void 0 && (a = O) : a === O ? p[0] === ">" ? (a = s ?? Y, c = -1) : p[1] === void 0 ? c = -2 : (c = a.lastIndex - p[2].length, d = p[1], a = p[3] === void 0 ? O : p[3] === '"' ? Pt : Dt) : a === Pt || a === Dt ? a = O : a === St || a === Mt ? a = Y : (a = O, s = void 0);
+    const g = a === O && i[n + 1].startsWith("/>") ? " " : "";
+    r += a === Y ? l + Jt : c >= 0 ? (o.push(d), l.slice(0, c) + jt + l.slice(c) + T + g) : l + T + (c === -2 ? n : g);
   }
-  return [Ot(i, r + (i[e] || "<?>") + (t === 2 ? "</svg>" : t === 3 ? "</math>" : "")), s];
+  return [Rt(i, r + (i[e] || "<?>") + (t === 2 ? "</svg>" : t === 3 ? "</math>" : "")), o];
 };
-class J {
-  constructor({ strings: t, _$litType$: e }, s) {
-    let o;
+class Q {
+  constructor({ strings: t, _$litType$: e }, o) {
+    let s;
     this.parts = [];
-    let r = 0, n = 0;
-    const a = t.length - 1, l = this.parts, [c, p] = Jt(t, e);
-    if (this.el = J.createElement(c, s), j.currentNode = this.el.content, e === 2 || e === 3) {
-      const d = this.el.content.firstChild;
-      d.replaceWith(...d.childNodes);
+    let r = 0, a = 0;
+    const n = t.length - 1, l = this.parts, [d, p] = Kt(t, e);
+    if (this.el = Q.createElement(d, o), I.currentNode = this.el.content, e === 2 || e === 3) {
+      const c = this.el.content.firstChild;
+      c.replaceWith(...c.childNodes);
     }
-    for (; (o = j.nextNode()) !== null && l.length < a; ) {
-      if (o.nodeType === 1) {
-        if (o.hasAttributes()) for (const d of o.getAttributeNames()) if (d.endsWith(At)) {
-          const u = p[n++], f = o.getAttribute(d).split(C), k = /([.?@])?(.*)/.exec(u);
-          l.push({ type: 1, index: r, name: k[2], strings: f, ctor: k[1] === "." ? Kt : k[1] === "?" ? Qt : k[1] === "@" ? te : st }), o.removeAttribute(d);
-        } else d.startsWith(C) && (l.push({ type: 6, index: r }), o.removeAttribute(d));
-        if (Et.test(o.tagName)) {
-          const d = o.textContent.split(C), u = d.length - 1;
+    for (; (s = I.nextNode()) !== null && l.length < n; ) {
+      if (s.nodeType === 1) {
+        if (s.hasAttributes()) for (const c of s.getAttributeNames()) if (c.endsWith(jt)) {
+          const u = p[a++], g = s.getAttribute(c).split(T), M = /([.?@])?(.*)/.exec(u);
+          l.push({ type: 1, index: r, name: M[2], strings: g, ctor: M[1] === "." ? te : M[1] === "?" ? ee : M[1] === "@" ? ie : at }), s.removeAttribute(c);
+        } else c.startsWith(T) && (l.push({ type: 6, index: r }), s.removeAttribute(c));
+        if (It.test(s.tagName)) {
+          const c = s.textContent.split(T), u = c.length - 1;
           if (u > 0) {
-            o.textContent = et ? et.emptyScript : "";
-            for (let f = 0; f < u; f++) o.append(d[f], X()), j.nextNode(), l.push({ type: 2, index: ++r });
-            o.append(d[u], X());
+            s.textContent = rt ? rt.emptyScript : "";
+            for (let g = 0; g < u; g++) s.append(c[g], Z()), I.nextNode(), l.push({ type: 2, index: ++r });
+            s.append(c[u], Z());
           }
         }
-      } else if (o.nodeType === 8) if (o.data === jt) l.push({ type: 2, index: r });
+      } else if (s.nodeType === 8) if (s.data === Ot) l.push({ type: 2, index: r });
       else {
-        let d = -1;
-        for (; (d = o.data.indexOf(C, d + 1)) !== -1; ) l.push({ type: 7, index: r }), d += C.length - 1;
+        let c = -1;
+        for (; (c = s.data.indexOf(T, c + 1)) !== -1; ) l.push({ type: 7, index: r }), c += T.length - 1;
       }
       r++;
     }
   }
   static createElement(t, e) {
-    const s = z.createElement("template");
-    return s.innerHTML = t, s;
+    const o = R.createElement("template");
+    return o.innerHTML = t, o;
   }
 }
-function H(i, t, e = i, s) {
-  var n, a;
-  if (t === F) return t;
-  let o = s !== void 0 ? (n = e._$Co) == null ? void 0 : n[s] : e._$Cl;
-  const r = G(t) ? void 0 : t._$litDirective$;
-  return (o == null ? void 0 : o.constructor) !== r && ((a = o == null ? void 0 : o._$AO) == null || a.call(o, !1), r === void 0 ? o = void 0 : (o = new r(i), o._$AT(i, e, s)), s !== void 0 ? (e._$Co ?? (e._$Co = []))[s] = o : e._$Cl = o), o !== void 0 && (t = H(i, o._$AS(i, t.values), o, s)), t;
+function B(i, t, e = i, o) {
+  var a, n;
+  if (t === N) return t;
+  let s = o !== void 0 ? (a = e._$Co) == null ? void 0 : a[o] : e._$Cl;
+  const r = K(t) ? void 0 : t._$litDirective$;
+  return (s == null ? void 0 : s.constructor) !== r && ((n = s == null ? void 0 : s._$AO) == null || n.call(s, !1), r === void 0 ? s = void 0 : (s = new r(i), s._$AT(i, e, o)), o !== void 0 ? (e._$Co ?? (e._$Co = []))[o] = s : e._$Cl = s), s !== void 0 && (t = B(i, s._$AS(i, t.values), s, o)), t;
 }
-class Zt {
+class Qt {
   constructor(t, e) {
     this._$AV = [], this._$AN = void 0, this._$AD = t, this._$AM = e;
   }
@@ -358,30 +358,30 @@ class Zt {
     return this._$AM._$AU;
   }
   u(t) {
-    const { el: { content: e }, parts: s } = this._$AD, o = ((t == null ? void 0 : t.creationScope) ?? z).importNode(e, !0);
-    j.currentNode = o;
-    let r = j.nextNode(), n = 0, a = 0, l = s[0];
+    const { el: { content: e }, parts: o } = this._$AD, s = ((t == null ? void 0 : t.creationScope) ?? R).importNode(e, !0);
+    I.currentNode = s;
+    let r = I.nextNode(), a = 0, n = 0, l = o[0];
     for (; l !== void 0; ) {
-      if (n === l.index) {
-        let c;
-        l.type === 2 ? c = new Z(r, r.nextSibling, this, t) : l.type === 1 ? c = new l.ctor(r, l.name, l.strings, this, t) : l.type === 6 && (c = new ee(r, this, t)), this._$AV.push(c), l = s[++a];
+      if (a === l.index) {
+        let d;
+        l.type === 2 ? d = new tt(r, r.nextSibling, this, t) : l.type === 1 ? d = new l.ctor(r, l.name, l.strings, this, t) : l.type === 6 && (d = new oe(r, this, t)), this._$AV.push(d), l = o[++n];
       }
-      n !== (l == null ? void 0 : l.index) && (r = j.nextNode(), n++);
+      a !== (l == null ? void 0 : l.index) && (r = I.nextNode(), a++);
     }
-    return j.currentNode = z, o;
+    return I.currentNode = R, s;
   }
   p(t) {
     let e = 0;
-    for (const s of this._$AV) s !== void 0 && (s.strings !== void 0 ? (s._$AI(t, s, e), e += s.strings.length - 2) : s._$AI(t[e])), e++;
+    for (const o of this._$AV) o !== void 0 && (o.strings !== void 0 ? (o._$AI(t, o, e), e += o.strings.length - 2) : o._$AI(t[e])), e++;
   }
 }
-class Z {
+class tt {
   get _$AU() {
     var t;
     return ((t = this._$AM) == null ? void 0 : t._$AU) ?? this._$Cv;
   }
-  constructor(t, e, s, o) {
-    this.type = 2, this._$AH = m, this._$AN = void 0, this._$AA = t, this._$AB = e, this._$AM = s, this.options = o, this._$Cv = (o == null ? void 0 : o.isConnected) ?? !0;
+  constructor(t, e, o, s) {
+    this.type = 2, this._$AH = x, this._$AN = void 0, this._$AA = t, this._$AB = e, this._$AM = o, this.options = s, this._$Cv = (s == null ? void 0 : s.isConnected) ?? !0;
   }
   get parentNode() {
     let t = this._$AA.parentNode;
@@ -395,7 +395,7 @@ class Z {
     return this._$AB;
   }
   _$AI(t, e = this) {
-    t = H(this, t, e), G(t) ? t === m || t == null || t === "" ? (this._$AH !== m && this._$AR(), this._$AH = m) : t !== this._$AH && t !== F && this._(t) : t._$litType$ !== void 0 ? this.$(t) : t.nodeType !== void 0 ? this.T(t) : Gt(t) ? this.k(t) : this._(t);
+    t = B(this, t, e), K(t) ? t === x || t == null || t === "" ? (this._$AH !== x && this._$AR(), this._$AH = x) : t !== this._$AH && t !== N && this._(t) : t._$litType$ !== void 0 ? this.$(t) : t.nodeType !== void 0 ? this.T(t) : Zt(t) ? this.k(t) : this._(t);
   }
   O(t) {
     return this._$AA.parentNode.insertBefore(t, this._$AB);
@@ -404,33 +404,33 @@ class Z {
     this._$AH !== t && (this._$AR(), this._$AH = this.O(t));
   }
   _(t) {
-    this._$AH !== m && G(this._$AH) ? this._$AA.nextSibling.data = t : this.T(z.createTextNode(t)), this._$AH = t;
+    this._$AH !== x && K(this._$AH) ? this._$AA.nextSibling.data = t : this.T(R.createTextNode(t)), this._$AH = t;
   }
   $(t) {
     var r;
-    const { values: e, _$litType$: s } = t, o = typeof s == "number" ? this._$AC(t) : (s.el === void 0 && (s.el = J.createElement(Ot(s.h, s.h[0]), this.options)), s);
-    if (((r = this._$AH) == null ? void 0 : r._$AD) === o) this._$AH.p(e);
+    const { values: e, _$litType$: o } = t, s = typeof o == "number" ? this._$AC(t) : (o.el === void 0 && (o.el = Q.createElement(Rt(o.h, o.h[0]), this.options)), o);
+    if (((r = this._$AH) == null ? void 0 : r._$AD) === s) this._$AH.p(e);
     else {
-      const n = new Zt(o, this), a = n.u(this.options);
-      n.p(e), this.T(a), this._$AH = n;
+      const a = new Qt(s, this), n = a.u(this.options);
+      a.p(e), this.T(n), this._$AH = a;
     }
   }
   _$AC(t) {
-    let e = Mt.get(t.strings);
-    return e === void 0 && Mt.set(t.strings, e = new J(t)), e;
+    let e = Ct.get(t.strings);
+    return e === void 0 && Ct.set(t.strings, e = new Q(t)), e;
   }
   k(t) {
-    ft(this._$AH) || (this._$AH = [], this._$AR());
+    mt(this._$AH) || (this._$AH = [], this._$AR());
     const e = this._$AH;
-    let s, o = 0;
-    for (const r of t) o === e.length ? e.push(s = new Z(this.O(X()), this.O(X()), this, this.options)) : s = e[o], s._$AI(r), o++;
-    o < e.length && (this._$AR(s && s._$AB.nextSibling, o), e.length = o);
+    let o, s = 0;
+    for (const r of t) s === e.length ? e.push(o = new tt(this.O(Z()), this.O(Z()), this, this.options)) : o = e[s], o._$AI(r), s++;
+    s < e.length && (this._$AR(o && o._$AB.nextSibling, s), e.length = s);
   }
   _$AR(t = this._$AA.nextSibling, e) {
-    var s;
-    for ((s = this._$AP) == null ? void 0 : s.call(this, !1, !0, e); t !== this._$AB; ) {
-      const o = vt(t).nextSibling;
-      vt(t).remove(), t = o;
+    var o;
+    for ((o = this._$AP) == null ? void 0 : o.call(this, !1, !0, e); t !== this._$AB; ) {
+      const s = _t(t).nextSibling;
+      _t(t).remove(), t = s;
     }
   }
   setConnected(t) {
@@ -438,90 +438,90 @@ class Z {
     this._$AM === void 0 && (this._$Cv = t, (e = this._$AP) == null || e.call(this, t));
   }
 }
-class st {
+class at {
   get tagName() {
     return this.element.tagName;
   }
   get _$AU() {
     return this._$AM._$AU;
   }
-  constructor(t, e, s, o, r) {
-    this.type = 1, this._$AH = m, this._$AN = void 0, this.element = t, this.name = e, this._$AM = o, this.options = r, s.length > 2 || s[0] !== "" || s[1] !== "" ? (this._$AH = Array(s.length - 1).fill(new String()), this.strings = s) : this._$AH = m;
+  constructor(t, e, o, s, r) {
+    this.type = 1, this._$AH = x, this._$AN = void 0, this.element = t, this.name = e, this._$AM = s, this.options = r, o.length > 2 || o[0] !== "" || o[1] !== "" ? (this._$AH = Array(o.length - 1).fill(new String()), this.strings = o) : this._$AH = x;
   }
-  _$AI(t, e = this, s, o) {
+  _$AI(t, e = this, o, s) {
     const r = this.strings;
-    let n = !1;
-    if (r === void 0) t = H(this, t, e, 0), n = !G(t) || t !== this._$AH && t !== F, n && (this._$AH = t);
+    let a = !1;
+    if (r === void 0) t = B(this, t, e, 0), a = !K(t) || t !== this._$AH && t !== N, a && (this._$AH = t);
     else {
-      const a = t;
-      let l, c;
-      for (t = r[0], l = 0; l < r.length - 1; l++) c = H(this, a[s + l], e, l), c === F && (c = this._$AH[l]), n || (n = !G(c) || c !== this._$AH[l]), c === m ? t = m : t !== m && (t += (c ?? "") + r[l + 1]), this._$AH[l] = c;
+      const n = t;
+      let l, d;
+      for (t = r[0], l = 0; l < r.length - 1; l++) d = B(this, n[o + l], e, l), d === N && (d = this._$AH[l]), a || (a = !K(d) || d !== this._$AH[l]), d === x ? t = x : t !== x && (t += (d ?? "") + r[l + 1]), this._$AH[l] = d;
     }
-    n && !o && this.j(t);
+    a && !s && this.j(t);
   }
   j(t) {
-    t === m ? this.element.removeAttribute(this.name) : this.element.setAttribute(this.name, t ?? "");
+    t === x ? this.element.removeAttribute(this.name) : this.element.setAttribute(this.name, t ?? "");
   }
 }
-class Kt extends st {
+class te extends at {
   constructor() {
     super(...arguments), this.type = 3;
   }
   j(t) {
-    this.element[this.name] = t === m ? void 0 : t;
+    this.element[this.name] = t === x ? void 0 : t;
   }
 }
-class Qt extends st {
+class ee extends at {
   constructor() {
     super(...arguments), this.type = 4;
   }
   j(t) {
-    this.element.toggleAttribute(this.name, !!t && t !== m);
+    this.element.toggleAttribute(this.name, !!t && t !== x);
   }
 }
-class te extends st {
-  constructor(t, e, s, o, r) {
-    super(t, e, s, o, r), this.type = 5;
+class ie extends at {
+  constructor(t, e, o, s, r) {
+    super(t, e, o, s, r), this.type = 5;
   }
   _$AI(t, e = this) {
-    if ((t = H(this, t, e, 0) ?? m) === F) return;
-    const s = this._$AH, o = t === m && s !== m || t.capture !== s.capture || t.once !== s.once || t.passive !== s.passive, r = t !== m && (s === m || o);
-    o && this.element.removeEventListener(this.name, this, s), r && this.element.addEventListener(this.name, this, t), this._$AH = t;
+    if ((t = B(this, t, e, 0) ?? x) === N) return;
+    const o = this._$AH, s = t === x && o !== x || t.capture !== o.capture || t.once !== o.once || t.passive !== o.passive, r = t !== x && (o === x || s);
+    s && this.element.removeEventListener(this.name, this, o), r && this.element.addEventListener(this.name, this, t), this._$AH = t;
   }
   handleEvent(t) {
     var e;
     typeof this._$AH == "function" ? this._$AH.call(((e = this.options) == null ? void 0 : e.host) ?? this.element, t) : this._$AH.handleEvent(t);
   }
 }
-class ee {
-  constructor(t, e, s) {
-    this.element = t, this.type = 6, this._$AN = void 0, this._$AM = e, this.options = s;
+class oe {
+  constructor(t, e, o) {
+    this.element = t, this.type = 6, this._$AN = void 0, this._$AM = e, this.options = o;
   }
   get _$AU() {
     return this._$AM._$AU;
   }
   _$AI(t) {
-    H(this, t);
+    B(this, t);
   }
 }
-const ct = V.litHtmlPolyfillSupport;
-ct == null || ct(J, Z), (V.litHtmlVersions ?? (V.litHtmlVersions = [])).push("3.3.3");
-const ie = (i, t, e) => {
-  const s = (e == null ? void 0 : e.renderBefore) ?? t;
-  let o = s._$litPart$;
-  if (o === void 0) {
+const ht = J.litHtmlPolyfillSupport;
+ht == null || ht(Q, tt), (J.litHtmlVersions ?? (J.litHtmlVersions = [])).push("3.3.3");
+const se = (i, t, e) => {
+  const o = (e == null ? void 0 : e.renderBefore) ?? t;
+  let s = o._$litPart$;
+  if (s === void 0) {
     const r = (e == null ? void 0 : e.renderBefore) ?? null;
-    s._$litPart$ = o = new Z(t.insertBefore(X(), r), r, void 0, e ?? {});
+    o._$litPart$ = s = new tt(t.insertBefore(Z(), r), r, void 0, e ?? {});
   }
-  return o._$AI(i), o;
+  return s._$AI(i), s;
 };
 /**
  * @license
  * Copyright 2017 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
  */
-const E = globalThis;
-class S extends U {
+const W = globalThis;
+class k extends H {
   constructor() {
     super(...arguments), this.renderOptions = { host: this }, this._$Do = void 0;
   }
@@ -532,7 +532,7 @@ class S extends U {
   }
   update(t) {
     const e = this.render();
-    this.hasUpdated || (this.renderOptions.isConnected = this.isConnected), super.update(t), this._$Do = ie(e, this.renderRoot, this.renderOptions);
+    this.hasUpdated || (this.renderOptions.isConnected = this.isConnected), super.update(t), this._$Do = se(e, this.renderRoot, this.renderOptions);
   }
   connectedCallback() {
     var t;
@@ -543,20 +543,20 @@ class S extends U {
     super.disconnectedCallback(), (t = this._$Do) == null || t.setConnected(!1);
   }
   render() {
-    return F;
+    return N;
   }
 }
-var Dt;
-S._$litElement$ = !0, S.finalized = !0, (Dt = E.litElementHydrateSupport) == null || Dt.call(E, { LitElement: S });
-const dt = E.litElementPolyfillSupport;
-dt == null || dt({ LitElement: S });
-(E.litElementVersions ?? (E.litElementVersions = [])).push("4.2.2");
+var zt;
+k._$litElement$ = !0, k.finalized = !0, (zt = W.litElementHydrateSupport) == null || zt.call(W, { LitElement: k });
+const ut = W.litElementPolyfillSupport;
+ut == null || ut({ LitElement: k });
+(W.litElementVersions ?? (W.litElementVersions = [])).push("4.2.2");
 /**
  * @license
  * Copyright 2017 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
  */
-const W = (i) => (t, e) => {
+const E = (i) => (t, e) => {
   e !== void 0 ? e.addInitializer(() => {
     customElements.define(i, t);
   }) : customElements.define(i, t);
@@ -566,31 +566,31 @@ const W = (i) => (t, e) => {
  * Copyright 2017 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
  */
-const se = { attribute: !0, type: String, converter: tt, reflect: !1, hasChanged: ut }, oe = (i = se, t, e) => {
-  const { kind: s, metadata: o } = e;
-  let r = globalThis.litPropertyMetadata.get(o);
-  if (r === void 0 && globalThis.litPropertyMetadata.set(o, r = /* @__PURE__ */ new Map()), s === "setter" && ((i = Object.create(i)).wrapped = !0), r.set(e.name, i), s === "accessor") {
-    const { name: n } = e;
-    return { set(a) {
+const re = { attribute: !0, type: String, converter: st, reflect: !1, hasChanged: bt }, ae = (i = re, t, e) => {
+  const { kind: o, metadata: s } = e;
+  let r = globalThis.litPropertyMetadata.get(s);
+  if (r === void 0 && globalThis.litPropertyMetadata.set(s, r = /* @__PURE__ */ new Map()), o === "setter" && ((i = Object.create(i)).wrapped = !0), r.set(e.name, i), o === "accessor") {
+    const { name: a } = e;
+    return { set(n) {
       const l = t.get.call(this);
-      t.set.call(this, a), this.requestUpdate(n, l, i, !0, a);
-    }, init(a) {
-      return a !== void 0 && this.C(n, void 0, i, a), a;
+      t.set.call(this, n), this.requestUpdate(a, l, i, !0, n);
+    }, init(n) {
+      return n !== void 0 && this.C(a, void 0, i, n), n;
     } };
   }
-  if (s === "setter") {
-    const { name: n } = e;
-    return function(a) {
-      const l = this[n];
-      t.call(this, a), this.requestUpdate(n, l, i, !0, a);
+  if (o === "setter") {
+    const { name: a } = e;
+    return function(n) {
+      const l = this[a];
+      t.call(this, n), this.requestUpdate(a, l, i, !0, n);
     };
   }
-  throw Error("Unsupported decorator location: " + s);
+  throw Error("Unsupported decorator location: " + o);
 };
-function $(i) {
-  return (t, e) => typeof e == "object" ? oe(i, t, e) : ((s, o, r) => {
-    const n = o.hasOwnProperty(r);
-    return o.constructor.createProperty(r, s), n ? Object.getOwnPropertyDescriptor(o, r) : void 0;
+function w(i) {
+  return (t, e) => typeof e == "object" ? ae(i, t, e) : ((o, s, r) => {
+    const a = s.hasOwnProperty(r);
+    return s.constructor.createProperty(r, o), a ? Object.getOwnPropertyDescriptor(s, r) : void 0;
   })(i, t, e);
 }
 /**
@@ -599,9 +599,9 @@ function $(i) {
  * SPDX-License-Identifier: BSD-3-Clause
  */
 function h(i) {
-  return $({ ...i, state: !0, attribute: !1 });
+  return w({ ...i, state: !0, attribute: !1 });
 }
-const re = I`
+const ne = z`
   :host {
     display: block;
     position: relative;
@@ -1020,18 +1020,18 @@ const re = I`
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
   }
 `;
-class w {
+class _ {
   /**
    * Snaps a world point (in meters) to grid, existing vertices, and angle guides.
    */
-  static snapPoint(t, e, s = [], o, r = 0.25) {
-    let n = { ...t };
-    if (e.snapToElements && s.length > 0) {
-      let c = r, p = null;
-      for (const d of s)
-        for (const u of [d.start, d.end]) {
-          const f = this.distance(t, u);
-          f < c && (c = f, p = u);
+  static snapPoint(t, e, o = [], s, r = 0.25) {
+    let a = { ...t };
+    if (e.snapToElements && o.length > 0) {
+      let d = r, p = null;
+      for (const c of o)
+        for (const u of [c.start, c.end]) {
+          const g = this.distance(t, u);
+          g < d && (d = g, p = u);
         }
       if (p)
         return {
@@ -1039,61 +1039,61 @@ class w {
           snappedTo: "vertex"
         };
     }
-    let a = !1, l;
-    if (e.snapToAngles && o) {
-      const c = t.x - o.x, p = t.y - o.y, d = Math.sqrt(c * c + p * p);
-      if (d > 0.05) {
-        let f = Math.atan2(p, c) * 180 / Math.PI;
-        f < 0 && (f += 360);
-        const k = 45, R = Math.round(f / k) * k;
-        if (Math.abs(f - R) <= 6) {
-          const B = R * Math.PI / 180;
-          n = {
-            x: o.x + d * Math.cos(B),
-            y: o.y + d * Math.sin(B)
-          }, a = !0, l = R;
+    let n = !1, l;
+    if (e.snapToAngles && s) {
+      const d = t.x - s.x, p = t.y - s.y, c = Math.sqrt(d * d + p * p);
+      if (c > 0.05) {
+        let g = Math.atan2(p, d) * 180 / Math.PI;
+        g < 0 && (g += 360);
+        const M = 45, L = Math.round(g / M) * M;
+        if (Math.abs(g - L) <= 6) {
+          const G = L * Math.PI / 180;
+          a = {
+            x: s.x + c * Math.cos(G),
+            y: s.y + c * Math.sin(G)
+          }, n = !0, l = L;
         }
       }
     }
-    if (e.snapToGrid && !a) {
-      const c = e.size || 0.5;
-      return n = {
-        x: Math.round(n.x / c) * c,
-        y: Math.round(n.y / c) * c
-      }, { point: n, snappedTo: "grid" };
-    } else if (a)
-      return { point: n, snappedTo: "angle", guideAngle: l };
+    if (e.snapToGrid && !n) {
+      const d = e.size || 0.5;
+      return a = {
+        x: Math.round(a.x / d) * d,
+        y: Math.round(a.y / d) * d
+      }, { point: a, snappedTo: "grid" };
+    } else if (n)
+      return { point: a, snappedTo: "angle", guideAngle: l };
     return { point: t, snappedTo: "none" };
   }
   /**
    * Snaps a point to the nearest wall centerline for placing doors and windows
    */
-  static snapPointToWall(t, e, s = 0.6) {
-    let o = null, r = s;
-    for (const n of e) {
-      const a = n.end.x - n.start.x, l = n.end.y - n.start.y, c = Math.sqrt(a * a + l * l);
-      if (c === 0) continue;
+  static snapPointToWall(t, e, o = 0.6) {
+    let s = null, r = o;
+    for (const a of e) {
+      const n = a.end.x - a.start.x, l = a.end.y - a.start.y, d = Math.sqrt(n * n + l * l);
+      if (d === 0) continue;
       const p = Math.max(0, Math.min(
         1,
-        ((t.x - n.start.x) * a + (t.y - n.start.y) * l) / (c * c)
-      )), d = n.start.x + p * a, u = n.start.y + p * l, f = Math.sqrt((t.x - d) ** 2 + (t.y - u) ** 2);
-      f < r && (r = f, o = {
-        wall: n,
-        projectionPoint: { x: d, y: u },
-        offset: p * c,
-        distance: f,
-        angleRad: Math.atan2(l, a)
+        ((t.x - a.start.x) * n + (t.y - a.start.y) * l) / (d * d)
+      )), c = a.start.x + p * n, u = a.start.y + p * l, g = Math.sqrt((t.x - c) ** 2 + (t.y - u) ** 2);
+      g < r && (r = g, s = {
+        wall: a,
+        projectionPoint: { x: c, y: u },
+        offset: p * d,
+        distance: g,
+        angleRad: Math.atan2(l, n)
       });
     }
-    return o;
+    return s;
   }
   static distance(t, e) {
-    const s = t.x - e.x, o = t.y - e.y;
-    return Math.sqrt(s * s + o * o);
+    const o = t.x - e.x, s = t.y - e.y;
+    return Math.sqrt(o * o + s * s);
   }
   static roundMeters(t, e = 2) {
-    const s = Math.pow(10, e);
-    return Math.round(t * s) / s;
+    const o = Math.pow(10, e);
+    return Math.round(t * o) / o;
   }
 }
 class Tt {
@@ -1102,20 +1102,20 @@ class Tt {
    */
   static isPointInPolygon(t, e) {
     if (!e || e.length < 3) return !1;
-    let s = !1;
-    for (let o = 0, r = e.length - 1; o < e.length; r = o++) {
-      const n = e[o].x, a = e[o].y, l = e[r].x, c = e[r].y;
-      a > t.y != c > t.y && t.x < (l - n) * (t.y - a) / (c - a) + n && (s = !s);
+    let o = !1;
+    for (let s = 0, r = e.length - 1; s < e.length; r = s++) {
+      const a = e[s].x, n = e[s].y, l = e[r].x, d = e[r].y;
+      n > t.y != d > t.y && t.x < (l - a) * (t.y - n) / (d - n) + a && (o = !o);
     }
-    return s;
+    return o;
   }
   /**
    * Finds the room containing the specified world point (if any)
    */
   static findRoomContainingPoint(t, e) {
-    for (const s of e)
-      if (this.isPointInPolygon(t, s.polygon))
-        return s;
+    for (const o of e)
+      if (this.isPointInPolygon(t, o.polygon))
+        return o;
     return null;
   }
   /**
@@ -1123,21 +1123,21 @@ class Tt {
    */
   static calculateCentroid(t) {
     if (!t || t.length === 0) return { x: 0, y: 0 };
-    let e = 0, s = 0;
-    for (const o of t)
-      e += o.x, s += o.y;
+    let e = 0, o = 0;
+    for (const s of t)
+      e += s.x, o += s.y;
     return {
       x: e / t.length,
-      y: s / t.length
+      y: o / t.length
     };
   }
 }
-var ne = Object.defineProperty, ae = Object.getOwnPropertyDescriptor, y = (i, t, e, s) => {
-  for (var o = s > 1 ? void 0 : s ? ae(t, e) : t, r = i.length - 1, n; r >= 0; r--)
-    (n = i[r]) && (o = (s ? n(t, e, o) : n(o)) || o);
-  return s && o && ne(t, e, o), o;
+var le = Object.defineProperty, de = Object.getOwnPropertyDescriptor, v = (i, t, e, o) => {
+  for (var s = o > 1 ? void 0 : o ? de(t, e) : t, r = i.length - 1, a; r >= 0; r--)
+    (a = i[r]) && (s = (o ? a(t, e, s) : a(s)) || s);
+  return o && s && le(t, e, s), s;
 };
-let g = class extends S {
+let b = class extends k {
   constructor() {
     super(...arguments), this.project = {
       id: "default",
@@ -1162,10 +1162,10 @@ let g = class extends S {
   // CONVERSIONS DE COORDONNÉES
   // ==========================================
   screenToWorld(i, t) {
-    const e = this.getBoundingClientRect(), s = i - e.left, o = t - e.top, r = this.project.pixelsPerMeter * this.viewport.zoom;
+    const e = this.getBoundingClientRect(), o = i - e.left, s = t - e.top, r = this.project.pixelsPerMeter * this.viewport.zoom;
     return {
-      x: (s - this.viewport.x) / r,
-      y: (o - this.viewport.y) / r
+      x: (o - this.viewport.x) / r,
+      y: (s - this.viewport.y) / r
     };
   }
   worldToScreen(i) {
@@ -1180,50 +1180,50 @@ let g = class extends S {
   // ==========================================
   handleWheel(i) {
     i.preventDefault();
-    const t = this.getBoundingClientRect(), e = i.clientX - t.left, s = i.clientY - t.top, o = i.deltaY < 0 ? 1.12 : 0.89, r = Math.min(Math.max(this.viewport.zoom * o, 0.15), 8), n = e - (e - this.viewport.x) * (r / this.viewport.zoom), a = s - (s - this.viewport.y) * (r / this.viewport.zoom);
-    this.viewport = { x: n, y: a, zoom: r };
+    const t = this.getBoundingClientRect(), e = i.clientX - t.left, o = i.clientY - t.top, s = i.deltaY < 0 ? 1.12 : 0.89, r = Math.min(Math.max(this.viewport.zoom * s, 0.15), 8), a = e - (e - this.viewport.x) * (r / this.viewport.zoom), n = o - (o - this.viewport.y) * (r / this.viewport.zoom);
+    this.viewport = { x: a, y: n, zoom: r };
   }
   handlePointerDown(i) {
-    var e, s;
+    var e, o;
     if (i.button === 1 || this.activeTool === "select" || i.shiftKey) {
-      this.isPanning = !0, this.panStart = { x: i.clientX - this.viewport.x, y: i.clientY - this.viewport.y }, (s = (e = i.target).setPointerCapture) == null || s.call(e, i.pointerId);
+      this.isPanning = !0, this.panStart = { x: i.clientX - this.viewport.x, y: i.clientY - this.viewport.y }, (o = (e = i.target).setPointerCapture) == null || o.call(e, i.pointerId);
       return;
     }
     if (i.button !== 0) return;
     const t = this.screenToWorld(i.clientX, i.clientY);
     if (this.activeTool === "wall") {
-      const o = w.snapPoint(
+      const s = _.snapPoint(
         t,
         this.project.grid,
         this.project.walls,
         this.drawingWallStart || void 0
       );
       if (!this.drawingWallStart)
-        this.drawingWallStart = o.point;
+        this.drawingWallStart = s.point;
       else {
-        const r = this.drawingWallStart, n = o.point;
-        if (w.distance(r, n) >= 0.15) {
+        const r = this.drawingWallStart, a = s.point;
+        if (_.distance(r, a) >= 0.15) {
           const l = {
             id: `wall_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
             start: { ...r },
-            end: { ...n },
+            end: { ...a },
             thickness: this.currentWallThickness,
             type: "standard"
           };
           this.project = {
             ...this.project,
             walls: [...this.project.walls, l]
-          }, this.dispatchProjectChanged(), this.drawingWallStart = n;
+          }, this.dispatchProjectChanged(), this.drawingWallStart = a;
         }
       }
     } else if (this.activeTool === "door" || this.activeTool === "window" || this.activeTool === "french_window") {
       if (this.wallSnap) {
-        const o = this.activeTool === "window" ? "window" : this.activeTool === "french_window" ? "french_window" : "door", r = {
+        const s = this.activeTool === "window" ? "window" : this.activeTool === "french_window" ? "french_window" : "door", r = {
           id: `op_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
           wallId: this.wallSnap.wall.id,
-          type: o,
-          offset: w.roundMeters(this.wallSnap.offset),
-          width: this.currentOpeningWidth || (o === "door" ? 0.9 : 1.2),
+          type: s,
+          offset: _.roundMeters(this.wallSnap.offset),
+          width: this.currentOpeningWidth || (s === "door" ? 0.9 : 1.2),
           flipSide: this.openingFlipSide,
           flipDirection: this.openingFlipDirection
         };
@@ -1233,17 +1233,17 @@ let g = class extends S {
         }, this.dispatchProjectChanged();
       }
     } else if (this.activeTool === "calibrate") {
-      const o = this.getBoundingClientRect(), r = { x: i.clientX - o.left, y: i.clientY - o.top };
+      const s = this.getBoundingClientRect(), r = { x: i.clientX - s.left, y: i.clientY - s.top };
       if (!this.calibrateStart)
         this.calibrateStart = r, this.calibrateCurrent = r;
       else {
-        const n = r.x - this.calibrateStart.x, a = r.y - this.calibrateStart.y, l = Math.sqrt(n * n + a * a);
+        const a = r.x - this.calibrateStart.x, n = r.y - this.calibrateStart.y, l = Math.sqrt(a * a + n * n);
         if (l >= 10) {
-          const c = l / this.viewport.zoom;
+          const d = l / this.viewport.zoom;
           this.dispatchEvent(new CustomEvent("request-calibration", {
             detail: {
-              pixelDistance: c,
-              defaultMeters: w.roundMeters(c / this.project.pixelsPerMeter)
+              pixelDistance: d,
+              defaultMeters: _.roundMeters(d / this.project.pixelsPerMeter)
             },
             bubbles: !0,
             composed: !0
@@ -1263,10 +1263,10 @@ let g = class extends S {
     }
     const t = this.screenToWorld(i.clientX, i.clientY);
     if (this.cursorCoords = {
-      x: w.roundMeters(t.x),
-      y: w.roundMeters(t.y)
+      x: _.roundMeters(t.x),
+      y: _.roundMeters(t.y)
     }, this.activeTool === "wall") {
-      const e = w.snapPoint(
+      const e = _.snapPoint(
         t,
         this.project.grid,
         this.project.walls,
@@ -1274,7 +1274,7 @@ let g = class extends S {
       );
       this.previewPoint = e.point, this.snapInfo = { snappedTo: e.snappedTo, guideAngle: e.guideAngle }, this.wallSnap = null;
     } else if (this.activeTool === "door" || this.activeTool === "window" || this.activeTool === "french_window")
-      this.wallSnap = w.snapPointToWall(t, this.project.walls, 0.8), this.previewPoint = null;
+      this.wallSnap = _.snapPointToWall(t, this.project.walls, 0.8), this.previewPoint = null;
     else if (this.activeTool === "calibrate" && this.calibrateStart) {
       const e = this.getBoundingClientRect();
       this.calibrateCurrent = { x: i.clientX - e.left, y: i.clientY - e.top };
@@ -1292,44 +1292,44 @@ let g = class extends S {
     i.preventDefault(), i.dataTransfer && (i.dataTransfer.dropEffect = "copy");
   }
   handleDrop(i) {
-    var e, s;
+    var e, o;
     if (i.preventDefault(), (e = i.dataTransfer) != null && e.files && i.dataTransfer.files.length > 0) {
-      const o = i.dataTransfer.files[0];
-      if (o.type.startsWith("image/")) {
+      const s = i.dataTransfer.files[0];
+      if (s.type.startsWith("image/")) {
         const r = new FileReader();
-        r.onload = (n) => {
+        r.onload = (a) => {
           var l;
-          const a = (l = n.target) == null ? void 0 : l.result;
+          const n = (l = a.target) == null ? void 0 : l.result;
           this.dispatchEvent(new CustomEvent("background-image-loaded", {
-            detail: { dataUrl: a },
+            detail: { dataUrl: n },
             bubbles: !0,
             composed: !0
           }));
-        }, r.readAsDataURL(o);
+        }, r.readAsDataURL(s);
         return;
       }
     }
-    const t = (s = i.dataTransfer) == null ? void 0 : s.getData("application/json");
+    const t = (o = i.dataTransfer) == null ? void 0 : o.getData("application/json");
     if (t)
       try {
-        const { entityId: o, domain: r, name: n, icon: a } = JSON.parse(t), l = this.screenToWorld(i.clientX, i.clientY), c = Tt.findRoomContainingPoint(l, this.project.rooms), p = {
+        const { entityId: s, domain: r, name: a, icon: n } = JSON.parse(t), l = this.screenToWorld(i.clientX, i.clientY), d = Tt.findRoomContainingPoint(l, this.project.rooms), p = {
           id: `bind_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
-          entityId: o,
+          entityId: s,
           position: {
-            x: w.roundMeters(l.x),
-            y: w.roundMeters(l.y)
+            x: _.roundMeters(l.x),
+            y: _.roundMeters(l.y)
           },
-          roomId: c == null ? void 0 : c.id,
-          icon: a,
-          customName: n,
+          roomId: d == null ? void 0 : d.id,
+          icon: n,
+          customName: a,
           tapAction: "toggle"
         };
         this.project = {
           ...this.project,
           bindings: [...this.project.bindings, p]
         }, this.dispatchProjectChanged();
-      } catch (o) {
-        console.error("Erreur lors de la liaison entité HA:", o);
+      } catch (s) {
+        console.error("Erreur lors de la liaison entité HA:", s);
       }
   }
   handleEntityClick(i, t) {
@@ -1368,21 +1368,21 @@ let g = class extends S {
   // RENDU GÉOMÉTRIQUE & 3D
   // ==========================================
   computeWallPolygon(i, t, e) {
-    const s = t.x - i.x, o = t.y - i.y, r = Math.sqrt(s * s + o * o);
+    const o = t.x - i.x, s = t.y - i.y, r = Math.sqrt(o * o + s * s);
     if (r === 0) return [i, i, t, t];
-    const n = e / 2, a = -o / r * n, l = s / r * n;
+    const a = e / 2, n = -s / r * a, l = o / r * a;
     return [
-      { x: i.x + a, y: i.y + l },
-      { x: t.x + a, y: t.y + l },
-      { x: t.x - a, y: t.y - l },
-      { x: i.x - a, y: i.y - l }
+      { x: i.x + n, y: i.y + l },
+      { x: t.x + n, y: t.y + l },
+      { x: t.x - n, y: t.y - l },
+      { x: i.x - n, y: i.y - l }
     ];
   }
   renderBackgroundLayer() {
     const i = this.project.background;
     if (!i || !i.imageUrl || !i.visible) return null;
     const t = this.worldToScreen(i.offset || { x: 0, y: 0 }), e = i.scale || 1;
-    return b`
+    return m`
       <g 
         class="background-image-layer" 
         transform="translate(${t.x}, ${t.y}) scale(${this.viewport.zoom * e})"
@@ -1402,18 +1402,18 @@ let g = class extends S {
   renderRooms() {
     return this.project.rooms.map((i) => {
       if (!i.polygon || i.polygon.length < 3) return null;
-      const t = i.polygon.map((r) => this.worldToScreen(r)), e = t.map((r) => `${r.x},${r.y}`).join(" "), s = this.project.bindings.filter((r) => r.roomId === i.id && r.entityId.startsWith("light.")).some((r) => {
-        var a, l, c;
-        return ((c = (l = (a = this.hass) == null ? void 0 : a.states) == null ? void 0 : l[r.entityId]) == null ? void 0 : c.state) === "on";
-      }), o = Tt.calculateCentroid(t);
-      return b`
+      const t = i.polygon.map((r) => this.worldToScreen(r)), e = t.map((r) => `${r.x},${r.y}`).join(" "), o = this.project.bindings.filter((r) => r.roomId === i.id && r.entityId.startsWith("light.")).some((r) => {
+        var n, l, d;
+        return ((d = (l = (n = this.hass) == null ? void 0 : n.states) == null ? void 0 : l[r.entityId]) == null ? void 0 : d.state) === "on";
+      }), s = Tt.calculateCentroid(t);
+      return m`
         <g class="room-group" data-room-id="${i.id}">
           <polygon 
             points="${e}" 
-            class="room-polygon ${s ? "illuminated" : ""}"
+            class="room-polygon ${o ? "illuminated" : ""}"
             style="fill: ${i.color || "rgba(56, 189, 248, 0.12)"};"
           />
-          <g class="room-label-group" transform="translate(${o.x}, ${o.y})">
+          <g class="room-label-group" transform="translate(${s.x}, ${s.y})">
             <text class="room-label-name" y="-6">${i.name}</text>
             <text class="room-label-area" y="12">${i.areaM2.toFixed(1)} m²</text>
           </g>
@@ -1425,18 +1425,18 @@ let g = class extends S {
     if (this.is3DMode) return null;
     const i = this.project.pixelsPerMeter * this.viewport.zoom, e = (this.project.grid.size || 0.5) * i;
     if (e < 12) return null;
-    const s = e * 2;
-    return b`
+    const o = e * 2;
+    return m`
       <defs>
         <pattern id="grid-sub" width="${e}" height="${e}" patternUnits="userSpaceOnUse"
           patternTransform="translate(${this.viewport.x % e}, ${this.viewport.y % e})">
           <line x1="0" y1="0" x2="${e}" y2="0" stroke="rgba(255,255,255,0.06)" stroke-width="0.5" />
           <line x1="0" y1="0" x2="0" y2="${e}" stroke="rgba(255,255,255,0.06)" stroke-width="0.5" />
         </pattern>
-        <pattern id="grid-major" width="${s}" height="${s}" patternUnits="userSpaceOnUse"
-          patternTransform="translate(${this.viewport.x % s}, ${this.viewport.y % s})">
-          <line x1="0" y1="0" x2="${s}" y2="0" stroke="rgba(255,255,255,0.14)" stroke-width="1" />
-          <line x1="0" y1="0" x2="0" y2="${s}" stroke="rgba(255,255,255,0.14)" stroke-width="1" />
+        <pattern id="grid-major" width="${o}" height="${o}" patternUnits="userSpaceOnUse"
+          patternTransform="translate(${this.viewport.x % o}, ${this.viewport.y % o})">
+          <line x1="0" y1="0" x2="${o}" y2="0" stroke="rgba(255,255,255,0.14)" stroke-width="1" />
+          <line x1="0" y1="0" x2="0" y2="${o}" stroke="rgba(255,255,255,0.14)" stroke-width="1" />
         </pattern>
       </defs>
       <rect width="100%" height="100%" fill="url(#grid-sub)" />
@@ -1447,32 +1447,32 @@ let g = class extends S {
     this.project.pixelsPerMeter * this.viewport.zoom;
     const i = this.is3DMode ? 40 * this.viewport.zoom : 0;
     return this.project.walls.map((t) => {
-      const s = this.computeWallPolygon(t.start, t.end, t.thickness).map((c) => this.worldToScreen(c)), o = this.worldToScreen(t.start), r = this.worldToScreen(t.end), n = s.map((c) => `${c.x},${c.y}`).join(" "), a = w.distance(t.start, t.end), l = {
-        x: (o.x + r.x) / 2,
-        y: (o.y + r.y) / 2
+      const o = this.computeWallPolygon(t.start, t.end, t.thickness).map((d) => this.worldToScreen(d)), s = this.worldToScreen(t.start), r = this.worldToScreen(t.end), a = o.map((d) => `${d.x},${d.y}`).join(" "), n = _.distance(t.start, t.end), l = {
+        x: (s.x + r.x) / 2,
+        y: (s.y + r.y) / 2
       };
       if (this.is3DMode) {
-        const c = s.map((d) => ({ x: d.x, y: d.y - i })), p = c.map((d) => `${d.x},${d.y}`).join(" ");
-        return b`
+        const d = o.map((c) => ({ x: c.x, y: c.y - i })), p = d.map((c) => `${c.x},${c.y}`).join(" ");
+        return m`
           <g class="wall-element-3d" data-wall-id="${t.id}">
             <!-- Paroi latérale ombrée 1 -->
-            <polygon points="${s[0].x},${s[0].y} ${s[1].x},${s[1].y} ${c[1].x},${c[1].y} ${c[0].x},${c[0].y}" class="wall-3d-side-shaded" />
+            <polygon points="${o[0].x},${o[0].y} ${o[1].x},${o[1].y} ${d[1].x},${d[1].y} ${d[0].x},${d[0].y}" class="wall-3d-side-shaded" />
             <!-- Paroi latérale ombrée 2 -->
-            <polygon points="${s[1].x},${s[1].y} ${s[2].x},${s[2].y} ${c[2].x},${c[2].y} ${c[1].x},${c[1].y}" class="wall-3d-side-light" />
+            <polygon points="${o[1].x},${o[1].y} ${o[2].x},${o[2].y} ${d[2].x},${d[2].y} ${d[1].x},${d[1].y}" class="wall-3d-side-light" />
             <!-- Chapeau supérieur du mur -->
             <polygon points="${p}" class="wall-3d-top" />
           </g>
         `;
       }
-      return b`
+      return m`
         <g class="wall-element" data-wall-id="${t.id}">
-          <polygon points="${n}" class="wall-rect" />
-          <line x1="${o.x}" y1="${o.y}" x2="${r.x}" y2="${r.y}" class="wall-centerline" />
+          <polygon points="${a}" class="wall-rect" />
+          <line x1="${s.x}" y1="${s.y}" x2="${r.x}" y2="${r.y}" class="wall-centerline" />
           
-          ${a >= 0.6 ? b`
+          ${n >= 0.6 ? m`
             <g class="dimension-badge" transform="translate(${l.x}, ${l.y - 14})">
               <rect x="-26" y="-10" width="52" height="20" />
-              <text>${w.roundMeters(a).toFixed(2)} m</text>
+              <text>${_.roundMeters(n).toFixed(2)} m</text>
             </g>
           ` : null}
         </g>
@@ -1481,46 +1481,46 @@ let g = class extends S {
   }
   renderOpenings() {
     return this.project.openings.map((i) => {
-      const t = this.project.walls.find((f) => f.id === i.wallId);
+      const t = this.project.walls.find((g) => g.id === i.wallId);
       if (!t) return null;
-      const e = t.end.x - t.start.x, s = t.end.y - t.start.y, o = Math.sqrt(e * e + s * s);
-      if (o === 0) return null;
-      const n = Math.atan2(s, e) * 180 / Math.PI, a = t.start.x + i.offset / o * e, l = t.start.y + i.offset / o * s, c = this.worldToScreen({ x: a, y: l }), p = this.project.pixelsPerMeter * this.viewport.zoom, d = i.width * p, u = t.thickness * p;
-      return b`
+      const e = t.end.x - t.start.x, o = t.end.y - t.start.y, s = Math.sqrt(e * e + o * o);
+      if (s === 0) return null;
+      const a = Math.atan2(o, e) * 180 / Math.PI, n = t.start.x + i.offset / s * e, l = t.start.y + i.offset / s * o, d = this.worldToScreen({ x: n, y: l }), p = this.project.pixelsPerMeter * this.viewport.zoom, c = i.width * p, u = t.thickness * p;
+      return m`
         <g 
           class="opening-element" 
-          transform="translate(${c.x}, ${c.y}) rotate(${n})"
+          transform="translate(${d.x}, ${d.y}) rotate(${a})"
         >
           <rect 
-            x="${-d / 2}" 
+            x="${-c / 2}" 
             y="${-u / 2 - 1}" 
-            width="${d}" 
+            width="${c}" 
             height="${u + 2}" 
             class="wall-cutout"
           />
 
-          ${i.type === "door" ? this.renderDoorSymbol(d, u, i.flipSide, i.flipDirection) : null}
-          ${i.type === "window" ? this.renderWindowSymbol(d, u) : null}
-          ${i.type === "french_window" ? this.renderFrenchWindowSymbol(d, u) : null}
+          ${i.type === "door" ? this.renderDoorSymbol(c, u, i.flipSide, i.flipDirection) : null}
+          ${i.type === "window" ? this.renderWindowSymbol(c, u) : null}
+          ${i.type === "french_window" ? this.renderFrenchWindowSymbol(c, u) : null}
         </g>
       `;
     });
   }
-  renderDoorSymbol(i, t, e, s) {
-    const o = i / 2, r = e ? -1 : 1, n = s ? o : -o, a = s ? -1 : 1;
-    return b`
+  renderDoorSymbol(i, t, e, o) {
+    const s = i / 2, r = e ? -1 : 1, a = o ? s : -s, n = o ? -1 : 1;
+    return m`
       <g>
-        <rect x="${-o}" y="${-t / 2}" width="4" height="${t}" fill="#94a3b8" />
-        <rect x="${o - 4}" y="${-t / 2}" width="4" height="${t}" fill="#94a3b8" />
+        <rect x="${-s}" y="${-t / 2}" width="4" height="${t}" fill="#94a3b8" />
+        <rect x="${s - 4}" y="${-t / 2}" width="4" height="${t}" fill="#94a3b8" />
         <line 
-          x1="${n}" 
+          x1="${a}" 
           y1="0" 
-          x2="${n}" 
+          x2="${a}" 
           y2="${r * i}" 
           class="opening-door-leaf" 
         />
         <path 
-          d="M ${n + a * i} 0 A ${i} ${i} 0 0 ${r > 0 ? s ? 0 : 1 : s ? 1 : 0} ${n} ${r * i}" 
+          d="M ${a + n * i} 0 A ${i} ${i} 0 0 ${r > 0 ? o ? 0 : 1 : o ? 1 : 0} ${a} ${r * i}" 
           class="opening-door-arc" 
         />
       </g>
@@ -1528,7 +1528,7 @@ let g = class extends S {
   }
   renderWindowSymbol(i, t) {
     const e = i / 2;
-    return b`
+    return m`
       <g>
         <rect x="${-e}" y="${-t / 2}" width="${i}" height="${t}" fill="none" class="opening-window-frame" />
         <line x1="${-e}" y1="0" x2="${e}" y2="0" class="opening-window-glass" />
@@ -1539,7 +1539,7 @@ let g = class extends S {
   }
   renderFrenchWindowSymbol(i, t) {
     const e = i / 2;
-    return b`
+    return m`
       <g>
         <rect x="${-e}" y="${-t / 2}" width="${i}" height="${t}" fill="none" class="opening-window-frame" />
         <rect x="${-e}" y="${-t / 4}" width="${e}" height="3" fill="#38bdf8" />
@@ -1552,18 +1552,18 @@ let g = class extends S {
   // ==========================================
   renderEntityBindings() {
     return this.project.bindings.map((i) => {
-      var l, c, p;
-      const t = this.worldToScreen(i.position), e = (c = (l = this.hass) == null ? void 0 : l.states) == null ? void 0 : c[i.entityId], s = (e == null ? void 0 : e.state) || "off", o = i.entityId.startsWith("light.") && s === "on", r = i.entityId.startsWith("binary_sensor.") && (s === "on" || s === "detected"), n = i.entityId.startsWith("sensor.") || i.entityId.startsWith("climate."), a = ((p = e == null ? void 0 : e.attributes) == null ? void 0 : p.unit_of_measurement) || (n ? "°" : "");
-      return b`
+      var l, d, p;
+      const t = this.worldToScreen(i.position), e = (d = (l = this.hass) == null ? void 0 : l.states) == null ? void 0 : d[i.entityId], o = (e == null ? void 0 : e.state) || "off", s = i.entityId.startsWith("light.") && o === "on", r = i.entityId.startsWith("binary_sensor.") && (o === "on" || o === "detected"), a = i.entityId.startsWith("sensor.") || i.entityId.startsWith("climate."), n = ((p = e == null ? void 0 : e.attributes) == null ? void 0 : p.unit_of_measurement) || (a ? "°" : "");
+      return m`
         <g 
-          class="entity-pin ${o ? "active-light" : ""} ${r ? "active-radar" : ""}"
+          class="entity-pin ${s ? "active-light" : ""} ${r ? "active-radar" : ""}"
           transform="translate(${t.x}, ${t.y})"
-          @click=${(d) => this.handleEntityClick(i, d)}
-          @dblclick=${(d) => this.handleEntityDblClick(i, d)}
-          title="${i.customName || i.entityId} : ${s} (Clic pour basculer)"
+          @click=${(c) => this.handleEntityClick(i, c)}
+          @dblclick=${(c) => this.handleEntityDblClick(i, c)}
+          title="${i.customName || i.entityId} : ${o} (Clic pour basculer)"
         >
           <!-- Onde radar animée si mouvement détecté -->
-          ${r ? b`<circle cx="0" cy="0" r="16" class="radar-pulse-ring" />` : null}
+          ${r ? m`<circle cx="0" cy="0" r="16" class="radar-pulse-ring" />` : null}
 
           <!-- Pastille de fond -->
           <circle cx="0" cy="0" r="16" class="entity-pin-bg" />
@@ -1579,10 +1579,10 @@ let g = class extends S {
           </text>
 
           <!-- Badge Valeur (Thermostat / Capteur) -->
-          ${n && s !== "unknown" ? b`
+          ${a && o !== "unknown" ? m`
             <g class="entity-pin-value-badge" transform="translate(14, -14)">
               <rect x="-14" y="-8" width="28" height="16" />
-              <text>${s}${a}</text>
+              <text>${o}${n}</text>
             </g>
           ` : null}
         </g>
@@ -1591,11 +1591,11 @@ let g = class extends S {
   }
   renderOpeningPreview() {
     if (!this.wallSnap) return null;
-    const i = this.project.pixelsPerMeter * this.viewport.zoom, t = (this.currentOpeningWidth || 0.9) * i, e = this.wallSnap.wall.thickness * i, s = this.worldToScreen(this.wallSnap.projectionPoint), o = this.wallSnap.angleRad * 180 / Math.PI;
-    return b`
+    const i = this.project.pixelsPerMeter * this.viewport.zoom, t = (this.currentOpeningWidth || 0.9) * i, e = this.wallSnap.wall.thickness * i, o = this.worldToScreen(this.wallSnap.projectionPoint), s = this.wallSnap.angleRad * 180 / Math.PI;
+    return m`
       <g 
         class="opening-preview" 
-        transform="translate(${s.x}, ${s.y}) rotate(${o})"
+        transform="translate(${o.x}, ${o.y}) rotate(${s})"
       >
         <rect x="${-t / 2}" y="${-e / 2}" width="${t}" height="${e}" fill="rgba(56, 189, 248, 0.3)" stroke="#38bdf8" stroke-dasharray="4, 2" />
         ${this.activeTool === "door" ? this.renderDoorSymbol(t, e, this.openingFlipSide, this.openingFlipDirection) : null}
@@ -1610,30 +1610,30 @@ let g = class extends S {
       this.drawingWallStart,
       this.previewPoint,
       this.currentWallThickness
-    ).map((a) => this.worldToScreen(a)), e = this.worldToScreen(this.drawingWallStart), s = this.worldToScreen(this.previewPoint), o = t.map((a) => `${a.x},${a.y}`).join(" "), r = w.distance(this.drawingWallStart, this.previewPoint), n = {
-      x: (e.x + s.x) / 2,
-      y: (e.y + s.y) / 2
+    ).map((n) => this.worldToScreen(n)), e = this.worldToScreen(this.drawingWallStart), o = this.worldToScreen(this.previewPoint), s = t.map((n) => `${n.x},${n.y}`).join(" "), r = _.distance(this.drawingWallStart, this.previewPoint), a = {
+      x: (e.x + o.x) / 2,
+      y: (e.y + o.y) / 2
     };
-    return b`
+    return m`
       <g class="preview-wall-group">
-        <polygon points="${o}" class="preview-wall-rect" />
-        <line x1="${e.x}" y1="${e.y}" x2="${s.x}" y2="${s.y}" class="preview-wall-line" />
+        <polygon points="${s}" class="preview-wall-rect" />
+        <line x1="${e.x}" y1="${e.y}" x2="${o.x}" y2="${o.y}" class="preview-wall-line" />
 
-        ${this.snapInfo.guideAngle !== void 0 ? b`
-          <line x1="${e.x}" y1="${e.y}" x2="${s.x}" y2="${s.y}" class="angle-guide-line" />
+        ${this.snapInfo.guideAngle !== void 0 ? m`
+          <line x1="${e.x}" y1="${e.y}" x2="${o.x}" y2="${o.y}" class="angle-guide-line" />
         ` : null}
 
-        <g class="dimension-badge" transform="translate(${n.x}, ${n.y - 16})">
+        <g class="dimension-badge" transform="translate(${a.x}, ${a.y - 16})">
           <rect x="-30" y="-11" width="60" height="22" />
-          <text>${w.roundMeters(r).toFixed(2)} m</text>
+          <text>${_.roundMeters(r).toFixed(2)} m</text>
         </g>
       </g>
     `;
   }
   renderCalibrationLine() {
     if (!this.calibrateStart || !this.calibrateCurrent) return null;
-    const i = this.calibrateStart, t = this.calibrateCurrent, e = t.x - i.x, s = t.y - i.y, o = Math.sqrt(e * e + s * s), r = { x: (i.x + t.x) / 2, y: (i.y + t.y) / 2 };
-    return b`
+    const i = this.calibrateStart, t = this.calibrateCurrent, e = t.x - i.x, o = t.y - i.y, s = Math.sqrt(e * e + o * o), r = { x: (i.x + t.x) / 2, y: (i.y + t.y) / 2 };
+    return m`
       <g class="calibration-preview-group">
         <line x1="${i.x}" y1="${i.y}" x2="${t.x}" y2="${t.y}" class="calibration-line" />
         <circle cx="${i.x}" cy="${i.y}" r="6" class="calibration-endpoint" />
@@ -1641,7 +1641,7 @@ let g = class extends S {
 
         <g class="dimension-badge" transform="translate(${r.x}, ${r.y - 18})">
           <rect x="-35" y="-11" width="70" height="22" style="stroke: #f59e0b;" />
-          <text style="fill: #f59e0b;">${Math.round(o)} px</text>
+          <text style="fill: #f59e0b;">${Math.round(s)} px</text>
         </g>
       </g>
     `;
@@ -1649,10 +1649,10 @@ let g = class extends S {
   renderSnapIndicator() {
     if (!this.previewPoint || this.snapInfo.snappedTo === "none") return null;
     const i = this.worldToScreen(this.previewPoint), t = this.snapInfo.snappedTo === "vertex";
-    return b`
+    return m`
       <g transform="translate(${i.x}, ${i.y})">
         <circle r="${t ? 7 : 5}" class="snap-indicator" />
-        ${t ? b`<circle r="2" fill="#38bdf8" />` : null}
+        ${t ? m`<circle r="2" fill="#38bdf8" />` : null}
       </g>
     `;
   }
@@ -1677,7 +1677,7 @@ let g = class extends S {
   }
   render() {
     const i = this.getHelpMessage();
-    return x`
+    return f`
       <div 
         class="canvas-container ${this.isPanning ? "is-panning" : ""}"
         @wheel=${this.handleWheel}
@@ -1702,7 +1702,7 @@ let g = class extends S {
           </svg>
         </div>
 
-        ${i ? x`<div class="help-hud">${i}</div>` : null}
+        ${i ? f`<div class="help-hud">${i}</div>` : null}
 
         <div class="coords-hud">
           X: ${this.cursorCoords.x.toFixed(2)} m | Y: ${this.cursorCoords.y.toFixed(2)} m | Outil: ${this.activeTool.toUpperCase()}
@@ -1726,69 +1726,110 @@ let g = class extends S {
     `;
   }
 };
-g.styles = re;
-y([
-  $({ type: Object })
-], g.prototype, "hass", 2);
-y([
-  $({ type: Object })
-], g.prototype, "project", 2);
-y([
-  $({ type: String })
-], g.prototype, "activeTool", 2);
-y([
-  $({ type: Number })
-], g.prototype, "currentWallThickness", 2);
-y([
-  $({ type: Number })
-], g.prototype, "currentOpeningWidth", 2);
-y([
-  $({ type: Boolean })
-], g.prototype, "is3DMode", 2);
-y([
+b.styles = ne;
+v([
+  w({ type: Object })
+], b.prototype, "hass", 2);
+v([
+  w({ type: Object })
+], b.prototype, "project", 2);
+v([
+  w({ type: String })
+], b.prototype, "activeTool", 2);
+v([
+  w({ type: Number })
+], b.prototype, "currentWallThickness", 2);
+v([
+  w({ type: Number })
+], b.prototype, "currentOpeningWidth", 2);
+v([
+  w({ type: Boolean })
+], b.prototype, "is3DMode", 2);
+v([
   h()
-], g.prototype, "viewport", 2);
-y([
+], b.prototype, "viewport", 2);
+v([
   h()
-], g.prototype, "isPanning", 2);
-y([
+], b.prototype, "isPanning", 2);
+v([
   h()
-], g.prototype, "drawingWallStart", 2);
-y([
+], b.prototype, "drawingWallStart", 2);
+v([
   h()
-], g.prototype, "previewPoint", 2);
-y([
+], b.prototype, "previewPoint", 2);
+v([
   h()
-], g.prototype, "snapInfo", 2);
-y([
+], b.prototype, "snapInfo", 2);
+v([
   h()
-], g.prototype, "cursorCoords", 2);
-y([
+], b.prototype, "cursorCoords", 2);
+v([
   h()
-], g.prototype, "wallSnap", 2);
-y([
+], b.prototype, "wallSnap", 2);
+v([
   h()
-], g.prototype, "openingFlipSide", 2);
-y([
+], b.prototype, "openingFlipSide", 2);
+v([
   h()
-], g.prototype, "openingFlipDirection", 2);
-y([
+], b.prototype, "openingFlipDirection", 2);
+v([
   h()
-], g.prototype, "calibrateStart", 2);
-y([
+], b.prototype, "calibrateStart", 2);
+v([
   h()
-], g.prototype, "calibrateCurrent", 2);
-g = y([
-  W("home-architect-canvas")
-], g);
-var le = Object.defineProperty, ce = Object.getOwnPropertyDescriptor, It = (i, t, e, s) => {
-  for (var o = s > 1 ? void 0 : s ? ce(t, e) : t, r = i.length - 1, n; r >= 0; r--)
-    (n = i[r]) && (o = (s ? n(t, e, o) : n(o)) || o);
-  return s && o && le(t, e, o), o;
+], b.prototype, "calibrateCurrent", 2);
+b = v([
+  E("home-architect-canvas")
+], b);
+var ce = Object.defineProperty, pe = Object.getOwnPropertyDescriptor, nt = (i, t, e, o) => {
+  for (var s = o > 1 ? void 0 : o ? pe(t, e) : t, r = i.length - 1, a; r >= 0; r--)
+    (a = i[r]) && (s = (o ? a(t, e, s) : a(s)) || s);
+  return o && s && ce(t, e, s), s;
 };
-let it = class extends S {
+let q = class extends k {
   constructor() {
-    super(...arguments), this.activeTool = "wall";
+    super(...arguments), this.activeTool = "wall", this.position = { x: 20, y: 20 }, this.isDragging = !1, this.dragStartPointer = { x: 0, y: 0 }, this.dragStartPosition = { x: 20, y: 20 };
+  }
+  connectedCallback() {
+    super.connectedCallback();
+    try {
+      const i = localStorage.getItem("home_architect_toolbar_pos");
+      if (i) {
+        const t = JSON.parse(i);
+        typeof t.x == "number" && typeof t.y == "number" && (this.position = t);
+      }
+    } catch {
+    }
+    this.updateHostPosition();
+  }
+  updated(i) {
+    super.updated(i), i.has("position") && this.updateHostPosition();
+  }
+  updateHostPosition() {
+    this.style.left = `${this.position.x}px`, this.style.top = `${this.position.y}px`;
+  }
+  handleDragStart(i) {
+    if (i.button !== 0) return;
+    i.preventDefault(), i.stopPropagation(), this.isDragging = !0, this.dragStartPointer = { x: i.clientX, y: i.clientY }, this.dragStartPosition = { ...this.position }, i.currentTarget.setPointerCapture(i.pointerId);
+  }
+  handleDragMove(i) {
+    if (!this.isDragging) return;
+    i.preventDefault(), i.stopPropagation();
+    const t = i.clientX - this.dragStartPointer.x, e = i.clientY - this.dragStartPointer.y, s = (this.parentElement || document.body).getBoundingClientRect(), r = this.getBoundingClientRect(), a = 8, n = Math.max(a, s.width - r.width - 8), l = 8, d = Math.max(l, s.height - r.height - 8), p = Math.min(Math.max(this.dragStartPosition.x + t, a), n), c = Math.min(Math.max(this.dragStartPosition.y + e, l), d);
+    this.position = { x: Math.round(p), y: Math.round(c) }, this.updateHostPosition();
+  }
+  handleDragEnd(i) {
+    if (this.isDragging) {
+      this.isDragging = !1;
+      try {
+        i.currentTarget.releasePointerCapture(i.pointerId);
+      } catch {
+      }
+      try {
+        localStorage.setItem("home_architect_toolbar_pos", JSON.stringify(this.position));
+      } catch {
+      }
+    }
   }
   selectTool(i) {
     this.dispatchEvent(new CustomEvent("tool-selected", {
@@ -1803,14 +1844,26 @@ let it = class extends S {
       composed: !0
     }));
   }
-  triggerImageUpload() {
-    this.dispatchEvent(new CustomEvent("trigger-upload-background", {
+  openImportModal() {
+    this.dispatchEvent(new CustomEvent("open-import-modal", {
       bubbles: !0,
       composed: !0
     }));
   }
   render() {
-    return x`
+    return f`
+      <!-- Poignée de déplacement de la boîte à outils -->
+      <div 
+        class="drag-handle ${this.isDragging ? "dragging" : ""}"
+        @pointerdown=${this.handleDragStart}
+        @pointermove=${this.handleDragMove}
+        @pointerup=${this.handleDragEnd}
+        @pointercancel=${this.handleDragEnd}
+        title="Glisser pour déplacer la boîte à outils"
+      >
+        <div class="grip-dots">•••</div>
+      </div>
+
       <!-- Assistant Débutant -->
       <button 
         class="tool-btn highlight" 
@@ -1871,11 +1924,11 @@ let it = class extends S {
 
       <div class="divider"></div>
 
-      <!-- Import de plan de fond -->
+      <!-- Import de plan de fond & vectorisation -->
       <button 
         class="tool-btn" 
-        @click=${this.triggerImageUpload} 
-        title="Importer un plan (PNG/JPG/PDF) ou Coller directement (Cmd+V / Ctrl+V)"
+        @click=${this.openImportModal} 
+        title="Importer un plan (PNG/JPG/SVG/PDF) ou Coller directement (Cmd+V / Ctrl+V)"
       >
         🖼️
       </button>
@@ -1891,18 +1944,51 @@ let it = class extends S {
     `;
   }
 };
-it.styles = I`
+q.styles = z`
     :host {
+      position: absolute;
+      left: 20px;
+      top: 20px;
       display: flex;
       flex-direction: column;
-      gap: 6px;
-      background: rgba(30, 41, 59, 0.9);
+      gap: 5px;
+      background: rgba(30, 41, 59, 0.95);
       backdrop-filter: blur(16px);
-      border: 1px solid rgba(255, 255, 255, 0.12);
+      border: 1px solid rgba(255, 255, 255, 0.14);
       border-radius: 14px;
-      padding: 8px 6px;
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+      padding: 6px 6px 8px 6px;
+      box-shadow: 0 12px 36px rgba(0, 0, 0, 0.5), 0 0 15px rgba(2, 132, 199, 0.2);
       z-index: 40;
+      user-select: none;
+      touch-action: none;
+    }
+
+    .drag-handle {
+      height: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: grab;
+      color: #64748b;
+      border-radius: 6px;
+      transition: all 0.2s ease;
+      margin-bottom: 2px;
+    }
+
+    .drag-handle:hover, .drag-handle.dragging {
+      color: #38bdf8;
+      background: rgba(56, 189, 248, 0.15);
+    }
+
+    .drag-handle.dragging {
+      cursor: grabbing;
+    }
+
+    .grip-dots {
+      font-size: 11px;
+      letter-spacing: 3px;
+      font-weight: 900;
+      line-height: 1;
     }
 
     .tool-btn {
@@ -1948,21 +2034,27 @@ it.styles = I`
     .divider {
       height: 1px;
       background: rgba(255, 255, 255, 0.1);
-      margin: 4px 2px;
+      margin: 3px 2px;
     }
   `;
-It([
-  $({ type: String })
-], it.prototype, "activeTool", 2);
-it = It([
-  W("home-architect-toolbar")
-], it);
-var de = Object.defineProperty, pe = Object.getOwnPropertyDescriptor, P = (i, t, e, s) => {
-  for (var o = s > 1 ? void 0 : s ? pe(t, e) : t, r = i.length - 1, n; r >= 0; r--)
-    (n = i[r]) && (o = (s ? n(t, e, o) : n(o)) || o);
-  return s && o && de(t, e, o), o;
+nt([
+  w({ type: String })
+], q.prototype, "activeTool", 2);
+nt([
+  h()
+], q.prototype, "position", 2);
+nt([
+  h()
+], q.prototype, "isDragging", 2);
+q = nt([
+  E("home-architect-toolbar")
+], q);
+var he = Object.defineProperty, ue = Object.getOwnPropertyDescriptor, j = (i, t, e, o) => {
+  for (var s = o > 1 ? void 0 : o ? ue(t, e) : t, r = i.length - 1, a; r >= 0; r--)
+    (a = i[r]) && (s = (o ? a(t, e, s) : a(s)) || s);
+  return o && s && he(t, e, s), s;
 };
-const T = [
+const C = [
   {
     id: "living",
     name: "Salon / Séjour",
@@ -2030,9 +2122,9 @@ const T = [
     addWindow: !0
   }
 ];
-let M = class extends S {
+let D = class extends k {
   constructor() {
-    super(...arguments), this.selectedTemplate = T[0], this.width = T[0].widthMeters, this.length = T[0].lengthMeters, this.thickness = T[0].wallThickness, this.addDoor = T[0].addDoor, this.addWindow = T[0].addWindow, this.roomName = T[0].name;
+    super(...arguments), this.selectedTemplate = C[0], this.width = C[0].widthMeters, this.length = C[0].lengthMeters, this.thickness = C[0].wallThickness, this.addDoor = C[0].addDoor, this.addWindow = C[0].addWindow, this.roomName = C[0].name;
   }
   selectTemplate(i) {
     this.selectedTemplate = i, this.width = i.widthMeters, this.length = i.lengthMeters, this.thickness = i.wallThickness, this.addDoor = i.addDoor, this.addWindow = i.addWindow, this.roomName = i.name;
@@ -2061,7 +2153,7 @@ let M = class extends S {
   }
   render() {
     const i = (this.width * this.length).toFixed(1);
-    return x`
+    return f`
       <div class="modal-card">
         <div class="modal-header">
           <div class="modal-title">
@@ -2073,7 +2165,7 @@ let M = class extends S {
 
         <!-- Gabarits prédéfinis -->
         <div class="templates-grid">
-          ${T.map((t) => x`
+          ${C.map((t) => f`
             <div 
               class="template-card ${this.selectedTemplate.id === t.id ? "selected" : ""}"
               @click=${() => this.selectTemplate(t)}
@@ -2170,7 +2262,7 @@ let M = class extends S {
     `;
   }
 };
-M.styles = I`
+D.styles = z`
     :host {
       position: fixed;
       inset: 0;
@@ -2383,36 +2475,36 @@ M.styles = I`
       transform: translateY(-1px);
     }
   `;
-P([
+j([
   h()
-], M.prototype, "selectedTemplate", 2);
-P([
+], D.prototype, "selectedTemplate", 2);
+j([
   h()
-], M.prototype, "width", 2);
-P([
+], D.prototype, "width", 2);
+j([
   h()
-], M.prototype, "length", 2);
-P([
+], D.prototype, "length", 2);
+j([
   h()
-], M.prototype, "thickness", 2);
-P([
+], D.prototype, "thickness", 2);
+j([
   h()
-], M.prototype, "addDoor", 2);
-P([
+], D.prototype, "addDoor", 2);
+j([
   h()
-], M.prototype, "addWindow", 2);
-P([
+], D.prototype, "addWindow", 2);
+j([
   h()
-], M.prototype, "roomName", 2);
-M = P([
-  W("home-architect-wizard-modal")
-], M);
-var he = Object.defineProperty, ue = Object.getOwnPropertyDescriptor, ot = (i, t, e, s) => {
-  for (var o = s > 1 ? void 0 : s ? ue(t, e) : t, r = i.length - 1, n; r >= 0; r--)
-    (n = i[r]) && (o = (s ? n(t, e, o) : n(o)) || o);
-  return s && o && he(t, e, o), o;
+], D.prototype, "roomName", 2);
+D = j([
+  E("home-architect-wizard-modal")
+], D);
+var ge = Object.defineProperty, fe = Object.getOwnPropertyDescriptor, lt = (i, t, e, o) => {
+  for (var s = o > 1 ? void 0 : o ? fe(t, e) : t, r = i.length - 1, a; r >= 0; r--)
+    (a = i[r]) && (s = (o ? a(t, e, s) : a(s)) || s);
+  return o && s && ge(t, e, s), s;
 };
-let N = class extends S {
+let V = class extends k {
   constructor() {
     super(...arguments), this.pixelDistance = 200, this.defaultMeters = 4, this.realMeters = 4;
   }
@@ -2440,7 +2532,7 @@ let N = class extends S {
   }
   render() {
     const i = (this.pixelDistance / (this.realMeters || 1)).toFixed(1);
-    return x`
+    return f`
       <div class="modal-card">
         <div class="modal-header">
           <div class="modal-title">
@@ -2486,7 +2578,7 @@ let N = class extends S {
     `;
   }
 };
-N.styles = I`
+V.styles = z`
     :host {
       position: fixed;
       inset: 0;
@@ -2628,24 +2720,24 @@ N.styles = I`
       transform: translateY(-1px);
     }
   `;
-ot([
-  $({ type: Number })
-], N.prototype, "pixelDistance", 2);
-ot([
-  $({ type: Number })
-], N.prototype, "defaultMeters", 2);
-ot([
+lt([
+  w({ type: Number })
+], V.prototype, "pixelDistance", 2);
+lt([
+  w({ type: Number })
+], V.prototype, "defaultMeters", 2);
+lt([
   h()
-], N.prototype, "realMeters", 2);
-N = ot([
-  W("home-architect-calibrate-modal")
-], N);
-var fe = Object.defineProperty, ge = Object.getOwnPropertyDescriptor, rt = (i, t, e, s) => {
-  for (var o = s > 1 ? void 0 : s ? ge(t, e) : t, r = i.length - 1, n; r >= 0; r--)
-    (n = i[r]) && (o = (s ? n(t, e, o) : n(o)) || o);
-  return s && o && fe(t, e, o), o;
+], V.prototype, "realMeters", 2);
+V = lt([
+  E("home-architect-calibrate-modal")
+], V);
+var be = Object.defineProperty, me = Object.getOwnPropertyDescriptor, et = (i, t, e, o) => {
+  for (var s = o > 1 ? void 0 : o ? me(t, e) : t, r = i.length - 1, a; r >= 0; r--)
+    (a = i[r]) && (s = (o ? a(t, e, s) : a(s)) || s);
+  return o && s && be(t, e, s), s;
 };
-const Ct = {
+const At = {
   light: "💡",
   switch: "🔌",
   binary_sensor: "🚨",
@@ -2657,21 +2749,21 @@ const Ct = {
   fan: "💨",
   default: "⚡"
 };
-let L = class extends S {
+let U = class extends k {
   constructor() {
-    super(...arguments), this.searchQuery = "", this.activeCategory = "all";
+    super(...arguments), this.collapsed = !1, this.searchQuery = "", this.activeCategory = "all";
   }
   getEntities() {
     var i;
     return (i = this.hass) != null && i.states ? Object.values(this.hass.states).map((t) => {
-      var o, r;
-      const e = t.entity_id.split(".")[0], s = Ct[e] || Ct.default;
+      var s, r;
+      const e = t.entity_id.split(".")[0], o = At[e] || At.default;
       return {
         entity_id: t.entity_id,
-        name: ((o = t.attributes) == null ? void 0 : o.friendly_name) || t.entity_id,
+        name: ((s = t.attributes) == null ? void 0 : s.friendly_name) || t.entity_id,
         state: t.state,
         domain: e,
-        icon: s,
+        icon: o,
         unit: (r = t.attributes) == null ? void 0 : r.unit_of_measurement
       };
     }) : [
@@ -2693,35 +2785,41 @@ let L = class extends S {
       icon: t.icon
     })), i.dataTransfer.effectAllowed = "copy");
   }
-  closeDrawer() {
-    this.dispatchEvent(new CustomEvent("close", {
+  toggleCollapse() {
+    this.dispatchEvent(new CustomEvent("toggle-collapse", {
       bubbles: !0,
       composed: !0
     }));
   }
   render() {
-    let i = this.getEntities();
-    if (this.activeCategory !== "all" && (i = i.filter((t) => t.domain === this.activeCategory)), this.searchQuery.trim()) {
-      const t = this.searchQuery.toLowerCase();
-      i = i.filter((e) => e.name.toLowerCase().includes(t) || e.entity_id.toLowerCase().includes(t));
+    if (this.collapsed) return null;
+    let t = this.getEntities();
+    if (this.activeCategory !== "all" && (t = t.filter((e) => e.domain === this.activeCategory)), this.searchQuery.trim()) {
+      const e = this.searchQuery.toLowerCase();
+      t = t.filter((o) => o.name.toLowerCase().includes(e) || o.entity_id.toLowerCase().includes(e));
     }
-    return x`
+    return f`
       <div class="drawer-header">
         <div class="drawer-title">
           <span>⚡</span>
-          <span>Entités Home Assistant</span>
+          <span>Entités HA</span>
+          <span class="count-badge">${t.length}</span>
         </div>
-        <button class="btn-close" @click=${this.closeDrawer}>✕</button>
+        <button class="btn-toggle" @click=${this.toggleCollapse} title="Masquer / Réduire le volet">
+          ⇤
+        </button>
       </div>
 
       <div class="search-section">
-        <input 
-          type="text" 
-          class="search-input" 
-          placeholder="Rechercher une lumière, un capteur..."
-          .value=${this.searchQuery}
-          @input=${(t) => this.searchQuery = t.target.value}
-        />
+        <div class="search-input-wrapper">
+          <input 
+            type="text" 
+            class="search-input" 
+            placeholder="Rechercher une entité..."
+            .value=${this.searchQuery}
+            @input=${(e) => this.searchQuery = e.target.value}
+          />
+        </div>
 
         <div class="categories-bar">
           <button class="cat-btn ${this.activeCategory === "all" ? "active" : ""}" @click=${() => this.activeCategory = "all"}>Tous</button>
@@ -2729,27 +2827,30 @@ let L = class extends S {
           <button class="cat-btn ${this.activeCategory === "binary_sensor" ? "active" : ""}" @click=${() => this.activeCategory = "binary_sensor"}>Capteurs</button>
           <button class="cat-btn ${this.activeCategory === "climate" ? "active" : ""}" @click=${() => this.activeCategory = "climate"}>Climat</button>
           <button class="cat-btn ${this.activeCategory === "switch" ? "active" : ""}" @click=${() => this.activeCategory = "switch"}>Prises</button>
+          <button class="cat-btn ${this.activeCategory === "camera" ? "active" : ""}" @click=${() => this.activeCategory = "camera"}>Caméras</button>
         </div>
       </div>
 
       <div class="entities-list">
-        ${i.map((t) => x`
+        ${t.length === 0 ? f`
+          <div class="empty-message">Aucune entité trouvée</div>
+        ` : t.map((e) => f`
           <div 
             class="entity-card" 
             draggable="true"
-            @dragstart=${(e) => this.handleDragStart(e, t)}
+            @dragstart=${(o) => this.handleDragStart(o, e)}
             title="Glissez et déposez sur une pièce du plan"
           >
             <div class="entity-info">
-              <span class="entity-icon">${t.icon}</span>
+              <span class="entity-icon">${e.icon}</span>
               <div class="entity-details">
-                <span class="entity-name">${t.name}</span>
-                <span class="entity-id">${t.entity_id}</span>
+                <span class="entity-name">${e.name}</span>
+                <span class="entity-id">${e.entity_id}</span>
               </div>
             </div>
 
-            <span class="entity-state-badge ${t.state === "on" ? "state-on" : "state-off"}">
-              ${t.state}${t.unit ? " " + t.unit : ""}
+            <span class="entity-state-badge ${e.state === "on" ? "state-on" : "state-off"}">
+              ${e.state}${e.unit ? " " + e.unit : ""}
             </span>
           </div>
         `)}
@@ -2757,45 +2858,45 @@ let L = class extends S {
 
       <div class="drag-hint">
         <span>👆</span>
-        <span>Glissez-déposez une entité sur une pièce du plan</span>
+        <span>Glissez une entité sur une pièce du plan</span>
       </div>
     `;
   }
 };
-L.styles = I`
+U.styles = z`
     :host {
-      position: absolute;
-      top: 0;
-      right: 0;
-      bottom: 0;
-      width: 340px;
-      background: rgba(15, 23, 42, 0.94);
-      backdrop-filter: blur(20px);
+      width: 320px;
+      height: 100%;
+      flex-shrink: 0;
+      background: rgba(15, 23, 42, 0.96);
       border-left: 1px solid rgba(255, 255, 255, 0.12);
-      box-shadow: -10px 0 30px rgba(0, 0, 0, 0.5);
+      box-shadow: -6px 0 24px rgba(0, 0, 0, 0.35);
       display: flex;
       flex-direction: column;
-      z-index: 60;
+      z-index: 25;
       font-family: var(--ha-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
       color: #f8fafc;
-      animation: slideIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      position: relative;
+      transition: width 0.25s cubic-bezier(0.16, 1, 0.3, 1);
     }
 
-    @keyframes slideIn {
-      from { transform: translateX(100%); }
-      to { transform: translateX(0); }
+    :host([collapsed]) {
+      width: 0 !important;
+      overflow: hidden;
+      border-left: none;
     }
 
     .drawer-header {
-      padding: 16px;
+      padding: 14px 16px;
       border-bottom: 1px solid rgba(255, 255, 255, 0.1);
       display: flex;
       align-items: center;
       justify-content: space-between;
+      background: rgba(30, 41, 59, 0.4);
     }
 
     .drawer-title {
-      font-size: 1.05rem;
+      font-size: 0.95rem;
       font-weight: 700;
       display: flex;
       align-items: center;
@@ -2803,37 +2904,60 @@ L.styles = I`
       color: #38bdf8;
     }
 
-    .btn-close {
-      background: transparent;
-      border: none;
-      color: #94a3b8;
-      font-size: 18px;
-      cursor: pointer;
-      padding: 4px;
+    .count-badge {
+      font-size: 0.72rem;
+      padding: 2px 7px;
+      background: rgba(56, 189, 248, 0.15);
+      color: #38bdf8;
+      border-radius: 9999px;
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      font-weight: 700;
+      font-family: ui-monospace, SFMono-Regular, monospace;
     }
 
-    .btn-close:hover {
+    .btn-toggle {
+      background: transparent;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 6px;
+      color: #94a3b8;
+      font-size: 14px;
+      cursor: pointer;
+      padding: 4px 8px;
+      transition: all 0.2s ease;
+    }
+
+    .btn-toggle:hover {
       color: #ffffff;
+      background: rgba(255, 255, 255, 0.1);
+      border-color: #38bdf8;
     }
 
     .search-section {
-      padding: 12px 16px;
+      padding: 12px 14px;
       display: flex;
       flex-direction: column;
       gap: 10px;
       border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(15, 23, 42, 0.3);
+    }
+
+    .search-input-wrapper {
+      position: relative;
+      display: flex;
+      align-items: center;
     }
 
     .search-input {
-      background: rgba(30, 41, 59, 0.8);
+      background: rgba(30, 41, 59, 0.85);
       border: 1px solid rgba(255, 255, 255, 0.15);
       border-radius: 8px;
       color: #f8fafc;
-      padding: 8px 12px;
-      font-size: 0.85rem;
+      padding: 7px 12px;
+      font-size: 0.83rem;
       outline: none;
       width: 100%;
       box-sizing: border-box;
+      transition: border-color 0.2s;
     }
 
     .search-input:focus {
@@ -2843,9 +2967,14 @@ L.styles = I`
 
     .categories-bar {
       display: flex;
-      gap: 6px;
+      gap: 5px;
       overflow-x: auto;
       padding-bottom: 4px;
+      scrollbar-width: none;
+    }
+
+    .categories-bar::-webkit-scrollbar {
+      display: none;
     }
 
     .cat-btn {
@@ -2854,7 +2983,7 @@ L.styles = I`
       border-radius: 6px;
       color: #94a3b8;
       padding: 4px 8px;
-      font-size: 0.75rem;
+      font-size: 0.73rem;
       font-weight: 600;
       cursor: pointer;
       white-space: nowrap;
@@ -2870,34 +2999,35 @@ L.styles = I`
       background: #0284c7;
       color: #ffffff;
       border-color: #38bdf8;
+      box-shadow: 0 0 8px rgba(56, 189, 248, 0.3);
     }
 
     .entities-list {
       flex: 1;
       overflow-y: auto;
-      padding: 12px 16px;
+      padding: 10px 14px;
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: 7px;
     }
 
     .entity-card {
-      background: rgba(30, 41, 59, 0.6);
+      background: rgba(30, 41, 59, 0.65);
       border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 10px;
-      padding: 10px 12px;
+      border-radius: 9px;
+      padding: 9px 11px;
       display: flex;
       align-items: center;
       justify-content: space-between;
       cursor: grab;
-      transition: all 0.2s ease;
+      transition: all 0.18s ease;
       user-select: none;
     }
 
     .entity-card:hover {
-      background: rgba(51, 65, 85, 0.8);
+      background: rgba(51, 65, 85, 0.9);
       border-color: #38bdf8;
-      transform: translateY(-1px);
+      transform: translateX(-2px);
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
     }
 
@@ -2913,8 +3043,8 @@ L.styles = I`
     }
 
     .entity-icon {
-      font-size: 1.3rem;
-      min-width: 28px;
+      font-size: 1.25rem;
+      min-width: 26px;
       text-align: center;
     }
 
@@ -2925,7 +3055,7 @@ L.styles = I`
     }
 
     .entity-name {
-      font-size: 0.85rem;
+      font-size: 0.82rem;
       font-weight: 600;
       color: #f1f5f9;
       white-space: nowrap;
@@ -2934,7 +3064,7 @@ L.styles = I`
     }
 
     .entity-id {
-      font-size: 0.72rem;
+      font-size: 0.70rem;
       color: #64748b;
       white-space: nowrap;
       overflow: hidden;
@@ -2943,9 +3073,9 @@ L.styles = I`
     }
 
     .entity-state-badge {
-      font-size: 0.75rem;
+      font-size: 0.72rem;
       font-weight: 700;
-      padding: 3px 8px;
+      padding: 2px 7px;
       border-radius: 9999px;
       text-transform: uppercase;
       font-family: ui-monospace, SFMono-Regular, monospace;
@@ -2964,10 +3094,10 @@ L.styles = I`
     }
 
     .drag-hint {
-      padding: 12px 16px;
-      background: rgba(2, 132, 199, 0.15);
+      padding: 10px 14px;
+      background: rgba(2, 132, 199, 0.12);
       border-top: 1px solid rgba(56, 189, 248, 0.2);
-      font-size: 0.75rem;
+      font-size: 0.74rem;
       color: #38bdf8;
       text-align: center;
       display: flex;
@@ -2975,27 +3105,732 @@ L.styles = I`
       justify-content: center;
       gap: 6px;
     }
+
+    .empty-message {
+      padding: 30px 16px;
+      text-align: center;
+      color: #64748b;
+      font-size: 0.83rem;
+    }
   `;
-rt([
-  $({ type: Object })
-], L.prototype, "hass", 2);
-rt([
+et([
+  w({ type: Object })
+], U.prototype, "hass", 2);
+et([
+  w({ type: Boolean, reflect: !0 })
+], U.prototype, "collapsed", 2);
+et([
   h()
-], L.prototype, "searchQuery", 2);
-rt([
+], U.prototype, "searchQuery", 2);
+et([
   h()
-], L.prototype, "activeCategory", 2);
-L = rt([
-  W("home-architect-entity-drawer")
-], L);
-var be = Object.defineProperty, me = Object.getOwnPropertyDescriptor, _ = (i, t, e, s) => {
-  for (var o = s > 1 ? void 0 : s ? me(t, e) : t, r = i.length - 1, n; r >= 0; r--)
-    (n = i[r]) && (o = (s ? n(t, e, o) : n(o)) || o);
-  return s && o && be(t, e, o), o;
+], U.prototype, "activeCategory", 2);
+U = et([
+  E("home-architect-entity-drawer")
+], U);
+var xe = Object.defineProperty, ve = Object.getOwnPropertyDescriptor, P = (i, t, e, o) => {
+  for (var s = o > 1 ? void 0 : o ? ve(t, e) : t, r = i.length - 1, a; r >= 0; r--)
+    (a = i[r]) && (s = (o ? a(t, e, s) : a(s)) || s);
+  return o && s && xe(t, e, s), s;
 };
-let v = class extends S {
+let S = class extends k {
   constructor() {
-    super(...arguments), this.narrow = !1, this.activeTool = "wall", this.currentThickness = 0.2, this.currentOpeningWidth = 0.9, this.activeLevel = "rdc", this.is3DMode = !1, this.isDrawerOpen = !1, this.isWizardOpen = !1, this.isCalibrateModalOpen = !1, this.calibrationData = null, this.project = {
+    super(...arguments), this.currentLevel = "rdc", this.imageDataUrl = null, this.imageWidth = 0, this.imageHeight = 0, this.imageName = "", this.calibrateMode = "auto_dimension", this.totalWidthMeters = 12, this.opacity = 0.4, this.isDragOver = !1, this.fileInputRef = null, this._boundPasteListener = null;
+  }
+  connectedCallback() {
+    super.connectedCallback(), this._boundPasteListener = this.handleModalPaste.bind(this), window.addEventListener("paste", this._boundPasteListener);
+  }
+  disconnectedCallback() {
+    super.disconnectedCallback(), this._boundPasteListener && window.removeEventListener("paste", this._boundPasteListener);
+  }
+  handleModalPaste(i) {
+    if (!i.clipboardData) return;
+    const t = i.clipboardData.items;
+    for (let e = 0; e < t.length; e++)
+      if (t[e].type.indexOf("image") !== -1) {
+        const o = t[e].getAsFile();
+        if (o) {
+          i.preventDefault(), this.processFile(o);
+          return;
+        }
+      }
+  }
+  triggerFileInput() {
+    if (!this.fileInputRef) {
+      const i = document.createElement("input");
+      i.type = "file", i.accept = "image/*", i.style.display = "none", i.addEventListener("change", (t) => {
+        var o;
+        const e = (o = t.target.files) == null ? void 0 : o[0];
+        e && this.processFile(e);
+      }), this.fileInputRef = i;
+    }
+    this.fileInputRef.click();
+  }
+  processFile(i) {
+    this.imageName = i.name || "Plan importé";
+    const t = new FileReader();
+    t.onload = (e) => {
+      var r;
+      const o = (r = e.target) == null ? void 0 : r.result, s = new Image();
+      s.onload = () => {
+        this.imageDataUrl = o, this.imageWidth = s.naturalWidth, this.imageHeight = s.naturalHeight;
+      }, s.src = o;
+    }, t.readAsDataURL(i);
+  }
+  handleDrop(i) {
+    var t;
+    if (i.preventDefault(), this.isDragOver = !1, (t = i.dataTransfer) != null && t.files && i.dataTransfer.files.length > 0) {
+      const e = i.dataTransfer.files[0];
+      e.type.startsWith("image/") && this.processFile(e);
+    }
+  }
+  handleDragOver(i) {
+    i.preventDefault(), this.isDragOver = !0;
+  }
+  handleDragLeave() {
+    this.isDragOver = !1;
+  }
+  async handlePasteButtonClick() {
+    try {
+      if (navigator.clipboard && navigator.clipboard.read) {
+        const i = await navigator.clipboard.read();
+        for (const t of i) {
+          const e = t.types.find((o) => o.startsWith("image/"));
+          if (e) {
+            const o = await t.getType(e), s = new File([o], "clipboard_image.png", { type: e });
+            this.processFile(s);
+            return;
+          }
+        }
+      }
+      alert("Appuyez simplement sur Cmd+V ou Ctrl+V pour coller l'image directement !");
+    } catch {
+      alert("Appuyez directement sur Cmd+V ou Ctrl+V pour coller l'image de votre plan !");
+    }
+  }
+  close() {
+    this.dispatchEvent(new CustomEvent("close", { bubbles: !0, composed: !0 }));
+  }
+  confirmImport() {
+    this.imageDataUrl && this.dispatchEvent(new CustomEvent("import-confirmed", {
+      detail: {
+        dataUrl: this.imageDataUrl,
+        widthPx: this.imageWidth,
+        heightPx: this.imageHeight,
+        opacity: this.opacity,
+        mode: this.calibrateMode,
+        totalWidthMeters: this.totalWidthMeters,
+        targetLevel: this.currentLevel
+      },
+      bubbles: !0,
+      composed: !0
+    }));
+  }
+  render() {
+    return f`
+      <div class="modal-card">
+        <div class="modal-header">
+          <div class="modal-title-group">
+            <span class="modal-icon">📥</span>
+            <div>
+              <h3 class="modal-title">Importer & Vectoriser un plan</h3>
+              <p class="modal-subtitle">Chargez votre plan en image (PNG, JPG, SVG) et calibrez-le automatiquement</p>
+            </div>
+          </div>
+          <button class="btn-close" @click=${this.close}>✕</button>
+        </div>
+
+        <div class="modal-body">
+          <!-- Zone de Dépôt ou Aperçu -->
+          ${this.imageDataUrl ? f`
+            <div class="preview-card">
+              <img class="preview-thumb" src="${this.imageDataUrl}" alt="Aperçu du plan" />
+              <div class="preview-meta">
+                <div class="preview-title">
+                  <span>✅</span>
+                  <span>${this.imageName || "Plan sélectionné"}</span>
+                </div>
+                <div class="preview-dimensions">
+                  Résolution : ${this.imageWidth} × ${this.imageHeight} px
+                </div>
+                <button class="btn-change-image" @click=${this.triggerFileInput}>
+                  🔄 Remplacer l'image
+                </button>
+              </div>
+            </div>
+          ` : f`
+            <div 
+              class="drop-zone ${this.isDragOver ? "dragover" : ""}"
+              @dragover=${this.handleDragOver}
+              @dragleave=${this.handleDragLeave}
+              @drop=${this.handleDrop}
+              @click=${this.triggerFileInput}
+            >
+              <span class="drop-icon">🖼️</span>
+              <div class="drop-text">Glissez-déposez l'image de votre plan ici</div>
+              <div class="drop-subtext">Prend en charge PNG, JPG, JPEG, SVG et WebP</div>
+
+              <div class="drop-actions" @click=${(i) => i.stopPropagation()}>
+                <button class="btn-action-small" @click=${this.triggerFileInput}>
+                  📁 Choisir un fichier
+                </button>
+                <button class="btn-action-small" @click=${this.handlePasteButtonClick}>
+                  📋 Coller (Cmd+V)
+                </button>
+              </div>
+            </div>
+          `}
+
+          <!-- Méthode d'Étalonnage Automatisée -->
+          <div>
+            <div class="section-title">
+              <span>📏</span>
+              <span>Étalonnage de l'échelle (Mètres réels)</span>
+            </div>
+
+            <div class="calibrate-options">
+              <!-- Option A : Automatisé par dimension globale -->
+              <div 
+                class="option-card ${this.calibrateMode === "auto_dimension" ? "selected" : ""}"
+                @click=${() => this.calibrateMode = "auto_dimension"}
+              >
+                <input 
+                  type="radio" 
+                  class="option-radio" 
+                  name="calib" 
+                  .checked=${this.calibrateMode === "auto_dimension"}
+                  @change=${() => this.calibrateMode = "auto_dimension"}
+                />
+                <div class="option-content">
+                  <div class="option-title">
+                    <span>⚡ Étalonnage automatique instantané</span>
+                    <span class="option-badge">Recommandé</span>
+                  </div>
+                  <div class="option-desc">
+                    Indiquez la largeur totale estimée de la façade ou du bâtiment. L'échelle sera calculée automatiquement.
+                  </div>
+
+                  ${this.calibrateMode === "auto_dimension" ? f`
+                    <div class="input-row" @click=${(i) => i.stopPropagation()}>
+                      <label style="font-size: 0.82rem; color: #94a3b8;">Largeur totale :</label>
+                      <input 
+                        type="number" 
+                        step="0.5" 
+                        min="1" 
+                        max="100" 
+                        class="dimension-input"
+                        .value=${this.totalWidthMeters}
+                        @input=${(i) => this.totalWidthMeters = parseFloat(i.target.value) || 10}
+                      />
+                      <span class="unit-tag">mètres</span>
+                    </div>
+                  ` : null}
+                </div>
+              </div>
+
+              <!-- Option B : Tracé manuel assisté sur un mur -->
+              <div 
+                class="option-card ${this.calibrateMode === "interactive_calibrate" ? "selected" : ""}"
+                @click=${() => this.calibrateMode = "interactive_calibrate"}
+              >
+                <input 
+                  type="radio" 
+                  class="option-radio" 
+                  name="calib" 
+                  .checked=${this.calibrateMode === "interactive_calibrate"}
+                  @change=${() => this.calibrateMode = "interactive_calibrate"}
+                />
+                <div class="option-content">
+                  <div class="option-title">
+                    <span>📐 Étalonnage assisté par mesure de mur</span>
+                  </div>
+                  <div class="option-desc">
+                    Vous tracerez un segment directement sur un mur mesuré du plan (ex: 3,50 m) pour étalonner avec précision.
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Réglage d'opacité du calque -->
+          <div class="slider-row">
+            <span class="slider-label">Opacité en filigrane :</span>
+            <input 
+              type="range" 
+              class="slider-input" 
+              min="0.10" 
+              max="1.0" 
+              step="0.05"
+              .value=${this.opacity}
+              @input=${(i) => this.opacity = parseFloat(i.target.value)}
+            />
+            <span class="slider-val">${Math.round(this.opacity * 100)}%</span>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button class="btn-cancel" @click=${this.close}>Annuler</button>
+          <button 
+            class="btn-confirm" 
+            ?disabled=${!this.imageDataUrl} 
+            @click=${this.confirmImport}
+          >
+            <span>🚀</span>
+            <span>Charger le plan</span>
+          </button>
+        </div>
+      </div>
+    `;
+  }
+};
+S.styles = z`
+    :host {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(12px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      font-family: var(--ha-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
+      color: #f8fafc;
+      animation: fadeIn 0.2s ease-out;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: scale(0.98); }
+      to { opacity: 1; transform: scale(1); }
+    }
+
+    .modal-card {
+      background: #1e293b;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 16px;
+      width: 580px;
+      max-width: 92vw;
+      max-height: 90vh;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6), 0 0 20px rgba(56, 189, 248, 0.2);
+      overflow: hidden;
+    }
+
+    .modal-header {
+      padding: 18px 24px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: rgba(15, 23, 42, 0.5);
+    }
+
+    .modal-title-group {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .modal-icon {
+      font-size: 1.6rem;
+    }
+
+    .modal-title {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: #f1f5f9;
+      margin: 0;
+    }
+
+    .modal-subtitle {
+      font-size: 0.8rem;
+      color: #94a3b8;
+      margin: 2px 0 0 0;
+    }
+
+    .btn-close {
+      background: transparent;
+      border: none;
+      color: #94a3b8;
+      font-size: 20px;
+      cursor: pointer;
+      padding: 4px;
+      border-radius: 6px;
+      transition: all 0.15s ease;
+    }
+
+    .btn-close:hover {
+      color: #ffffff;
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    .modal-body {
+      padding: 22px 24px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    /* Zone de Dépôt / Drag & Drop */
+    .drop-zone {
+      border: 2px dashed rgba(56, 189, 248, 0.4);
+      background: rgba(15, 23, 42, 0.6);
+      border-radius: 14px;
+      padding: 24px 20px;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      position: relative;
+    }
+
+    .drop-zone:hover, .drop-zone.dragover {
+      border-color: #38bdf8;
+      background: rgba(56, 189, 248, 0.08);
+      box-shadow: 0 0 20px rgba(56, 189, 248, 0.15);
+    }
+
+    .drop-icon {
+      font-size: 2.4rem;
+    }
+
+    .drop-text {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: #e2e8f0;
+    }
+
+    .drop-subtext {
+      font-size: 0.8rem;
+      color: #64748b;
+    }
+
+    .drop-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 4px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .btn-action-small {
+      background: rgba(51, 65, 85, 0.8);
+      color: #f1f5f9;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 8px;
+      padding: 6px 12px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s ease;
+    }
+
+    .btn-action-small:hover {
+      background: #0284c7;
+      border-color: #38bdf8;
+    }
+
+    /* Aperçu de l'image chargée */
+    .preview-card {
+      background: rgba(15, 23, 42, 0.7);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      border-radius: 12px;
+      padding: 12px;
+      display: flex;
+      gap: 16px;
+      align-items: center;
+    }
+
+    .preview-thumb {
+      width: 100px;
+      height: 75px;
+      border-radius: 8px;
+      object-fit: cover;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      background: #090d16;
+    }
+
+    .preview-meta {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .preview-title {
+      font-size: 0.92rem;
+      font-weight: 700;
+      color: #38bdf8;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .preview-dimensions {
+      font-size: 0.8rem;
+      color: #94a3b8;
+      font-family: ui-monospace, SFMono-Regular, monospace;
+    }
+
+    .btn-change-image {
+      background: transparent;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      color: #94a3b8;
+      border-radius: 6px;
+      padding: 4px 8px;
+      font-size: 0.75rem;
+      cursor: pointer;
+      width: fit-content;
+      margin-top: 4px;
+    }
+
+    .btn-change-image:hover {
+      color: #ffffff;
+      border-color: #ffffff;
+    }
+
+    /* Section Méthode d'Étalonnage */
+    .section-title {
+      font-size: 0.88rem;
+      font-weight: 700;
+      color: #cbd5e1;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .calibrate-options {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .option-card {
+      background: rgba(15, 23, 42, 0.5);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 10px;
+      padding: 12px 14px;
+      cursor: pointer;
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      transition: all 0.2s ease;
+    }
+
+    .option-card:hover {
+      border-color: rgba(56, 189, 248, 0.4);
+      background: rgba(15, 23, 42, 0.8);
+    }
+
+    .option-card.selected {
+      border-color: #38bdf8;
+      background: rgba(2, 132, 199, 0.15);
+      box-shadow: 0 0 15px rgba(56, 189, 248, 0.15);
+    }
+
+    .option-radio {
+      margin-top: 3px;
+      cursor: pointer;
+      accent-color: #38bdf8;
+    }
+
+    .option-content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .option-title {
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: #f1f5f9;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .option-badge {
+      font-size: 0.7rem;
+      padding: 2px 6px;
+      background: rgba(16, 185, 129, 0.2);
+      color: #34d399;
+      border-radius: 9999px;
+      border: 1px solid rgba(16, 185, 129, 0.4);
+      font-weight: 600;
+    }
+
+    .option-desc {
+      font-size: 0.78rem;
+      color: #94a3b8;
+      line-height: 1.35;
+    }
+
+    .input-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 8px;
+    }
+
+    .dimension-input {
+      background: #0f172a;
+      border: 1px solid rgba(56, 189, 248, 0.4);
+      border-radius: 6px;
+      color: #f8fafc;
+      padding: 6px 10px;
+      font-size: 0.95rem;
+      font-weight: 700;
+      width: 100px;
+      text-align: center;
+      outline: none;
+    }
+
+    .dimension-input:focus {
+      border-color: #38bdf8;
+      box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.25);
+    }
+
+    .unit-tag {
+      font-size: 0.85rem;
+      color: #94a3b8;
+      font-weight: 600;
+    }
+
+    /* Calque & Opacité */
+    .slider-row {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      background: rgba(15, 23, 42, 0.5);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 10px;
+      padding: 10px 14px;
+    }
+
+    .slider-label {
+      font-size: 0.82rem;
+      color: #cbd5e1;
+      min-width: 130px;
+    }
+
+    .slider-input {
+      flex: 1;
+      cursor: pointer;
+      accent-color: #38bdf8;
+    }
+
+    .slider-val {
+      font-size: 0.82rem;
+      color: #38bdf8;
+      font-weight: 700;
+      min-width: 40px;
+      text-align: right;
+    }
+
+    .modal-footer {
+      padding: 16px 24px;
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
+      background: rgba(15, 23, 42, 0.5);
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 12px;
+    }
+
+    .btn-cancel {
+      background: transparent;
+      color: #94a3b8;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 8px;
+      padding: 8px 16px;
+      font-size: 0.88rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .btn-cancel:hover {
+      background: rgba(255, 255, 255, 0.08);
+      color: #ffffff;
+    }
+
+    .btn-confirm {
+      background: #0284c7;
+      color: #ffffff;
+      border: 1px solid #38bdf8;
+      border-radius: 8px;
+      padding: 8px 20px;
+      font-size: 0.88rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s ease;
+      box-shadow: 0 0 15px rgba(56, 189, 248, 0.3);
+    }
+
+    .btn-confirm:hover:not(:disabled) {
+      background: #0369a1;
+      box-shadow: 0 0 20px rgba(56, 189, 248, 0.5);
+    }
+
+    .btn-confirm:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      box-shadow: none;
+    }
+  `;
+P([
+  w({ type: String })
+], S.prototype, "currentLevel", 2);
+P([
+  h()
+], S.prototype, "imageDataUrl", 2);
+P([
+  h()
+], S.prototype, "imageWidth", 2);
+P([
+  h()
+], S.prototype, "imageHeight", 2);
+P([
+  h()
+], S.prototype, "imageName", 2);
+P([
+  h()
+], S.prototype, "calibrateMode", 2);
+P([
+  h()
+], S.prototype, "totalWidthMeters", 2);
+P([
+  h()
+], S.prototype, "opacity", 2);
+P([
+  h()
+], S.prototype, "isDragOver", 2);
+S = P([
+  E("home-architect-import-modal")
+], S);
+var ye = Object.defineProperty, we = Object.getOwnPropertyDescriptor, $ = (i, t, e, o) => {
+  for (var s = o > 1 ? void 0 : o ? we(t, e) : t, r = i.length - 1, a; r >= 0; r--)
+    (a = i[r]) && (s = (o ? a(t, e, s) : a(s)) || s);
+  return o && s && ye(t, e, s), s;
+};
+let y = class extends k {
+  constructor() {
+    super(...arguments), this.narrow = !1, this.activeTool = "wall", this.currentThickness = 0.2, this.currentOpeningWidth = 0.9, this.activeLevel = "rdc", this.is3DMode = !1, this.isDrawerCollapsed = !1, this.isWizardOpen = !1, this.isImportModalOpen = !1, this.isCalibrateModalOpen = !1, this.calibrationData = null, this.project = {
       id: "rdc",
       name: "Rez-de-Chaussée",
       created_at: (/* @__PURE__ */ new Date()).toISOString(),
@@ -3027,61 +3862,61 @@ let v = class extends S {
     this.currentOpeningWidth = parseFloat(i.target.value);
   }
   handleCreateRoomFromWizard(i) {
-    const { name: t, width: e, length: s, thickness: o, color: r, icon: n, addDoor: a, addWindow: l } = i.detail, c = 2, p = 2, d = { x: c, y: p }, u = { x: c + e, y: p }, f = { x: c + e, y: p + s }, k = { x: c, y: p + s }, R = {
+    const { name: t, width: e, length: o, thickness: s, color: r, icon: a, addDoor: n, addWindow: l } = i.detail, d = 2, p = 2, c = { x: d, y: p }, u = { x: d + e, y: p }, g = { x: d + e, y: p + o }, M = { x: d, y: p + o }, L = {
       id: `w_top_${Date.now()}`,
-      start: d,
+      start: c,
       end: u,
-      thickness: o,
+      thickness: s,
       type: "standard"
-    }, gt = {
+    }, xt = {
       id: `w_right_${Date.now()}`,
       start: u,
-      end: f,
-      thickness: o,
+      end: g,
+      thickness: s,
       type: "standard"
-    }, B = {
+    }, G = {
       id: `w_bottom_${Date.now()}`,
-      start: f,
-      end: k,
-      thickness: o,
+      start: g,
+      end: M,
+      thickness: s,
       type: "standard"
-    }, Wt = {
+    }, Ut = {
       id: `w_left_${Date.now()}`,
-      start: k,
-      end: d,
-      thickness: o,
+      start: M,
+      end: c,
+      thickness: s,
       type: "standard"
-    }, nt = [];
-    a && nt.push({
+    }, dt = [];
+    n && dt.push({
       id: `op_door_${Date.now()}`,
-      wallId: B.id,
+      wallId: G.id,
       type: "door",
       offset: e / 2,
       width: 0.9,
       flipSide: !1,
       flipDirection: !1
-    }), l && nt.push({
+    }), l && dt.push({
       id: `op_win_${Date.now()}`,
-      wallId: R.id,
+      wallId: L.id,
       type: "window",
       offset: e / 2,
       width: 1.2,
       flipSide: !1,
       flipDirection: !1
     });
-    const Rt = {
+    const Ft = {
       id: `room_${Date.now()}`,
       name: t,
-      polygon: [d, u, f, k],
-      areaM2: e * s,
+      polygon: [c, u, g, M],
+      areaM2: e * o,
       color: r,
-      icon: n
+      icon: a
     };
     this.project = {
       ...this.project,
-      walls: [...this.project.walls, R, gt, B, Wt],
-      openings: [...this.project.openings, ...nt],
-      rooms: [...this.project.rooms, Rt]
+      walls: [...this.project.walls, L, xt, G, Ut],
+      openings: [...this.project.openings, ...dt],
+      rooms: [...this.project.rooms, Ft]
     }, this.isWizardOpen = !1, this.activeTool = "select";
   }
   connectedCallback() {
@@ -3115,25 +3950,44 @@ let v = class extends S {
       this.showToast("❌ Erreur lors du chargement de l'image.");
     }, e.src = i;
   }
+  handleImportConfirmed(i) {
+    const { dataUrl: t, widthPx: e, heightPx: o, opacity: s, mode: r, totalWidthMeters: a } = i.detail;
+    this.isImportModalOpen = !1;
+    let n = this.project.pixelsPerMeter;
+    r === "auto_dimension" && a && a > 0 && (n = Math.round(e / a * 10) / 10), this.project = {
+      ...this.project,
+      pixelsPerMeter: n,
+      background: {
+        imageUrl: t,
+        opacity: s !== void 0 ? s : 0.4,
+        visible: !0,
+        offset: { x: 0, y: 0 },
+        scale: 1,
+        rotation: 0,
+        widthPx: e,
+        heightPx: o
+      }
+    }, r === "auto_dimension" ? (this.activeTool = "wall", this.showToast(`✅ Plan importé et étalonné automatiquement (1 m = ${n} px) ! Vous pouvez tracer vos murs (🧱).`)) : (this.activeTool = "calibrate", this.showToast("📏 Plan importé ! Tracez un segment sur un mur mesuré pour étalonner l'échelle."));
+  }
   handlePaste(i) {
-    var s;
-    if (!i.clipboardData) return;
+    var o;
+    if (this.isImportModalOpen || !i.clipboardData) return;
     const t = i.clipboardData.items;
-    for (let o = 0; o < t.length; o++)
-      if (t[o].type.indexOf("image") !== -1) {
-        const r = t[o].getAsFile();
+    for (let s = 0; s < t.length; s++)
+      if (t[s].type.indexOf("image") !== -1) {
+        const r = t[s].getAsFile();
         if (r) {
           i.preventDefault();
-          const n = new FileReader();
-          n.onload = (a) => {
-            var c;
-            const l = (c = a.target) == null ? void 0 : c.result;
+          const a = new FileReader();
+          a.onload = (n) => {
+            var d;
+            const l = (d = n.target) == null ? void 0 : d.result;
             this.loadBackgroundImage(l, "📋 Image collée depuis le presse-papier !");
-          }, n.readAsDataURL(r);
+          }, a.readAsDataURL(r);
           return;
         }
       }
-    const e = (s = i.clipboardData.getData("text/plain")) == null ? void 0 : s.trim();
+    const e = (o = i.clipboardData.getData("text/plain")) == null ? void 0 : o.trim();
     e && (e.startsWith("data:image/") || e.match(/\.(png|jpe?g|svg|webp)(\?.*)?$/i)) && (i.preventDefault(), this.loadBackgroundImage(e, "📋 Image chargée depuis l'URL collée !"));
   }
   triggerFileInput() {
@@ -3144,13 +3998,13 @@ let v = class extends S {
     this.fileInputRef.click();
   }
   handleFileSelected(i) {
-    var s;
-    const t = (s = i.target.files) == null ? void 0 : s[0];
+    var o;
+    const t = (o = i.target.files) == null ? void 0 : o[0];
     if (!t) return;
     const e = new FileReader();
-    e.onload = (o) => {
-      var n;
-      const r = (n = o.target) == null ? void 0 : n.result;
+    e.onload = (s) => {
+      var a;
+      const r = (a = s.target) == null ? void 0 : a.result;
       this.loadBackgroundImage(r, "🖼️ Image importée depuis votre ordinateur !");
     }, e.readAsDataURL(t);
   }
@@ -3184,7 +4038,7 @@ let v = class extends S {
   render() {
     var t, e;
     const i = !!((t = this.project.background) != null && t.imageUrl);
-    return x`
+    return f`
       <header class="top-bar">
         <div class="brand">
           <span class="brand-icon">📐</span>
@@ -3200,6 +4054,12 @@ let v = class extends S {
         </div>
 
         <div class="top-controls">
+          <!-- Bouton Importer un plan (Automatisé) -->
+          <button class="btn-import" @click=${() => this.isImportModalOpen = !0} title="Importer et calibrer un plan image (PNG, JPG, SVG)">
+            <span>📥</span>
+            <span>Importer un plan</span>
+          </button>
+
           <!-- Bascule 2D / 3D -->
           <button 
             class="btn-3d ${this.is3DMode ? "active" : ""}" 
@@ -3213,16 +4073,17 @@ let v = class extends S {
             🪄 Assistant Pièce
           </button>
 
-          <!-- Tiroir Entités HA -->
+          <!-- Volet Entités HA -->
           <button 
-            class="btn-drawer ${this.isDrawerOpen ? "active" : ""}" 
-            @click=${() => this.isDrawerOpen = !this.isDrawerOpen}
+            class="btn-drawer ${this.isDrawerCollapsed ? "" : "active"}" 
+            @click=${() => this.isDrawerCollapsed = !this.isDrawerCollapsed}
+            title="Afficher / Masquer le volet des entités"
           >
             ⚡ Entités HA (${this.project.bindings.length})
           </button>
 
           <!-- Épaisseur mur -->
-          ${this.activeTool === "wall" ? x`
+          ${this.activeTool === "wall" ? f`
             <div class="control-group">
               <label>Épaisseur :</label>
               <select @change=${this.handleThicknessChange}>
@@ -3235,7 +4096,7 @@ let v = class extends S {
           ` : null}
 
           <!-- Largeur ouvrant -->
-          ${this.activeTool === "door" || this.activeTool === "window" || this.activeTool === "french_window" ? x`
+          ${this.activeTool === "door" || this.activeTool === "window" || this.activeTool === "french_window" ? f`
             <div class="control-group">
               <label>Largeur :</label>
               <select @change=${this.handleOpeningWidthChange}>
@@ -3251,7 +4112,7 @@ let v = class extends S {
           ` : null}
 
           <!-- Opacité du fond -->
-          ${i ? x`
+          ${i ? f`
             <div class="control-group">
               <label>Fond :</label>
               <input 
@@ -3279,51 +4140,63 @@ let v = class extends S {
       </header>
 
       <div class="workspace">
-        <home-architect-toolbar 
-          class="floating-toolbar"
-          .activeTool=${this.activeTool}
-          @tool-selected=${this.handleToolSelected}
-          @open-wizard=${() => this.isWizardOpen = !0}
-          @trigger-upload-background=${this.triggerFileInput}
-        ></home-architect-toolbar>
+        <div class="canvas-area">
+          <home-architect-toolbar 
+            .activeTool=${this.activeTool}
+            @tool-selected=${this.handleToolSelected}
+            @open-wizard=${() => this.isWizardOpen = !0}
+            @open-import-modal=${() => this.isImportModalOpen = !0}
+            @trigger-upload-background=${() => this.isImportModalOpen = !0}
+          ></home-architect-toolbar>
 
-        <home-architect-canvas
-          .hass=${this.hass}
-          .project=${this.project}
-          .activeTool=${this.activeTool}
-          .currentWallThickness=${this.currentThickness}
-          .currentOpeningWidth=${this.currentOpeningWidth}
-          .is3DMode=${this.is3DMode}
-          @toggle-3d=${(s) => this.is3DMode = s.detail.is3DMode}
-          @project-changed=${this.handleProjectChanged}
-          @request-calibration=${this.handleRequestCalibration}
-          @background-image-loaded=${(s) => this.loadBackgroundImage(s.detail.dataUrl, "🖼️ Image de plan glissée-déposée !")}
-        ></home-architect-canvas>
-
-        <!-- Notification Toast -->
-        ${this.toastMessage ? x`
-          <div class="toast-notification">
-            ${this.toastMessage}
-          </div>
-        ` : null}
-
-        <!-- Tiroir latéral des entités HA -->
-        ${this.isDrawerOpen ? x`
-          <home-architect-entity-drawer
+          <home-architect-canvas
             .hass=${this.hass}
-            @close=${() => this.isDrawerOpen = !1}
-          ></home-architect-entity-drawer>
-        ` : null}
+            .project=${this.project}
+            .activeTool=${this.activeTool}
+            .currentWallThickness=${this.currentThickness}
+            .currentOpeningWidth=${this.currentOpeningWidth}
+            .is3DMode=${this.is3DMode}
+            @toggle-3d=${(o) => this.is3DMode = o.detail.is3DMode}
+            @project-changed=${this.handleProjectChanged}
+            @request-calibration=${this.handleRequestCalibration}
+            @background-image-loaded=${(o) => this.loadBackgroundImage(o.detail.dataUrl, "🖼️ Image de plan glissée-déposée !")}
+          ></home-architect-canvas>
+
+          <!-- Notification Toast -->
+          ${this.toastMessage ? f`
+            <div class="toast-notification">
+              ${this.toastMessage}
+            </div>
+          ` : null}
+        </div>
+
+        <!-- Volet latéral des entités HA : Toujours visible et docké -->
+        <home-architect-entity-drawer
+          .hass=${this.hass}
+          ?collapsed=${this.isDrawerCollapsed}
+          @toggle-collapse=${() => this.isDrawerCollapsed = !this.isDrawerCollapsed}
+        ></home-architect-entity-drawer>
       </div>
 
-      ${this.isWizardOpen ? x`
+      <!-- Modal d'Import Automatisé -->
+      ${this.isImportModalOpen ? f`
+        <home-architect-import-modal
+          .currentLevel=${this.activeLevel}
+          @import-confirmed=${this.handleImportConfirmed}
+          @close=${() => this.isImportModalOpen = !1}
+        ></home-architect-import-modal>
+      ` : null}
+
+      <!-- Modal Assistant Pièce Débutant -->
+      ${this.isWizardOpen ? f`
         <home-architect-wizard-modal
           @create-room=${this.handleCreateRoomFromWizard}
           @close=${() => this.isWizardOpen = !1}
         ></home-architect-wizard-modal>
       ` : null}
 
-      ${this.isCalibrateModalOpen && this.calibrationData ? x`
+      <!-- Modal Étalonnage Mesure de Mur -->
+      ${this.isCalibrateModalOpen && this.calibrationData ? f`
         <home-architect-calibrate-modal
           .pixelDistance=${this.calibrationData.pixelDistance}
           .defaultMeters=${this.calibrationData.defaultMeters}
@@ -3334,7 +4207,7 @@ let v = class extends S {
     `;
   }
 };
-v.styles = I`
+y.styles = z`
     :host {
       display: flex;
       flex-direction: column;
@@ -3357,6 +4230,7 @@ v.styles = I`
       justify-content: space-between;
       padding: 0 18px;
       z-index: 30;
+      flex-shrink: 0;
     }
 
     .brand {
@@ -3438,6 +4312,27 @@ v.styles = I`
       box-shadow: 0 0 12px rgba(56, 189, 248, 0.4);
     }
 
+    button.btn-import {
+      background: rgba(16, 185, 129, 0.2);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.4);
+      border-radius: 8px;
+      padding: 6px 13px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s ease;
+    }
+
+    button.btn-import:hover {
+      background: #10b981;
+      color: #ffffff;
+      box-shadow: 0 0 14px rgba(16, 185, 129, 0.45);
+    }
+
     button.btn-drawer {
       background: rgba(56, 189, 248, 0.15);
       color: #38bdf8;
@@ -3502,17 +4397,20 @@ v.styles = I`
 
     .workspace {
       flex: 1;
-      position: relative;
+      display: flex;
+      flex-direction: row;
       width: 100%;
       height: calc(100vh - 56px);
       overflow: hidden;
+      position: relative;
     }
 
-    .floating-toolbar {
-      position: absolute;
-      top: 20px;
-      left: 20px;
-      z-index: 20;
+    .canvas-area {
+      flex: 1;
+      min-width: 0;
+      height: 100%;
+      position: relative;
+      overflow: hidden;
     }
 
     .level-selector {
@@ -3548,7 +4446,7 @@ v.styles = I`
 
     .toast-notification {
       position: absolute;
-      top: 72px;
+      top: 20px;
       left: 50%;
       transform: translateX(-50%);
       background: rgba(15, 23, 42, 0.95);
@@ -3573,54 +4471,57 @@ v.styles = I`
       to { transform: translate(-50%, 0); opacity: 1; }
     }
   `;
-_([
-  $({ type: Object })
-], v.prototype, "hass", 2);
-_([
-  $({ type: Boolean })
-], v.prototype, "narrow", 2);
-_([
+$([
+  w({ type: Object })
+], y.prototype, "hass", 2);
+$([
+  w({ type: Boolean })
+], y.prototype, "narrow", 2);
+$([
   h()
-], v.prototype, "activeTool", 2);
-_([
+], y.prototype, "activeTool", 2);
+$([
   h()
-], v.prototype, "currentThickness", 2);
-_([
+], y.prototype, "currentThickness", 2);
+$([
   h()
-], v.prototype, "currentOpeningWidth", 2);
-_([
+], y.prototype, "currentOpeningWidth", 2);
+$([
   h()
-], v.prototype, "activeLevel", 2);
-_([
+], y.prototype, "activeLevel", 2);
+$([
   h()
-], v.prototype, "is3DMode", 2);
-_([
+], y.prototype, "is3DMode", 2);
+$([
   h()
-], v.prototype, "isDrawerOpen", 2);
-_([
+], y.prototype, "isDrawerCollapsed", 2);
+$([
   h()
-], v.prototype, "isWizardOpen", 2);
-_([
+], y.prototype, "isWizardOpen", 2);
+$([
   h()
-], v.prototype, "isCalibrateModalOpen", 2);
-_([
+], y.prototype, "isImportModalOpen", 2);
+$([
   h()
-], v.prototype, "calibrationData", 2);
-_([
+], y.prototype, "isCalibrateModalOpen", 2);
+$([
   h()
-], v.prototype, "project", 2);
-_([
+], y.prototype, "calibrationData", 2);
+$([
   h()
-], v.prototype, "toastMessage", 2);
-v = _([
-  W("home-architect-panel")
-], v);
-var ye = Object.defineProperty, xe = Object.getOwnPropertyDescriptor, K = (i, t, e, s) => {
-  for (var o = s > 1 ? void 0 : s ? xe(t, e) : t, r = i.length - 1, n; r >= 0; r--)
-    (n = i[r]) && (o = (s ? n(t, e, o) : n(o)) || o);
-  return s && o && ye(t, e, o), o;
+], y.prototype, "project", 2);
+$([
+  h()
+], y.prototype, "toastMessage", 2);
+y = $([
+  E("home-architect-panel")
+], y);
+var $e = Object.defineProperty, _e = Object.getOwnPropertyDescriptor, it = (i, t, e, o) => {
+  for (var s = o > 1 ? void 0 : o ? _e(t, e) : t, r = i.length - 1, a; r >= 0; r--)
+    (a = i[r]) && (s = (o ? a(t, e, s) : a(s)) || s);
+  return o && s && $e(t, e, s), s;
 };
-let O = class extends S {
+let F = class extends k {
   constructor() {
     super(...arguments), this.project = {
       id: "rdc",
@@ -3650,13 +4551,13 @@ let O = class extends S {
     const i = this.config.project_id || "rdc";
     if (this.hass && this.hass.callWS)
       try {
-        const s = await this.hass.callWS({ type: "home_architect/get_projects" }), o = (e = s == null ? void 0 : s.projects) == null ? void 0 : e.find((r) => r.id === i);
-        if (o) {
-          this.project = o;
+        const o = await this.hass.callWS({ type: "home_architect/get_projects" }), s = (e = o == null ? void 0 : o.projects) == null ? void 0 : e.find((r) => r.id === i);
+        if (s) {
+          this.project = s;
           return;
         }
-      } catch (s) {
-        console.warn("WebSocket get_projects échoué, essai localStorage:", s);
+      } catch (o) {
+        console.warn("WebSocket get_projects échoué, essai localStorage:", o);
       }
     const t = localStorage.getItem(`home_architect_${i}`);
     if (t)
@@ -3667,7 +4568,7 @@ let O = class extends S {
   }
   render() {
     var i;
-    return x`
+    return f`
       <div class="card-header">
         <div class="card-title">${((i = this.config) == null ? void 0 : i.title) || this.project.name || "Home Architect"}</div>
         <button class="view-toggle" @click=${() => this.is3DMode = !this.is3DMode}>
@@ -3686,7 +4587,7 @@ let O = class extends S {
     `;
   }
 };
-O.styles = I`
+F.styles = z`
     :host {
       display: block;
       height: 480px;
@@ -3748,21 +4649,21 @@ O.styles = I`
       height: 100%;
     }
   `;
-K([
-  $({ type: Object })
-], O.prototype, "hass", 2);
-K([
+it([
+  w({ type: Object })
+], F.prototype, "hass", 2);
+it([
   h()
-], O.prototype, "config", 2);
-K([
+], F.prototype, "config", 2);
+it([
   h()
-], O.prototype, "project", 2);
-K([
+], F.prototype, "project", 2);
+it([
   h()
-], O.prototype, "is3DMode", 2);
-O = K([
-  W("home-architect-card")
-], O);
+], F.prototype, "is3DMode", 2);
+F = it([
+  E("home-architect-card")
+], F);
 window.customCards = window.customCards || [];
 window.customCards.push({
   type: "home-architect-card",
