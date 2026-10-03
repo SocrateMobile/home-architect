@@ -1,21 +1,54 @@
-import { LitElement, html, css } from 'lit';
-import { customElement, property } from 'lit/decorators.js';
+import { LitElement, html, css, PropertyValues } from 'lit';
+import { customElement, property, state } from 'lit/decorators.js';
 import { ActiveTool } from '../core/types';
 
 @customElement('home-architect-toolbar')
 export class HomeArchitectToolbar extends LitElement {
   static styles = css`
     :host {
+      position: absolute;
+      left: 20px;
+      top: 20px;
       display: flex;
       flex-direction: column;
-      gap: 6px;
-      background: rgba(30, 41, 59, 0.9);
+      gap: 5px;
+      background: rgba(30, 41, 59, 0.95);
       backdrop-filter: blur(16px);
-      border: 1px solid rgba(255, 255, 255, 0.12);
+      border: 1px solid rgba(255, 255, 255, 0.14);
       border-radius: 14px;
-      padding: 8px 6px;
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+      padding: 6px 6px 8px 6px;
+      box-shadow: 0 12px 36px rgba(0, 0, 0, 0.5), 0 0 15px rgba(2, 132, 199, 0.2);
       z-index: 40;
+      user-select: none;
+      touch-action: none;
+    }
+
+    .drag-handle {
+      height: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: grab;
+      color: #64748b;
+      border-radius: 6px;
+      transition: all 0.2s ease;
+      margin-bottom: 2px;
+    }
+
+    .drag-handle:hover, .drag-handle.dragging {
+      color: #38bdf8;
+      background: rgba(56, 189, 248, 0.15);
+    }
+
+    .drag-handle.dragging {
+      cursor: grabbing;
+    }
+
+    .grip-dots {
+      font-size: 11px;
+      letter-spacing: 3px;
+      font-weight: 900;
+      line-height: 1;
     }
 
     .tool-btn {
@@ -61,12 +94,96 @@ export class HomeArchitectToolbar extends LitElement {
     .divider {
       height: 1px;
       background: rgba(255, 255, 255, 0.1);
-      margin: 4px 2px;
+      margin: 3px 2px;
     }
   `;
 
   @property({ type: String })
   public activeTool: ActiveTool = 'wall';
+
+  @state()
+  private position: { x: number; y: number } = { x: 20, y: 20 };
+
+  @state()
+  private isDragging: boolean = false;
+
+  private dragStartPointer: { x: number; y: number } = { x: 0, y: 0 };
+  private dragStartPosition: { x: number; y: number } = { x: 20, y: 20 };
+
+  connectedCallback() {
+    super.connectedCallback();
+    try {
+      const saved = localStorage.getItem('home_architect_toolbar_pos');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (typeof parsed.x === 'number' && typeof parsed.y === 'number') {
+          this.position = parsed;
+        }
+      }
+    } catch (_) {}
+    this.updateHostPosition();
+  }
+
+  protected updated(changedProps: PropertyValues) {
+    super.updated(changedProps);
+    if (changedProps.has('position')) {
+      this.updateHostPosition();
+    }
+  }
+
+  private updateHostPosition() {
+    this.style.left = `${this.position.x}px`;
+    this.style.top = `${this.position.y}px`;
+  }
+
+  private handleDragStart(e: PointerEvent) {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+
+    this.isDragging = true;
+    this.dragStartPointer = { x: e.clientX, y: e.clientY };
+    this.dragStartPosition = { ...this.position };
+
+    const target = e.currentTarget as HTMLElement;
+    target.setPointerCapture(e.pointerId);
+  }
+
+  private handleDragMove(e: PointerEvent) {
+    if (!this.isDragging) return;
+    e.preventDefault();
+    e.stopPropagation();
+
+    const dx = e.clientX - this.dragStartPointer.x;
+    const dy = e.clientY - this.dragStartPointer.y;
+
+    const parent = this.parentElement || document.body;
+    const parentRect = parent.getBoundingClientRect();
+    const hostRect = this.getBoundingClientRect();
+
+    const minX = 8;
+    const maxX = Math.max(minX, parentRect.width - hostRect.width - 8);
+    const minY = 8;
+    const maxY = Math.max(minY, parentRect.height - hostRect.height - 8);
+
+    const newX = Math.min(Math.max(this.dragStartPosition.x + dx, minX), maxX);
+    const newY = Math.min(Math.max(this.dragStartPosition.y + dy, minY), maxY);
+
+    this.position = { x: Math.round(newX), y: Math.round(newY) };
+    this.updateHostPosition();
+  }
+
+  private handleDragEnd(e: PointerEvent) {
+    if (!this.isDragging) return;
+    this.isDragging = false;
+    try {
+      (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+    } catch (_) {}
+
+    try {
+      localStorage.setItem('home_architect_toolbar_pos', JSON.stringify(this.position));
+    } catch (_) {}
+  }
 
   private selectTool(tool: ActiveTool): void {
     this.dispatchEvent(new CustomEvent('tool-selected', {
@@ -83,8 +200,8 @@ export class HomeArchitectToolbar extends LitElement {
     }));
   }
 
-  private triggerImageUpload(): void {
-    this.dispatchEvent(new CustomEvent('trigger-upload-background', {
+  private openImportModal(): void {
+    this.dispatchEvent(new CustomEvent('open-import-modal', {
       bubbles: true,
       composed: true
     }));
@@ -92,6 +209,18 @@ export class HomeArchitectToolbar extends LitElement {
 
   render() {
     return html`
+      <!-- Poignée de déplacement de la boîte à outils -->
+      <div 
+        class="drag-handle ${this.isDragging ? 'dragging' : ''}"
+        @pointerdown=${this.handleDragStart}
+        @pointermove=${this.handleDragMove}
+        @pointerup=${this.handleDragEnd}
+        @pointercancel=${this.handleDragEnd}
+        title="Glisser pour déplacer la boîte à outils"
+      >
+        <div class="grip-dots">•••</div>
+      </div>
+
       <!-- Assistant Débutant -->
       <button 
         class="tool-btn highlight" 
@@ -152,11 +281,11 @@ export class HomeArchitectToolbar extends LitElement {
 
       <div class="divider"></div>
 
-      <!-- Import de plan de fond -->
+      <!-- Import de plan de fond & vectorisation -->
       <button 
         class="tool-btn" 
-        @click=${this.triggerImageUpload} 
-        title="Importer un plan (PNG/JPG/PDF) ou Coller directement (Cmd+V / Ctrl+V)"
+        @click=${this.openImportModal} 
+        title="Importer un plan (PNG/JPG/SVG/PDF) ou Coller directement (Cmd+V / Ctrl+V)"
       >
         🖼️
       </button>
