@@ -1,6 +1,4 @@
 {
   "name": "Home Architect",
-  "render_readme": true,
-  "content_in_root": false,
-  "filename": "home_architect-panel.js"
+  "render_readme": true
 }
