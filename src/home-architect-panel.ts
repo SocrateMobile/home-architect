@@ -4,6 +4,7 @@ import './components/canvas-view';
 import './components/toolbar';
 import './components/wizard-modal';
 import './components/calibrate-modal';
+import './components/entity-drawer';
 import { 
   ActiveTool, HomeArchitectProject, Wall, Opening, Room, Point 
 } from './core/types';
@@ -20,6 +21,7 @@ export class HomeArchitectPanel extends LitElement {
       background: #0f172a;
       color: #f8fafc;
       font-family: var(--ha-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
+      position: relative;
     }
 
     header.top-bar {
@@ -60,7 +62,7 @@ export class HomeArchitectPanel extends LitElement {
     .top-controls {
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 10px;
     }
 
     .control-group {
@@ -79,7 +81,7 @@ export class HomeArchitectPanel extends LitElement {
       font-size: 0.8rem;
     }
 
-    select, input[type="range"], button.btn-action {
+    select, input[type="range"] {
       background: transparent;
       color: #f8fafc;
       border: none;
@@ -113,6 +115,48 @@ export class HomeArchitectPanel extends LitElement {
       box-shadow: 0 0 12px rgba(56, 189, 248, 0.4);
     }
 
+    button.btn-drawer {
+      background: rgba(56, 189, 248, 0.15);
+      color: #38bdf8;
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      border-radius: 8px;
+      padding: 6px 12px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s ease;
+    }
+
+    button.btn-drawer:hover, button.btn-drawer.active {
+      background: #0284c7;
+      color: #ffffff;
+      box-shadow: 0 0 12px rgba(56, 189, 248, 0.4);
+    }
+
+    button.btn-3d {
+      background: rgba(147, 51, 234, 0.15);
+      color: #c084fc;
+      border: 1px solid rgba(147, 51, 234, 0.3);
+      border-radius: 8px;
+      padding: 6px 12px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s ease;
+    }
+
+    button.btn-3d.active {
+      background: #9333ea;
+      color: #ffffff;
+      box-shadow: 0 0 12px rgba(192, 132, 252, 0.5);
+    }
+
     button.btn-wizard {
       background: rgba(245, 158, 11, 0.2);
       color: #f59e0b;
@@ -138,6 +182,7 @@ export class HomeArchitectPanel extends LitElement {
       position: relative;
       width: 100%;
       height: calc(100vh - 56px);
+      overflow: hidden;
     }
 
     .floating-toolbar {
@@ -198,6 +243,12 @@ export class HomeArchitectPanel extends LitElement {
   private activeLevel: string = 'rdc';
 
   @state()
+  private is3DMode: boolean = false;
+
+  @state()
+  private isDrawerOpen: boolean = false;
+
+  @state()
   private isWizardOpen: boolean = false;
 
   @state()
@@ -251,14 +302,9 @@ export class HomeArchitectPanel extends LitElement {
     this.currentOpeningWidth = parseFloat((e.target as HTMLSelectElement).value);
   }
 
-  // ==========================================
-  // ASSISTANT DÉBUTANT (CRÉATION DE PIÈCE)
-  // ==========================================
-
   private handleCreateRoomFromWizard(e: CustomEvent<any>) {
     const { name, width, length, thickness, color, icon, addDoor, addWindow } = e.detail;
 
-    // Calcul du point de placement (centre de la pièce au centre de la grille ou à (2, 2))
     const startX = 2.0;
     const startY = 2.0;
 
@@ -267,7 +313,6 @@ export class HomeArchitectPanel extends LitElement {
     const p3: Point = { x: startX + width, y: startY + length };
     const p4: Point = { x: startX, y: startY + length };
 
-    // 4 Murs
     const wTop: Wall = {
       id: `w_top_${Date.now()}`,
       start: p1,
@@ -299,7 +344,6 @@ export class HomeArchitectPanel extends LitElement {
 
     const newOpenings: Opening[] = [];
 
-    // Ajout Porte en bas
     if (addDoor) {
       newOpenings.push({
         id: `op_door_${Date.now()}`,
@@ -312,7 +356,6 @@ export class HomeArchitectPanel extends LitElement {
       });
     }
 
-    // Ajout Fenêtre en haut
     if (addWindow) {
       newOpenings.push({
         id: `op_win_${Date.now()}`,
@@ -325,7 +368,6 @@ export class HomeArchitectPanel extends LitElement {
       });
     }
 
-    // Objet Pièce
     const newRoom: Room = {
       id: `room_${Date.now()}`,
       name,
@@ -345,10 +387,6 @@ export class HomeArchitectPanel extends LitElement {
     this.isWizardOpen = false;
     this.activeTool = 'select';
   }
-
-  // ==========================================
-  // IMPORT D'IMAGE DE FOND & ÉTALONNAGE
-  // ==========================================
 
   private triggerFileInput() {
     if (!this.fileInputRef) {
@@ -385,8 +423,6 @@ export class HomeArchitectPanel extends LitElement {
             heightPx: img.naturalHeight
           }
         };
-
-        // Passe automatiquement à l'outil Étalonnage pour faciliter le calibrage
         this.activeTool = 'calibrate';
       };
       img.src = dataUrl;
@@ -457,9 +493,25 @@ export class HomeArchitectPanel extends LitElement {
         </div>
 
         <div class="top-controls">
+          <!-- Bascule 2D / 3D -->
+          <button 
+            class="btn-3d ${this.is3DMode ? 'active' : ''}" 
+            @click=${() => this.is3DMode = !this.is3DMode}
+          >
+            ${this.is3DMode ? '🧊 Vue 3D' : '📐 Vue 2D'}
+          </button>
+
           <!-- Assistant Débutant -->
           <button class="btn-wizard" @click=${() => this.isWizardOpen = true}>
             🪄 Assistant Pièce
+          </button>
+
+          <!-- Tiroir Entités HA -->
+          <button 
+            class="btn-drawer ${this.isDrawerOpen ? 'active' : ''}" 
+            @click=${() => this.isDrawerOpen = !this.isDrawerOpen}
+          >
+            ⚡ Entités HA (${this.project.bindings.length})
           </button>
 
           <!-- Épaisseur mur -->
@@ -491,7 +543,7 @@ export class HomeArchitectPanel extends LitElement {
             </div>
           ` : null}
 
-          <!-- Opacité de l'image de fond si présente -->
+          <!-- Opacité du fond -->
           ${hasBg ? html`
             <div class="control-group">
               <label>Fond :</label>
@@ -508,7 +560,6 @@ export class HomeArchitectPanel extends LitElement {
             </div>
           ` : null}
 
-          <!-- Indicateur d'échelle -->
           <div class="scale-indicator" title="Échelle : pixels par mètre">
             1 m = ${this.project.pixelsPerMeter} px
           </div>
@@ -530,16 +581,26 @@ export class HomeArchitectPanel extends LitElement {
         ></home-architect-toolbar>
 
         <home-architect-canvas
+          .hass=${this.hass}
           .project=${this.project}
           .activeTool=${this.activeTool}
           .currentWallThickness=${this.currentThickness}
           .currentOpeningWidth=${this.currentOpeningWidth}
+          .is3DMode=${this.is3DMode}
+          @toggle-3d=${(e: any) => this.is3DMode = e.detail.is3DMode}
           @project-changed=${this.handleProjectChanged}
           @request-calibration=${this.handleRequestCalibration}
         ></home-architect-canvas>
+
+        <!-- Tiroir latéral des entités HA -->
+        ${this.isDrawerOpen ? html`
+          <home-architect-entity-drawer
+            .hass=${this.hass}
+            @close=${() => this.isDrawerOpen = false}
+          ></home-architect-entity-drawer>
+        ` : null}
       </div>
 
-      <!-- Modale Assistant Débutant -->
       ${this.isWizardOpen ? html`
         <home-architect-wizard-modal
           @create-room=${this.handleCreateRoomFromWizard}
@@ -547,7 +608,6 @@ export class HomeArchitectPanel extends LitElement {
         ></home-architect-wizard-modal>
       ` : null}
 
-      <!-- Modale Étalonnage Échelle -->
       ${this.isCalibrateModalOpen && this.calibrationData ? html`
         <home-architect-calibrate-modal
           .pixelDistance=${this.calibrationData.pixelDistance}
