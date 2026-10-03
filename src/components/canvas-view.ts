@@ -3,13 +3,17 @@ import { customElement, property, state } from 'lit/decorators.js';
 import { canvasStyles } from '../styles/canvas.styles';
 import { 
   Point, Wall, Opening, OpeningType, Room, ActiveTool, GridConfig, 
-  ViewportTransform, HomeArchitectProject, WallSnapResult 
+  ViewportTransform, HomeArchitectProject, WallSnapResult, EntityBinding 
 } from '../core/types';
 import { SnappingEngine } from '../core/snapping';
+import { PolygonUtils } from '../core/polygon';
 
 @customElement('home-architect-canvas')
 export class HomeArchitectCanvas extends LitElement {
   static styles = canvasStyles;
+
+  @property({ type: Object })
+  public hass: any;
 
   @property({ type: Object })
   public project: HomeArchitectProject = {
@@ -35,10 +39,13 @@ export class HomeArchitectCanvas extends LitElement {
   public activeTool: ActiveTool = 'wall';
 
   @property({ type: Number })
-  public currentWallThickness: number = 0.20; // 20 cm par défaut
+  public currentWallThickness: number = 0.20;
 
   @property({ type: Number })
-  public currentOpeningWidth: number = 0.90; // 90 cm par défaut pour portes
+  public currentOpeningWidth: number = 0.90;
+
+  @property({ type: Boolean })
+  public is3DMode: boolean = false;
 
   // État du Viewport (Pan & Zoom)
   @state()
@@ -51,18 +58,18 @@ export class HomeArchitectCanvas extends LitElement {
 
   // État de dessin de mur en cours
   @state()
-  private drawingWallStart: Point | null = null; // En mètres
+  private drawingWallStart: Point | null = null;
 
   @state()
-  private previewPoint: Point | null = null; // Point visuel magnétisé en mètres
+  private previewPoint: Point | null = null;
 
   @state()
   private snapInfo: { snappedTo: string; guideAngle?: number } = { snappedTo: 'none' };
 
   @state()
-  private cursorCoords: Point = { x: 0, y: 0 }; // En mètres
+  private cursorCoords: Point = { x: 0, y: 0 };
 
-  // État d'insertion d'ouvrants (Portes / Fenêtres)
+  // État d'insertion d'ouvrants
   @state()
   private wallSnap: WallSnapResult | null = null;
 
@@ -72,15 +79,15 @@ export class HomeArchitectCanvas extends LitElement {
   @state()
   private openingFlipDirection: boolean = false;
 
-  // État d'étalonnage de l'échelle
+  // État d'étalonnage
   @state()
-  private calibrateStart: Point | null = null; // En pixels écran
+  private calibrateStart: Point | null = null;
 
   @state()
-  private calibrateCurrent: Point | null = null; // En pixels écran
+  private calibrateCurrent: Point | null = null;
 
   // ==========================================
-  // CONVERSIONS DE COORDONNÉES MONDE <-> ÉCRAN
+  // CONVERSIONS DE COORDONNÉES
   // ==========================================
 
   public screenToWorld(screenX: number, screenY: number): Point {
@@ -104,7 +111,7 @@ export class HomeArchitectCanvas extends LitElement {
   }
 
   // ==========================================
-  // GESTION DU PAN & ZOOM (SOURIS & TACTILE)
+  // GESTION DU PAN & ZOOM
   // ==========================================
 
   private handleWheel(e: WheelEvent): void {
@@ -124,7 +131,6 @@ export class HomeArchitectCanvas extends LitElement {
   }
 
   private handlePointerDown(e: PointerEvent): void {
-    // Panning
     if (e.button === 1 || this.activeTool === 'select' || e.shiftKey) {
       this.isPanning = true;
       this.panStart = { x: e.clientX - this.viewport.x, y: e.clientY - this.viewport.y };
@@ -136,7 +142,7 @@ export class HomeArchitectCanvas extends LitElement {
 
     const worldPoint = this.screenToWorld(e.clientX, e.clientY);
 
-    // 1. OUTIL MUR
+    // 1. Outil Mur
     if (this.activeTool === 'wall') {
       const snapped = SnappingEngine.snapPoint(
         worldPoint,
@@ -172,7 +178,7 @@ export class HomeArchitectCanvas extends LitElement {
       }
     }
 
-    // 2. OUTIL OUVERTURES (Porte / Fenêtre / Baie)
+    // 2. Outil Ouvertures
     else if (this.activeTool === 'door' || this.activeTool === 'window' || this.activeTool === 'french_window') {
       if (this.wallSnap) {
         const opType: OpeningType = 
@@ -198,7 +204,7 @@ export class HomeArchitectCanvas extends LitElement {
       }
     }
 
-    // 3. OUTIL ÉTALONNAGE D'ÉCHELLE
+    // 3. Outil Étalonnage
     else if (this.activeTool === 'calibrate') {
       const rect = this.getBoundingClientRect();
       const clickPx: Point = { x: e.clientX - rect.left, y: e.clientY - rect.top };
@@ -207,13 +213,11 @@ export class HomeArchitectCanvas extends LitElement {
         this.calibrateStart = clickPx;
         this.calibrateCurrent = clickPx;
       } else {
-        // Deuxième clic : déclenche la modale de calibration
         const dx = clickPx.x - this.calibrateStart.x;
         const dy = clickPx.y - this.calibrateStart.y;
         const screenDistPx = Math.sqrt(dx * dx + dy * dy);
 
         if (screenDistPx >= 10) {
-          // Distance en pixels natifs hors zoom
           const rawPixelDist = screenDistPx / this.viewport.zoom;
 
           this.dispatchEvent(new CustomEvent('request-calibration', {
@@ -248,7 +252,6 @@ export class HomeArchitectCanvas extends LitElement {
       y: SnappingEngine.roundMeters(worldPoint.y)
     };
 
-    // Suivi outil Mur
     if (this.activeTool === 'wall') {
       const snapped = SnappingEngine.snapPoint(
         worldPoint,
@@ -261,12 +264,10 @@ export class HomeArchitectCanvas extends LitElement {
       this.snapInfo = { snappedTo: snapped.snappedTo, guideAngle: snapped.guideAngle };
       this.wallSnap = null;
     } 
-    // Suivi outil Ouvertures
     else if (this.activeTool === 'door' || this.activeTool === 'window' || this.activeTool === 'french_window') {
       this.wallSnap = SnappingEngine.snapPointToWall(worldPoint, this.project.walls, 0.8);
       this.previewPoint = null;
     } 
-    // Suivi outil Étalonnage
     else if (this.activeTool === 'calibrate' && this.calibrateStart) {
       const rect = this.getBoundingClientRect();
       this.calibrateCurrent = { x: e.clientX - rect.left, y: e.clientY - rect.top };
@@ -284,6 +285,80 @@ export class HomeArchitectCanvas extends LitElement {
     }
   }
 
+  // ==========================================
+  // DRAG & DROP ENTITÉS HOME ASSISTANT
+  // ==========================================
+
+  private handleDragOver(e: DragEvent): void {
+    e.preventDefault();
+    if (e.dataTransfer) {
+      e.dataTransfer.dropEffect = 'copy';
+    }
+  }
+
+  private handleDrop(e: DragEvent): void {
+    e.preventDefault();
+    const rawData = e.dataTransfer?.getData('application/json');
+    if (!rawData) return;
+
+    try {
+      const { entityId, domain, name, icon } = JSON.parse(rawData);
+      const worldPoint = this.screenToWorld(e.clientX, e.clientY);
+
+      // Détection automatique de la pièce contenant le point de dépose
+      const matchingRoom = PolygonUtils.findRoomContainingPoint(worldPoint, this.project.rooms);
+
+      const newBinding: EntityBinding = {
+        id: `bind_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+        entityId,
+        position: {
+          x: SnappingEngine.roundMeters(worldPoint.x),
+          y: SnappingEngine.roundMeters(worldPoint.y)
+        },
+        roomId: matchingRoom?.id,
+        icon,
+        customName: name,
+        tapAction: 'toggle'
+      };
+
+      this.project = {
+        ...this.project,
+        bindings: [...this.project.bindings, newBinding]
+      };
+
+      this.dispatchProjectChanged();
+    } catch (err) {
+      console.error('Erreur lors de la liaison entité HA:', err);
+    }
+  }
+
+  private handleEntityClick(binding: EntityBinding, e: Event): void {
+    e.stopPropagation();
+
+    // Interaction 1 : Toggle via service HA
+    if (this.hass && this.hass.callService) {
+      const domain = binding.entityId.split('.')[0];
+      const service = domain === 'light' || domain === 'switch' ? 'toggle' : 'toggle';
+      this.hass.callService(domain, service, { entity_id: binding.entityId })
+        .catch(() => {
+          // Fallback générique homeassistant.toggle
+          this.hass.callService('homeassistant', 'toggle', { entity_id: binding.entityId });
+        });
+    } else {
+      console.log(`[Demo Standalone] Toggle entité: ${binding.entityId}`);
+    }
+  }
+
+  private handleEntityDblClick(binding: EntityBinding, e: Event): void {
+    e.stopPropagation();
+    // Interaction 2 : More-Info modal HA
+    this.dispatchEvent(new CustomEvent('hass-more-info', {
+      detail: { entityId: binding.entityId },
+      bubbles: true,
+      composed: true
+    }));
+  }
+
   private handleKeyDown(e: KeyboardEvent): void {
     if (e.key === 'Escape') {
       this.drawingWallStart = null;
@@ -293,14 +368,12 @@ export class HomeArchitectCanvas extends LitElement {
       this.wallSnap = null;
       this.requestUpdate();
     } else if (e.key === ' ' || e.key === 'Spacebar') {
-      // Espace : bascule le sens d'ouverture de la porte
       if (this.wallSnap) {
         e.preventDefault();
         this.openingFlipSide = !this.openingFlipSide;
         this.requestUpdate();
       }
     } else if (e.key.toLowerCase() === 'f') {
-      // F : bascule la direction gauche/droite
       if (this.wallSnap) {
         this.openingFlipDirection = !this.openingFlipDirection;
         this.requestUpdate();
@@ -327,7 +400,7 @@ export class HomeArchitectCanvas extends LitElement {
   }
 
   // ==========================================
-  // RENDU GÉOMÉTRIQUE
+  // RENDU GÉOMÉTRIQUE & 3D
   // ==========================================
 
   private computeWallPolygon(start: Point, end: Point, thickness: number): Point[] {
@@ -348,12 +421,10 @@ export class HomeArchitectCanvas extends LitElement {
     ];
   }
 
-  // Calque de fond d'image importé
   private renderBackgroundLayer() {
     const bg = this.project.background;
     if (!bg || !bg.imageUrl || !bg.visible) return null;
 
-    const ppm = this.project.pixelsPerMeter * this.viewport.zoom;
     const pos = this.worldToScreen(bg.offset || { x: 0, y: 0 });
     const scale = bg.scale || 1.0;
 
@@ -374,7 +445,7 @@ export class HomeArchitectCanvas extends LitElement {
     `;
   }
 
-  // Calque des Pièces (Surfaces colorées et étiquettes m²)
+  // Rendu des Pièces avec détection d'illumination si lumière allumée
   private renderRooms() {
     return this.project.rooms.map((room) => {
       if (!room.polygon || room.polygon.length < 3) return null;
@@ -382,20 +453,24 @@ export class HomeArchitectCanvas extends LitElement {
       const screenPts = room.polygon.map(p => this.worldToScreen(p));
       const pointsAttr = screenPts.map(p => `${p.x},${p.y}`).join(' ');
 
-      // Calcul du centroïde pour placer l'étiquette
-      let cx = 0, cy = 0;
-      screenPts.forEach(p => { cx += p.x; cy += p.y; });
-      cx /= screenPts.length;
-      cy /= screenPts.length;
+      // Vérifie si une lumière liée à cette pièce est allumée
+      const isRoomIlluminated = this.project.bindings
+        .filter(b => b.roomId === room.id && b.entityId.startsWith('light.'))
+        .some(b => {
+          const state = this.hass?.states?.[b.entityId]?.state;
+          return state === 'on';
+        });
+
+      const centroid = PolygonUtils.calculateCentroid(screenPts);
 
       return svg`
         <g class="room-group" data-room-id="${room.id}">
           <polygon 
             points="${pointsAttr}" 
-            class="room-polygon"
+            class="room-polygon ${isRoomIlluminated ? 'illuminated' : ''}"
             style="fill: ${room.color || 'rgba(56, 189, 248, 0.12)'};"
           />
-          <g class="room-label-group" transform="translate(${cx}, ${cy})">
+          <g class="room-label-group" transform="translate(${centroid.x}, ${centroid.y})">
             <text class="room-label-name" y="-6">${room.name}</text>
             <text class="room-label-area" y="12">${room.areaM2.toFixed(1)} m²</text>
           </g>
@@ -405,6 +480,8 @@ export class HomeArchitectCanvas extends LitElement {
   }
 
   private renderGrid() {
+    if (this.is3DMode) return null; // Grille épurée en 3D
+
     const ppm = this.project.pixelsPerMeter * this.viewport.zoom;
     const gridMeters = this.project.grid.size || 0.5;
     const stepPx = gridMeters * ppm;
@@ -432,6 +509,9 @@ export class HomeArchitectCanvas extends LitElement {
   }
 
   private renderWalls() {
+    const ppm = this.project.pixelsPerMeter * this.viewport.zoom;
+    const wallExtrusionH = this.is3DMode ? 40 * this.viewport.zoom : 0; // Hauteur d'extrusion 3D en px
+
     return this.project.walls.map((wall) => {
       const p = this.computeWallPolygon(wall.start, wall.end, wall.thickness);
       const sp = p.map(pt => this.worldToScreen(pt));
@@ -445,6 +525,24 @@ export class HomeArchitectCanvas extends LitElement {
         y: (sStart.y + sEnd.y) / 2
       };
 
+      if (this.is3DMode) {
+        // Rendu 3D avec parois verticales et toit de mur
+        const spTop = sp.map(pt => ({ x: pt.x, y: pt.y - wallExtrusionH }));
+        const pointsTopAttr = spTop.map(pt => `${pt.x},${pt.y}`).join(' ');
+
+        return svg`
+          <g class="wall-element-3d" data-wall-id="${wall.id}">
+            <!-- Paroi latérale ombrée 1 -->
+            <polygon points="${sp[0].x},${sp[0].y} ${sp[1].x},${sp[1].y} ${spTop[1].x},${spTop[1].y} ${spTop[0].x},${spTop[0].y}" class="wall-3d-side-shaded" />
+            <!-- Paroi latérale ombrée 2 -->
+            <polygon points="${sp[1].x},${sp[1].y} ${sp[2].x},${sp[2].y} ${spTop[2].x},${spTop[2].y} ${spTop[1].x},${spTop[1].y}" class="wall-3d-side-light" />
+            <!-- Chapeau supérieur du mur -->
+            <polygon points="${pointsTopAttr}" class="wall-3d-top" />
+          </g>
+        `;
+      }
+
+      // Rendu 2D classique
       return svg`
         <g class="wall-element" data-wall-id="${wall.id}">
           <polygon points="${pointsAttr}" class="wall-rect" />
@@ -461,7 +559,6 @@ export class HomeArchitectCanvas extends LitElement {
     });
   }
 
-  // Rendu des Portes et Fenêtres dans les cloisons
   private renderOpenings() {
     return this.project.openings.map((op) => {
       const wall = this.project.walls.find(w => w.id === op.wallId);
@@ -475,7 +572,6 @@ export class HomeArchitectCanvas extends LitElement {
       const angleRad = Math.atan2(dy, dx);
       const angleDeg = (angleRad * 180) / Math.PI;
 
-      // Position de l'ouverture
       const opX = wall.start.x + (op.offset / wallLen) * dx;
       const opY = wall.start.y + (op.offset / wallLen) * dy;
       const screenPos = this.worldToScreen({ x: opX, y: opY });
@@ -489,7 +585,6 @@ export class HomeArchitectCanvas extends LitElement {
           class="opening-element" 
           transform="translate(${screenPos.x}, ${screenPos.y}) rotate(${angleDeg})"
         >
-          <!-- Découpe du mur -->
           <rect 
             x="${-wPx / 2}" 
             y="${-thickPx / 2 - 1}" 
@@ -498,7 +593,6 @@ export class HomeArchitectCanvas extends LitElement {
             class="wall-cutout"
           />
 
-          <!-- Rendu Porte ou Fenêtre -->
           ${op.type === 'door' ? this.renderDoorSymbol(wPx, thickPx, op.flipSide, op.flipDirection) : null}
           ${op.type === 'window' ? this.renderWindowSymbol(wPx, thickPx) : null}
           ${op.type === 'french_window' ? this.renderFrenchWindowSymbol(wPx, thickPx) : null}
@@ -507,7 +601,6 @@ export class HomeArchitectCanvas extends LitElement {
     });
   }
 
-  // Symboles architecturaux
   private renderDoorSymbol(wPx: number, thickPx: number, flipSide: boolean, flipDirection: boolean) {
     const halfW = wPx / 2;
     const signSide = flipSide ? -1 : 1;
@@ -516,11 +609,8 @@ export class HomeArchitectCanvas extends LitElement {
 
     return svg`
       <g>
-        <!-- Bâti de porte -->
         <rect x="${-halfW}" y="${-thickPx / 2}" width="4" height="${thickPx}" fill="#94a3b8" />
         <rect x="${halfW - 4}" y="${-thickPx / 2}" width="4" height="${thickPx}" fill="#94a3b8" />
-
-        <!-- Vantail ouvert à 90 degrés -->
         <line 
           x1="${pivotX}" 
           y1="0" 
@@ -528,8 +618,6 @@ export class HomeArchitectCanvas extends LitElement {
           y2="${signSide * wPx}" 
           class="opening-door-leaf" 
         />
-
-        <!-- Arc d'ouverture quart-de-cercle -->
         <path 
           d="M ${pivotX + (sweepSign * wPx)} 0 A ${wPx} ${wPx} 0 0 ${signSide > 0 ? (flipDirection ? 0 : 1) : (flipDirection ? 1 : 0)} ${pivotX} ${signSide * wPx}" 
           class="opening-door-arc" 
@@ -542,9 +630,7 @@ export class HomeArchitectCanvas extends LitElement {
     const halfW = wPx / 2;
     return svg`
       <g>
-        <!-- Cadre extérieur -->
         <rect x="${-halfW}" y="${-thickPx / 2}" width="${wPx}" height="${thickPx}" fill="none" class="opening-window-frame" />
-        <!-- Vitrage central -->
         <line x1="${-halfW}" y1="0" x2="${halfW}" y2="0" class="opening-window-glass" />
         <line x1="${-halfW + 4}" y1="${-thickPx / 4}" x2="${halfW - 4}" y2="${-thickPx / 4}" stroke="rgba(56, 189, 248, 0.4)" stroke-width="1" />
         <line x1="${-halfW + 4}" y1="${thickPx / 4}" x2="${halfW - 4}" y2="${thickPx / 4}" stroke="rgba(56, 189, 248, 0.4)" stroke-width="1" />
@@ -557,14 +643,62 @@ export class HomeArchitectCanvas extends LitElement {
     return svg`
       <g>
         <rect x="${-halfW}" y="${-thickPx / 2}" width="${wPx}" height="${thickPx}" fill="none" class="opening-window-frame" />
-        <!-- Double vantail coulissant -->
         <rect x="${-halfW}" y="${-thickPx / 4}" width="${halfW}" height="3" fill="#38bdf8" />
         <rect x="0" y="${thickPx / 4}" width="${halfW}" height="3" fill="#38bdf8" />
       </g>
     `;
   }
 
-  // Prévisualisation de placement d'ouvrant lors du survol de mur
+  // ==========================================
+  // RENDU DES PINS D'ENTITÉS HOME ASSISTANT
+  // ==========================================
+
+  private renderEntityBindings() {
+    return this.project.bindings.map((binding) => {
+      const sPos = this.worldToScreen(binding.position);
+      const entityState = this.hass?.states?.[binding.entityId];
+      const stateStr = entityState?.state || 'off';
+      const isLightOn = binding.entityId.startsWith('light.') && stateStr === 'on';
+      const isRadarActive = binding.entityId.startsWith('binary_sensor.') && (stateStr === 'on' || stateStr === 'detected');
+      const isTempSensor = binding.entityId.startsWith('sensor.') || binding.entityId.startsWith('climate.');
+      const unit = entityState?.attributes?.unit_of_measurement || (isTempSensor ? '°' : '');
+
+      return svg`
+        <g 
+          class="entity-pin ${isLightOn ? 'active-light' : ''} ${isRadarActive ? 'active-radar' : ''}"
+          transform="translate(${sPos.x}, ${sPos.y})"
+          @click=${(e: Event) => this.handleEntityClick(binding, e)}
+          @dblclick=${(e: Event) => this.handleEntityDblClick(binding, e)}
+          title="${binding.customName || binding.entityId} : ${stateStr} (Clic pour basculer)"
+        >
+          <!-- Onde radar animée si mouvement détecté -->
+          ${isRadarActive ? svg`<circle cx="0" cy="0" r="16" class="radar-pulse-ring" />` : null}
+
+          <!-- Pastille de fond -->
+          <circle cx="0" cy="0" r="16" class="entity-pin-bg" />
+
+          <!-- Pictogramme -->
+          <text x="0" y="0" class="entity-pin-icon">
+            ${binding.icon || '⚡'}
+          </text>
+
+          <!-- Étiquette Nom -->
+          <text x="0" y="27" class="entity-pin-label">
+            ${binding.customName || binding.entityId.split('.')[1]}
+          </text>
+
+          <!-- Badge Valeur (Thermostat / Capteur) -->
+          ${isTempSensor && stateStr !== 'unknown' ? svg`
+            <g class="entity-pin-value-badge" transform="translate(14, -14)">
+              <rect x="-14" y="-8" width="28" height="16" />
+              <text>${stateStr}${unit}</text>
+            </g>
+          ` : null}
+        </g>
+      `;
+    });
+  }
+
   private renderOpeningPreview() {
     if (!this.wallSnap) return null;
 
@@ -623,7 +757,6 @@ export class HomeArchitectCanvas extends LitElement {
     `;
   }
 
-  // Prévisualisation du tracé d'étalonnage
   private renderCalibrationLine() {
     if (!this.calibrateStart || !this.calibrateCurrent) return null;
 
@@ -662,10 +795,6 @@ export class HomeArchitectCanvas extends LitElement {
     `;
   }
 
-  // ==========================================
-  // COMMANDES HUD ZOOM & CENTRAGE
-  // ==========================================
-
   private zoomIn(): void {
     this.viewport = { ...this.viewport, zoom: Math.min(this.viewport.zoom * 1.25, 8.0) };
   }
@@ -678,7 +807,17 @@ export class HomeArchitectCanvas extends LitElement {
     this.viewport = { x: 300, y: 300, zoom: 1.0 };
   }
 
+  private toggle3DMode(): void {
+    this.is3DMode = !this.is3DMode;
+    this.dispatchEvent(new CustomEvent('toggle-3d', {
+      detail: { is3DMode: this.is3DMode },
+      bubbles: true,
+      composed: true
+    }));
+  }
+
   private getHelpMessage(): string | null {
+    if (this.is3DMode) return "Vue 3D Isométrique : Murs extrudés avec éclairage dynamique.";
     if (this.activeTool === 'wall') {
       return this.drawingWallStart ? "Cliquez pour terminer le mur. Échap pour annuler." : "Cliquez pour démarrer un mur.";
     }
@@ -704,46 +843,39 @@ export class HomeArchitectCanvas extends LitElement {
         @pointerdown=${this.handlePointerDown}
         @pointermove=${this.handlePointerMove}
         @pointerup=${this.handlePointerUp}
+        @dragover=${this.handleDragOver}
+        @drop=${this.handleDrop}
       >
-        <svg class="main-viewport">
-          <!-- 1. Calque Image de Fond -->
-          ${this.renderBackgroundLayer()}
+        <div class="viewport-3d-wrapper ${this.is3DMode ? 'mode-3d' : ''}">
+          <svg class="main-viewport">
+            ${this.renderBackgroundLayer()}
+            ${this.renderGrid()}
+            ${this.renderRooms()}
+            ${this.renderWalls()}
+            ${this.renderOpenings()}
+            ${this.renderOpeningPreview()}
+            ${this.renderPreviewWall()}
+            ${this.renderCalibrationLine()}
+            ${this.renderSnapIndicator()}
+            ${this.renderEntityBindings()}
+          </svg>
+        </div>
 
-          <!-- 2. Grille métrique -->
-          ${this.renderGrid()}
-
-          <!-- 3. Pièces / Sols -->
-          ${this.renderRooms()}
-
-          <!-- 4. Murs -->
-          ${this.renderWalls()}
-
-          <!-- 5. Ouvertures (Portes & Fenêtres) -->
-          ${this.renderOpenings()}
-
-          <!-- 6. Prévisualisation Ouvertures -->
-          ${this.renderOpeningPreview()}
-
-          <!-- 7. Prévisualisation Mur en tracé -->
-          ${this.renderPreviewWall()}
-
-          <!-- 8. Ligne d'étalonnage -->
-          ${this.renderCalibrationLine()}
-
-          <!-- 9. Indicateur d'accroche magnétique -->
-          ${this.renderSnapIndicator()}
-        </svg>
-
-        <!-- Message d'aide contextuel en haut -->
         ${helpMsg ? html`<div class="help-hud">${helpMsg}</div>` : null}
 
-        <!-- Coordonnées curseur -->
         <div class="coords-hud">
           X: ${this.cursorCoords.x.toFixed(2)} m | Y: ${this.cursorCoords.y.toFixed(2)} m | Outil: ${this.activeTool.toUpperCase()}
         </div>
 
-        <!-- HUD Contrôles Zoom -->
+        <!-- HUD Contrôles Zoom & 3D -->
         <div class="canvas-hud">
+          <button 
+            class="hud-btn ${this.is3DMode ? 'active' : ''}" 
+            @click=${this.toggle3DMode} 
+            title="Basculer Vue 2D / 3D Isométrique"
+          >
+            ${this.is3DMode ? '🧊' : '📐'}
+          </button>
           <button class="hud-btn" @click=${this.zoomOut} title="Zoom Arrière">−</button>
           <div class="hud-zoom-label">${Math.round(this.viewport.zoom * 100)}%</div>
           <button class="hud-btn" @click=${this.zoomIn} title="Zoom Avant">+</button>

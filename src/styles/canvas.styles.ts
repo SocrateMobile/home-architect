@@ -18,6 +18,8 @@ export const canvasStyles = css`
     height: 100%;
     position: relative;
     cursor: crosshair;
+    perspective: 1200px;
+    transition: perspective 0.4s ease;
   }
 
   .canvas-container.panning {
@@ -26,6 +28,19 @@ export const canvasStyles = css`
 
   .canvas-container.is-panning {
     cursor: grabbing;
+  }
+
+  /* Mode 3D Isométrique */
+  .viewport-3d-wrapper {
+    width: 100%;
+    height: 100%;
+    transform-origin: center center;
+    transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .viewport-3d-wrapper.mode-3d {
+    transform: rotateX(55deg) rotateZ(-35deg);
+    filter: drop-shadow(0 40px 50px rgba(0, 0, 0, 0.75));
   }
 
   svg.main-viewport {
@@ -56,8 +71,14 @@ export const canvasStyles = css`
   .room-polygon {
     stroke: rgba(56, 189, 248, 0.4);
     stroke-width: 1.5;
-    transition: fill 0.2s ease, stroke 0.2s ease;
+    transition: fill 0.3s ease, stroke 0.3s ease;
     cursor: pointer;
+  }
+
+  .room-polygon.illuminated {
+    fill: rgba(250, 204, 21, 0.24) !important;
+    stroke: rgba(250, 204, 21, 0.7) !important;
+    filter: drop-shadow(0 0 15px rgba(250, 204, 21, 0.4));
   }
 
   .room-polygon:hover {
@@ -86,7 +107,7 @@ export const canvasStyles = css`
     filter: drop-shadow(0 1px 3px rgba(0,0,0,0.8));
   }
 
-  /* Walls */
+  /* Walls 2D */
   .wall-rect {
     fill: #334155;
     stroke: #64748b;
@@ -107,6 +128,25 @@ export const canvasStyles = css`
     opacity: 0.5;
   }
 
+  /* Walls 3D Extrusion */
+  .wall-3d-top {
+    fill: #64748b;
+    stroke: #94a3b8;
+    stroke-width: 1;
+  }
+
+  .wall-3d-side-shaded {
+    fill: #1e293b;
+    stroke: #334155;
+    stroke-width: 1;
+  }
+
+  .wall-3d-side-light {
+    fill: #475569;
+    stroke: #64748b;
+    stroke-width: 1;
+  }
+
   /* Wall cut-out mask for openings */
   .wall-cutout {
     fill: #0f172a;
@@ -114,11 +154,6 @@ export const canvasStyles = css`
   }
 
   /* Doors & Windows */
-  .opening-door-frame {
-    stroke: #cbd5e1;
-    stroke-width: 2.5;
-  }
-
   .opening-door-leaf {
     stroke: #38bdf8;
     stroke-width: 2;
@@ -218,6 +253,82 @@ export const canvasStyles = css`
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   }
 
+  /* ======================================= */
+  /* ENTITY PINS & LIVE HOME ASSISTANT STATES */
+  /* ======================================= */
+
+  .entity-pin {
+    cursor: pointer;
+    transition: transform 0.15s ease;
+  }
+
+  .entity-pin:hover {
+    transform: scale(1.15);
+  }
+
+  .entity-pin-bg {
+    fill: rgba(30, 41, 59, 0.9);
+    stroke: rgba(255, 255, 255, 0.2);
+    stroke-width: 2;
+    filter: drop-shadow(0 4px 8px rgba(0,0,0,0.5));
+    transition: all 0.2s ease;
+  }
+
+  .entity-pin.active-light .entity-pin-bg {
+    fill: #0284c7;
+    stroke: #facc15;
+    filter: drop-shadow(0 0 16px rgba(250, 204, 21, 0.8));
+  }
+
+  .entity-pin.active-radar .entity-pin-bg {
+    stroke: #ef4444;
+    filter: drop-shadow(0 0 14px rgba(239, 68, 68, 0.7));
+  }
+
+  .radar-pulse-ring {
+    fill: none;
+    stroke: #ef4444;
+    stroke-width: 2;
+    animation: radarPulse 1.8s infinite ease-out;
+  }
+
+  @keyframes radarPulse {
+    0% { r: 12px; opacity: 1; }
+    100% { r: 38px; opacity: 0; }
+  }
+
+  .entity-pin-icon {
+    font-size: 15px;
+    text-anchor: middle;
+    dominant-baseline: central;
+    user-select: none;
+  }
+
+  .entity-pin-label {
+    fill: #ffffff;
+    font-size: 10px;
+    font-weight: 700;
+    text-anchor: middle;
+    filter: drop-shadow(0 1px 3px rgba(0,0,0,0.9));
+    pointer-events: none;
+  }
+
+  .entity-pin-value-badge rect {
+    fill: rgba(15, 23, 42, 0.9);
+    stroke: #38bdf8;
+    stroke-width: 1;
+    rx: 4;
+  }
+
+  .entity-pin-value-badge text {
+    fill: #38bdf8;
+    font-size: 9px;
+    font-weight: 700;
+    text-anchor: middle;
+    dominant-baseline: central;
+    font-family: ui-monospace, SFMono-Regular, monospace;
+  }
+
   /* Floating Overlay HUD */
   .canvas-hud {
     position: absolute;
@@ -256,6 +367,12 @@ export const canvasStyles = css`
     transform: translateY(-1px);
   }
 
+  .hud-btn.active {
+    background: #0284c7;
+    border-color: #38bdf8;
+    color: #ffffff;
+  }
+
   .hud-zoom-label {
     display: flex;
     align-items: center;
@@ -284,7 +401,6 @@ export const canvasStyles = css`
     pointer-events: none;
   }
 
-  /* Help Tooltip HUD */
   .help-hud {
     position: absolute;
     top: 20px;

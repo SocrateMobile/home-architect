@@ -44,8 +44,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # 2. Register WebSocket API commands
     async_register_websocket_commands(hass, storage)
 
-    # 3. Register static path for frontend JS bundle
+    # 3. Register static path and Lovelace card resource for frontend JS bundle
     frontend_dir = os.path.join(os.path.dirname(__file__), "frontend")
+    module_url = f"{FRONTEND_URL_PATH}/{FRONTEND_FILE_NAME}?v={VERSION}"
     if os.path.exists(frontend_dir):
         if hasattr(hass.http, "async_register_static_paths"):
             await hass.http.async_register_static_paths(
@@ -54,6 +55,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         else:
             hass.http.register_static_path(FRONTEND_URL_PATH, frontend_dir, cache_headers=False)
         _LOGGER.debug("Registered Home Architect frontend path at %s", FRONTEND_URL_PATH)
+
+        if hasattr(frontend, "add_extra_js_url"):
+            frontend.add_extra_js_url(hass, module_url)
+        elif hasattr(frontend, "async_register_built_in_panel"):
+            pass
 
     # 4. Register sidebar panel
     show_panel = entry.options.get(
