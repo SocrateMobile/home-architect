@@ -1,0 +1,27 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Home Architect",
+        "description": "Activate the interactive floorplan CAD studio inside Home Assistant.",
+        "data": {
+          "show_sidebar_panel": "Show sidebar panel in left menu"
+        }
+      }
+    },
+    "abort": {
+      "already_configured": "Home Architect is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Home Architect Options",
+        "description": "Configure Home Architect display settings.",
+        "data": {
+          "show_sidebar_panel": "Show sidebar panel in left menu"
+        }
+      }
+    }
+  }
+}
