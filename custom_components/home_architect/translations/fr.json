@@ -1,0 +1,27 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Home Architect",
+        "description": "Activez le studio de conception et de dessin de plans interactifs dans Home Assistant.",
+        "data": {
+          "show_sidebar_panel": "Afficher l'icône dans la barre latérale gauche"
+        }
+      }
+    },
+    "abort": {
+      "already_configured": "Home Architect est déjà configuré."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Options Home Architect",
+        "description": "Configurer les paramètres d'affichage de Home Architect.",
+        "data": {
+          "show_sidebar_panel": "Afficher l'icône dans la barre latérale gauche"
+        }
+      }
+    }
+  }
+}
