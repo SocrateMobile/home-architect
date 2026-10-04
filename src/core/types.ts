@@ -74,6 +74,7 @@ export interface GridConfig {
 export interface HomeArchitectProject {
   id: string;
   name: string;
+  category?: string; // 'rdc' | 'jardin' | 'sous-sol' | 'etage1' | 'etage2' | 'etage3' | 'autre'
   created_at: string;
   updated_at: string;
   pixelsPerMeter: number; // Default 50 px/m

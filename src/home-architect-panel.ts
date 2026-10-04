@@ -11,6 +11,7 @@ import { ImportModalResult } from './components/import-modal';
 import './components/rescale-modal';
 import { RescaleModalResult } from './components/rescale-modal';
 import './components/export-modal';
+import './components/save-load-modal';
 import { SnappingEngine } from './core/snapping';
 import { PolygonUtils } from './core/polygon';
 import { 
@@ -926,6 +927,12 @@ export class HomeArchitectPanel extends LitElement {
   private isExportModalOpen: boolean = false;
 
   @state()
+  private isSaveLoadModalOpen: boolean = false;
+
+  @state()
+  private saveLoadModalTab: 'save' | 'load' = 'save';
+
+  @state()
   private isCalibrateModalOpen: boolean = false;
 
   @state()
@@ -1237,6 +1244,38 @@ export class HomeArchitectPanel extends LitElement {
       }
     };
     window.addEventListener('click', this._boundClickOutside);
+  }
+
+  async firstUpdated() {
+    if (this.hass && this.hass.callWS) {
+      try {
+        const res = await this.hass.callWS({ type: 'home_architect/get_projects' });
+        if (res && res.projects && Array.isArray(res.projects)) {
+          for (const p of res.projects) {
+            if (p && p.id) {
+              this.levelProjects[p.id] = p;
+            }
+          }
+          if (this.levelProjects[this.activeLevel]) {
+            this.project = { ...this.levelProjects[this.activeLevel] };
+          }
+        }
+      } catch (e) {
+        console.warn('Initial project load from HA websocket failed:', e);
+      }
+    }
+    if (!this.levelProjects[this.activeLevel]) {
+      const saved = localStorage.getItem(`home_architect_${this.activeLevel}`);
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (parsed && parsed.id) {
+            this.project = parsed;
+            this.levelProjects[this.activeLevel] = parsed;
+          }
+        } catch (_) {}
+      }
+    }
   }
 
   disconnectedCallback() {
@@ -1607,7 +1646,9 @@ export class HomeArchitectPanel extends LitElement {
   private getGhostProject(): HomeArchitectProject | null {
     if (!this.showGhostLevel) return null;
     let ghostId: string | null = null;
-    if (this.activeLevel === 'etage1') ghostId = 'rdc';
+    if (this.activeLevel === 'etage3') ghostId = 'etage2';
+    else if (this.activeLevel === 'etage2') ghostId = 'etage1';
+    else if (this.activeLevel === 'etage1') ghostId = 'rdc';
     else if (this.activeLevel === 'rdc') ghostId = 'sous-sol';
     if (!ghostId) return null;
     return this.levelProjects[ghostId] || null;
@@ -1625,11 +1666,14 @@ export class HomeArchitectPanel extends LitElement {
         'sous-sol': 'Sous-Sol',
         'rdc': 'Rez-de-Chaussée',
         'etage1': '1er Étage',
+        'etage2': '2ème Étage',
+        'etage3': '3ème Étage',
         'jardin': 'Jardin'
       };
       this.project = {
         id: newLevel,
         name: levelNames[newLevel] || newLevel,
+        category: newLevel,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
         pixelsPerMeter: 50,
@@ -1709,6 +1753,8 @@ export class HomeArchitectPanel extends LitElement {
       case 'sous-sol': return 'Sous-Sol';
       case 'rdc': return 'RDC';
       case 'etage1': return '1er Étage';
+      case 'etage2': return '2ème Étage';
+      case 'etage3': return '3ème Étage';
       case 'jardin': return 'Jardin';
       default: return levelId.toUpperCase();
     }
@@ -1809,22 +1855,85 @@ export class HomeArchitectPanel extends LitElement {
     }
   }
 
+  private openSaveModal() {
+    this.saveLoadModalTab = 'save';
+    this.isSaveLoadModalOpen = true;
+    this.activeDropdown = null;
+  }
+
+  private openLoadModal() {
+    this.saveLoadModalTab = 'load';
+    this.isSaveLoadModalOpen = true;
+    this.activeDropdown = null;
+  }
+
   private saveProject() {
+    this.openSaveModal();
+  }
+
+  private async handleSaveConfirmed(e: CustomEvent<{ name: string; category: string }>) {
+    const { name, category } = e.detail;
+
+    const knownCategories = ['sous-sol', 'rdc', 'etage1', 'etage2', 'etage3', 'jardin'];
+    let projectId = this.project.id;
+    if (knownCategories.includes(category) && (!projectId || knownCategories.includes(projectId))) {
+      projectId = category;
+    } else if (!projectId) {
+      projectId = 'plan_' + Date.now();
+    }
+
+    this.project = {
+      ...this.project,
+      id: projectId,
+      name,
+      category,
+      updated_at: new Date().toISOString()
+    };
+
+    if (knownCategories.includes(category)) {
+      this.activeLevel = category;
+    }
+    this.levelProjects[this.activeLevel] = { ...this.project };
+
     if (this.hass && this.hass.callWS) {
-      this.hass.callWS({
-        type: 'home_architect/save_project',
-        project: this.project
-      }).then(() => {
-        this.showToast('💾 Plan sauvegardé avec succès dans Home Assistant !');
-      }).catch((err: any) => {
+      try {
+        await this.hass.callWS({
+          type: 'home_architect/save_project',
+          project: this.project
+        });
+        this.showToast(`💾 Plan "${name}" (${category}) sauvegardé avec succès dans Home Assistant !`);
+      } catch (err: any) {
         console.error('Erreur sauvegarde HA:', err);
         localStorage.setItem(`home_architect_${this.project.id}`, JSON.stringify(this.project));
-        this.showToast('💾 Sauvegardé localement dans le navigateur (Mode hors-ligne).');
-      });
+        this.showToast(`💾 Plan "${name}" sauvegardé localement (Mode hors-ligne).`);
+      }
     } else {
       localStorage.setItem(`home_architect_${this.project.id}`, JSON.stringify(this.project));
-      this.showToast('💾 Plan sauvegardé localement !');
+      this.showToast(`💾 Plan "${name}" sauvegardé localement !`);
     }
+
+    this.isSaveLoadModalOpen = false;
+  }
+
+  private handleLoadProject(e: CustomEvent<{ project: HomeArchitectProject }>) {
+    const loaded = e.detail.project;
+    if (!loaded) return;
+
+    this.pushUndoSnapshot();
+    this.project = { ...loaded };
+
+    const cat = loaded.category || loaded.id;
+    const knownLevels = ['sous-sol', 'rdc', 'etage1', 'etage2', 'etage3', 'jardin'];
+    if (cat && knownLevels.includes(cat)) {
+      this.activeLevel = cat;
+    }
+    this.levelProjects[this.activeLevel] = { ...this.project };
+
+    this.undoStack = [];
+    this.redoStack = [];
+    this.clearSelection();
+    this.isSaveLoadModalOpen = false;
+    this.showToast(`📂 Plan "${loaded.name || loaded.id}" chargé avec succès !`);
   }
 
   render() {
@@ -1840,7 +1949,7 @@ export class HomeArchitectPanel extends LitElement {
 
         <!-- 3 Menus Déroulants Principaux : Fichier, Plan, Pièce -->
         <div style="display: flex; align-items: center; gap: 8px;">
-          <!-- 1. Menu Fichier (Demande 5: Importer un plan, Exporter Lovelace, Sauvegarder) -->
+          <!-- 1. Menu Fichier (Ouvrir, Sauvegarder, Importer, Exporter) -->
           <div class="dropdown-menu-wrapper">
             <button class="btn-dropdown-trigger ${this.activeDropdown === 'file' ? 'active' : ''}" @click=${(e: Event) => this.toggleDropdown('file', e)}>
               <span>📁</span>
@@ -1849,6 +1958,15 @@ export class HomeArchitectPanel extends LitElement {
             </button>
             ${this.activeDropdown === 'file' ? html`
               <div class="dropdown-menu-popup">
+                <button class="dropdown-item" @click=${() => this.openLoadModal()}>
+                  <span>📂</span>
+                  <span>Ouvrir / Recharger un plan...</span>
+                </button>
+                <button class="dropdown-item" @click=${() => this.openSaveModal()}>
+                  <span>💾</span>
+                  <span>Sauvegarder le plan...</span>
+                </button>
+                <div class="dropdown-divider"></div>
                 <button class="dropdown-item" @click=${() => { this.isImportModalOpen = true; this.activeDropdown = null; }}>
                   <span>📥</span>
                   <span>Importer un plan...</span>
@@ -1856,11 +1974,6 @@ export class HomeArchitectPanel extends LitElement {
                 <button class="dropdown-item" @click=${() => { this.isExportModalOpen = true; this.activeDropdown = null; }}>
                   <span>📤</span>
                   <span>Exporter Lovelace...</span>
-                </button>
-                <div class="dropdown-divider"></div>
-                <button class="dropdown-item" @click=${() => { this.saveProject(); this.activeDropdown = null; }}>
-                  <span>💾</span>
-                  <span>Sauvegarder le plan</span>
                 </button>
               </div>
             ` : null}
@@ -1909,7 +2022,7 @@ export class HomeArchitectPanel extends LitElement {
             ` : null}
           </div>
 
-          <!-- 3. Menu Pièce (Demande 3: Rassembler Sous-Sol, RDC, 1er Étage, Jardin) -->
+          <!-- 3. Menu Pièce (Sous-Sol, RDC, 1er Étage, 2ème Étage, 3ème Étage, Jardin) -->
           <div class="dropdown-menu-wrapper">
             <button class="btn-dropdown-trigger ${this.activeDropdown === 'level' ? 'active' : ''}" @click=${(e: Event) => this.toggleDropdown('level', e)}>
               <span>🏢</span>
@@ -1932,6 +2045,16 @@ export class HomeArchitectPanel extends LitElement {
                   <span>🏠</span>
                   <span>1er Étage</span>
                   ${this.activeLevel === 'etage1' ? html`<span class="dropdown-item-check">✓</span>` : null}
+                </button>
+                <button class="dropdown-item ${this.activeLevel === 'etage2' ? 'active' : ''}" @click=${() => { this.handleLevelSwitch('etage2'); this.activeDropdown = null; }}>
+                  <span>🏠</span>
+                  <span>2ème Étage</span>
+                  ${this.activeLevel === 'etage2' ? html`<span class="dropdown-item-check">✓</span>` : null}
+                </button>
+                <button class="dropdown-item ${this.activeLevel === 'etage3' ? 'active' : ''}" @click=${() => { this.handleLevelSwitch('etage3'); this.activeDropdown = null; }}>
+                  <span>🏠</span>
+                  <span>3ème Étage</span>
+                  ${this.activeLevel === 'etage3' ? html`<span class="dropdown-item-check">✓</span>` : null}
                 </button>
                 <button class="dropdown-item ${this.activeLevel === 'jardin' ? 'active' : ''}" @click=${() => { this.handleLevelSwitch('jardin'); this.activeDropdown = null; }}>
                   <span>🌳</span>
@@ -2310,6 +2433,18 @@ export class HomeArchitectPanel extends LitElement {
           .hass=${this.hass}
           @close=${() => this.isExportModalOpen = false}
         ></home-architect-export-modal>
+      ` : null}
+
+      <!-- Modal Sauvegarder & Recharger un Plan -->
+      ${this.isSaveLoadModalOpen ? html`
+        <home-architect-save-load-modal
+          .hass=${this.hass}
+          .project=${this.project}
+          .initialTab=${this.saveLoadModalTab}
+          @save-confirmed=${this.handleSaveConfirmed}
+          @load-project=${this.handleLoadProject}
+          @close=${() => this.isSaveLoadModalOpen = false}
+        ></home-architect-save-load-modal>
       ` : null}
     `;
   }
