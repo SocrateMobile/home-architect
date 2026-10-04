@@ -76,15 +76,16 @@ def async_register_websocket_commands(
         def _write():
             www_path = hass.config.path("www")
             os.makedirs(www_path, exist_ok=True)
-            target = os.path.join(www_path, filename)
+            clean_filename = os.path.basename(filename)
+            target = os.path.join(www_path, clean_filename)
             with open(target, "w", encoding="utf-8") as f:
                 f.write(svg_content)
-            return target
+            return clean_filename
 
         try:
-            target_path = await hass.async_add_executor_job(_write)
-            _LOGGER.info("Saved floor plan SVG directly to %s", target_path)
-            connection.send_result(msg["id"], {"success": True, "path": f"/local/{filename}"})
+            saved_name = await hass.async_add_executor_job(_write)
+            _LOGGER.info("Saved floor plan SVG directly to /local/%s", saved_name)
+            connection.send_result(msg["id"], {"success": True, "path": f"/local/{saved_name}"})
         except Exception as err:
             _LOGGER.error("Failed to save floor plan SVG to www: %s", err)
             connection.send_error(msg["id"], "write_failed", str(err))

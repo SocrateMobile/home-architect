@@ -1259,15 +1259,15 @@ export class HomeArchitectPanel extends LitElement {
         type: 'home_architect/save_project',
         project: this.project
       }).then(() => {
-        alert('Plan sauvegardé avec succès dans Home Assistant !');
+        this.showToast('💾 Plan sauvegardé avec succès dans Home Assistant !');
       }).catch((err: any) => {
         console.error('Erreur sauvegarde HA:', err);
         localStorage.setItem(`home_architect_${this.project.id}`, JSON.stringify(this.project));
-        alert('Sauvegardé localement dans le navigateur.');
+        this.showToast('💾 Sauvegardé localement dans le navigateur (Mode hors-ligne).');
       });
     } else {
       localStorage.setItem(`home_architect_${this.project.id}`, JSON.stringify(this.project));
-      alert('Plan sauvegardé localement !');
+      this.showToast('💾 Plan sauvegardé localement !');
     }
   }
 

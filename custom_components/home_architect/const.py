@@ -2,7 +2,7 @@
 
 DOMAIN = "home_architect"
 NAME = "Home Architect"
-VERSION = "1.0.11"
+VERSION = "1.0.12"
 
 # Storage
 STORAGE_VERSION = 1

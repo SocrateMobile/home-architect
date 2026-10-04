@@ -345,11 +345,12 @@ export const canvasStyles = css`
 
   .entity-pin {
     cursor: pointer;
-    transition: transform 0.15s ease;
   }
 
-  .entity-pin:hover {
-    transform: scale(1.15);
+  .entity-pin:hover .entity-pin-bg {
+    stroke: #38bdf8;
+    filter: drop-shadow(0 0 12px rgba(56, 189, 248, 0.8));
+    r: 18px;
   }
 
   .entity-pin-bg {
@@ -357,7 +358,7 @@ export const canvasStyles = css`
     stroke: rgba(255, 255, 255, 0.2);
     stroke-width: 2;
     filter: drop-shadow(0 4px 8px rgba(0,0,0,0.5));
-    transition: all 0.2s ease;
+    transition: r 0.18s ease, stroke 0.18s ease, filter 0.18s ease;
   }
 
   .entity-pin.active-light .entity-pin-bg {
