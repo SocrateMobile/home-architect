@@ -14,6 +14,68 @@ export interface CustomCardOptions {
   height?: string;
 }
 
+const EMOJI_TO_MDI: Record<string, string> = {
+  '💡': 'mdi:lightbulb',
+  '🛋️': 'mdi:lamp',
+  '🛋': 'mdi:wall-sconce-flat',
+  '🌟': 'mdi:ceiling-light',
+  '🔆': 'mdi:ceiling-light-outline',
+  '🏮': 'mdi:outdoor-lamp',
+  '🕯️': 'mdi:candle',
+  '🔦': 'mdi:spotlight-beam',
+  '🪩': 'mdi:led-strip-variant',
+  '✨': 'mdi:string-lights',
+  '🔌': 'mdi:power-socket-fr',
+  '⚡': 'mdi:toggle-switch',
+  '📺': 'mdi:television',
+  '☕': 'mdi:coffee-maker',
+  '💻': 'mdi:laptop',
+  '🔊': 'mdi:speaker',
+  '🖨️': 'mdi:printer',
+  '🎮': 'mdi:gamepad-variant',
+  '🔋': 'mdi:battery-charging',
+  '🪭': 'mdi:fan',
+  '🚶': 'mdi:motion-sensor',
+  '🏃': 'mdi:walk',
+  '👁️': 'mdi:radar',
+  '🚪': 'mdi:door',
+  '🪟': 'mdi:window-closed',
+  '🚗': 'mdi:garage',
+  '🚨': 'mdi:alarm-light',
+  '🔔': 'mdi:doorbell',
+  '🐾': 'mdi:paw',
+  '💧': 'mdi:water-alert',
+  '🔥': 'mdi:smoke-detector',
+  '📬': 'mdi:mailbox',
+  '🌡️': 'mdi:thermometer',
+  '☀️': 'mdi:weather-sunny',
+  '💨': 'mdi:air-filter',
+  '❄️': 'mdi:air-conditioner',
+  '♨️': 'mdi:water-boiler',
+  '⛺': 'mdi:awning',
+  '↕️': 'mdi:arrow-up-down',
+  '📻': 'mdi:speaker',
+  '🎵': 'mdi:music',
+  '🎬': 'mdi:projector',
+  '📷': 'mdi:camera',
+  '📹': 'mdi:cctv',
+  '🎥': 'mdi:video',
+  '🌀': 'mdi:fan-chevron-up',
+  '🌪️': 'mdi:ceiling-fan',
+  '🤖': 'mdi:robot-vacuum',
+  '🧹': 'mdi:broom',
+  '🔒': 'mdi:lock',
+  '🛡️': 'mdi:shield-home',
+  '🗝️': 'mdi:key'
+};
+
+function resolveMdiIcon(binding: any, defaultMdi?: string): string | undefined {
+  if (binding.mdiIcon) return binding.mdiIcon;
+  if (binding.icon && EMOJI_TO_MDI[binding.icon]) return EMOJI_TO_MDI[binding.icon];
+  if (binding.icon && binding.icon.startsWith('mdi:')) return binding.icon;
+  return defaultMdi;
+}
+
 export class LovelaceGenerator {
   /**
    * Génère la configuration YAML complète de la carte native 'picture-elements' de Home Assistant
@@ -61,11 +123,13 @@ export class LovelaceGenerator {
       const entityId = binding.entityId;
       const domain = entityId.split('.')[0];
       const customName = binding.customName || entityId.split('.')[1].replace(/_/g, ' ');
+      const mdi = resolveMdiIcon(binding);
 
       if (domain === 'light') {
         yaml += `  # 💡 Lumière : ${customName}\n`;
         yaml += `  - type: state-icon\n`;
         yaml += `    entity: ${entityId}\n`;
+        if (mdi) yaml += `    icon: ${mdi}\n`;
         yaml += `    title: "${customName}"\n`;
         yaml += `    tap_action:\n`;
         yaml += `      action: toggle\n`;
@@ -83,6 +147,7 @@ export class LovelaceGenerator {
         yaml += `  # 📡 ${isRadar ? 'Radar de Présence' : 'Capteur'} : ${customName}\n`;
         yaml += `  - type: state-icon\n`;
         yaml += `    entity: ${entityId}\n`;
+        if (mdi) yaml += `    icon: ${mdi}\n`;
         yaml += `    title: "${customName}"\n`;
         yaml += `    tap_action:\n`;
         yaml += `      action: more-info\n`;
@@ -140,6 +205,7 @@ export class LovelaceGenerator {
         yaml += `  # 🔌 Interrupteur / Prise : ${customName}\n`;
         yaml += `  - type: state-icon\n`;
         yaml += `    entity: ${entityId}\n`;
+        if (mdi) yaml += `    icon: ${mdi}\n`;
         yaml += `    title: "${customName}"\n`;
         yaml += `    tap_action:\n`;
         yaml += `      action: toggle\n`;
@@ -156,6 +222,7 @@ export class LovelaceGenerator {
         yaml += `  # ⚡ Entité : ${customName}\n`;
         yaml += `  - type: state-icon\n`;
         yaml += `    entity: ${entityId}\n`;
+        if (mdi) yaml += `    icon: ${mdi}\n`;
         yaml += `    title: "${customName}"\n`;
         yaml += `    tap_action:\n`;
         yaml += `      action: more-info\n`;

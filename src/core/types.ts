@@ -46,6 +46,7 @@ export interface EntityBinding {
   position: Point; // In meters
   roomId?: string;
   icon?: string;
+  mdiIcon?: string;
   customName?: string;
   tapAction: 'toggle' | 'more-info' | 'navigate';
   navigationPath?: string;
