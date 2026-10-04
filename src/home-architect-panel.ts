@@ -190,17 +190,12 @@ export class HomeArchitectPanel extends LitElement {
       align-items: center;
       justify-content: space-between;
       padding: 0 14px;
-      z-index: 30;
+      position: relative;
+      z-index: 85;
       flex-shrink: 0;
-      overflow-x: auto;
-      overflow-y: hidden;
-      scrollbar-width: none;
+      overflow: visible;
       box-sizing: border-box;
       gap: 10px;
-    }
-
-    header.top-bar::-webkit-scrollbar {
-      display: none;
     }
 
     .brand {
@@ -447,6 +442,7 @@ export class HomeArchitectPanel extends LitElement {
       overflow: hidden;
       position: relative;
       box-sizing: border-box;
+      z-index: 1;
     }
 
     button.btn-history {
@@ -702,6 +698,7 @@ export class HomeArchitectPanel extends LitElement {
     .dropdown-menu-wrapper {
       position: relative;
       display: inline-block;
+      z-index: 100;
     }
 
     .btn-dropdown-trigger {
@@ -750,7 +747,7 @@ export class HomeArchitectPanel extends LitElement {
       padding: 6px;
       min-width: 220px;
       box-shadow: 0 12px 36px rgba(0, 0, 0, 0.65), 0 0 18px rgba(56, 189, 248, 0.25);
-      z-index: 100;
+      z-index: 1000;
       display: flex;
       flex-direction: column;
       gap: 3px;
