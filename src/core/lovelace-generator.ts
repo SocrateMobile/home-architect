@@ -76,6 +76,14 @@ function resolveMdiIcon(binding: any, defaultMdi?: string): string | undefined {
   return defaultMdi;
 }
 
+function yamlString(val: string): string {
+  return JSON.stringify(val ?? '');
+}
+
+function yamlComment(val: string): string {
+  return (val ?? '').replace(/[\r\n]+/g, ' ').replace(/[#]/g, '');
+}
+
 export class LovelaceGenerator {
   /**
    * Génère la configuration YAML complète de la carte native 'picture-elements' de Home Assistant
@@ -87,8 +95,12 @@ export class LovelaceGenerator {
     let resolvedImage = options?.imagePath || `/local/plan_${project.id || 'rdc'}.svg`;
     if (options?.embedDataUri && options?.svgContent) {
       try {
-        const b64 = btoa(unescape(encodeURIComponent(options.svgContent)));
-        resolvedImage = `data:image/svg+xml;base64,${b64}`;
+        const utf8Bytes = new TextEncoder().encode(options.svgContent);
+        let binary = '';
+        for (let i = 0; i < utf8Bytes.length; i++) {
+          binary += String.fromCharCode(utf8Bytes[i]);
+        }
+        resolvedImage = `data:image/svg+xml;base64,${btoa(binary)}`;
       } catch (e) {
         resolvedImage = options.imagePath || `/local/plan_${project.id || 'rdc'}.svg`;
       }
@@ -108,8 +120,8 @@ export class LovelaceGenerator {
     yaml += `# Générée automatiquement par DomoLink Plan / Home Architect\n`;
     yaml += `# ========================================================\n`;
     yaml += `type: picture-elements\n`;
-    yaml += `title: "${opts.title}"\n`;
-    yaml += `image: "${opts.imagePath}"\n`;
+    yaml += `title: ${yamlString(opts.title)}\n`;
+    yaml += `image: ${yamlString(opts.imagePath)}\n`;
     yaml += `elements:\n`;
 
     if (bindings.length === 0) {
@@ -120,17 +132,20 @@ export class LovelaceGenerator {
     for (const binding of bindings) {
       const pos = binding.position || { x: 0, y: 0 };
       const { left, top } = SvgExporter.worldToPercentage(pos, bbox);
-      const entityId = binding.entityId;
-      const domain = entityId.split('.')[0];
-      const customName = binding.customName || entityId.split('.')[1].replace(/_/g, ' ');
+      const entityId = binding.entityId || 'sensor.unknown';
+      const parts = entityId.split('.');
+      const domain = parts[0] || 'sensor';
+      const defaultName = (parts[1] || 'entity').replace(/_/g, ' ');
+      const customName = binding.customName || defaultName;
+      const safeComment = yamlComment(customName);
       const mdi = resolveMdiIcon(binding);
 
       if (domain === 'light') {
-        yaml += `  # 💡 Lumière : ${customName}\n`;
+        yaml += `  # 💡 Lumière : ${safeComment}\n`;
         yaml += `  - type: state-icon\n`;
         yaml += `    entity: ${entityId}\n`;
         if (mdi) yaml += `    icon: ${mdi}\n`;
-        yaml += `    title: "${customName}"\n`;
+        yaml += `    title: ${yamlString(customName)}\n`;
         yaml += `    tap_action:\n`;
         yaml += `      action: toggle\n`;
         yaml += `    hold_action:\n`;
@@ -144,11 +159,11 @@ export class LovelaceGenerator {
       } 
       else if (domain === 'binary_sensor') {
         const isRadar = entityId.includes('presence') || entityId.includes('occupancy') || entityId.includes('radar') || entityId.includes('motion') || entityId.includes('mouvement');
-        yaml += `  # 📡 ${isRadar ? 'Radar de Présence' : 'Capteur'} : ${customName}\n`;
+        yaml += `  # 📡 ${isRadar ? 'Radar de Présence' : 'Capteur'} : ${safeComment}\n`;
         yaml += `  - type: state-icon\n`;
         yaml += `    entity: ${entityId}\n`;
         if (mdi) yaml += `    icon: ${mdi}\n`;
-        yaml += `    title: "${customName}"\n`;
+        yaml += `    title: ${yamlString(customName)}\n`;
         yaml += `    tap_action:\n`;
         yaml += `      action: more-info\n`;
         yaml += `    style:\n`;
@@ -160,10 +175,10 @@ export class LovelaceGenerator {
       } 
       else if (domain === 'sensor') {
         const isTemp = entityId.includes('temp') || entityId.includes('temperature');
-        yaml += `  # ${isTemp ? '🌡️ Température' : '📊 Capteur'} : ${customName}\n`;
+        yaml += `  # ${isTemp ? '🌡️ Température' : '📊 Capteur'} : ${safeComment}\n`;
         yaml += `  - type: state-label\n`;
         yaml += `    entity: ${entityId}\n`;
-        yaml += `    title: "${customName}"\n`;
+        yaml += `    title: ${yamlString(customName)}\n`;
         yaml += `    tap_action:\n`;
         yaml += `      action: more-info\n`;
         yaml += `    style:\n`;
@@ -180,12 +195,12 @@ export class LovelaceGenerator {
         yaml += `      backdrop-filter: "blur(6px)"\n\n`;
       } 
       else if (domain === 'climate') {
-        yaml += `  # ❄️ Climatisation / Thermostat : ${customName}\n`;
+        yaml += `  # ❄️ Climatisation / Thermostat : ${safeComment}\n`;
         yaml += `  - type: state-label\n`;
         yaml += `    entity: ${entityId}\n`;
         yaml += `    attribute: current_temperature\n`;
         yaml += `    suffix: "°C"\n`;
-        yaml += `    title: "${customName}"\n`;
+        yaml += `    title: ${yamlString(customName)}\n`;
         yaml += `    tap_action:\n`;
         yaml += `      action: more-info\n`;
         yaml += `    style:\n`;
@@ -202,11 +217,11 @@ export class LovelaceGenerator {
         yaml += `      backdrop-filter: "blur(6px)"\n\n`;
       } 
       else if (domain === 'switch') {
-        yaml += `  # 🔌 Interrupteur / Prise : ${customName}\n`;
+        yaml += `  # 🔌 Interrupteur / Prise : ${safeComment}\n`;
         yaml += `  - type: state-icon\n`;
         yaml += `    entity: ${entityId}\n`;
         if (mdi) yaml += `    icon: ${mdi}\n`;
-        yaml += `    title: "${customName}"\n`;
+        yaml += `    title: ${yamlString(customName)}\n`;
         yaml += `    tap_action:\n`;
         yaml += `      action: toggle\n`;
         yaml += `    hold_action:\n`;
@@ -219,11 +234,11 @@ export class LovelaceGenerator {
         yaml += `      --paper-item-icon-color: "#64748b"\n\n`;
       } 
       else {
-        yaml += `  # ⚡ Entité : ${customName}\n`;
+        yaml += `  # ⚡ Entité : ${safeComment}\n`;
         yaml += `  - type: state-icon\n`;
         yaml += `    entity: ${entityId}\n`;
         if (mdi) yaml += `    icon: ${mdi}\n`;
-        yaml += `    title: "${customName}"\n`;
+        yaml += `    title: ${yamlString(customName)}\n`;
         yaml += `    tap_action:\n`;
         yaml += `      action: more-info\n`;
         yaml += `    style:\n`;
@@ -255,11 +270,11 @@ export class LovelaceGenerator {
     yaml += `# Rendu vectoriel direct 2D / 3D, états et clics en direct\n`;
     yaml += `# ========================================================\n`;
     yaml += `type: custom:home-architect-card\n`;
-    yaml += `project_id: "${project.id || 'rdc'}"\n`;
-    yaml += `title: "${opts.title}"\n`;
+    yaml += `project_id: ${yamlString(project.id || 'rdc')}\n`;
+    yaml += `title: ${yamlString(opts.title)}\n`;
     yaml += `view_mode: ${opts.viewMode || '2d'} # '2d' ou '3d'\n`;
     yaml += `show_header: true\n`;
-    yaml += `height: "${opts.height}"\n`;
+    yaml += `height: ${yamlString(opts.height)}\n`;
 
     return yaml;
   }

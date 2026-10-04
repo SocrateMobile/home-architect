@@ -2489,12 +2489,22 @@ export class HomeArchitectPanel extends LitElement {
         this.showToast(`💾 Plan "${name}" (${category}) sauvegardé avec succès dans Home Assistant !`);
       } catch (err: any) {
         console.error('Erreur sauvegarde HA:', err);
-        localStorage.setItem(`home_architect_${this.project.id}`, JSON.stringify(this.project));
-        this.showToast(`💾 Plan "${name}" sauvegardé localement (Mode hors-ligne).`);
+        try {
+          localStorage.setItem(`home_architect_${this.project.id}`, JSON.stringify(this.project));
+          this.showToast(`💾 Plan "${name}" sauvegardé localement (Mode hors-ligne).`);
+        } catch (storageErr) {
+          console.error('Quota localStorage dépassé:', storageErr);
+          this.showToast(`⚠️ Échec de la sauvegarde locale (quota dépassé). Réduisez la taille de l'image de fond.`);
+        }
       }
     } else {
-      localStorage.setItem(`home_architect_${this.project.id}`, JSON.stringify(this.project));
-      this.showToast(`💾 Plan "${name}" sauvegardé localement !`);
+      try {
+        localStorage.setItem(`home_architect_${this.project.id}`, JSON.stringify(this.project));
+        this.showToast(`💾 Plan "${name}" sauvegardé localement !`);
+      } catch (storageErr) {
+        console.error('Quota localStorage dépassé:', storageErr);
+        this.showToast(`⚠️ Échec de la sauvegarde locale (quota dépassé). Réduisez la taille de l'image de fond.`);
+      }
     }
 
     this.isSaveLoadModalOpen = false;

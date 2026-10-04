@@ -28,10 +28,18 @@ def async_register_websocket_commands(
         projects = await storage.async_get_projects()
         connection.send_result(msg["id"], {"projects": projects})
 
+    @websocket_api.require_admin
     @websocket_api.websocket_command(
         {
             vol.Required("type"): "home_architect/save_project",
-            vol.Required("project"): dict,
+            vol.Required("project"): vol.Schema(
+                {
+                    vol.Required("id"): vol.All(str, vol.Match(r"^[a-zA-Z0-9_\-]{1,64}$")),
+                    vol.Optional("name"): str,
+                    vol.Optional("category"): str,
+                },
+                extra=vol.ALLOW_EXTRA,
+            ),
         }
     )
     @websocket_api.async_response
@@ -43,10 +51,11 @@ def async_register_websocket_commands(
         await storage.async_save_project(project)
         connection.send_result(msg["id"], {"success": True, "id": project.get("id")})
 
+    @websocket_api.require_admin
     @websocket_api.websocket_command(
         {
             vol.Required("type"): "home_architect/delete_project",
-            vol.Required("project_id"): str,
+            vol.Required("project_id"): vol.All(str, vol.Match(r"^[a-zA-Z0-9_\-]{1,64}$")),
         }
     )
     @websocket_api.async_response
@@ -57,21 +66,29 @@ def async_register_websocket_commands(
         success = await storage.async_delete_project(msg["project_id"])
         connection.send_result(msg["id"], {"success": success})
 
+    @websocket_api.require_admin
     @websocket_api.websocket_command(
         {
             vol.Required("type"): "home_architect/save_svg_to_www",
-            vol.Required("filename"): str,
-            vol.Required("svg_content"): str,
+            vol.Required("filename"): vol.All(str, vol.Match(r"^[a-zA-Z0-9_\-]{1,64}\.svg$")),
+            vol.Required("svg_content"): vol.All(str, vol.Length(max=5 * 1024 * 1024)),
         }
     )
     @websocket_api.async_response
     async def ws_save_svg_to_www(
         hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict
     ) -> None:
-        """Handle save_svg_to_www request, saving SVG directly to /config/www/."""
+        """Handle save_svg_to_www request, saving sanitized SVG directly to /config/www/."""
         import os
+        import re
         filename = msg["filename"]
         svg_content = msg["svg_content"]
+
+        # SVG content sanitization: reject executable elements and scripts
+        lowered = svg_content.lower()
+        if "<script" in lowered or "javascript:" in lowered or "<foreignobject" in lowered or re.search(r"\son\w+\s*=", lowered):
+            connection.send_error(msg["id"], "invalid_content", "SVG content contains forbidden active script elements")
+            return
 
         def _write():
             www_path = hass.config.path("www")
