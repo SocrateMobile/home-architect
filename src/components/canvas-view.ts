@@ -114,6 +114,13 @@ export class HomeArchitectCanvas extends LitElement {
   private dragFurnitureStartPos: Point = { x: 0, y: 0 };
   private dragFurnitureItemStartPos: Point = { x: 0, y: 0 };
 
+  // État rotation fine degré par degré de meuble
+  @state()
+  private rotatingFurnitureId: string | null = null;
+  private rotateFurnitureMoved: boolean = false;
+  private rotateFurnitureStartAngle: number = 0;
+  private rotateFurnitureInitialAngle: number = 0;
+
   // État déplacement de mur
   @state()
   private draggingWallId: string | null = null;
@@ -454,6 +461,30 @@ export class HomeArchitectCanvas extends LitElement {
   }
 
   private handlePointerMove(e: PointerEvent): void {
+    if (this.rotatingFurnitureId) {
+      this.rotateFurnitureMoved = true;
+      const item = (this.project.furniture || []).find(f => f.id === this.rotatingFurnitureId);
+      if (item) {
+        const sCenter = this.worldToScreen(item.position);
+        const currentAngle = Math.atan2(e.clientY - sCenter.y, e.clientX - sCenter.x) * (180 / Math.PI);
+        const deltaAngle = currentAngle - this.rotateFurnitureStartAngle;
+        let newAngle = Math.round(this.rotateFurnitureInitialAngle + deltaAngle);
+        // Normalize angle between 0 and 359 degrees
+        newAngle = ((newAngle % 360) + 360) % 360;
+
+        const newFurniture = (this.project.furniture || []).map(f => {
+          if (f.id === this.rotatingFurnitureId) {
+            return { ...f, rotation: newAngle };
+          }
+          return f;
+        });
+
+        this.project = { ...this.project, furniture: newFurniture };
+        this.requestUpdate();
+      }
+      return;
+    }
+
     if (this.isOrbiting) {
       const deltaX = e.clientX - this.orbitStart.x;
       const deltaY = e.clientY - this.orbitStart.y;
@@ -645,6 +676,19 @@ export class HomeArchitectCanvas extends LitElement {
   }
 
   private handlePointerUp(e: PointerEvent): void {
+    if (this.rotatingFurnitureId) {
+      const moved = this.rotateFurnitureMoved;
+      this.rotatingFurnitureId = null;
+      this.rotateFurnitureMoved = false;
+      try {
+        (e.target as HTMLElement).releasePointerCapture?.(e.pointerId);
+      } catch (_) {}
+      if (moved) {
+        this.dispatchProjectChanged();
+        return;
+      }
+    }
+
     if (this.draggingFurnitureId) {
       const moved = this.dragFurnitureMoved;
       this.draggingFurnitureId = null;
@@ -939,6 +983,30 @@ export class HomeArchitectCanvas extends LitElement {
       this.selectedElements = { wallIds: [], openingIds: [op.id], roomIds: [], bindingIds: [], furnitureIds: [] };
     }
     this.dispatchSelectionChanged();
+  }
+
+  private handleFurnitureRotatePointerDown(item: FurnitureItem, e: PointerEvent): void {
+    if (this.isDashboardMode) return;
+    if (e.button !== 0) return;
+    e.stopPropagation();
+
+    this.rotatingFurnitureId = item.id;
+    this.rotateFurnitureMoved = false;
+
+    // Calcul de l'angle initial du curseur par rapport au centre du meuble en pixels écran
+    const sCenter = this.worldToScreen(item.position);
+    this.rotateFurnitureStartAngle = Math.atan2(e.clientY - sCenter.y, e.clientX - sCenter.x) * (180 / Math.PI);
+    this.rotateFurnitureInitialAngle = item.rotation || 0;
+
+    // Assurer que le meuble est sélectionné
+    if (!this.selectedElements.furnitureIds?.includes(item.id)) {
+      this.selectedElements = { wallIds: [], openingIds: [], roomIds: [], bindingIds: [], furnitureIds: [item.id] };
+      this.dispatchSelectionChanged();
+    }
+
+    try {
+      (e.currentTarget as HTMLElement)?.setPointerCapture?.(e.pointerId);
+    } catch (_) {}
   }
 
   private handleFurniturePointerDown(item: FurnitureItem, e: PointerEvent): void {
@@ -2064,8 +2132,31 @@ export class HomeArchitectCanvas extends LitElement {
             <text x="0" y="4" text-anchor="middle" font-size="12" fill="#cbd5e1">${item.icon || '📦'}</text>
           `}
           ${isSelected ? svg`
-            <circle cx="0" cy="${-lPx/2 - 12}" r="5" fill="#38bdf8" stroke="#ffffff" stroke-width="1.5" />
-            <line x1="0" y1="${-lPx/2}" x2="0" y2="${-lPx/2 - 12}" stroke="#38bdf8" stroke-width="1.2" stroke-dasharray="2,2" />
+            <!-- Ligne de rappel vers la poignée -->
+            <line x1="0" y1="${-lPx/2}" x2="0" y2="${-lPx/2 - 18}" stroke="#38bdf8" stroke-width="1.5" stroke-dasharray="3,2" />
+            <!-- Poignée interactive de rotation degré par degré -->
+            <g
+              class="furniture-rotate-handle"
+              @pointerdown=${(e: PointerEvent) => this.handleFurnitureRotatePointerDown(item, e)}
+              style="cursor: grab;"
+            >
+              <!-- Zone cliquable invisible élargie -->
+              <circle cx="0" cy="${-lPx/2 - 18}" r="12" fill="transparent" />
+              <!-- Petit rond bleu clair visible avec contour blanc -->
+              <circle cx="0" cy="${-lPx/2 - 18}" r="6.5" fill="#38bdf8" stroke="#ffffff" stroke-width="2" />
+              <!-- Indicateur d'angle en direct quand le meuble est sélectionné -->
+              <text 
+                x="0" 
+                y="${-lPx/2 - 28}" 
+                text-anchor="middle" 
+                font-size="10" 
+                font-weight="700" 
+                fill="#38bdf8"
+                style="user-select: none; pointer-events: none; text-shadow: 0 1px 4px rgba(0,0,0,0.8);"
+              >
+                ${Math.round(rot)}°
+              </text>
+            </g>
           ` : null}
         </g>
       `;

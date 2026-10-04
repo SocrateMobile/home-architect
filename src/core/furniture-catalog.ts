@@ -68,6 +68,33 @@ export const FURNITURE_CATALOG: FurnitureCatalogTemplate[] = [
     }
   },
   {
+    type: 'divan',
+    name: 'Divan / Méridienne',
+    category: 'seating',
+    width: 1.80,
+    length: 0.85,
+    icon: '🛋️',
+    renderSvg: (w, h, sel) => {
+      const headRestW = Math.max(12, w * 0.22);
+      const backH = Math.max(10, h * 0.24);
+      return svg`
+        <g class="furniture-symbol" stroke="${sel ? '#38bdf8' : '#94a3b8'}" stroke-width="1.6" fill="${sel ? 'rgba(56, 189, 248, 0.25)' : 'rgba(30, 41, 59, 0.85)'}">
+          <!-- Matelas / assise longue -->
+          <rect x="${-w/2}" y="${-h/2}" width="${w}" height="${h}" rx="8" />
+          <!-- Dossier asymétrique (méridienne / divan) -->
+          <rect x="${-w/2}" y="${-h/2}" width="${w * 0.65}" height="${backH}" rx="4" fill="rgba(51, 65, 85, 0.9)" />
+          <!-- Tête de divan / repose-tête surélevé gauche -->
+          <rect x="${-w/2}" y="${-h/2}" width="${headRestW}" height="${h}" rx="6" fill="rgba(51, 65, 85, 0.9)" />
+          <!-- Coussin capitonné -->
+          <rect x="${-w/2 + headRestW + 3}" y="${-h/2 + backH + 3}" width="${w - headRestW - 6}" height="${h - backH - 6}" rx="5" />
+          <!-- Lignes décoratives capitonnage -->
+          <line x1="${-w/2 + headRestW + (w - headRestW)*0.33}" y1="${-h/2 + backH + 4}" x2="${-w/2 + headRestW + (w - headRestW)*0.33}" y2="${h/2 - 4}" stroke-dasharray="3,3" opacity="0.5" />
+          <line x1="${-w/2 + headRestW + (w - headRestW)*0.66}" y1="${-h/2 + backH + 4}" x2="${-w/2 + headRestW + (w - headRestW)*0.66}" y2="${h/2 - 4}" stroke-dasharray="3,3" opacity="0.5" />
+        </g>
+      `;
+    }
+  },
+  {
     type: 'armchair',
     name: 'Fauteuil club',
     category: 'seating',
