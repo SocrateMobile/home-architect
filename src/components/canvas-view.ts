@@ -3,7 +3,7 @@ import { customElement, property, state } from 'lit/decorators.js';
 import { canvasStyles } from '../styles/canvas.styles';
 import { 
   Point, Wall, Opening, OpeningType, Room, ActiveTool, GridConfig, 
-  ViewportTransform, HomeArchitectProject, WallSnapResult, EntityBinding 
+  ViewportTransform, HomeArchitectProject, WallSnapResult, EntityBinding, SelectedElements 
 } from '../core/types';
 import { SnappingEngine } from '../core/snapping';
 import { PolygonUtils } from '../core/polygon';
@@ -46,6 +46,23 @@ export class HomeArchitectCanvas extends LitElement {
 
   @property({ type: Boolean })
   public is3DMode: boolean = false;
+
+  @property({ type: Object })
+  public selectedElements: SelectedElements = {
+    wallIds: [],
+    openingIds: [],
+    roomIds: [],
+    bindingIds: []
+  };
+
+  @state()
+  private isMarqueeSelecting: boolean = false;
+
+  @state()
+  private marqueeStart: Point | null = null;
+
+  @state()
+  private marqueeCurrent: Point | null = null;
 
   // État du Viewport (Pan & Zoom)
   @state()
@@ -93,6 +110,8 @@ export class HomeArchitectCanvas extends LitElement {
   @state()
   private rescaleCurrent: Point | null = null;
 
+  private _boundKeyDown: any = null;
+
   // ==========================================
   // CONVERSIONS DE COORDONNÉES
   // ==========================================
@@ -138,7 +157,7 @@ export class HomeArchitectCanvas extends LitElement {
   }
 
   private handlePointerDown(e: PointerEvent): void {
-    if (e.button === 1 || this.activeTool === 'select' || e.shiftKey) {
+    if (e.button === 1) {
       this.isPanning = true;
       this.panStart = { x: e.clientX - this.viewport.x, y: e.clientY - this.viewport.y };
       (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
@@ -146,6 +165,34 @@ export class HomeArchitectCanvas extends LitElement {
     }
 
     if (e.button !== 0) return;
+
+    if (this.activeTool === 'select') {
+      if (e.shiftKey) {
+        // Shift+Click sur fond : sélection par rectangle (Marquee)
+        const worldPt = this.screenToWorld(e.clientX, e.clientY);
+        this.isMarqueeSelecting = true;
+        this.marqueeStart = worldPt;
+        this.marqueeCurrent = worldPt;
+        (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+        return;
+      }
+
+      // Clic sur fond sans Shift : désélectionne et commence le Pan
+      this.selectedElements = { wallIds: [], openingIds: [], roomIds: [], bindingIds: [] };
+      this.dispatchSelectionChanged();
+
+      this.isPanning = true;
+      this.panStart = { x: e.clientX - this.viewport.x, y: e.clientY - this.viewport.y };
+      (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+      return;
+    }
+
+    if (e.shiftKey) {
+      this.isPanning = true;
+      this.panStart = { x: e.clientX - this.viewport.x, y: e.clientY - this.viewport.y };
+      (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+      return;
+    }
 
     const worldPoint = this.screenToWorld(e.clientX, e.clientY);
 
@@ -286,6 +333,12 @@ export class HomeArchitectCanvas extends LitElement {
   }
 
   private handlePointerMove(e: PointerEvent): void {
+    if (this.isMarqueeSelecting && this.marqueeStart) {
+      this.marqueeCurrent = this.screenToWorld(e.clientX, e.clientY);
+      this.requestUpdate();
+      return;
+    }
+
     if (this.isPanning) {
       this.viewport = {
         ...this.viewport,
@@ -351,6 +404,57 @@ export class HomeArchitectCanvas extends LitElement {
   }
 
   private handlePointerUp(e: PointerEvent): void {
+    if (this.isMarqueeSelecting && this.marqueeStart && this.marqueeCurrent) {
+      const minX = Math.min(this.marqueeStart.x, this.marqueeCurrent.x);
+      const maxX = Math.max(this.marqueeStart.x, this.marqueeCurrent.x);
+      const minY = Math.min(this.marqueeStart.y, this.marqueeCurrent.y);
+      const maxY = Math.max(this.marqueeStart.y, this.marqueeCurrent.y);
+
+      if (maxX - minX > 0.05 || maxY - minY > 0.05) {
+        const foundWalls = this.project.walls.filter(w => {
+          const midX = (w.start.x + w.end.x) / 2;
+          const midY = (w.start.y + w.end.y) / 2;
+          return midX >= minX && midX <= maxX && midY >= minY && midY <= maxY;
+        }).map(w => w.id);
+
+        const foundOpenings = this.project.openings.filter(op => {
+          const wall = this.project.walls.find(w => w.id === op.wallId);
+          if (!wall) return false;
+          const dx = wall.end.x - wall.start.x;
+          const dy = wall.end.y - wall.start.y;
+          const l = Math.sqrt(dx * dx + dy * dy);
+          if (l === 0) return false;
+          const opX = wall.start.x + (op.offset / l) * dx;
+          const opY = wall.start.y + (op.offset / l) * dy;
+          return opX >= minX && opX <= maxX && opY >= minY && opY <= maxY;
+        }).map(op => op.id);
+
+        const foundRooms = this.project.rooms.filter(r => {
+          if (!r.polygon || r.polygon.length < 3) return false;
+          const c = PolygonUtils.calculateCentroid(r.polygon);
+          return c.x >= minX && c.x <= maxX && c.y >= minY && c.y <= maxY;
+        }).map(r => r.id);
+
+        const foundBindings = this.project.bindings.filter(b => {
+          return b.position.x >= minX && b.position.x <= maxX && b.position.y >= minY && b.position.y <= maxY;
+        }).map(b => b.id);
+
+        this.selectedElements = {
+          wallIds: Array.from(new Set([...this.selectedElements.wallIds, ...foundWalls])),
+          openingIds: Array.from(new Set([...this.selectedElements.openingIds, ...foundOpenings])),
+          roomIds: Array.from(new Set([...this.selectedElements.roomIds, ...foundRooms])),
+          bindingIds: Array.from(new Set([...this.selectedElements.bindingIds, ...foundBindings]))
+        };
+        this.dispatchSelectionChanged();
+      }
+
+      this.isMarqueeSelecting = false;
+      this.marqueeStart = null;
+      this.marqueeCurrent = null;
+      (e.target as HTMLElement).releasePointerCapture?.(e.pointerId);
+      return;
+    }
+
     if (this.isPanning) {
       this.isPanning = false;
       (e.target as HTMLElement).releasePointerCapture?.(e.pointerId);
@@ -424,8 +528,87 @@ export class HomeArchitectCanvas extends LitElement {
     }
   }
 
+  private dispatchSelectionChanged() {
+    this.dispatchEvent(new CustomEvent('selection-changed', {
+      detail: { selectedElements: this.selectedElements },
+      bubbles: true,
+      composed: true
+    }));
+    this.requestUpdate();
+  }
+
+  private handleWallClick(e: MouseEvent, wall: Wall) {
+    if (this.activeTool !== 'select') return;
+    e.stopPropagation();
+    const isMulti = e.shiftKey || e.ctrlKey || e.metaKey;
+    const exists = this.selectedElements.wallIds.includes(wall.id);
+
+    if (isMulti) {
+      const newWallIds = exists
+        ? this.selectedElements.wallIds.filter(id => id !== wall.id)
+        : [...this.selectedElements.wallIds, wall.id];
+      this.selectedElements = { ...this.selectedElements, wallIds: newWallIds };
+    } else {
+      this.selectedElements = { wallIds: [wall.id], openingIds: [], roomIds: [], bindingIds: [] };
+    }
+    this.dispatchSelectionChanged();
+  }
+
+  private handleOpeningClick(e: MouseEvent, op: Opening) {
+    if (this.activeTool !== 'select') return;
+    e.stopPropagation();
+    const isMulti = e.shiftKey || e.ctrlKey || e.metaKey;
+    const exists = this.selectedElements.openingIds.includes(op.id);
+
+    if (isMulti) {
+      const newOpIds = exists
+        ? this.selectedElements.openingIds.filter(id => id !== op.id)
+        : [...this.selectedElements.openingIds, op.id];
+      this.selectedElements = { ...this.selectedElements, openingIds: newOpIds };
+    } else {
+      this.selectedElements = { wallIds: [], openingIds: [op.id], roomIds: [], bindingIds: [] };
+    }
+    this.dispatchSelectionChanged();
+  }
+
+  private renderMarqueeBox() {
+    if (!this.isMarqueeSelecting || !this.marqueeStart || !this.marqueeCurrent) return null;
+    const p1 = this.worldToScreen(this.marqueeStart);
+    const p2 = this.worldToScreen(this.marqueeCurrent);
+    const x = Math.min(p1.x, p2.x);
+    const y = Math.min(p1.y, p2.y);
+    const w = Math.abs(p1.x - p2.x);
+    const h = Math.abs(p1.y - p2.y);
+
+    return svg`
+      <rect 
+        class="marquee-selection-box"
+        x="${x}" 
+        y="${y}" 
+        width="${w}" 
+        height="${h}" 
+      />
+    `;
+  }
+
   private handleEntityClick(binding: EntityBinding, e: Event): void {
     e.stopPropagation();
+
+    if (this.activeTool === 'select') {
+      const me = e as MouseEvent;
+      const isMulti = me.shiftKey || me.ctrlKey || me.metaKey;
+      const exists = this.selectedElements.bindingIds.includes(binding.id);
+      if (isMulti) {
+        const newBindingIds = exists
+          ? this.selectedElements.bindingIds.filter(id => id !== binding.id)
+          : [...this.selectedElements.bindingIds, binding.id];
+        this.selectedElements = { ...this.selectedElements, bindingIds: newBindingIds };
+      } else {
+        this.selectedElements = { wallIds: [], openingIds: [], roomIds: [], bindingIds: [binding.id] };
+      }
+      this.dispatchSelectionChanged();
+      return;
+    }
 
     // Interaction 1 : Toggle via service HA
     if (this.hass && this.hass.callService) {
@@ -460,7 +643,21 @@ export class HomeArchitectCanvas extends LitElement {
       this.rescaleStart = null;
       this.rescaleCurrent = null;
       this.wallSnap = null;
+      this.selectedElements = { wallIds: [], openingIds: [], roomIds: [], bindingIds: [] };
+      this.dispatchSelectionChanged();
       this.requestUpdate();
+    } else if (e.key === 'Delete' || e.key === 'Backspace') {
+      const total = this.selectedElements.wallIds.length + 
+                    this.selectedElements.openingIds.length + 
+                    this.selectedElements.roomIds.length + 
+                    this.selectedElements.bindingIds.length;
+      if (total > 0) {
+        e.preventDefault();
+        this.dispatchEvent(new CustomEvent('request-delete-selected', {
+          bubbles: true,
+          composed: true
+        }));
+      }
     } else if (e.key === ' ' || e.key === 'Spacebar') {
       if (this.wallSnap) {
         e.preventDefault();
@@ -477,12 +674,15 @@ export class HomeArchitectCanvas extends LitElement {
 
   connectedCallback(): void {
     super.connectedCallback();
-    window.addEventListener('keydown', this.handleKeyDown.bind(this));
+    this._boundKeyDown = this.handleKeyDown.bind(this);
+    window.addEventListener('keydown', this._boundKeyDown);
   }
 
   disconnectedCallback(): void {
     super.disconnectedCallback();
-    window.removeEventListener('keydown', this.handleKeyDown.bind(this));
+    if (this._boundKeyDown) {
+      window.removeEventListener('keydown', this._boundKeyDown);
+    }
   }
 
   private dispatchProjectChanged() {
@@ -583,6 +783,31 @@ export class HomeArchitectCanvas extends LitElement {
       return;
     }
     e.stopPropagation();
+
+    if (this.activeTool === 'select') {
+      const isMulti = e.shiftKey || e.ctrlKey || e.metaKey;
+      const exists = this.selectedElements.roomIds.includes(room.id);
+      if (isMulti) {
+        const newRoomIds = exists
+          ? this.selectedElements.roomIds.filter(id => id !== room.id)
+          : [...this.selectedElements.roomIds, room.id];
+        this.selectedElements = { ...this.selectedElements, roomIds: newRoomIds };
+      } else {
+        this.selectedElements = { wallIds: [], openingIds: [], roomIds: [room.id], bindingIds: [] };
+      }
+      this.dispatchSelectionChanged();
+      return;
+    }
+
+    this.dispatchEvent(new CustomEvent('room-selected', {
+      detail: { room },
+      bubbles: true,
+      composed: true
+    }));
+  }
+
+  private handleRoomDblClick(e: MouseEvent, room: Room) {
+    e.stopPropagation();
     this.dispatchEvent(new CustomEvent('room-selected', {
       detail: { room },
       bubbles: true,
@@ -609,9 +834,15 @@ export class HomeArchitectCanvas extends LitElement {
       const centroid = PolygonUtils.calculateCentroid(screenPts);
       const roomH = room.height || this.project.defaultCeilingHeight || 2.50;
       const roomVolume = (room.areaM2 * roomH).toFixed(1);
+      const isRoomSelected = this.selectedElements?.roomIds?.includes(room.id);
 
       return svg`
-        <g class="room-group" data-room-id="${room.id}" @click=${(e: MouseEvent) => this.handleRoomClick(e, room)}>
+        <g 
+          class="room-group ${isRoomSelected ? 'selected' : ''}" 
+          data-room-id="${room.id}" 
+          @click=${(e: MouseEvent) => this.handleRoomClick(e, room)}
+          @dblclick=${(e: MouseEvent) => this.handleRoomDblClick(e, room)}
+        >
           <polygon 
             points="${pointsAttr}" 
             class="room-polygon ${isRoomIlluminated ? 'illuminated' : ''}"
@@ -662,6 +893,7 @@ export class HomeArchitectCanvas extends LitElement {
     const ppm = this.project.pixelsPerMeter * this.viewport.zoom;
 
     return this.project.walls.map((wall) => {
+      const isWallSelected = this.selectedElements?.wallIds?.includes(wall.id);
       const wallHeight = this.getWallHeight(wall);
       const wallExtrusionH = this.is3DMode ? wallHeight * ppm * 0.55 : 0; // Hauteur d'extrusion 3D métrique
       const p = this.computeWallPolygon(wall.start, wall.end, wall.thickness);
@@ -682,7 +914,11 @@ export class HomeArchitectCanvas extends LitElement {
         const pointsTopAttr = spTop.map(pt => `${pt.x},${pt.y}`).join(' ');
 
         return svg`
-          <g class="wall-element-3d" data-wall-id="${wall.id}">
+          <g 
+            class="wall-element-3d ${isWallSelected ? 'selected' : ''}" 
+            data-wall-id="${wall.id}"
+            @click=${(e: MouseEvent) => this.handleWallClick(e, wall)}
+          >
             <!-- Paroi latérale ombrée 1 -->
             <polygon points="${sp[0].x},${sp[0].y} ${sp[1].x},${sp[1].y} ${spTop[1].x},${spTop[1].y} ${spTop[0].x},${spTop[0].y}" class="wall-3d-side-shaded" />
             <!-- Paroi latérale ombrée 2 -->
@@ -695,7 +931,11 @@ export class HomeArchitectCanvas extends LitElement {
 
       // Rendu 2D classique
       return svg`
-        <g class="wall-element" data-wall-id="${wall.id}">
+        <g 
+          class="wall-element ${isWallSelected ? 'selected' : ''}" 
+          data-wall-id="${wall.id}"
+          @click=${(e: MouseEvent) => this.handleWallClick(e, wall)}
+        >
           <polygon points="${pointsAttr}" class="wall-rect" />
           <line x1="${sStart.x}" y1="${sStart.y}" x2="${sEnd.x}" y2="${sEnd.y}" class="wall-centerline" />
           
@@ -712,6 +952,7 @@ export class HomeArchitectCanvas extends LitElement {
 
   private renderOpenings() {
     return this.project.openings.map((op) => {
+      const isOpSelected = this.selectedElements?.openingIds?.includes(op.id);
       const wall = this.project.walls.find(w => w.id === op.wallId);
       if (!wall) return null;
 
@@ -733,8 +974,10 @@ export class HomeArchitectCanvas extends LitElement {
 
       return svg`
         <g 
-          class="opening-element" 
+          class="opening-element ${isOpSelected ? 'selected' : ''}" 
           transform="translate(${screenPos.x}, ${screenPos.y}) rotate(${angleDeg})"
+          style="cursor: pointer;"
+          @click=${(e: MouseEvent) => this.handleOpeningClick(e, op)}
         >
           <rect 
             x="${-wPx / 2}" 
@@ -813,10 +1056,11 @@ export class HomeArchitectCanvas extends LitElement {
       const isRadarActive = binding.entityId.startsWith('binary_sensor.') && (stateStr === 'on' || stateStr === 'detected');
       const isTempSensor = binding.entityId.startsWith('sensor.') || binding.entityId.startsWith('climate.');
       const unit = entityState?.attributes?.unit_of_measurement || (isTempSensor ? '°' : '');
+      const isBindingSelected = this.selectedElements?.bindingIds?.includes(binding.id);
 
       return svg`
         <g 
-          class="entity-pin ${isLightOn ? 'active-light' : ''} ${isRadarActive ? 'active-radar' : ''}"
+          class="entity-pin ${isBindingSelected ? 'selected' : ''} ${isLightOn ? 'active-light' : ''} ${isRadarActive ? 'active-radar' : ''}"
           transform="translate(${sPos.x}, ${sPos.y})"
           @click=${(e: Event) => this.handleEntityClick(binding, e)}
           @dblclick=${(e: Event) => this.handleEntityDblClick(binding, e)}
@@ -1002,6 +1246,9 @@ export class HomeArchitectCanvas extends LitElement {
 
   private getHelpMessage(): string | null {
     if (this.is3DMode) return "Vue 3D Isométrique : Murs extrudés avec éclairage dynamique.";
+    if (this.activeTool === 'select') {
+      return "Mode Sélection : Cliquez sur un élément pour le sélectionner (Shift pour multi-sélection, Shift+glisser pour cadre). Suppr pour effacer.";
+    }
     if (this.activeTool === 'wall') {
       return this.drawingWallStart ? "Cliquez pour terminer le mur. Échap pour annuler." : "Cliquez pour démarrer un mur.";
     }
@@ -1048,6 +1295,7 @@ export class HomeArchitectCanvas extends LitElement {
             ${this.renderRescaleLine()}
             ${this.renderSnapIndicator()}
             ${this.renderEntityBindings()}
+            ${this.renderMarqueeBox()}
           </svg>
         </div>
 
