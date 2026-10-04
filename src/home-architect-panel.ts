@@ -180,6 +180,26 @@ export class HomeArchitectPanel extends LitElement {
       box-sizing: border-box;
     }
 
+    :host(.is-fullscreen) {
+      position: fixed !important;
+      inset: 0 !important;
+      top: 0 !important;
+      left: 0 !important;
+      right: 0 !important;
+      bottom: 0 !important;
+      width: 100vw !important;
+      height: 100vh !important;
+      max-width: 100vw !important;
+      max-height: 100vh !important;
+      z-index: 99999 !important;
+    }
+
+    :host:fullscreen, :host:-webkit-full-screen {
+      width: 100vw !important;
+      height: 100vh !important;
+      background: #0f172a !important;
+    }
+
     header.top-bar {
       min-height: 56px;
       max-width: 100%;
@@ -429,6 +449,43 @@ export class HomeArchitectPanel extends LitElement {
       background: #9333ea;
       color: #ffffff;
       box-shadow: 0 0 14px rgba(168, 85, 247, 0.5);
+    }
+
+    button.btn-fullscreen {
+      background: rgba(14, 165, 233, 0.15);
+      color: #38bdf8;
+      border: 1px solid rgba(56, 189, 248, 0.35);
+      border-radius: 8px;
+      padding: 6px 12px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s ease;
+      white-space: nowrap;
+    }
+
+    button.btn-fullscreen:hover {
+      background: #0284c7;
+      color: #ffffff;
+      border-color: #38bdf8;
+      box-shadow: 0 0 12px rgba(56, 189, 248, 0.45);
+    }
+
+    button.btn-fullscreen.active {
+      background: rgba(16, 185, 129, 0.2);
+      color: #34d399;
+      border-color: #10b981;
+      box-shadow: 0 0 12px rgba(16, 185, 129, 0.35);
+    }
+
+    button.btn-fullscreen.active:hover {
+      background: #059669;
+      color: #ffffff;
+      border-color: #34d399;
+      box-shadow: 0 0 14px rgba(16, 185, 129, 0.5);
     }
 
     .workspace {
@@ -912,6 +969,9 @@ export class HomeArchitectPanel extends LitElement {
   private is3DMode: boolean = false;
 
   @state()
+  private isFullscreen: boolean = false;
+
+  @state()
   private isDrawerCollapsed: boolean = false;
 
   @state()
@@ -1223,6 +1283,7 @@ export class HomeArchitectPanel extends LitElement {
   private _boundPaste: any = null;
   private _boundKeyDown: any = null;
   private _boundClickOutside: any = null;
+  private _boundFullscreenChange: any = null;
 
   connectedCallback() {
     super.connectedCallback();
@@ -1241,6 +1302,25 @@ export class HomeArchitectPanel extends LitElement {
       }
     };
     window.addEventListener('click', this._boundClickOutside);
+
+    this._boundFullscreenChange = () => {
+      const isFs = !!(
+        document.fullscreenElement ||
+        (document as any).webkitFullscreenElement ||
+        (document as any).mozFullScreenElement ||
+        (document as any).msFullscreenElement
+      );
+      this.isFullscreen = isFs;
+      if (isFs) {
+        this.classList.add('is-fullscreen');
+      } else {
+        this.classList.remove('is-fullscreen');
+      }
+    };
+    document.addEventListener('fullscreenchange', this._boundFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', this._boundFullscreenChange);
+    document.addEventListener('mozfullscreenchange', this._boundFullscreenChange);
+    document.addEventListener('MSFullscreenChange', this._boundFullscreenChange);
   }
 
   async firstUpdated() {
@@ -1285,6 +1365,12 @@ export class HomeArchitectPanel extends LitElement {
     }
     if (this._boundClickOutside) {
       window.removeEventListener('click', this._boundClickOutside);
+    }
+    if (this._boundFullscreenChange) {
+      document.removeEventListener('fullscreenchange', this._boundFullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', this._boundFullscreenChange);
+      document.removeEventListener('mozfullscreenchange', this._boundFullscreenChange);
+      document.removeEventListener('MSFullscreenChange', this._boundFullscreenChange);
     }
     if (this.toastTimeout) {
       clearTimeout(this.toastTimeout);
@@ -1838,6 +1924,9 @@ export class HomeArchitectPanel extends LitElement {
         this.handleDeleteSelected();
       }
     } else if (e.key === 'Escape') {
+      if (this.isFullscreen) {
+        this.toggleFullscreen();
+      }
       if (this.activeDropdown) {
         this.activeDropdown = null;
       }
@@ -1849,6 +1938,55 @@ export class HomeArchitectPanel extends LitElement {
       }
     } else if (e.key.toLowerCase() === 'v') {
       this.activeTool = 'select';
+    }
+  }
+
+  public async toggleFullscreen() {
+    const isDocFs = !!(
+      document.fullscreenElement ||
+      (document as any).webkitFullscreenElement ||
+      (document as any).mozFullScreenElement ||
+      (document as any).msFullscreenElement
+    );
+
+    if (!this.isFullscreen && !isDocFs) {
+      try {
+        const elem: any = this || document.documentElement;
+        if (elem.requestFullscreen) {
+          await elem.requestFullscreen();
+        } else if (elem.webkitRequestFullscreen) {
+          await elem.webkitRequestFullscreen();
+        } else if (elem.mozRequestFullScreen) {
+          await elem.mozRequestFullScreen();
+        } else if (elem.msRequestFullscreen) {
+          await elem.msRequestFullscreen();
+        }
+      } catch (err) {
+        console.warn('Mode plein écran natif indisponible, utilisation du mode étendu:', err);
+      }
+      this.isFullscreen = true;
+      this.classList.add('is-fullscreen');
+      this.showToast('⛶ Mode plein écran activé (Échap pour sortir)');
+    } else {
+      try {
+        const doc: any = document;
+        if (doc.fullscreenElement || doc.webkitFullscreenElement || doc.mozFullScreenElement || doc.msFullscreenElement) {
+          if (doc.exitFullscreen) {
+            await doc.exitFullscreen();
+          } else if (doc.webkitExitFullscreen) {
+            await doc.webkitExitFullscreen();
+          } else if (doc.mozCancelFullScreen) {
+            await doc.mozCancelFullScreen();
+          } else if (doc.msExitFullscreen) {
+            await doc.msExitFullscreen();
+          }
+        }
+      } catch (err) {
+        console.warn('Erreur lors de la sortie du mode plein écran:', err);
+      }
+      this.isFullscreen = false;
+      this.classList.remove('is-fullscreen');
+      this.showToast('🗗 Sortie du plein écran');
     }
   }
 
@@ -2015,6 +2153,12 @@ export class HomeArchitectPanel extends LitElement {
                   <span>Filigrane niveau inf.</span>
                   ${this.showGhostLevel ? html`<span class="dropdown-item-check">✓</span>` : null}
                 </button>
+                <div class="dropdown-divider"></div>
+                <button class="dropdown-item ${this.isFullscreen ? 'active' : ''}" @click=${() => { this.toggleFullscreen(); this.activeDropdown = null; }}>
+                  <span>${this.isFullscreen ? '🗗' : '⛶'}</span>
+                  <span>${this.isFullscreen ? 'Sortir du plein écran' : 'Plein écran'}</span>
+                  ${this.isFullscreen ? html`<span class="dropdown-item-check">✓</span>` : null}
+                </button>
               </div>
             ` : null}
           </div>
@@ -2157,6 +2301,16 @@ export class HomeArchitectPanel extends LitElement {
           <div class="scale-indicator" title="Échelle : pixels par mètre">
             1 m = ${this.project.pixelsPerMeter} px
           </div>
+
+          <!-- Bouton Plein Écran -->
+          <button 
+            class="btn-fullscreen ${this.isFullscreen ? 'active' : ''}" 
+            @click=${() => this.toggleFullscreen()}
+            title="${this.isFullscreen ? 'Sortir du plein écran (Échap)' : 'Passer en plein écran'}"
+          >
+            <span style="font-size: 1.05rem; line-height: 1;">${this.isFullscreen ? '🗗' : '⛶'}</span>
+            <span>${this.isFullscreen ? 'Sortir du plein écran' : 'Plein écran'}</span>
+          </button>
 
           <!-- Sauvegarde Directe -->
           <button class="btn-primary" @click=${this.saveProject}>
