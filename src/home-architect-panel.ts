@@ -1045,7 +1045,9 @@ export class HomeArchitectPanel extends LitElement {
     walls: [],
     openings: [],
     rooms: [],
-    bindings: []
+    bindings: [],
+    furniture: [],
+    category: 'rdc'
   };
 
   private fileInputRef: HTMLInputElement | null = null;
@@ -1173,7 +1175,11 @@ export class HomeArchitectPanel extends LitElement {
 
   private handleProjectChanged(e: CustomEvent<{ project: HomeArchitectProject }>) {
     this.pushUndoSnapshot();
-    this.project = { ...e.detail.project };
+    this.project = {
+      ...e.detail.project,
+      furniture: e.detail.project.furniture || []
+    };
+    this.levelProjects[this.activeLevel] = { ...this.project };
   }
 
   private handleThicknessChange(e: Event) {
@@ -1617,6 +1623,17 @@ export class HomeArchitectPanel extends LitElement {
       }
     }));
 
+    // 4b. Recalcul des meubles
+    const newFurniture = (this.project.furniture || []).map(f => ({
+      ...f,
+      position: {
+        x: SnappingEngine.roundMeters(f.position.x * scaleFactor),
+        y: SnappingEngine.roundMeters(f.position.y * scaleFactor)
+      },
+      width: SnappingEngine.roundMeters(f.width * scaleFactor),
+      length: SnappingEngine.roundMeters(f.length * scaleFactor)
+    }));
+
     // 5. Ajustement de l'échelle du calque de fond (si présent)
     let newPpm = this.project.pixelsPerMeter;
     let newBg = this.project.background ? { ...this.project.background } : undefined;
@@ -1640,8 +1657,10 @@ export class HomeArchitectPanel extends LitElement {
       openings: newOpenings,
       rooms: newRooms,
       bindings: newBindings,
+      furniture: newFurniture,
       background: newBg
     };
+    this.levelProjects[this.activeLevel] = { ...this.project };
 
     this.activeTool = 'select';
     this.showToast(
@@ -2022,6 +2041,7 @@ export class HomeArchitectPanel extends LitElement {
       id: projectId,
       name,
       category,
+      furniture: this.project.furniture || [],
       updated_at: new Date().toISOString()
     };
 
@@ -2055,7 +2075,10 @@ export class HomeArchitectPanel extends LitElement {
     if (!loaded) return;
 
     this.pushUndoSnapshot();
-    this.project = { ...loaded };
+    this.project = {
+      ...loaded,
+      furniture: loaded.furniture || []
+    };
 
     const cat = loaded.category || loaded.id;
     const knownLevels = ['sous-sol', 'rdc', 'etage1', 'etage2', 'etage3', 'jardin'];
@@ -2077,7 +2100,27 @@ export class HomeArchitectPanel extends LitElement {
     return html`
       <header class="top-bar">
         <div class="brand">
-          <span class="brand-icon">📐</span>
+          <span class="brand-icon">
+            <svg viewBox="0 0 512 512" width="28" height="28" style="vertical-align: middle; border-radius: 7px; overflow: hidden; box-shadow: 0 2px 8px rgba(56, 189, 248, 0.25);">
+              <rect width="512" height="512" rx="108" fill="#0f172a" stroke="#38bdf8" stroke-width="14" />
+              <g stroke="rgba(56, 189, 248, 0.15)" stroke-width="6">
+                <line x1="0" y1="170" x2="512" y2="170" />
+                <line x1="0" y1="340" x2="512" y2="340" />
+                <line x1="170" y1="0" x2="170" y2="512" />
+                <line x1="340" y1="0" x2="340" y2="512" />
+              </g>
+              <polygon points="120,310 256,230 392,310 256,390" fill="rgba(56, 189, 248, 0.15)" stroke="#38bdf8" stroke-width="8" stroke-dasharray="8,8" />
+              <polygon points="120,310 120,250 256,170 256,230" fill="rgba(15, 23, 42, 0.9)" stroke="#38bdf8" stroke-width="10" stroke-linejoin="round" />
+              <polygon points="256,230 256,170 392,250 392,310" fill="rgba(30, 41, 59, 0.9)" stroke="#0284c7" stroke-width="10" stroke-linejoin="round" />
+              <polygon points="120,310 120,250 200,298 200,358" fill="rgba(30, 41, 59, 0.9)" stroke="#38bdf8" stroke-width="8" />
+              <polygon points="200,358 200,298 256,330 256,390" fill="rgba(15, 23, 42, 0.9)" stroke="#38bdf8" stroke-width="8" />
+              <line x1="195" y1="255" x2="235" y2="280" stroke="#f59e0b" stroke-width="5" stroke-dasharray="6,6" />
+              <circle cx="195" cy="255" r="14" fill="#f59e0b" stroke="#ffffff" stroke-width="5" />
+              <line x1="235" y1="280" x2="295" y2="245" stroke="#38bdf8" stroke-width="5" stroke-dasharray="6,6" />
+              <circle cx="235" cy="280" r="18" fill="#06b6d4" stroke="#ffffff" stroke-width="6" />
+              <circle cx="295" cy="245" r="14" fill="#38bdf8" stroke="#ffffff" stroke-width="5" />
+            </svg>
+          </span>
           <span>Home Architect</span>
           <span class="brand-tag">Studio</span>
         </div>

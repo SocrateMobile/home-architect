@@ -8,6 +8,7 @@ export interface SvgExportOptions {
   includeRoomLabels?: boolean;
   includeDimensions?: boolean;
   includeEntityMarkers?: boolean;
+  includeFurniture?: boolean;
   includeBackground?: boolean;
   backgroundColor?: string;
   paddingMeters?: number;
@@ -48,6 +49,20 @@ export class SvgExporter {
     for (const b of project.bindings) {
       if (b.position) {
         pts.push(b.position);
+      }
+    }
+
+    // 3b. Points des meubles
+    if (project.furniture) {
+      for (const f of project.furniture) {
+        if (f.position) {
+          const halfW = (f.width || 1) / 2;
+          const halfL = (f.length || 1) / 2;
+          pts.push(
+            { x: f.position.x - halfW, y: f.position.y - halfL },
+            { x: f.position.x + halfW, y: f.position.y + halfL }
+          );
+        }
       }
     }
 
@@ -122,6 +137,7 @@ export class SvgExporter {
       includeRooms: true,
       includeWalls: true,
       includeOpenings: true,
+      includeFurniture: true,
       includeRoomLabels: true,
       includeDimensions: false,
       includeEntityMarkers: false,
@@ -246,6 +262,31 @@ export class SvgExporter {
         content += `    <g transform="translate(${cx}, ${cy})">\n`;
         content += `      <text y="-6" fill="#f8fafc" font-size="13" font-weight="700" text-anchor="middle">${this.escapeXml(room.name)}</text>\n`;
         content += `      <text y="12" fill="#38bdf8" font-size="11" font-weight="600" text-anchor="middle" font-family="monospace">${room.areaM2.toFixed(1)} m²</text>\n`;
+        content += `    </g>\n`;
+      }
+      content += `  </g>\n`;
+    }
+
+    // 6b. Meubles et Équipements
+    const includeFurn = opts.includeFurniture !== false;
+    if (includeFurn && project.furniture && project.furniture.length > 0) {
+      content += `  <!-- Meubles et Équipements -->\n  <g id="furniture-layer">\n`;
+      for (const furn of project.furniture) {
+        const fx = (furn.position.x * ppm).toFixed(1);
+        const fy = (furn.position.y * ppm).toFixed(1);
+        const wPx = ((furn.width || 1) * ppm).toFixed(1);
+        const lPx = ((furn.length || 1) * ppm).toFixed(1);
+        const rot = furn.rotation || 0;
+        const color = furn.color || '#38bdf8';
+        const halfW = (((furn.width || 1) * ppm) / 2).toFixed(1);
+        const halfL = (((furn.length || 1) * ppm) / 2).toFixed(1);
+
+        content += `    <g transform="translate(${fx}, ${fy}) rotate(${rot})">\n`;
+        content += `      <rect x="-${halfW}" y="-${halfL}" width="${wPx}" height="${lPx}" rx="4" fill="rgba(30, 41, 59, 0.75)" stroke="${color}" stroke-width="1.5" />\n`;
+        if (furn.icon) {
+          content += `      <text x="0" y="4" font-size="12" text-anchor="middle" fill="#f8fafc">${this.escapeXml(furn.icon)}</text>\n`;
+        }
+        content += `      <text x="0" y="${(parseFloat(halfL) + 12).toFixed(1)}" font-size="9" text-anchor="middle" fill="#94a3b8">${this.escapeXml(furn.name)}</text>\n`;
         content += `    </g>\n`;
       }
       content += `  </g>\n`;

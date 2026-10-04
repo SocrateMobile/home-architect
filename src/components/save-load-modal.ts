@@ -745,6 +745,8 @@ export class HomeArchitectSaveLoadModal extends LitElement {
                           <span>•</span>
                           <span>📐 ${p.rooms?.length || 0} pièces</span>
                           <span>•</span>
+                          <span>🛋️ ${p.furniture?.length || 0} meuble${(p.furniture?.length || 0) > 1 ? 's' : ''}</span>
+                          <span>•</span>
                           <span>⚡ ${p.bindings?.length || 0} capteurs</span>
                         </div>
                       </div>
