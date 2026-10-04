@@ -30,6 +30,14 @@ export const canvasStyles = css`
     cursor: grabbing;
   }
 
+  .canvas-container.is-orbiting {
+    cursor: grab;
+  }
+
+  .canvas-container.is-orbiting:active {
+    cursor: grabbing;
+  }
+
   /* Mode 3D Isométrique */
   .viewport-3d-wrapper {
     width: 100%;
@@ -457,6 +465,64 @@ export const canvasStyles = css`
     min-width: 48px;
     justify-content: center;
     font-family: ui-monospace, SFMono-Regular, monospace;
+  }
+
+  .hud-preset-group {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding-left: 6px;
+    border-left: 1px solid rgba(255, 255, 255, 0.15);
+  }
+
+  .hud-preset-btn {
+    background: rgba(15, 23, 42, 0.6);
+    color: #cbd5e1;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 6px;
+    padding: 4px 7px;
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .hud-preset-btn:hover {
+    background: #0284c7;
+    border-color: #38bdf8;
+    color: #ffffff;
+  }
+
+  .hud-angle-badge {
+    font-size: 10px;
+    color: #38bdf8;
+    font-family: ui-monospace, SFMono-Regular, monospace;
+    padding: 0 4px;
+    white-space: nowrap;
+  }
+
+  /* Walls 3D Realistic Shading */
+  .wall-3d-top {
+    fill: #f1f5f9;
+    stroke: #94a3b8;
+    stroke-width: 1.2;
+    transition: fill 0.15s ease;
+  }
+
+  .wall-element-3d:hover .wall-3d-top {
+    fill: #38bdf8;
+    stroke: #0284c7;
+  }
+
+  .wall-element-3d.selected .wall-3d-top {
+    fill: #06b6d4;
+    stroke: #22d3ee;
+    filter: drop-shadow(0 0 10px rgba(6, 182, 212, 0.6));
+  }
+
+  .wall-3d-side {
+    stroke-width: 0.8;
+    stroke-linejoin: round;
   }
 
   .coords-hud {

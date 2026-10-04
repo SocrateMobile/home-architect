@@ -112,6 +112,26 @@ export class HomeArchitectCanvas extends LitElement {
 
   private _boundKeyDown: any = null;
 
+  // État Orbite / Rotation 3D
+  @state()
+  private orbitPitch: number = 55;
+
+  @state()
+  private orbitYaw: number = -35;
+
+  @state()
+  private isOrbiting: boolean = false;
+
+  private orbitStart: Point = { x: 0, y: 0 };
+  private orbitStartPitch: number = 55;
+  private orbitStartYaw: number = -35;
+
+  public setCameraPreset(pitch: number, yaw: number): void {
+    this.orbitPitch = pitch;
+    this.orbitYaw = yaw;
+    this.requestUpdate();
+  }
+
   // ==========================================
   // CONVERSIONS DE COORDONNÉES
   // ==========================================
@@ -157,6 +177,43 @@ export class HomeArchitectCanvas extends LitElement {
   }
 
   private handlePointerDown(e: PointerEvent): void {
+    if (this.is3DMode) {
+      // 1. Clic molette (button 1) ou Shift + Clic : PAN dans l'espace 3D
+      if (e.button === 1 || (e.button === 0 && e.shiftKey)) {
+        this.isPanning = true;
+        this.panStart = { x: e.clientX - this.viewport.x, y: e.clientY - this.viewport.y };
+        (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+        return;
+      }
+
+      // 2. Clic droit (button 2) ou Alt + Clic : ORBITE interactive 360°
+      if (e.button === 2 || (e.button === 0 && e.altKey)) {
+        this.isOrbiting = true;
+        this.orbitStart = { x: e.clientX, y: e.clientY };
+        this.orbitStartPitch = this.orbitPitch;
+        this.orbitStartYaw = this.orbitYaw;
+        (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+        return;
+      }
+
+      // 3. Clic gauche direct (button 0) : Orbite sur fond ou sélection sur élément
+      if (e.button === 0) {
+        const isClickOnObject = (e.target as Element)?.closest?.('.wall-element, .wall-element-3d, .room-group, .entity-pin, .opening-element');
+        if (!isClickOnObject) {
+          this.selectedElements = { wallIds: [], openingIds: [], roomIds: [], bindingIds: [] };
+          this.dispatchSelectionChanged();
+
+          this.isOrbiting = true;
+          this.orbitStart = { x: e.clientX, y: e.clientY };
+          this.orbitStartPitch = this.orbitPitch;
+          this.orbitStartYaw = this.orbitYaw;
+          (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+          return;
+        }
+      }
+      return;
+    }
+
     if (e.button === 1) {
       this.isPanning = true;
       this.panStart = { x: e.clientX - this.viewport.x, y: e.clientY - this.viewport.y };
@@ -333,6 +390,15 @@ export class HomeArchitectCanvas extends LitElement {
   }
 
   private handlePointerMove(e: PointerEvent): void {
+    if (this.isOrbiting) {
+      const deltaX = e.clientX - this.orbitStart.x;
+      const deltaY = e.clientY - this.orbitStart.y;
+      this.orbitYaw = (this.orbitStartYaw + deltaX * 0.55) % 360;
+      this.orbitPitch = Math.max(15, Math.min(85, this.orbitStartPitch - deltaY * 0.38));
+      this.requestUpdate();
+      return;
+    }
+
     if (this.isMarqueeSelecting && this.marqueeStart) {
       this.marqueeCurrent = this.screenToWorld(e.clientX, e.clientY);
       this.requestUpdate();
@@ -404,6 +470,12 @@ export class HomeArchitectCanvas extends LitElement {
   }
 
   private handlePointerUp(e: PointerEvent): void {
+    if (this.isOrbiting) {
+      this.isOrbiting = false;
+      (e.target as HTMLElement).releasePointerCapture?.(e.pointerId);
+      return;
+    }
+
     if (this.isMarqueeSelecting && this.marqueeStart && this.marqueeCurrent) {
       const minX = Math.min(this.marqueeStart.x, this.marqueeCurrent.x);
       const maxX = Math.max(this.marqueeStart.x, this.marqueeCurrent.x);
@@ -848,20 +920,61 @@ export class HomeArchitectCanvas extends LitElement {
             class="room-polygon ${isRoomIlluminated ? 'illuminated' : ''}"
             style="fill: ${room.color || 'rgba(56, 189, 248, 0.12)'}; cursor: pointer;"
           />
-          <g class="room-label-group" transform="translate(${centroid.x}, ${centroid.y})">
-            <text class="room-label-name" y="${this.is3DMode ? -14 : -6}">${room.name}</text>
-            <text class="room-label-area" y="${this.is3DMode ? 4 : 12}">${room.areaM2.toFixed(1)} m²</text>
-            ${this.is3DMode ? svg`
-              <text class="room-label-height" y="20">H: ${roomH.toFixed(2)}m · ${roomVolume} m³</text>
-            ` : null}
-          </g>
+          ${this.is3DMode ? svg`
+            <g class="room-3d-badge-group" transform="translate(${centroid.x}, ${centroid.y})">
+              <rect 
+                x="-62" 
+                y="-30" 
+                width="124" 
+                height="60" 
+                rx="10" 
+                ry="10" 
+                fill="rgba(15, 23, 42, 0.84)" 
+                stroke="${isRoomSelected ? '#38bdf8' : 'rgba(56, 189, 248, 0.4)'}" 
+                stroke-width="${isRoomSelected ? 2 : 1}"
+                filter="drop-shadow(0 6px 14px rgba(0, 0, 0, 0.6))"
+              />
+              <text class="room-label-name" y="-12" style="font-size: 12px; font-weight: 700; fill: #f8fafc; text-anchor: middle;">
+                ${room.name}
+              </text>
+              <text class="room-label-area" y="6" style="font-size: 11px; font-weight: 700; fill: #38bdf8; text-anchor: middle; font-family: ui-monospace, SFMono-Regular, monospace;">
+                ${room.areaM2.toFixed(1)} m²
+              </text>
+              <text class="room-label-height" y="21" style="font-size: 9.5px; font-weight: 600; fill: #a5f3fc; text-anchor: middle; font-family: ui-monospace, SFMono-Regular, monospace;">
+                H: ${roomH.toFixed(2)}m · ${roomVolume} m³
+              </text>
+            </g>
+          ` : svg`
+            <g class="room-label-group" transform="translate(${centroid.x}, ${centroid.y})">
+              <text class="room-label-name" y="-6">${room.name}</text>
+              <text class="room-label-area" y="12">${room.areaM2.toFixed(1)} m²</text>
+            </g>
+          `}
         </g>
       `;
     });
   }
 
   private renderGrid() {
-    if (this.is3DMode) return null; // Grille épurée en 3D
+    if (this.is3DMode) {
+      return svg`
+        <defs>
+          <radialGradient id="ground-shadow" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stop-color="rgba(0, 0, 0, 0.45)" />
+            <stop offset="65%" stop-color="rgba(0, 0, 0, 0.15)" />
+            <stop offset="100%" stop-color="rgba(0, 0, 0, 0)" />
+          </radialGradient>
+          <pattern id="grid-dots-3d" width="40" height="40" patternUnits="userSpaceOnUse"
+            patternTransform="translate(${this.viewport.x % 40}, ${this.viewport.y % 40})">
+            <circle cx="20" cy="20" r="1.2" fill="rgba(255, 255, 255, 0.08)" />
+          </pattern>
+        </defs>
+        <!-- Grille de repère architectural au sol -->
+        <rect x="-4000" y="-4000" width="8000" height="8000" fill="url(#grid-dots-3d)" />
+        <!-- Ombre portée architecturale sous le bâtiment -->
+        <ellipse cx="${this.viewport.x + 300}" cy="${this.viewport.y + 200}" rx="900" ry="550" fill="url(#ground-shadow)" />
+      `;
+    }
 
     const ppm = this.project.pixelsPerMeter * this.viewport.zoom;
     const gridMeters = this.project.grid.size || 0.5;
@@ -909,22 +1022,58 @@ export class HomeArchitectCanvas extends LitElement {
       };
 
       if (this.is3DMode) {
-        // Rendu 3D avec parois verticales et toit de mur
+        // Rendu 3D avec 4 parois verticales ombrées et chapeau supérieur
         const spTop = sp.map(pt => ({ x: pt.x, y: pt.y - wallExtrusionH }));
         const pointsTopAttr = spTop.map(pt => `${pt.x},${pt.y}`).join(' ');
+
+        // Éclairage directionnel simulé (Soleil haut-gauche: vecteur directionnel [-0.7, -0.7])
+        const faces = [0, 1, 2, 3].map(k => {
+          const nextK = (k + 1) % 4;
+          const pA = sp[k];
+          const pB = sp[nextK];
+          const pBTop = spTop[nextK];
+          const pATop = spTop[k];
+
+          const dx = pB.x - pA.x;
+          const dy = pB.y - pA.y;
+          const len = Math.sqrt(dx * dx + dy * dy) || 1;
+          const nx = -dy / len;
+          const ny = dx / len;
+          const dot = Math.max(-1, Math.min(1, nx * (-0.7) + ny * (-0.7)));
+
+          const lightness = isWallSelected 
+            ? Math.round(42 + dot * 14) 
+            : Math.round(34 + dot * 16);
+          const fill = isWallSelected 
+            ? `hsl(192, 85%, ${lightness}%)` 
+            : `hsl(215, 22%, ${lightness}%)`;
+          const stroke = isWallSelected 
+            ? '#38bdf8' 
+            : `hsl(215, 22%, ${lightness + 6}%)`;
+
+          return {
+            pts: `${pA.x},${pA.y} ${pB.x},${pB.y} ${pBTop.x},${pBTop.y} ${pATop.x},${pATop.y}`,
+            fill,
+            stroke
+          };
+        });
+
+        const topFill = isWallSelected ? '#06b6d4' : '#f1f5f9';
+        const topStroke = isWallSelected ? '#22d3ee' : '#94a3b8';
 
         return svg`
           <g 
             class="wall-element-3d ${isWallSelected ? 'selected' : ''}" 
             data-wall-id="${wall.id}"
             @click=${(e: MouseEvent) => this.handleWallClick(e, wall)}
+            style="cursor: pointer;"
           >
-            <!-- Paroi latérale ombrée 1 -->
-            <polygon points="${sp[0].x},${sp[0].y} ${sp[1].x},${sp[1].y} ${spTop[1].x},${spTop[1].y} ${spTop[0].x},${spTop[0].y}" class="wall-3d-side-shaded" />
-            <!-- Paroi latérale ombrée 2 -->
-            <polygon points="${sp[1].x},${sp[1].y} ${sp[2].x},${sp[2].y} ${spTop[2].x},${spTop[2].y} ${spTop[1].x},${spTop[1].y}" class="wall-3d-side-light" />
+            <!-- 4 parois verticales solides -->
+            ${faces.map(f => svg`
+              <polygon points="${f.pts}" style="fill: ${f.fill}; stroke: ${f.stroke}; stroke-width: 0.8; stroke-linejoin: round;" />
+            `)}
             <!-- Chapeau supérieur du mur -->
-            <polygon points="${pointsTopAttr}" class="wall-3d-top" />
+            <polygon points="${pointsTopAttr}" style="fill: ${topFill}; stroke: ${topStroke}; stroke-width: 1.2; stroke-linejoin: round;" />
           </g>
         `;
       }
@@ -1245,7 +1394,9 @@ export class HomeArchitectCanvas extends LitElement {
   }
 
   private getHelpMessage(): string | null {
-    if (this.is3DMode) return "Vue 3D Isométrique : Murs extrudés avec éclairage dynamique.";
+    if (this.is3DMode) {
+      return "Vue 3D Interactive : Glisser (clic gauche/droit) pour pivoter 360°, Molette pour zoomer, Shift+glisser pour déplacer.";
+    }
     if (this.activeTool === 'select') {
       return "Mode Sélection : Cliquez sur un élément pour le sélectionner (Shift pour multi-sélection, Shift+glisser pour cadre). Suppr pour effacer.";
     }
@@ -1274,15 +1425,19 @@ export class HomeArchitectCanvas extends LitElement {
 
     return html`
       <div 
-        class="canvas-container ${this.isPanning ? 'is-panning' : ''}"
+        class="canvas-container ${this.isPanning ? 'is-panning' : ''} ${this.isOrbiting ? 'is-orbiting' : ''}"
         @wheel=${this.handleWheel}
         @pointerdown=${this.handlePointerDown}
         @pointermove=${this.handlePointerMove}
         @pointerup=${this.handlePointerUp}
+        @contextmenu=${(e: MouseEvent) => { if (this.is3DMode) e.preventDefault(); }}
         @dragover=${this.handleDragOver}
         @drop=${this.handleDrop}
       >
-        <div class="viewport-3d-wrapper ${this.is3DMode ? 'mode-3d' : ''}">
+        <div 
+          class="viewport-3d-wrapper ${this.is3DMode ? 'mode-3d' : ''}"
+          style="${this.is3DMode ? `transform: rotateX(${this.orbitPitch}deg) rotateZ(${this.orbitYaw}deg); transition: ${this.isOrbiting ? 'none' : 'transform 0.4s cubic-bezier(0.16, 1, 0.3, 1)'};` : ''}"
+        >
           <svg class="main-viewport">
             ${this.renderBackgroundLayer()}
             ${this.renderGrid()}
@@ -1314,6 +1469,18 @@ export class HomeArchitectCanvas extends LitElement {
           >
             ${this.is3DMode ? '🧊' : '📐'}
           </button>
+
+          ${this.is3DMode ? html`
+            <div class="hud-preset-group">
+              <span class="hud-angle-badge">${Math.round(this.orbitYaw)}° / ${Math.round(this.orbitPitch)}°</span>
+              <button class="hud-preset-btn" @click=${() => this.setCameraPreset(55, -35)} title="Vue Sud-Ouest (Défaut)">SO</button>
+              <button class="hud-preset-btn" @click=${() => this.setCameraPreset(55, 35)} title="Vue Sud-Est">SE</button>
+              <button class="hud-preset-btn" @click=${() => this.setCameraPreset(55, 125)} title="Vue Nord-Est">NE</button>
+              <button class="hud-preset-btn" @click=${() => this.setCameraPreset(55, -125)} title="Vue Nord-Ouest">NO</button>
+              <button class="hud-preset-btn" @click=${() => this.setCameraPreset(75, 0)} title="Vue Plongeante">Top</button>
+            </div>
+          ` : null}
+
           <button class="hud-btn" @click=${this.zoomOut} title="Zoom Arrière">−</button>
           <div class="hud-zoom-label">${Math.round(this.viewport.zoom * 100)}%</div>
           <button class="hud-btn" @click=${this.zoomIn} title="Zoom Avant">+</button>
