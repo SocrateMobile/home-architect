@@ -14,7 +14,7 @@ import './components/export-modal';
 import { SnappingEngine } from './core/snapping';
 import { PolygonUtils } from './core/polygon';
 import { 
-  ActiveTool, HomeArchitectProject, Wall, Opening, Room, Point, EntityBinding, SelectedElements 
+  ActiveTool, HomeArchitectProject, Wall, Opening, OpeningType, Room, Point, EntityBinding, SelectedElements 
 } from './core/types';
 
 @customElement('home-architect-panel')
@@ -375,6 +375,46 @@ export class HomeArchitectPanel extends LitElement {
       background: rgba(255, 255, 255, 0.1);
     }
 
+    .hud-options-group {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding-left: 8px;
+      border-left: 1px solid rgba(255, 255, 255, 0.15);
+    }
+
+    .hud-label {
+      font-size: 0.78rem;
+      color: #94a3b8;
+      font-weight: 600;
+    }
+
+    .hud-opt-btn {
+      background: rgba(30, 41, 59, 0.8);
+      color: #cbd5e1;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 6px;
+      padding: 4px 8px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      white-space: nowrap;
+    }
+
+    .hud-opt-btn:hover {
+      background: rgba(56, 189, 248, 0.2);
+      border-color: #38bdf8;
+      color: #ffffff;
+    }
+
+    .hud-opt-btn.active {
+      background: #0284c7;
+      border-color: #38bdf8;
+      color: #ffffff;
+      box-shadow: 0 0 10px rgba(56, 189, 248, 0.4);
+    }
+
     .canvas-area {
       flex: 1;
       min-width: 0;
@@ -458,6 +498,15 @@ export class HomeArchitectPanel extends LitElement {
   private currentOpeningWidth: number = 0.90;
 
   @state()
+  private doorFlipSide: boolean = false;
+
+  @state()
+  private doorFlipDirection: boolean = true;
+
+  @state()
+  private windowSashCount: number = 1;
+
+  @state()
   private activeLevel: string = 'rdc';
 
   @state()
@@ -531,10 +580,120 @@ export class HomeArchitectPanel extends LitElement {
     if (this.activeTool === 'door') {
       this.currentOpeningWidth = 0.90;
     } else if (this.activeTool === 'window') {
-      this.currentOpeningWidth = 1.20;
+      this.currentOpeningWidth = this.windowSashCount === 2 ? 1.40 : 0.90;
     } else if (this.activeTool === 'french_window') {
       this.currentOpeningWidth = 2.00;
     }
+  }
+
+  private handleDoorConfigChanged(e: CustomEvent<{ flipSide: boolean; flipDirection: boolean }>) {
+    this.doorFlipSide = e.detail.flipSide;
+    this.doorFlipDirection = e.detail.flipDirection;
+    this.activeTool = 'door';
+
+    // Mettre à jour les portes sélectionnées
+    if (this.selectedElements.openingIds.length > 0) {
+      this.pushUndoSnapshot();
+      let updated = 0;
+      const newOpenings = this.project.openings.map(op => {
+        if (this.selectedElements.openingIds.includes(op.id) && op.type === 'door') {
+          updated++;
+          return { ...op, flipSide: e.detail.flipSide, flipDirection: e.detail.flipDirection };
+        }
+        return op;
+      });
+      if (updated > 0) {
+        this.project = { ...this.project, openings: newOpenings };
+        this.showToast(`🚪 ${updated} porte(s) mise(s) à jour`);
+      }
+    }
+  }
+
+  private handleWindowConfigChanged(e: CustomEvent<{ type: 'window' | 'french_window'; sashCount: number; width: number }>) {
+    this.activeTool = e.detail.type;
+    this.currentOpeningWidth = e.detail.width;
+    this.windowSashCount = e.detail.sashCount;
+
+    // Mettre à jour les fenêtres sélectionnées
+    if (this.selectedElements.openingIds.length > 0) {
+      this.pushUndoSnapshot();
+      let updated = 0;
+      const newOpenings = this.project.openings.map(op => {
+        if (this.selectedElements.openingIds.includes(op.id) && (op.type === 'window' || op.type === 'french_window')) {
+          updated++;
+          return {
+            ...op,
+            type: e.detail.type,
+            width: e.detail.width,
+            sashCount: e.detail.sashCount
+          };
+        }
+        return op;
+      });
+      if (updated > 0) {
+        this.project = { ...this.project, openings: newOpenings };
+        this.showToast(`🪟 ${updated} fenêtre(s) mise(s) à jour`);
+      }
+    }
+  }
+
+  private handleWallThicknessChanged(e: CustomEvent<{ thickness: number }>) {
+    this.currentThickness = e.detail.thickness;
+    this.activeTool = 'wall';
+
+    // Mettre à jour les murs sélectionnés
+    if (this.selectedElements.wallIds.length > 0) {
+      this.pushUndoSnapshot();
+      const newWalls = this.project.walls.map(w => {
+        if (this.selectedElements.wallIds.includes(w.id)) {
+          return { ...w, thickness: e.detail.thickness };
+        }
+        return w;
+      });
+      this.project = { ...this.project, walls: newWalls };
+      this.showToast(`🧱 Épaisseur de ${this.selectedElements.wallIds.length} mur(s) mise à jour (${Math.round(e.detail.thickness * 100)} cm)`);
+    }
+  }
+
+  private updateSelectedDoorConfig(flipSide: boolean, flipDirection: boolean) {
+    this.pushUndoSnapshot();
+    this.doorFlipSide = flipSide;
+    this.doorFlipDirection = flipDirection;
+    const newOpenings = this.project.openings.map(op => {
+      if (this.selectedElements.openingIds.includes(op.id) && op.type === 'door') {
+        return { ...op, flipSide, flipDirection };
+      }
+      return op;
+    });
+    this.project = { ...this.project, openings: newOpenings };
+    this.showToast('🚪 Sens d\'ouverture de porte mis à jour');
+  }
+
+  private updateSelectedWindowConfig(type: 'window' | 'french_window', sashCount: number, width: number) {
+    this.pushUndoSnapshot();
+    this.windowSashCount = sashCount;
+    this.currentOpeningWidth = width;
+    const newOpenings = this.project.openings.map(op => {
+      if (this.selectedElements.openingIds.includes(op.id) && (op.type === 'window' || op.type === 'french_window')) {
+        return { ...op, type, sashCount, width };
+      }
+      return op;
+    });
+    this.project = { ...this.project, openings: newOpenings };
+    this.showToast('🪟 Format de fenêtre mis à jour');
+  }
+
+  private updateSelectedWallsThickness(thickness: number) {
+    this.pushUndoSnapshot();
+    this.currentThickness = thickness;
+    const newWalls = this.project.walls.map(w => {
+      if (this.selectedElements.wallIds.includes(w.id)) {
+        return { ...w, thickness };
+      }
+      return w;
+    });
+    this.project = { ...this.project, walls: newWalls };
+    this.showToast(`🧱 Épaisseur de mur mise à jour (${Math.round(thickness * 100)} cm)`);
   }
 
   private handleProjectChanged(e: CustomEvent<{ project: HomeArchitectProject }>) {
@@ -1275,11 +1434,18 @@ export class HomeArchitectPanel extends LitElement {
         <div class="canvas-area">
           <home-architect-toolbar 
             .activeTool=${this.activeTool}
+            .currentThickness=${this.currentThickness}
+            .doorFlipSide=${this.doorFlipSide}
+            .doorFlipDirection=${this.doorFlipDirection}
+            .windowSashCount=${this.windowSashCount}
             .canUndo=${this.undoStack.length > 0}
             .canRedo=${this.redoStack.length > 0}
             @undo=${this.handleUndo}
             @redo=${this.handleRedo}
             @tool-selected=${this.handleToolSelected}
+            @door-config-changed=${this.handleDoorConfigChanged}
+            @window-config-changed=${this.handleWindowConfigChanged}
+            @wall-thickness-changed=${this.handleWallThicknessChanged}
             @open-wizard=${() => this.isWizardOpen = true}
             @open-import-modal=${() => this.isImportModalOpen = true}
             @trigger-upload-background=${() => this.isImportModalOpen = true}
@@ -1291,6 +1457,9 @@ export class HomeArchitectPanel extends LitElement {
             .activeTool=${this.activeTool}
             .currentWallThickness=${this.currentThickness}
             .currentOpeningWidth=${this.currentOpeningWidth}
+            .openingFlipSide=${this.doorFlipSide}
+            .openingFlipDirection=${this.doorFlipDirection}
+            .windowSashCount=${this.windowSashCount}
             .is3DMode=${this.is3DMode}
             .selectedElements=${this.selectedElements}
             @selection-changed=${(e: any) => this.selectedElements = e.detail.selectedElements}
@@ -1313,6 +1482,38 @@ export class HomeArchitectPanel extends LitElement {
                 <span>🎯</span>
                 <span>${this.getSelectedSummary()} sélectionné(s)</span>
               </span>
+
+              ${this.selectedElements.wallIds.length > 0 ? html`
+                <div class="hud-options-group">
+                  <span class="hud-label">Épaisseur :</span>
+                  <button class="hud-opt-btn ${this.currentThickness === 0.10 ? 'active' : ''}" @click=${() => this.updateSelectedWallsThickness(0.10)} title="Cloison 10 cm">Fin 10cm</button>
+                  <button class="hud-opt-btn ${this.currentThickness === 0.20 ? 'active' : ''}" @click=${() => this.updateSelectedWallsThickness(0.20)} title="Standard 20 cm">Moyen 20cm</button>
+                  <button class="hud-opt-btn ${this.currentThickness === 0.30 ? 'active' : ''}" @click=${() => this.updateSelectedWallsThickness(0.30)} title="Porteur 30 cm">Gros 30cm</button>
+                </div>
+              ` : null}
+
+              ${this.selectedElements.openingIds.some(id => this.project.openings.find(op => op.id === id)?.type === 'door') ? html`
+                <div class="hud-options-group">
+                  <span class="hud-label">Porte :</span>
+                  <button class="hud-opt-btn ${!this.doorFlipSide && this.doorFlipDirection ? 'active' : ''}" @click=${() => this.updateSelectedDoorConfig(false, true)} title="Ouverture Droite Intérieure (Poussant Droit)">Droite Int.</button>
+                  <button class="hud-opt-btn ${!this.doorFlipSide && !this.doorFlipDirection ? 'active' : ''}" @click=${() => this.updateSelectedDoorConfig(false, false)} title="Ouverture Gauche Intérieure (Poussant Gauche)">Gauche Int.</button>
+                  <button class="hud-opt-btn ${this.doorFlipSide && !this.doorFlipDirection ? 'active' : ''}" @click=${() => this.updateSelectedDoorConfig(true, false)} title="Ouverture Gauche Extérieure (Tirant Gauche)">Gauche Ext.</button>
+                  <button class="hud-opt-btn ${this.doorFlipSide && this.doorFlipDirection ? 'active' : ''}" @click=${() => this.updateSelectedDoorConfig(true, true)} title="Ouverture Droite Extérieure (Tirant Droit)">Droite Ext.</button>
+                </div>
+              ` : null}
+
+              ${this.selectedElements.openingIds.some(id => {
+                const op = this.project.openings.find(o => o.id === id);
+                return op && (op.type === 'window' || op.type === 'french_window');
+              }) ? html`
+                <div class="hud-options-group">
+                  <span class="hud-label">Fenêtre :</span>
+                  <button class="hud-opt-btn ${this.windowSashCount === 1 ? 'active' : ''}" @click=${() => this.updateSelectedWindowConfig('window', 1, 0.90)} title="Fenêtre 1 ouvrant (90 cm)">1 Ouvrant</button>
+                  <button class="hud-opt-btn ${this.windowSashCount === 2 ? 'active' : ''}" @click=${() => this.updateSelectedWindowConfig('window', 2, 1.40)} title="Fenêtre 2 battants (1.40 m)">2 Battants</button>
+                  <button class="hud-opt-btn" @click=${() => this.updateSelectedWindowConfig('french_window', 2, 2.00)} title="Baie vitrée coulissante (2.00 m)">Baie vitrée</button>
+                </div>
+              ` : null}
+
               <button class="btn-delete-selection" @click=${this.handleDeleteSelected} title="Supprimer les éléments sélectionnés (Touche Suppr / Retour)">
                 <span>🗑️</span>
                 <span>Supprimer</span>
