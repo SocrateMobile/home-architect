@@ -38,6 +38,10 @@ export const canvasStyles = css`
     cursor: grabbing;
   }
 
+  .canvas-container.dashboard-mode {
+    cursor: default;
+  }
+
   /* Mode 3D Isométrique */
   .viewport-3d-wrapper {
     width: 100%;
