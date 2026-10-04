@@ -9,6 +9,7 @@ import {
 import { SnappingEngine } from '../core/snapping';
 import { PolygonUtils } from '../core/polygon';
 import { findFurnitureTemplate } from '../core/furniture-catalog';
+import { SvgExporter } from '../core/svg-exporter';
 
 @customElement('home-architect-canvas')
 export class HomeArchitectCanvas extends LitElement {
@@ -1146,16 +1147,47 @@ export class HomeArchitectCanvas extends LitElement {
     }
   }
 
+  private _canvasResizeObserver: ResizeObserver | null = null;
+
   connectedCallback(): void {
     super.connectedCallback();
     this._boundKeyDown = this.handleKeyDown.bind(this);
     window.addEventListener('keydown', this._boundKeyDown);
+
+    if (typeof ResizeObserver !== 'undefined') {
+      this._canvasResizeObserver = new ResizeObserver(() => {
+        this.requestUpdate();
+      });
+      this._canvasResizeObserver.observe(this);
+    }
   }
 
   disconnectedCallback(): void {
     super.disconnectedCallback();
     if (this._boundKeyDown) {
       window.removeEventListener('keydown', this._boundKeyDown);
+    }
+    if (this._canvasResizeObserver) {
+      this._canvasResizeObserver.disconnect();
+      this._canvasResizeObserver = null;
+    }
+  }
+
+  firstUpdated(): void {
+    setTimeout(() => {
+      if (this.project && (this.project.walls?.length > 0 || this.project.rooms?.length > 0)) {
+        this.fitToScreen();
+      }
+    }, 150);
+  }
+
+  updated(changedProperties: Map<string, any>): void {
+    super.updated(changedProperties);
+    if (changedProperties.has('project')) {
+      const oldProject = changedProperties.get('project');
+      if (oldProject && this.project && oldProject.id !== this.project.id) {
+        setTimeout(() => this.fitToScreen(), 80);
+      }
     }
   }
 
@@ -2043,8 +2075,45 @@ export class HomeArchitectCanvas extends LitElement {
     this.viewport = { ...this.viewport, zoom: Math.max(this.viewport.zoom / 1.25, 0.15) };
   }
 
+  public fitToScreen(padding: number = 60): void {
+    const rect = this.getBoundingClientRect();
+    const canvasW = rect.width || this.clientWidth || 800;
+    const canvasH = rect.height || this.clientHeight || 600;
+
+    const hasContent = (this.project.walls && this.project.walls.length > 0) ||
+      (this.project.rooms && this.project.rooms.length > 0) ||
+      (this.project.furniture && this.project.furniture.length > 0) ||
+      (this.project.background?.imageUrl && this.project.background.visible);
+
+    if (!hasContent) {
+      this.viewport = { x: canvasW / 2, y: canvasH / 2, zoom: 1.0 };
+      this.requestUpdate();
+      return;
+    }
+
+    const bbox = SvgExporter.calculateBoundingBox(this.project, 0.6);
+    const ppm = bbox.ppm;
+    const planW = bbox.width * ppm;
+    const planH = bbox.height * ppm;
+    const planCenterX = (bbox.minX + bbox.width / 2) * ppm;
+    const planCenterY = (bbox.minY + bbox.height / 2) * ppm;
+
+    const availW = Math.max(100, canvasW - padding * 2);
+    const availH = Math.max(100, canvasH - padding * 2);
+
+    let zoom = Math.min(availW / Math.max(planW, 100), availH / Math.max(planH, 100));
+    zoom = Math.min(Math.max(zoom, 0.2), 2.5);
+
+    this.viewport = {
+      x: canvasW / 2 - planCenterX * zoom,
+      y: canvasH / 2 - planCenterY * zoom,
+      zoom
+    };
+    this.requestUpdate();
+  }
+
   private resetView(): void {
-    this.viewport = { x: 300, y: 300, zoom: 1.0 };
+    this.fitToScreen();
   }
 
   private toggle3DMode(): void {
@@ -2124,8 +2193,15 @@ export class HomeArchitectCanvas extends LitElement {
         ${!this.isDashboardMode && helpMsg ? html`<div class="help-hud">${helpMsg}</div>` : null}
 
         ${!this.isDashboardMode ? html`
-          <div class="coords-hud">
-            X: ${this.cursorCoords.x.toFixed(2)} m | Y: ${this.cursorCoords.y.toFixed(2)} m | Outil: ${this.activeTool.toUpperCase()}
+          <div class="coords-hud ${(this.selectedElements.wallIds.length + this.selectedElements.openingIds.length + this.selectedElements.roomIds.length + this.selectedElements.bindingIds.length + (this.selectedElements.furnitureIds?.length || 0)) > 0 ? 'selection-active' : ''}">
+            <span style="color: #38bdf8;">X:</span>
+            <span>${this.cursorCoords.x.toFixed(2)} m</span>
+            <span style="opacity: 0.35;">|</span>
+            <span style="color: #38bdf8;">Y:</span>
+            <span>${this.cursorCoords.y.toFixed(2)} m</span>
+            <span style="opacity: 0.35;">|</span>
+            <span style="color: #94a3b8;">Outil:</span>
+            <span style="color: #f1f5f9; font-weight: 700;">${this.activeTool.toUpperCase()}</span>
           </div>
         ` : null}
 
