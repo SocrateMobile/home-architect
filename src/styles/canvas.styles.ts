@@ -305,6 +305,21 @@ export const canvasStyles = css`
     filter: drop-shadow(0 0 12px rgba(6, 182, 212, 0.8)) !important;
   }
 
+  .furniture-rotate-handle {
+    cursor: grab;
+    transition: transform 0.15s ease, filter 0.15s ease;
+  }
+
+  .furniture-rotate-handle:hover circle {
+    fill: #06b6d4 !important;
+    stroke: #ffffff !important;
+    filter: drop-shadow(0 0 8px #06b6d4);
+  }
+
+  .furniture-rotate-handle:active {
+    cursor: grabbing;
+  }
+
   /* Calque fantôme niveau inférieur (Onion Skinning) */
   .ghost-wall {
     stroke: rgba(148, 163, 184, 0.42);

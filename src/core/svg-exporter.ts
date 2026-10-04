@@ -286,7 +286,6 @@ export class SvgExporter {
         if (furn.icon) {
           content += `      <text x="0" y="4" font-size="12" text-anchor="middle" fill="#f8fafc">${this.escapeXml(furn.icon)}</text>\n`;
         }
-        content += `      <text x="0" y="${(parseFloat(halfL) + 12).toFixed(1)}" font-size="9" text-anchor="middle" fill="#94a3b8">${this.escapeXml(furn.name)}</text>\n`;
         content += `    </g>\n`;
       }
       content += `  </g>\n`;
