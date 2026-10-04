@@ -107,9 +107,85 @@ def async_register_websocket_commands(
             _LOGGER.error("Failed to save floor plan SVG to www: %s", err)
             connection.send_error(msg["id"], "write_failed", str(err))
 
+    @websocket_api.websocket_command(
+        {
+            vol.Required("type"): "home_architect/check_updates",
+        }
+    )
+    @websocket_api.async_response
+    async def ws_check_updates(
+        hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict
+    ) -> None:
+        """Trigger an on-demand update check via GitHub."""
+        from .const import DOMAIN, VERSION
+        update_ent = hass.data.get(DOMAIN, {}).get("update_entity")
+        if not update_ent:
+            for ed in hass.data.get(DOMAIN, {}).values():
+                if isinstance(ed, dict) and "update_entity" in ed:
+                    update_ent = ed["update_entity"]
+                    break
+
+        if update_ent:
+            await update_ent.async_update()
+            connection.send_result(
+                msg["id"],
+                {
+                    "installed_version": update_ent.installed_version,
+                    "latest_version": update_ent.latest_version,
+                    "update_available": update_ent.installed_version != update_ent.latest_version,
+                    "release_notes": getattr(update_ent, "_release_body", "") or "",
+                    "release_url": getattr(update_ent, "_attr_release_url", "") or "",
+                },
+            )
+        else:
+            connection.send_result(
+                msg["id"],
+                {
+                    "installed_version": VERSION,
+                    "latest_version": VERSION,
+                    "update_available": False,
+                },
+            )
+
+    @websocket_api.require_admin
+    @websocket_api.websocket_command(
+        {
+            vol.Required("type"): "home_architect/install_update",
+            vol.Optional("backup", default=True): bool,
+        }
+    )
+    @websocket_api.async_response
+    async def ws_install_update(
+        hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict
+    ) -> None:
+        """Trigger installation of the latest update."""
+        from .const import DOMAIN
+        backup = msg.get("backup", True)
+        update_ent = hass.data.get(DOMAIN, {}).get("update_entity")
+        if not update_ent:
+            for ed in hass.data.get(DOMAIN, {}).values():
+                if isinstance(ed, dict) and "update_entity" in ed:
+                    update_ent = ed["update_entity"]
+                    break
+
+        if update_ent:
+            connection.send_result(msg["id"], {"status": "started"})
+            if hasattr(hass, "async_create_background_task"):
+                hass.async_create_background_task(
+                    update_ent.async_install(backup=backup),
+                    name=f"{DOMAIN}_install_update_task",
+                )
+            else:
+                hass.async_create_task(update_ent.async_install(backup=backup))
+        else:
+            connection.send_error(msg["id"], "not_found", "Update entity not available")
+
     # Register handlers
     websocket_api.async_register_command(hass, ws_get_projects)
     websocket_api.async_register_command(hass, ws_save_project)
     websocket_api.async_register_command(hass, ws_delete_project)
     websocket_api.async_register_command(hass, ws_save_svg_to_www)
+    websocket_api.async_register_command(hass, ws_check_updates)
+    websocket_api.async_register_command(hass, ws_install_update)
     _LOGGER.debug("Home Architect WebSocket commands registered successfully")
+

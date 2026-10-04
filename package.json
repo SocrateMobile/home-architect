@@ -1,10 +1,12 @@
 {
   "name": "home-architect",
-  "version": "1.0.22",
+  "version": "1.0.23",
+  "type": "module",
   "description": "Interactive, CAD-like Floor Plan Creator and Automation Dashboard for Home Assistant",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
+    "version:sync": "node scripts/sync-version.js",
+    "build": "npm run version:sync && tsc && vite build",
     "preview": "vite preview"
   },
   "keywords": [
