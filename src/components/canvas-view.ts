@@ -673,13 +673,21 @@ export class HomeArchitectCanvas extends LitElement {
     if (this.draggingBindingId) {
       const moved = this.dragBindingMoved;
       this.draggingBindingId = null;
-      this.dragBindingMoved = false;
+      const container = this.shadowRoot?.querySelector('.canvas-container') as HTMLElement;
       try {
-        (e.target as HTMLElement).releasePointerCapture?.(e.pointerId);
+        container?.releasePointerCapture?.(e.pointerId);
+      } catch (_) {}
+      try {
+        (e.target as HTMLElement)?.releasePointerCapture?.(e.pointerId);
       } catch (_) {}
       if (moved) {
+        setTimeout(() => {
+          this.dragBindingMoved = false;
+        }, 150);
         this.dispatchProjectChanged();
         return;
+      } else {
+        this.dragBindingMoved = false;
       }
     }
 
@@ -1004,22 +1012,23 @@ export class HomeArchitectCanvas extends LitElement {
     this.dragBindingMoved = false;
     this.dragBindingStartPos = { x: e.clientX, y: e.clientY };
 
-    if (this.activeTool === 'select') {
-      const me = e as MouseEvent;
-      const isMulti = me.shiftKey || me.ctrlKey || me.metaKey;
-      const exists = this.selectedElements.bindingIds.includes(binding.id);
-      if (isMulti) {
-        const newBindingIds = exists
-          ? this.selectedElements.bindingIds.filter(id => id !== binding.id)
-          : [...this.selectedElements.bindingIds, binding.id];
-        this.selectedElements = { ...this.selectedElements, bindingIds: newBindingIds };
-      } else if (!exists) {
-        this.selectedElements = { wallIds: [], openingIds: [], roomIds: [], bindingIds: [binding.id] };
-      }
-      this.dispatchSelectionChanged();
+    const me = e as MouseEvent;
+    const isMulti = me.shiftKey || me.ctrlKey || me.metaKey;
+    const exists = this.selectedElements.bindingIds.includes(binding.id);
+    if (isMulti) {
+      const newBindingIds = exists
+        ? this.selectedElements.bindingIds.filter(id => id !== binding.id)
+        : [...this.selectedElements.bindingIds, binding.id];
+      this.selectedElements = { ...this.selectedElements, bindingIds: newBindingIds };
+    } else {
+      this.selectedElements = { wallIds: [], openingIds: [], roomIds: [], bindingIds: [binding.id], furnitureIds: [] };
     }
+    this.dispatchSelectionChanged();
 
-    (e.currentTarget as HTMLElement)?.setPointerCapture?.(e.pointerId);
+    const container = this.shadowRoot?.querySelector('.canvas-container') as HTMLElement;
+    try {
+      container?.setPointerCapture?.(e.pointerId);
+    } catch (_) {}
   }
 
   private handleEntityClick(binding: EntityBinding, e: Event): void {
@@ -1654,6 +1663,94 @@ export class HomeArchitectCanvas extends LitElement {
   // RENDU DES PINS D'ENTITÉS HOME ASSISTANT
   // ==========================================
 
+  private getEntityDisplayState(binding: EntityBinding): { text: string; statusClass: 'on' | 'off' | 'alert' | 'info' } {
+    const entityState = this.hass?.states?.[binding.entityId];
+    if (!entityState) {
+      return { text: 'Inactif', statusClass: 'off' };
+    }
+
+    const stateStr = entityState.state;
+    if (stateStr === 'unavailable') return { text: 'Indisponible', statusClass: 'off' };
+    if (stateStr === 'unknown') return { text: 'Inconnu', statusClass: 'off' };
+
+    const domain = binding.entityId.split('.')[0];
+    const attrs = entityState.attributes || {};
+    const deviceClass = attrs.device_class || '';
+
+    if (domain === 'light') {
+      if (stateStr === 'on') {
+        const pct = attrs.brightness ? Math.round((attrs.brightness / 255) * 100) : null;
+        return { text: pct !== null ? `Allumé (${pct}%)` : 'Allumé', statusClass: 'on' };
+      }
+      return { text: 'Éteint', statusClass: 'off' };
+    }
+
+    if (domain === 'switch') {
+      return stateStr === 'on' 
+        ? { text: 'Actif', statusClass: 'on' } 
+        : { text: 'Éteint', statusClass: 'off' };
+    }
+
+    if (domain === 'binary_sensor') {
+      const isRadar = deviceClass === 'motion' || deviceClass === 'occupancy' || deviceClass === 'presence' ||
+        binding.entityId.includes('presence') || binding.entityId.includes('occupancy') || binding.entityId.includes('radar') || binding.entityId.includes('motion');
+      const isOpening = deviceClass === 'door' || deviceClass === 'window' || deviceClass === 'garage_door' || deviceClass === 'opening';
+      const isMoisture = deviceClass === 'moisture';
+      const isSmoke = deviceClass === 'smoke';
+
+      if (stateStr === 'on' || stateStr === 'detected') {
+        if (isRadar) return { text: 'Mouvement', statusClass: 'alert' };
+        if (isOpening) return { text: 'Ouvert', statusClass: 'alert' };
+        if (isMoisture) return { text: 'Fuite !', statusClass: 'alert' };
+        if (isSmoke) return { text: 'Fumée !', statusClass: 'alert' };
+        return { text: 'Détecté', statusClass: 'alert' };
+      } else {
+        if (isRadar) return { text: 'Au repos', statusClass: 'info' };
+        if (isOpening) return { text: 'Fermé', statusClass: 'info' };
+        if (isMoisture) return { text: 'Sec', statusClass: 'info' };
+        if (isSmoke) return { text: 'Normal', statusClass: 'info' };
+        return { text: 'Inactif', statusClass: 'off' };
+      }
+    }
+
+    if (domain === 'climate') {
+      const cur = attrs.current_temperature;
+      const target = attrs.temperature;
+      if (cur !== undefined && target !== undefined) {
+        return { text: `${cur}°C (${target}°)`, statusClass: 'info' };
+      }
+      if (cur !== undefined) return { text: `${cur}°C`, statusClass: 'info' };
+      return { text: stateStr, statusClass: 'info' };
+    }
+
+    if (domain === 'sensor') {
+      const unit = attrs.unit_of_measurement || '';
+      return { text: `${stateStr}${unit ? ' ' + unit : ''}`, statusClass: 'info' };
+    }
+
+    if (domain === 'cover') {
+      const pos = attrs.current_position;
+      if (pos !== undefined) return { text: `${pos}%`, statusClass: pos > 0 ? 'on' : 'off' };
+      return stateStr === 'open' ? { text: 'Ouvert', statusClass: 'on' } : { text: 'Fermé', statusClass: 'off' };
+    }
+
+    if (domain === 'media_player') {
+      if (stateStr === 'playing') return { text: 'Lecture', statusClass: 'on' };
+      if (stateStr === 'paused') return { text: 'Pause', statusClass: 'info' };
+      return { text: 'Arrêt', statusClass: 'off' };
+    }
+
+    if (domain === 'fan') {
+      return stateStr === 'on' ? { text: 'En marche', statusClass: 'on' } : { text: 'Arrêté', statusClass: 'off' };
+    }
+
+    if (domain === 'lock') {
+      return stateStr === 'locked' ? { text: 'Verrouillé', statusClass: 'info' } : { text: 'Déverrouillé', statusClass: 'alert' };
+    }
+
+    return { text: stateStr === 'on' ? 'Actif' : (stateStr === 'off' ? 'Inactif' : stateStr), statusClass: stateStr === 'on' ? 'on' : 'off' };
+  }
+
   private renderEntityBindings() {
     return this.project.bindings.map((binding) => {
       const sPos = this.worldToScreen(binding.position);
@@ -1670,6 +1767,7 @@ export class HomeArchitectCanvas extends LitElement {
       const coverPos = entityState?.attributes?.current_position;
       const unit = entityState?.attributes?.unit_of_measurement || (isTempSensor ? '°' : '');
       const isBindingSelected = this.selectedElements?.bindingIds?.includes(binding.id);
+      const displayState = this.getEntityDisplayState(binding);
 
       return svg`
         <g 
@@ -1678,7 +1776,7 @@ export class HomeArchitectCanvas extends LitElement {
           @pointerdown=${(e: PointerEvent) => this.handleEntityPointerDown(binding, e)}
           @click=${(e: Event) => this.handleEntityClick(binding, e)}
           @dblclick=${(e: Event) => this.handleEntityDblClick(binding, e)}
-          title="${binding.customName || binding.entityId} : ${stateStr} (Clic pour basculer)"
+          title="${binding.customName || binding.entityId} : ${displayState.text} (Clic pour basculer)"
         >
           <!-- Onde radar animée si mouvement détecté -->
           ${isRadarActive ? svg`<circle cx="0" cy="0" r="16" class="radar-pulse-ring" />` : null}
@@ -1697,6 +1795,11 @@ export class HomeArchitectCanvas extends LitElement {
           <!-- Étiquette Nom -->
           <text x="0" y="27" class="entity-pin-label">
             ${binding.customName || binding.entityId.split('.')[1]}
+          </text>
+
+          <!-- Étiquette État en direct -->
+          <text x="0" y="38" class="entity-pin-state state-${displayState.statusClass}">
+            ${displayState.text}
           </text>
 
           <!-- Badge Valeur (Thermostat / Capteur de température) -->

@@ -17,6 +17,149 @@ import {
   ActiveTool, HomeArchitectProject, Wall, Opening, OpeningType, Room, Point, EntityBinding, SelectedElements 
 } from './core/types';
 
+export interface TypologyIcon {
+  icon: string;
+  label: string;
+  mdi: string;
+}
+
+export const TYPOLOGY_ICONS: Record<string, { title: string; tabLabel: string; icons: TypologyIcon[] }> = {
+  light: {
+    title: 'Éclairage & Luminaires',
+    tabLabel: '💡 Éclairage',
+    icons: [
+      { icon: '💡', label: 'Ampoule standard', mdi: 'mdi:lightbulb' },
+      { icon: '🛋️', label: 'Lampe salon', mdi: 'mdi:lamp' },
+      { icon: '🌟', label: 'Spot encastré', mdi: 'mdi:ceiling-light' },
+      { icon: '🔆', label: 'Plafonnier', mdi: 'mdi:ceiling-light-outline' },
+      { icon: '🏮', label: 'Lanterne extérieure', mdi: 'mdi:outdoor-lamp' },
+      { icon: '🕯️', label: 'Bougie / Ambiance', mdi: 'mdi:candle' },
+      { icon: '🔦', label: 'Projecteur', mdi: 'mdi:spotlight-beam' },
+      { icon: '🪩', label: 'Bandeau LED RGB', mdi: 'mdi:led-strip-variant' },
+      { icon: '✨', label: 'Guirlande lumineuse', mdi: 'mdi:string-lights' },
+      { icon: '🛋', label: 'Applique murale', mdi: 'mdi:wall-sconce-flat' },
+    ]
+  },
+  switch: {
+    title: 'Prises & Interrupteurs',
+    tabLabel: '🔌 Prises',
+    icons: [
+      { icon: '🔌', label: 'Prise connectée', mdi: 'mdi:power-socket-fr' },
+      { icon: '⚡', label: 'Interrupteur mural', mdi: 'mdi:toggle-switch' },
+      { icon: '📺', label: 'Télévision', mdi: 'mdi:television' },
+      { icon: '☕', label: 'Cafetière / Électroménager', mdi: 'mdi:coffee-maker' },
+      { icon: '💻', label: 'PC / Bureau', mdi: 'mdi:laptop' },
+      { icon: '🔊', label: 'Enceinte / Chaîne Hi-Fi', mdi: 'mdi:speaker' },
+      { icon: '🖨️', label: 'Imprimante', mdi: 'mdi:printer' },
+      { icon: '🎮', label: 'Console de jeu', mdi: 'mdi:gamepad-variant' },
+      { icon: '🔋', label: 'Chargeur batterie', mdi: 'mdi:battery-charging' },
+      { icon: '🪭', label: 'Ventilateur mobile', mdi: 'mdi:fan' },
+    ]
+  },
+  binary_sensor: {
+    title: 'Détecteurs, Sécurité & Ouvrants',
+    tabLabel: '📡 Détecteurs',
+    icons: [
+      { icon: '🚶', label: 'Mouvement PIR', mdi: 'mdi:motion-sensor' },
+      { icon: '🏃', label: 'Passage rapide', mdi: 'mdi:walk' },
+      { icon: '👁️', label: 'Radar présence', mdi: 'mdi:radar' },
+      { icon: '🚪', label: 'Capteur porte', mdi: 'mdi:door' },
+      { icon: '🪟', label: 'Capteur fenêtre', mdi: 'mdi:window-closed' },
+      { icon: '🚗', label: 'Porte garage', mdi: 'mdi:garage' },
+      { icon: '🚨', label: 'Sirène / Alarme', mdi: 'mdi:alarm-light' },
+      { icon: '🔔', label: 'Sonnette / Carillon', mdi: 'mdi:doorbell' },
+      { icon: '🐾', label: 'Présence animale', mdi: 'mdi:paw' },
+      { icon: '💧', label: 'Fuite d\'eau', mdi: 'mdi:water-alert' },
+      { icon: '🔥', label: 'Détecteur fumée', mdi: 'mdi:smoke-detector' },
+      { icon: '📬', label: 'Boîte aux lettres', mdi: 'mdi:mailbox' },
+    ]
+  },
+  climate: {
+    title: 'Thermostats & Climatisation',
+    tabLabel: '🌡️ Climat',
+    icons: [
+      { icon: '🌡️', label: 'Thermostat principal', mdi: 'mdi:thermostat' },
+      { icon: '❄️', label: 'Climatiseur (Froid)', mdi: 'mdi:air-conditioner' },
+      { icon: '🔥', label: 'Radiateur (Chaud)', mdi: 'mdi:radiator' },
+      { icon: '♨️', label: 'Pompe à chaleur / ECS', mdi: 'mdi:water-boiler' },
+      { icon: '💨', label: 'VMC / Aération', mdi: 'mdi:fan' },
+    ]
+  },
+  sensor: {
+    title: 'Capteurs & Sondes',
+    tabLabel: '📊 Sondes',
+    icons: [
+      { icon: '🌡️', label: 'Sonde température', mdi: 'mdi:thermometer' },
+      { icon: '💧', label: 'Hygrométrie (Humidité)', mdi: 'mdi:water-percent' },
+      { icon: '☀️', label: 'Luminosité (Lux)', mdi: 'mdi:weather-sunny' },
+      { icon: '💨', label: 'Qualité d\'air (CO2/VOC)', mdi: 'mdi:air-filter' },
+      { icon: '⚡', label: 'Consommation électrique', mdi: 'mdi:flash' },
+      { icon: '🔋', label: 'Batterie restante', mdi: 'mdi:battery' },
+      { icon: '🔊', label: 'Bruit / Décibels', mdi: 'mdi:volume-high' },
+      { icon: '⚖️', label: 'Pression barométrique', mdi: 'mdi:gauge' },
+    ]
+  },
+  cover: {
+    title: 'Volets, Stores & Motorisations',
+    tabLabel: '🪟 Volets',
+    icons: [
+      { icon: '🪟', label: 'Volet roulant', mdi: 'mdi:window-shutter' },
+      { icon: '🚪', label: 'Store vénitien', mdi: 'mdi:blinds' },
+      { icon: '🚗', label: 'Porte garage motorisée', mdi: 'mdi:garage' },
+      { icon: '⛺', label: 'Store banne terrasse', mdi: 'mdi:awning' },
+      { icon: '↕️', label: 'Motorisation baie', mdi: 'mdi:arrow-up-down' },
+    ]
+  },
+  media_player: {
+    title: 'Multimédia & Enceintes',
+    tabLabel: '📺 Média',
+    icons: [
+      { icon: '📺', label: 'Téléviseur', mdi: 'mdi:television' },
+      { icon: '📻', label: 'Enceinte connectée', mdi: 'mdi:speaker' },
+      { icon: '🎵', label: 'Musique multiroom', mdi: 'mdi:music' },
+      { icon: '🔊', label: 'Ampli Home-Cinema', mdi: 'mdi:speaker-wireless' },
+      { icon: '🎬', label: 'Vidéoprojecteur', mdi: 'mdi:projector' },
+      { icon: '🎮', label: 'Console jeux vidéo', mdi: 'mdi:gamepad-variant' },
+    ]
+  },
+  camera: {
+    title: 'Caméras & Vidéosurveillance',
+    tabLabel: '📷 Caméras',
+    icons: [
+      { icon: '📷', label: 'Caméra intérieure fixe', mdi: 'mdi:camera' },
+      { icon: '📹', label: 'Caméra dôme PTZ extérieure', mdi: 'mdi:cctv' },
+      { icon: '👁️', label: 'Zone sous surveillance', mdi: 'mdi:eye' },
+      { icon: '🎥', label: 'Portier / Interphone vidéo', mdi: 'mdi:video' },
+    ]
+  },
+  fan: {
+    title: 'Ventilation & Brassage',
+    tabLabel: '💨 Ventilateur',
+    icons: [
+      { icon: '💨', label: 'Ventilateur colonne/pied', mdi: 'mdi:fan' },
+      { icon: '🌀', label: 'VMC extraction', mdi: 'mdi:fan-chevron-up' },
+      { icon: '🌪️', label: 'Plafonnier ventilateur', mdi: 'mdi:ceiling-fan' },
+    ]
+  },
+  vacuum: {
+    title: 'Robots Aspirateurs & Nettoyage',
+    tabLabel: '🤖 Robots',
+    icons: [
+      { icon: '🤖', label: 'Robot aspirateur', mdi: 'mdi:robot-vacuum' },
+      { icon: '🧹', label: 'Robot laveur de sol', mdi: 'mdi:broom' },
+    ]
+  },
+  lock: {
+    title: 'Serrures & Contrôle d\'accès',
+    tabLabel: '🔒 Serrures',
+    icons: [
+      { icon: '🔒', label: 'Serrure connectée', mdi: 'mdi:lock' },
+      { icon: '🛡️', label: 'Alarme intrusion', mdi: 'mdi:shield-home' },
+      { icon: '🗝️', label: 'Gâche électrique', mdi: 'mdi:key' },
+    ]
+  }
+};
+
 @customElement('home-architect-panel')
 export class HomeArchitectPanel extends LitElement {
   static styles = css`
@@ -335,26 +478,37 @@ export class HomeArchitectPanel extends LitElement {
 
     .selection-hud {
       position: absolute;
-      top: 16px;
+      bottom: 24px;
       left: 50%;
       transform: translateX(-50%);
-      background: rgba(15, 23, 42, 0.95);
-      backdrop-filter: blur(14px);
+      background: rgba(15, 23, 42, 0.96);
+      backdrop-filter: blur(16px);
       border: 1.5px solid #06b6d4;
-      border-radius: 12px;
-      padding: 8px 16px;
+      border-radius: 14px;
+      padding: 8px 14px;
       display: flex;
+      flex-direction: column;
       align-items: center;
-      gap: 12px;
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6), 0 0 20px rgba(6, 182, 212, 0.35);
+      gap: 10px;
+      box-shadow: 0 12px 36px rgba(0, 0, 0, 0.65), 0 0 20px rgba(6, 182, 212, 0.35);
       z-index: 60;
-      animation: popSelection 0.2s ease-out;
-      white-space: nowrap;
+      animation: popSelectionBottom 0.2s ease-out;
+      max-width: 92vw;
+      box-sizing: border-box;
     }
 
-    @keyframes popSelection {
-      from { opacity: 0; transform: translate(-50%, -10px); }
+    @keyframes popSelectionBottom {
+      from { opacity: 0; transform: translate(-50%, 15px); }
       to { opacity: 1; transform: translate(-50%, 0); }
+    }
+
+    .selection-hud-main {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: center;
+      white-space: nowrap;
     }
 
     .selection-info {
@@ -428,6 +582,9 @@ export class HomeArchitectPanel extends LitElement {
       cursor: pointer;
       transition: all 0.15s ease;
       white-space: nowrap;
+      display: flex;
+      align-items: center;
+      gap: 5px;
     }
 
     .hud-opt-btn:hover {
@@ -441,6 +598,210 @@ export class HomeArchitectPanel extends LitElement {
       border-color: #38bdf8;
       color: #ffffff;
       box-shadow: 0 0 10px rgba(56, 189, 248, 0.4);
+    }
+
+    /* Panneau Choisir l'icône dans le HUD */
+    .hud-icon-picker-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      padding-top: 8px;
+      border-top: 1px solid rgba(255, 255, 255, 0.12);
+      width: 100%;
+      max-width: 650px;
+      box-sizing: border-box;
+    }
+
+    .icon-category-tabs {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      overflow-x: auto;
+      scrollbar-width: none;
+      padding-bottom: 2px;
+      max-width: 100%;
+    }
+
+    .icon-category-tabs::-webkit-scrollbar {
+      display: none;
+    }
+
+    .icon-category-tab {
+      background: rgba(30, 41, 59, 0.7);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: #94a3b8;
+      border-radius: 6px;
+      padding: 3px 8px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.15s ease;
+    }
+
+    .icon-category-tab:hover {
+      background: rgba(56, 189, 248, 0.15);
+      color: #f1f5f9;
+      border-color: #38bdf8;
+    }
+
+    .icon-category-tab.active {
+      background: #0284c7;
+      color: #ffffff;
+      border-color: #38bdf8;
+    }
+
+    .icon-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      max-height: 140px;
+      overflow-y: auto;
+      padding: 2px;
+      scrollbar-width: thin;
+    }
+
+    .icon-item-btn {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(30, 41, 59, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 8px;
+      padding: 4px 8px;
+      color: #e2e8f0;
+      font-size: 0.78rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      white-space: nowrap;
+    }
+
+    .icon-item-btn:hover {
+      background: rgba(56, 189, 248, 0.2);
+      border-color: #38bdf8;
+      color: #ffffff;
+      transform: translateY(-1px);
+    }
+
+    .icon-item-btn.active {
+      background: rgba(6, 182, 212, 0.3);
+      border-color: #06b6d4;
+      color: #ffffff;
+      box-shadow: 0 0 10px rgba(6, 182, 212, 0.4);
+      font-weight: 700;
+    }
+
+    .icon-item-emoji {
+      font-size: 1.15rem;
+      line-height: 1;
+    }
+
+    /* Menus déroulants barre supérieure */
+    .dropdown-menu-wrapper {
+      position: relative;
+      display: inline-block;
+    }
+
+    .btn-dropdown-trigger {
+      background: rgba(15, 23, 42, 0.7);
+      color: #f1f5f9;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 8px;
+      padding: 6px 12px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s ease;
+      user-select: none;
+      white-space: nowrap;
+    }
+
+    .btn-dropdown-trigger:hover, .btn-dropdown-trigger.active {
+      background: rgba(56, 189, 248, 0.2);
+      border-color: #38bdf8;
+      color: #ffffff;
+      box-shadow: 0 0 12px rgba(56, 189, 248, 0.35);
+    }
+
+    .btn-dropdown-trigger .chevron {
+      font-size: 0.75rem;
+      transition: transform 0.2s ease;
+      color: #94a3b8;
+    }
+
+    .btn-dropdown-trigger.active .chevron {
+      transform: rotate(180deg);
+      color: #38bdf8;
+    }
+
+    .dropdown-menu-popup {
+      position: absolute;
+      top: calc(100% + 8px);
+      left: 0;
+      background: rgba(15, 23, 42, 0.98);
+      backdrop-filter: blur(16px);
+      border: 1.5px solid rgba(56, 189, 248, 0.35);
+      border-radius: 12px;
+      padding: 6px;
+      min-width: 220px;
+      box-shadow: 0 12px 36px rgba(0, 0, 0, 0.65), 0 0 18px rgba(56, 189, 248, 0.25);
+      z-index: 100;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      animation: popDropdown 0.15s ease-out;
+    }
+
+    @keyframes popDropdown {
+      from { opacity: 0; transform: translateY(-6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .dropdown-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 12px;
+      border-radius: 8px;
+      background: transparent;
+      border: none;
+      color: #e2e8f0;
+      font-size: 0.85rem;
+      font-weight: 500;
+      cursor: pointer;
+      text-align: left;
+      width: 100%;
+      box-sizing: border-box;
+      transition: all 0.15s ease;
+      white-space: nowrap;
+    }
+
+    .dropdown-item:hover {
+      background: rgba(56, 189, 248, 0.15);
+      color: #38bdf8;
+    }
+
+    .dropdown-item.active {
+      background: rgba(56, 189, 248, 0.25);
+      color: #38bdf8;
+      font-weight: 700;
+    }
+
+    .dropdown-divider {
+      height: 1px;
+      background: rgba(255, 255, 255, 0.1);
+      margin: 4px 6px;
+    }
+
+    .dropdown-item-check {
+      margin-left: auto;
+      font-size: 0.85rem;
+      color: #38bdf8;
+      font-weight: 700;
     }
 
     .canvas-area {
@@ -587,6 +948,15 @@ export class HomeArchitectPanel extends LitElement {
     bindingIds: [],
     furnitureIds: []
   };
+
+  @state()
+  private activeDropdown: 'file' | 'plan' | 'level' | null = null;
+
+  @state()
+  private selectedTypologyTab: string = '';
+
+  @state()
+  private isIconPickerOpen: boolean = true;
 
   @state()
   private undoStack: HomeArchitectProject[] = [];
@@ -848,6 +1218,7 @@ export class HomeArchitectPanel extends LitElement {
   private toastTimeout: any = null;
   private _boundPaste: any = null;
   private _boundKeyDown: any = null;
+  private _boundClickOutside: any = null;
 
   connectedCallback() {
     super.connectedCallback();
@@ -855,6 +1226,17 @@ export class HomeArchitectPanel extends LitElement {
     window.addEventListener('paste', this._boundPaste);
     this._boundKeyDown = this.handleKeyDown.bind(this);
     window.addEventListener('keydown', this._boundKeyDown);
+
+    this._boundClickOutside = (e: MouseEvent) => {
+      if (this.activeDropdown) {
+        const path = e.composedPath();
+        const isInside = path.some((el: any) => el?.classList?.contains('dropdown-menu-wrapper'));
+        if (!isInside) {
+          this.activeDropdown = null;
+        }
+      }
+    };
+    window.addEventListener('click', this._boundClickOutside);
   }
 
   disconnectedCallback() {
@@ -864,6 +1246,9 @@ export class HomeArchitectPanel extends LitElement {
     }
     if (this._boundKeyDown) {
       window.removeEventListener('keydown', this._boundKeyDown);
+    }
+    if (this._boundClickOutside) {
+      window.removeEventListener('click', this._boundClickOutside);
     }
     if (this.toastTimeout) {
       clearTimeout(this.toastTimeout);
@@ -1319,6 +1704,49 @@ export class HomeArchitectPanel extends LitElement {
     this.selectedElements = { wallIds: [], openingIds: [], roomIds: [], bindingIds: [], furnitureIds: [] };
   }
 
+  private getLevelLabel(levelId: string): string {
+    switch (levelId) {
+      case 'sous-sol': return 'Sous-Sol';
+      case 'rdc': return 'RDC';
+      case 'etage1': return '1er Étage';
+      case 'jardin': return 'Jardin';
+      default: return levelId.toUpperCase();
+    }
+  }
+
+  private toggleDropdown(name: 'file' | 'plan' | 'level', e?: Event) {
+    if (e) e.stopPropagation();
+    this.activeDropdown = this.activeDropdown === name ? null : name;
+  }
+
+  private getActiveTypology(): string {
+    if (this.selectedTypologyTab) {
+      return this.selectedTypologyTab;
+    }
+    if (this.selectedElements.bindingIds.length > 0) {
+      const b = this.project.bindings.find(item => item.id === this.selectedElements.bindingIds[0]);
+      if (b) {
+        const domain = b.entityId.split('.')[0];
+        if (TYPOLOGY_ICONS[domain]) return domain;
+      }
+    }
+    return 'light';
+  }
+
+  private updateSelectedBindingIcon(icon: string, mdi?: string) {
+    if (!this.selectedElements.bindingIds || this.selectedElements.bindingIds.length === 0) return;
+    this.pushUndoSnapshot();
+    const bindingId = this.selectedElements.bindingIds[0];
+    const newBindings = this.project.bindings.map(b => {
+      if (b.id === bindingId) {
+        return { ...b, icon, mdiIcon: mdi };
+      }
+      return b;
+    });
+    this.project = { ...this.project, bindings: newBindings };
+    this.showToast(`✨ Icône ${icon} appliquée !`);
+  }
+
   private getSelectedSummary(): string {
     const parts: string[] = [];
     if (this.selectedElements.wallIds.length > 0) {
@@ -1331,7 +1759,12 @@ export class HomeArchitectPanel extends LitElement {
       parts.push(`${this.selectedElements.roomIds.length} pièce${this.selectedElements.roomIds.length > 1 ? 's' : ''}`);
     }
     if (this.selectedElements.bindingIds.length > 0) {
-      parts.push(`${this.selectedElements.bindingIds.length} entité${this.selectedElements.bindingIds.length > 1 ? 's' : ''}`);
+      if (this.selectedElements.bindingIds.length === 1) {
+        const b = this.project.bindings.find(item => item.id === this.selectedElements.bindingIds[0]);
+        parts.push(b ? (b.customName || b.entityId.split('.')[1] || b.entityId) : '1 entité');
+      } else {
+        parts.push(`${this.selectedElements.bindingIds.length} entités`);
+      }
     }
     if (this.selectedElements.furnitureIds && this.selectedElements.furnitureIds.length > 0) {
       parts.push(`${this.selectedElements.furnitureIds.length} meuble${this.selectedElements.furnitureIds.length > 1 ? 's' : ''}`);
@@ -1362,6 +1795,9 @@ export class HomeArchitectPanel extends LitElement {
         this.handleDeleteSelected();
       }
     } else if (e.key === 'Escape') {
+      if (this.activeDropdown) {
+        this.activeDropdown = null;
+      }
       this.clearSelection();
     } else if (e.key.toLowerCase() === 'r') {
       if (this.selectedElements.furnitureIds && this.selectedElements.furnitureIds.length > 0) {
@@ -1399,14 +1835,112 @@ export class HomeArchitectPanel extends LitElement {
         <div class="brand">
           <span class="brand-icon">📐</span>
           <span>Home Architect</span>
-          <span class="brand-tag">Studio & Décalque</span>
+          <span class="brand-tag">Studio</span>
         </div>
 
-        <div class="level-selector">
-          <button class="level-btn ${this.activeLevel === 'sous-sol' ? 'active' : ''}" @click=${() => this.handleLevelSwitch('sous-sol')}>Sous-Sol</button>
-          <button class="level-btn ${this.activeLevel === 'rdc' ? 'active' : ''}" @click=${() => this.handleLevelSwitch('rdc')}>RDC</button>
-          <button class="level-btn ${this.activeLevel === 'etage1' ? 'active' : ''}" @click=${() => this.handleLevelSwitch('etage1')}>1er Étage</button>
-          <button class="level-btn ${this.activeLevel === 'jardin' ? 'active' : ''}" @click=${() => this.handleLevelSwitch('jardin')}>Jardin</button>
+        <!-- 3 Menus Déroulants Principaux : Fichier, Plan, Pièce -->
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <!-- 1. Menu Fichier (Demande 5: Importer un plan, Exporter Lovelace, Sauvegarder) -->
+          <div class="dropdown-menu-wrapper">
+            <button class="btn-dropdown-trigger ${this.activeDropdown === 'file' ? 'active' : ''}" @click=${(e: Event) => this.toggleDropdown('file', e)}>
+              <span>📁</span>
+              <span>Fichier</span>
+              <span class="chevron">▾</span>
+            </button>
+            ${this.activeDropdown === 'file' ? html`
+              <div class="dropdown-menu-popup">
+                <button class="dropdown-item" @click=${() => { this.isImportModalOpen = true; this.activeDropdown = null; }}>
+                  <span>📥</span>
+                  <span>Importer un plan...</span>
+                </button>
+                <button class="dropdown-item" @click=${() => { this.isExportModalOpen = true; this.activeDropdown = null; }}>
+                  <span>📤</span>
+                  <span>Exporter Lovelace...</span>
+                </button>
+                <div class="dropdown-divider"></div>
+                <button class="dropdown-item" @click=${() => { this.saveProject(); this.activeDropdown = null; }}>
+                  <span>💾</span>
+                  <span>Sauvegarder le plan</span>
+                </button>
+              </div>
+            ` : null}
+          </div>
+
+          <!-- 2. Menu Plan (Demande 4: Mettre à l'échelle, Vue 2D/3D, Assistant Pièce, Cotes, etc.) -->
+          <div class="dropdown-menu-wrapper">
+            <button class="btn-dropdown-trigger ${this.activeDropdown === 'plan' ? 'active' : ''}" @click=${(e: Event) => this.toggleDropdown('plan', e)}>
+              <span>📐</span>
+              <span>Plan</span>
+              <span class="chevron">▾</span>
+            </button>
+            ${this.activeDropdown === 'plan' ? html`
+              <div class="dropdown-menu-popup" style="min-width: 250px;">
+                <button class="dropdown-item ${this.activeTool === 'rescale' ? 'active' : ''}" @click=${() => { this.activeTool = 'rescale'; this.activeDropdown = null; }}>
+                  <span>📐</span>
+                  <span>Mettre à l'échelle (S)</span>
+                  ${this.activeTool === 'rescale' ? html`<span class="dropdown-item-check">✓</span>` : null}
+                </button>
+                <button class="dropdown-item ${this.is3DMode ? 'active' : ''}" @click=${() => { this.is3DMode = !this.is3DMode; this.activeDropdown = null; }}>
+                  <span>${this.is3DMode ? '🧊' : '📐'}</span>
+                  <span>${this.is3DMode ? 'Vue 3D (Active)' : 'Vue 2D / 3D'}</span>
+                  ${this.is3DMode ? html`<span class="dropdown-item-check">✓</span>` : null}
+                </button>
+                <button class="dropdown-item" @click=${() => { this.isWizardOpen = true; this.activeDropdown = null; }}>
+                  <span>🪄</span>
+                  <span>Assistant Pièce</span>
+                </button>
+                <div class="dropdown-divider"></div>
+                <button class="dropdown-item ${this.showDimensions ? 'active' : ''}" @click=${() => { this.showDimensions = !this.showDimensions; }}>
+                  <span>📏</span>
+                  <span>Cotes dynamiques</span>
+                  ${this.showDimensions ? html`<span class="dropdown-item-check">✓</span>` : null}
+                </button>
+                <button class="dropdown-item ${this.showThermalHeatmap ? 'active' : ''}" @click=${() => { this.showThermalHeatmap = !this.showThermalHeatmap; }}>
+                  <span>🌡️</span>
+                  <span>Carte thermique</span>
+                  ${this.showThermalHeatmap ? html`<span class="dropdown-item-check">✓</span>` : null}
+                </button>
+                <button class="dropdown-item ${this.showGhostLevel ? 'active' : ''}" @click=${() => { this.showGhostLevel = !this.showGhostLevel; }}>
+                  <span>👁️</span>
+                  <span>Filigrane niveau inf.</span>
+                  ${this.showGhostLevel ? html`<span class="dropdown-item-check">✓</span>` : null}
+                </button>
+              </div>
+            ` : null}
+          </div>
+
+          <!-- 3. Menu Pièce (Demande 3: Rassembler Sous-Sol, RDC, 1er Étage, Jardin) -->
+          <div class="dropdown-menu-wrapper">
+            <button class="btn-dropdown-trigger ${this.activeDropdown === 'level' ? 'active' : ''}" @click=${(e: Event) => this.toggleDropdown('level', e)}>
+              <span>🏢</span>
+              <span>Pièce : <strong>${this.getLevelLabel(this.activeLevel)}</strong></span>
+              <span class="chevron">▾</span>
+            </button>
+            ${this.activeDropdown === 'level' ? html`
+              <div class="dropdown-menu-popup">
+                <button class="dropdown-item ${this.activeLevel === 'sous-sol' ? 'active' : ''}" @click=${() => { this.handleLevelSwitch('sous-sol'); this.activeDropdown = null; }}>
+                  <span>🏠</span>
+                  <span>Sous-Sol</span>
+                  ${this.activeLevel === 'sous-sol' ? html`<span class="dropdown-item-check">✓</span>` : null}
+                </button>
+                <button class="dropdown-item ${this.activeLevel === 'rdc' ? 'active' : ''}" @click=${() => { this.handleLevelSwitch('rdc'); this.activeDropdown = null; }}>
+                  <span>🏠</span>
+                  <span>RDC (Rez-de-Chaussée)</span>
+                  ${this.activeLevel === 'rdc' ? html`<span class="dropdown-item-check">✓</span>` : null}
+                </button>
+                <button class="dropdown-item ${this.activeLevel === 'etage1' ? 'active' : ''}" @click=${() => { this.handleLevelSwitch('etage1'); this.activeDropdown = null; }}>
+                  <span>🏠</span>
+                  <span>1er Étage</span>
+                  ${this.activeLevel === 'etage1' ? html`<span class="dropdown-item-check">✓</span>` : null}
+                </button>
+                <button class="dropdown-item ${this.activeLevel === 'jardin' ? 'active' : ''}" @click=${() => { this.handleLevelSwitch('jardin'); this.activeDropdown = null; }}>
+                  <span>🌳</span>
+                  <span>Jardin</span>
+                  ${this.activeLevel === 'jardin' ? html`<span class="dropdown-item-check">✓</span>` : null}
+                </button>
+              </div>
+            ` : null}
+          </div>
         </div>
 
         <div class="top-controls">
@@ -1430,83 +1964,7 @@ export class HomeArchitectPanel extends LitElement {
             </button>
           </div>
 
-          <!-- Bascules Phase 1 & Phase 2 -->
-          <button 
-            class="btn-toggle-option ${this.showDimensions ? 'active' : ''}" 
-            @click=${() => this.showDimensions = !this.showDimensions}
-            title="Afficher / Masquer les cotes dynamiques sur les murs"
-          >
-            <span>📏</span>
-            <span>Cotes</span>
-          </button>
-
-          <button 
-            class="btn-toggle-option ${this.showThermalHeatmap ? 'active' : ''}" 
-            @click=${() => this.showThermalHeatmap = !this.showThermalHeatmap}
-            title="Afficher la carte thermique des températures des pièces"
-          >
-            <span>🌡️</span>
-            <span>Thermique</span>
-          </button>
-
-          <button 
-            class="btn-toggle-option ${this.showGhostLevel ? 'active' : ''}" 
-            @click=${() => this.showGhostLevel = !this.showGhostLevel}
-            title="Afficher l'étage inférieur en filigrane (Onion Skinning) pour aligner les murs porteurs"
-          >
-            <span>👁️</span>
-            <span>Filigrane</span>
-          </button>
-
-          <!-- Bouton Importer un plan (Automatisé) -->
-          <button class="btn-import" @click=${() => this.isImportModalOpen = true} title="Importer et calibrer un plan image (PNG, JPG, SVG)">
-            <span>📥</span>
-            <span>Importer un plan</span>
-          </button>
-
-          <!-- Bouton Mettre à l'échelle (Recalculer toutes les cotes) -->
-          <button 
-            class="btn-rescale ${this.activeTool === 'rescale' ? 'active' : ''}" 
-            @click=${() => this.activeTool = 'rescale'} 
-            title="Mettre à l'échelle : mesurer un mur ou deux points pour recalculer toutes les cotes (S)"
-          >
-            <span>📐</span>
-            <span>Mettre à l'échelle</span>
-          </button>
-
-          <!-- Bascule 2D / 3D -->
-          <button 
-            class="btn-3d ${this.is3DMode ? 'active' : ''}" 
-            @click=${() => this.is3DMode = !this.is3DMode}
-          >
-            ${this.is3DMode ? '🧊 Vue 3D' : '📐 Vue 2D'}
-          </button>
-
-          <!-- Assistant Débutant -->
-          <button class="btn-wizard" @click=${() => this.isWizardOpen = true}>
-            🪄 Assistant Pièce
-          </button>
-
-          <!-- Volet Entités HA -->
-          <button 
-            class="btn-drawer ${!this.isDrawerCollapsed ? 'active' : ''}" 
-            @click=${() => this.isDrawerCollapsed = !this.isDrawerCollapsed}
-            title="Afficher / Masquer le volet des entités"
-          >
-            ⚡ Entités HA (${this.project.bindings.length})
-          </button>
-
-          <!-- Bouton Exporter vers Lovelace -->
-          <button 
-            class="btn-export" 
-            @click=${() => this.isExportModalOpen = true} 
-            title="Exporter le plan vers Lovelace (Carte Picture-Elements ou Carte 2D/3D)"
-          >
-            <span>📤</span>
-            <span>Exporter Lovelace</span>
-          </button>
-
-          <!-- Épaisseur mur -->
+          <!-- Épaisseur mur contextuelle -->
           ${this.activeTool === 'wall' ? html`
             <div class="control-group">
               <label>Épaisseur :</label>
@@ -1519,7 +1977,7 @@ export class HomeArchitectPanel extends LitElement {
             </div>
           ` : null}
 
-          <!-- Largeur ouvrant -->
+          <!-- Largeur ouvrant contextuelle -->
           ${this.activeTool === 'door' || this.activeTool === 'window' || this.activeTool === 'french_window' ? html`
             <div class="control-group">
               <label>Largeur :</label>
@@ -1567,11 +2025,20 @@ export class HomeArchitectPanel extends LitElement {
             </div>
           ` : null}
 
+          <!-- Volet Entités HA -->
+          <button 
+            class="btn-drawer ${!this.isDrawerCollapsed ? 'active' : ''}" 
+            @click=${() => this.isDrawerCollapsed = !this.isDrawerCollapsed}
+            title="Afficher / Masquer le volet des entités"
+          >
+            ⚡ Entités HA (${this.project.bindings.length})
+          </button>
+
           <div class="scale-indicator" title="Échelle : pixels par mètre">
             1 m = ${this.project.pixelsPerMeter} px
           </div>
 
-          <!-- Sauvegarde -->
+          <!-- Sauvegarde Directe -->
           <button class="btn-primary" @click=${this.saveProject}>
             💾 Sauvegarder
           </button>
@@ -1613,7 +2080,19 @@ export class HomeArchitectPanel extends LitElement {
             .showDimensions=${this.showDimensions}
             .showThermalHeatmap=${this.showThermalHeatmap}
             .ghostProject=${this.getGhostProject()}
-            @selection-changed=${(e: any) => this.selectedElements = e.detail.selectedElements}
+            @selection-changed=${(e: any) => {
+              this.selectedElements = e.detail.selectedElements;
+              if (this.selectedElements.bindingIds.length > 0) {
+                const b = this.project.bindings.find(item => item.id === this.selectedElements.bindingIds[0]);
+                if (b) {
+                  const domain = b.entityId.split('.')[0];
+                  if (TYPOLOGY_ICONS[domain]) {
+                    this.selectedTypologyTab = domain;
+                  }
+                }
+                this.isIconPickerOpen = true;
+              }
+            }}
             @request-delete-selected=${this.handleDeleteSelected}
             @toggle-3d=${(e: any) => this.is3DMode = e.detail.is3DMode}
             @room-selected=${(e: any) => this.selectedRoomForEdit = e.detail.room}
@@ -1623,65 +2102,141 @@ export class HomeArchitectPanel extends LitElement {
             @background-image-loaded=${(e: any) => this.loadBackgroundImage(e.detail.dataUrl, '🖼️ Image de plan glissée-déposée !')}
           ></home-architect-canvas>
 
-          <!-- Floating HUD de sélection multi-éléments -->
-          ${(this.selectedElements.wallIds.length + 
-             this.selectedElements.openingIds.length + 
-             this.selectedElements.roomIds.length + 
-             this.selectedElements.bindingIds.length + 
-             (this.selectedElements.furnitureIds?.length || 0)) > 0 ? html`
-            <div class="selection-hud">
-              <span class="selection-info">
-                <span>🎯</span>
-                <span>${this.getSelectedSummary()} sélectionné(s)</span>
-              </span>
+          <!-- Floating HUD de sélection multi-éléments repositionné en bas -->
+          ${(() => {
+            const hasSelection = (this.selectedElements.wallIds.length + 
+               this.selectedElements.openingIds.length + 
+               this.selectedElements.roomIds.length + 
+               this.selectedElements.bindingIds.length + 
+               (this.selectedElements.furnitureIds?.length || 0)) > 0;
+            if (!hasSelection) return null;
 
-              ${this.selectedElements.wallIds.length > 0 ? html`
-                <div class="hud-options-group">
-                  <span class="hud-label">Épaisseur :</span>
-                  <button class="hud-opt-btn ${this.currentThickness === 0.10 ? 'active' : ''}" @click=${() => this.updateSelectedWallsThickness(0.10)} title="Cloison 10 cm">Fin 10cm</button>
-                  <button class="hud-opt-btn ${this.currentThickness === 0.20 ? 'active' : ''}" @click=${() => this.updateSelectedWallsThickness(0.20)} title="Standard 20 cm">Moyen 20cm</button>
-                  <button class="hud-opt-btn ${this.currentThickness === 0.30 ? 'active' : ''}" @click=${() => this.updateSelectedWallsThickness(0.30)} title="Porteur 30 cm">Gros 30cm</button>
+            const selectedBinding = this.selectedElements.bindingIds.length > 0
+              ? this.project.bindings.find(b => b.id === this.selectedElements.bindingIds[0])
+              : null;
+
+            return html`
+              <div class="selection-hud">
+                <div class="selection-hud-main">
+                  <span class="selection-info">
+                    <span>🎯</span>
+                    <span>${this.getSelectedSummary()}</span>
+                  </span>
+
+                  ${this.selectedElements.wallIds.length > 0 ? html`
+                    <div class="hud-options-group">
+                      <span class="hud-label">Épaisseur :</span>
+                      <button class="hud-opt-btn ${this.currentThickness === 0.10 ? 'active' : ''}" @click=${() => this.updateSelectedWallsThickness(0.10)} title="Cloison 10 cm">Fin 10cm</button>
+                      <button class="hud-opt-btn ${this.currentThickness === 0.20 ? 'active' : ''}" @click=${() => this.updateSelectedWallsThickness(0.20)} title="Standard 20 cm">Moyen 20cm</button>
+                      <button class="hud-opt-btn ${this.currentThickness === 0.30 ? 'active' : ''}" @click=${() => this.updateSelectedWallsThickness(0.30)} title="Porteur 30 cm">Gros 30cm</button>
+                    </div>
+                  ` : null}
+
+                  ${this.selectedElements.openingIds.some(id => this.project.openings.find(op => op.id === id)?.type === 'door') ? html`
+                    <div class="hud-options-group">
+                      <span class="hud-label">Porte :</span>
+                      <button class="hud-opt-btn ${!this.doorFlipSide && this.doorFlipDirection ? 'active' : ''}" @click=${() => this.updateSelectedDoorConfig(false, true)} title="Ouverture Droite Intérieure (Poussant Droit)">Droite Int.</button>
+                      <button class="hud-opt-btn ${!this.doorFlipSide && !this.doorFlipDirection ? 'active' : ''}" @click=${() => this.updateSelectedDoorConfig(false, false)} title="Ouverture Gauche Intérieure (Poussant Gauche)">Gauche Int.</button>
+                      <button class="hud-opt-btn ${this.doorFlipSide && !this.doorFlipDirection ? 'active' : ''}" @click=${() => this.updateSelectedDoorConfig(true, false)} title="Ouverture Gauche Extérieure (Tirant Gauche)">Gauche Ext.</button>
+                      <button class="hud-opt-btn ${this.doorFlipSide && this.doorFlipDirection ? 'active' : ''}" @click=${() => this.updateSelectedDoorConfig(true, true)} title="Ouverture Droite Extérieure (Tirant Droit)">Droite Ext.</button>
+                    </div>
+                  ` : null}
+
+                  ${this.selectedElements.openingIds.some(id => {
+                    const op = this.project.openings.find(o => o.id === id);
+                    return op && (op.type === 'window' || op.type === 'french_window');
+                  }) ? html`
+                    <div class="hud-options-group">
+                      <span class="hud-label">Fenêtre :</span>
+                      <button class="hud-opt-btn ${this.windowSashCount === 1 ? 'active' : ''}" @click=${() => this.updateSelectedWindowConfig('window', 1, 0.90)} title="Fenêtre 1 ouvrant (90 cm)">1 Ouvrant</button>
+                      <button class="hud-opt-btn ${this.windowSashCount === 2 ? 'active' : ''}" @click=${() => this.updateSelectedWindowConfig('window', 2, 1.40)} title="Fenêtre 2 battants (1.40 m)">2 Battants</button>
+                      <button class="hud-opt-btn" @click=${() => this.updateSelectedWindowConfig('french_window', 2, 2.00)} title="Baie vitrée coulissante (2.00 m)">Baie vitrée</button>
+                    </div>
+                  ` : null}
+
+                  ${(this.selectedElements.furnitureIds?.length || 0) > 0 ? html`
+                    <div class="hud-options-group">
+                      <span class="hud-label">Meuble :</span>
+                      <button class="hud-opt-btn active" @click=${this.rotateSelectedFurniture} title="Pivoter les meubles de 90° (Touche R)">🔄 Pivoter 90° (R)</button>
+                    </div>
+                  ` : null}
+
+                  ${selectedBinding ? html`
+                    <div class="hud-options-group">
+                      <button 
+                        class="hud-opt-btn ${this.isIconPickerOpen ? 'active' : ''}" 
+                        @click=${() => this.isIconPickerOpen = !this.isIconPickerOpen}
+                        title="Choisir l'icône pour le plan et la card Lovelace"
+                      >
+                        <span style="font-size: 1.05rem;">${selectedBinding.icon || '🎨'}</span>
+                        <span>Choisir l'icône ${this.isIconPickerOpen ? '▴' : '▾'}</span>
+                      </button>
+                    </div>
+                  ` : null}
+
+                  <button class="btn-delete-selection" @click=${this.handleDeleteSelected} title="Supprimer les éléments sélectionnés (Touche Suppr / Retour)">
+                    <span>🗑️</span>
+                    <span>Supprimer</span>
+                  </button>
+                  <button class="btn-clear-selection" @click=${this.clearSelection} title="Désélectionner tout (Échap)">
+                    ✕
+                  </button>
                 </div>
-              ` : null}
 
-              ${this.selectedElements.openingIds.some(id => this.project.openings.find(op => op.id === id)?.type === 'door') ? html`
-                <div class="hud-options-group">
-                  <span class="hud-label">Porte :</span>
-                  <button class="hud-opt-btn ${!this.doorFlipSide && this.doorFlipDirection ? 'active' : ''}" @click=${() => this.updateSelectedDoorConfig(false, true)} title="Ouverture Droite Intérieure (Poussant Droit)">Droite Int.</button>
-                  <button class="hud-opt-btn ${!this.doorFlipSide && !this.doorFlipDirection ? 'active' : ''}" @click=${() => this.updateSelectedDoorConfig(false, false)} title="Ouverture Gauche Intérieure (Poussant Gauche)">Gauche Int.</button>
-                  <button class="hud-opt-btn ${this.doorFlipSide && !this.doorFlipDirection ? 'active' : ''}" @click=${() => this.updateSelectedDoorConfig(true, false)} title="Ouverture Gauche Extérieure (Tirant Gauche)">Gauche Ext.</button>
-                  <button class="hud-opt-btn ${this.doorFlipSide && this.doorFlipDirection ? 'active' : ''}" @click=${() => this.updateSelectedDoorConfig(true, true)} title="Ouverture Droite Extérieure (Tirant Droit)">Droite Ext.</button>
-                </div>
-              ` : null}
+                <!-- Onglet / Palette Choisir l'icône pour l'entité sélectionnée -->
+                ${selectedBinding && this.isIconPickerOpen ? html`
+                  <div class="hud-icon-picker-panel">
+                    <div class="icon-category-tabs">
+                      ${Object.entries(TYPOLOGY_ICONS).map(([key, group]) => html`
+                        <button 
+                          class="icon-category-tab ${this.getActiveTypology() === key ? 'active' : ''}"
+                          @click=${() => this.selectedTypologyTab = key}
+                        >
+                          ${group.tabLabel}
+                        </button>
+                      `)}
+                    </div>
 
-              ${this.selectedElements.openingIds.some(id => {
-                const op = this.project.openings.find(o => o.id === id);
-                return op && (op.type === 'window' || op.type === 'french_window');
-              }) ? html`
-                <div class="hud-options-group">
-                  <span class="hud-label">Fenêtre :</span>
-                  <button class="hud-opt-btn ${this.windowSashCount === 1 ? 'active' : ''}" @click=${() => this.updateSelectedWindowConfig('window', 1, 0.90)} title="Fenêtre 1 ouvrant (90 cm)">1 Ouvrant</button>
-                  <button class="hud-opt-btn ${this.windowSashCount === 2 ? 'active' : ''}" @click=${() => this.updateSelectedWindowConfig('window', 2, 1.40)} title="Fenêtre 2 battants (1.40 m)">2 Battants</button>
-                  <button class="hud-opt-btn" @click=${() => this.updateSelectedWindowConfig('french_window', 2, 2.00)} title="Baie vitrée coulissante (2.00 m)">Baie vitrée</button>
-                </div>
-              ` : null}
+                    <div class="icon-grid">
+                      ${(TYPOLOGY_ICONS[this.getActiveTypology()] || TYPOLOGY_ICONS['light']).icons.map(item => html`
+                        <button 
+                          class="icon-item-btn ${selectedBinding.icon === item.icon ? 'active' : ''}"
+                          @click=${() => this.updateSelectedBindingIcon(item.icon, item.mdi)}
+                          title="${item.label} (${item.mdi})"
+                        >
+                          <span class="icon-item-emoji">${item.icon}</span>
+                          <span>${item.label}</span>
+                        </button>
+                      `)}
+                    </div>
 
-              ${(this.selectedElements.furnitureIds?.length || 0) > 0 ? html`
-                <div class="hud-options-group">
-                  <span class="hud-label">Meuble :</span>
-                  <button class="hud-opt-btn active" @click=${this.rotateSelectedFurniture} title="Pivoter les meubles de 90° (Touche R)">🔄 Pivoter 90° (R)</button>
-                </div>
-              ` : null}
-
-              <button class="btn-delete-selection" @click=${this.handleDeleteSelected} title="Supprimer les éléments sélectionnés (Touche Suppr / Retour)">
-                <span>🗑️</span>
-                <span>Supprimer</span>
-              </button>
-              <button class="btn-clear-selection" @click=${this.clearSelection} title="Désélectionner tout (Échap)">
-                ✕
-              </button>
-            </div>
-          ` : null}
+                    <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 0.78rem; color: #94a3b8; border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 4px;">
+                      <span>Icône active : <strong style="color: #38bdf8;">${selectedBinding.icon || 'Défaut'}</strong> (${selectedBinding.mdiIcon || 'Automatique'})</span>
+                      <div style="display: flex; align-items: center; gap: 4px;">
+                        <span>Saisie libre :</span>
+                        <input 
+                          type="text" 
+                          style="width: 55px; background: rgba(30, 41, 59, 0.9); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 6px; color: #fff; padding: 2px 4px; font-size: 0.85rem; text-align: center;" 
+                          placeholder="Emoji"
+                          maxlength="4"
+                          @keydown=${(e: KeyboardEvent) => {
+                            if (e.key === 'Enter') {
+                              const val = (e.target as HTMLInputElement).value.trim();
+                              if (val) this.updateSelectedBindingIcon(val);
+                            }
+                          }}
+                          @change=${(e: any) => {
+                            const val = e.target.value.trim();
+                            if (val) this.updateSelectedBindingIcon(val);
+                          }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ` : null}
+              </div>
+            `;
+          })()}
 
           <!-- Notification Toast -->
           ${this.toastMessage ? html`

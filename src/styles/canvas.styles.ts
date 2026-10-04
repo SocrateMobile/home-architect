@@ -430,7 +430,11 @@ export const canvasStyles = css`
   /* ======================================= */
 
   .entity-pin {
-    cursor: pointer;
+    cursor: grab;
+  }
+
+  .entity-pin:active {
+    cursor: grabbing;
   }
 
   .entity-pin:hover .entity-pin-bg {
@@ -484,6 +488,31 @@ export const canvasStyles = css`
     text-anchor: middle;
     filter: drop-shadow(0 1px 3px rgba(0,0,0,0.9));
     pointer-events: none;
+  }
+
+  .entity-pin-state {
+    font-size: 8.5px;
+    font-weight: 600;
+    text-anchor: middle;
+    filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.95));
+    pointer-events: none;
+    letter-spacing: 0.2px;
+  }
+
+  .entity-pin-state.state-on {
+    fill: #34d399; /* Émeraude vif */
+  }
+
+  .entity-pin-state.state-off {
+    fill: #94a3b8; /* Gris discret */
+  }
+
+  .entity-pin-state.state-alert {
+    fill: #f87171; /* Rouge alerte */
+  }
+
+  .entity-pin-state.state-info {
+    fill: #38bdf8; /* Bleu cyan */
   }
 
   .entity-pin-value-badge rect {
