@@ -407,6 +407,82 @@ export class HomeArchitectImportModal extends LitElement {
       cursor: pointer;
     }
 
+    /* Boîte de sélection personnalisée des catégories à importer */
+    .import-categories-box {
+      background: rgba(15, 23, 42, 0.65);
+      border: 1px solid rgba(168, 85, 247, 0.35);
+      border-radius: 10px;
+      padding: 10px 12px;
+      margin-top: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .categories-title {
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: #e9d5ff;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+    }
+
+    .categories-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .category-toggle {
+      background: rgba(30, 41, 59, 0.7);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 8px;
+      padding: 5px 10px;
+      font-size: 0.82rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: #94a3b8;
+      transition: all 0.15s ease;
+      user-select: none;
+    }
+
+    .category-toggle:hover {
+      border-color: #a855f7;
+      color: #ffffff;
+    }
+
+    .category-toggle.active {
+      background: rgba(168, 85, 247, 0.2);
+      border-color: #a855f7;
+      color: #f1f5f9;
+      font-weight: 600;
+    }
+
+    .category-toggle input[type="checkbox"] {
+      accent-color: #a855f7;
+      cursor: pointer;
+      margin: 0;
+    }
+
+    .cat-count {
+      font-size: 0.75rem;
+      color: #38bdf8;
+      font-family: ui-monospace, SFMono-Regular, monospace;
+    }
+
+    .ignored-note {
+      font-size: 0.76rem;
+      color: #38bdf8;
+      background: rgba(56, 189, 248, 0.1);
+      border: 1px solid rgba(56, 189, 248, 0.25);
+      border-radius: 6px;
+      padding: 5px 8px;
+      line-height: 1.35;
+      margin-top: 4px;
+    }
+
     /* Section Méthode d'Étalonnage */
     .section-title {
       font-size: 0.88rem;
@@ -640,6 +716,15 @@ export class HomeArchitectImportModal extends LitElement {
   private keepSvgBackground: boolean = true;
 
   @state()
+  private importOptions = {
+    importWalls: true,
+    importDoors: true,
+    importWindows: true,
+    importRooms: true,
+    importLabels: true
+  };
+
+  @state()
   private calibrateMode: 'auto_dimension' | 'interactive_calibrate' = 'auto_dimension';
 
   @state()
@@ -763,8 +848,19 @@ export class HomeArchitectImportModal extends LitElement {
       this.svgRawText,
       this.totalWidthMeters,
       0.20,
-      2.50
+      2.50,
+      this.importOptions
     );
+  }
+
+  private toggleImportCategory(cat: 'importWalls' | 'importDoors' | 'importWindows' | 'importRooms' | 'importLabels', checked: boolean) {
+    this.importOptions = {
+      ...this.importOptions,
+      [cat]: checked
+    };
+    if (this.isSvg) {
+      this.computeSvgInterpretation();
+    }
   }
 
   private handleDimensionChange(val: number) {
@@ -942,13 +1038,65 @@ export class HomeArchitectImportModal extends LitElement {
                     </div>
 
                     ${stats ? html`
-                      <div class="svg-pills-row">
-                        <span class="stat-pill wall">🧱 ${stats.wallCount} Murs</span>
-                        <span class="stat-pill door">🚪 ${stats.doorCount} Portes</span>
-                        <span class="stat-pill window">🪟 ${stats.windowCount} Fenêtres</span>
-                        <span class="stat-pill room">🏠 ${stats.roomCount} Pièces</span>
-                        ${stats.textLabelCount > 0 ? html`
-                          <span class="stat-pill label">🏷️ ${stats.textLabelCount} Noms</span>
+                      <!-- Sélection granulaire des éléments à importer -->
+                      <div class="import-categories-box" @click=${(e: Event) => e.stopPropagation()}>
+                        <div class="categories-title">Éléments à importer :</div>
+                        <div class="categories-grid">
+                          <label class="category-toggle ${this.importOptions.importWalls ? 'active' : ''}">
+                            <input 
+                              type="checkbox" 
+                              .checked=${this.importOptions.importWalls} 
+                              @change=${(e: any) => this.toggleImportCategory('importWalls', e.target.checked)}
+                            />
+                            <span>🧱 Murs</span>
+                            <span class="cat-count">(${stats.wallCount})</span>
+                          </label>
+
+                          <label class="category-toggle ${this.importOptions.importDoors ? 'active' : ''}">
+                            <input 
+                              type="checkbox" 
+                              .checked=${this.importOptions.importDoors} 
+                              @change=${(e: any) => this.toggleImportCategory('importDoors', e.target.checked)}
+                            />
+                            <span>🚪 Portes</span>
+                            <span class="cat-count">(${stats.doorCount})</span>
+                          </label>
+
+                          <label class="category-toggle ${this.importOptions.importWindows ? 'active' : ''}">
+                            <input 
+                              type="checkbox" 
+                              .checked=${this.importOptions.importWindows} 
+                              @change=${(e: any) => this.toggleImportCategory('importWindows', e.target.checked)}
+                            />
+                            <span>🪟 Fenêtres</span>
+                            <span class="cat-count">(${stats.windowCount})</span>
+                          </label>
+
+                          <label class="category-toggle ${this.importOptions.importRooms ? 'active' : ''}">
+                            <input 
+                              type="checkbox" 
+                              .checked=${this.importOptions.importRooms} 
+                              @change=${(e: any) => this.toggleImportCategory('importRooms', e.target.checked)}
+                            />
+                            <span>🏠 Pièces</span>
+                            <span class="cat-count">(${stats.roomCount})</span>
+                          </label>
+
+                          <label class="category-toggle ${this.importOptions.importLabels ? 'active' : ''}">
+                            <input 
+                              type="checkbox" 
+                              .checked=${this.importOptions.importLabels} 
+                              @change=${(e: any) => this.toggleImportCategory('importLabels', e.target.checked)}
+                            />
+                            <span>🏷️ Noms</span>
+                            <span class="cat-count">(${stats.textLabelCount})</span>
+                          </label>
+                        </div>
+
+                        ${stats.ignoredMeasurementLinesCount > 0 ? html`
+                          <div class="ignored-note">
+                            ℹ️ ${stats.ignoredMeasurementLinesCount} ligne(s) de cotation / pointillés ont été automatiquement ignorées (non transformées en murs).
+                          </div>
                         ` : null}
                       </div>
                     ` : null}

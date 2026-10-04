@@ -2,12 +2,24 @@ import { Point, Wall, Opening, Room, OpeningType } from './types';
 import { PolygonUtils } from './polygon';
 import { SnappingEngine } from './snapping';
 
+export interface SvgParseOptions {
+  totalWidthMeters?: number;
+  defaultThickness?: number;
+  defaultHeight?: number;
+  importWalls?: boolean;
+  importDoors?: boolean;
+  importWindows?: boolean;
+  importRooms?: boolean;
+  importLabels?: boolean;
+}
+
 export interface SvgParseStats {
   wallCount: number;
   doorCount: number;
   windowCount: number;
   roomCount: number;
   textLabelCount: number;
+  ignoredMeasurementLinesCount: number;
 }
 
 export interface SvgParseResult {
@@ -28,6 +40,7 @@ interface RawSegment {
   isWallHint: boolean;
   isWindowHint: boolean;
   isDoorHint: boolean;
+  isMeasurementLine: boolean;
 }
 
 interface RawArc {
@@ -141,9 +154,19 @@ export class SvgPlanParser {
     svgContent: string,
     totalWidthMeters: number = 12.0,
     defaultThickness: number = 0.20,
-    defaultHeight: number = 2.50
+    defaultHeight: number = 2.50,
+    options?: SvgParseOptions
   ): SvgParseResult {
     try {
+      const opts: SvgParseOptions = {
+        importWalls: true,
+        importDoors: true,
+        importWindows: true,
+        importRooms: true,
+        importLabels: true,
+        ...options
+      };
+
       const parser = new DOMParser();
       const doc = parser.parseFromString(svgContent, 'image/svg+xml');
 
@@ -156,7 +179,7 @@ export class SvgPlanParser {
           rooms: [],
           viewBox: { x: 0, y: 0, width: 0, height: 0 },
           pixelsPerMeter: 50,
-          stats: { wallCount: 0, doorCount: 0, windowCount: 0, roomCount: 0, textLabelCount: 0 },
+          stats: { wallCount: 0, doorCount: 0, windowCount: 0, roomCount: 0, textLabelCount: 0, ignoredMeasurementLinesCount: 0 },
           error: 'Le fichier SVG contient des erreurs XML : ' + parserError.textContent
         };
       }
@@ -170,7 +193,7 @@ export class SvgPlanParser {
           rooms: [],
           viewBox: { x: 0, y: 0, width: 0, height: 0 },
           pixelsPerMeter: 50,
-          stats: { wallCount: 0, doorCount: 0, windowCount: 0, roomCount: 0, textLabelCount: 0 },
+          stats: { wallCount: 0, doorCount: 0, windowCount: 0, roomCount: 0, textLabelCount: 0, ignoredMeasurementLinesCount: 0 },
           error: 'Aucune balise <svg> trouvée dans le document.'
         };
       }
@@ -197,8 +220,11 @@ export class SvgPlanParser {
         defaultThickness
       });
 
+      // Compteur des lignes de mesure/pointillés ignorées
+      const ignoredMeasurementLinesCount = segments.filter(s => s.isMeasurementLine).length;
+
       // 3. Normalisation et conversion en unités réelles (Mètres)
-      const worldWalls: Wall[] = this.convertSegmentsToWalls(
+      const allWalls: Wall[] = this.convertSegmentsToWalls(
         segments,
         viewBox,
         metersPerUnit,
@@ -207,37 +233,47 @@ export class SvgPlanParser {
       );
 
       // 4. Détection et conversion des ouvertures (Portes et Fenêtres)
-      const worldOpenings: Opening[] = this.detectOpenings(
+      const allOpenings: Opening[] = this.detectOpenings(
         arcs,
         segments,
-        worldWalls,
+        allWalls,
         viewBox,
         metersPerUnit
       );
 
       // 5. Détection des pièces et association des étiquettes de texte
-      const worldRooms: Room[] = this.detectRooms(
+      const allRooms: Room[] = this.detectRooms(
         polygons,
-        worldWalls,
+        allWalls,
         textLabels,
         viewBox,
         metersPerUnit,
-        defaultHeight
+        defaultHeight,
+        opts.importLabels !== false
       );
+
+      // 6. Application des filtres utilisateur (Checkboxes de sélection d'import)
+      const finalWalls = opts.importWalls !== false ? allWalls : [];
+      const finalOpenings = allOpenings.filter(op => {
+        if (op.type === 'door') return opts.importDoors !== false;
+        return opts.importWindows !== false;
+      });
+      const finalRooms = opts.importRooms !== false ? allRooms : [];
 
       return {
         success: true,
-        walls: worldWalls,
-        openings: worldOpenings,
-        rooms: worldRooms,
+        walls: finalWalls,
+        openings: finalOpenings,
+        rooms: finalRooms,
         viewBox,
         pixelsPerMeter: pixelsPerMeter || 50,
         stats: {
-          wallCount: worldWalls.length,
-          doorCount: worldOpenings.filter(o => o.type === 'door').length,
-          windowCount: worldOpenings.filter(o => o.type === 'window' || o.type === 'french_window').length,
-          roomCount: worldRooms.length,
-          textLabelCount: textLabels.length
+          wallCount: allWalls.length,
+          doorCount: allOpenings.filter(o => o.type === 'door').length,
+          windowCount: allOpenings.filter(o => o.type === 'window' || o.type === 'french_window').length,
+          roomCount: allRooms.length,
+          textLabelCount: textLabels.length,
+          ignoredMeasurementLinesCount
         }
       };
     } catch (err: any) {
@@ -249,7 +285,7 @@ export class SvgPlanParser {
         rooms: [],
         viewBox: { x: 0, y: 0, width: 0, height: 0 },
         pixelsPerMeter: 50,
-        stats: { wallCount: 0, doorCount: 0, windowCount: 0, roomCount: 0, textLabelCount: 0 },
+        stats: { wallCount: 0, doorCount: 0, windowCount: 0, roomCount: 0, textLabelCount: 0, ignoredMeasurementLinesCount: 0 },
         error: `Erreur d'interprétation : ${err.message || String(err)}`
       };
     }
@@ -258,7 +294,7 @@ export class SvgPlanParser {
   /**
    * Extrait la viewBox ou dimensions de l'élément SVG racine
    */
-  private static extractViewBox(svgEl: SVGSVGElement): { x: number; y: number; width: number; height: number } {
+  private static extractViewBox(svgEl: Element): { x: number; y: number; width: number; height: number } {
     const vbAttr = svgEl.getAttribute('viewBox');
     if (vbAttr) {
       const parts = vbAttr.trim().split(/[\s,]+/).map(parseFloat).filter(n => !isNaN(n));
@@ -314,13 +350,33 @@ export class SvgPlanParser {
 
     const semanticString = `${id} ${className} ${label} ${layer} ${parentClass}`;
 
+    // 1. Détection des lignes de cotation, mesures, pointillés ou tirets
+    // RÈGLE : Les lignes pointillées / tiretées ne sont JAMAIS des murs !
+    const strokeDasharray = element.getAttribute('stroke-dasharray') || '';
+    const styleAttr = (element.getAttribute('style') || '').toLowerCase();
+    const parentDasharray = element.closest('[stroke-dasharray]')?.getAttribute('stroke-dasharray') || '';
+
+    const isDashedOrDotted = 
+      (!!strokeDasharray && strokeDasharray !== 'none' && strokeDasharray !== '0') ||
+      /stroke-dasharray\s*:\s*(?!none|0)[\d\s,.]+/i.test(styleAttr) ||
+      (!!parentDasharray && parentDasharray !== 'none' && parentDasharray !== '0') ||
+      /dashed|dotted/.test(styleAttr) ||
+      /pointill|tirete|dashed|dotted/.test(semanticString);
+
+    const isDimensionHint = 
+      isDashedOrDotted ||
+      /dimension|cotation|mesure|cote|measure|guideline|guide|axis|axe|fleche|arrow|marker|tick/i.test(semanticString) ||
+      element.hasAttribute('marker-start') ||
+      element.hasAttribute('marker-end') ||
+      element.closest('g[id*="dimension" i], g[id*="cotation" i], g[id*="cote" i], g[id*="measure" i], g[id*="guide" i]') !== null;
+
+    const isMeasurementLine = isDimensionHint;
+
     const isDoorHint = /door|porte|portillon|swing|battant/.test(semanticString);
     const isWindowHint = /window|fenetre|vitrage|chassis|baie/.test(semanticString);
-    const isWallHint = /wall|mur|cloison|facade|envelope|structure|enveloppe/.test(semanticString);
+    const isWallHint = !isMeasurementLine && (/wall|mur|cloison|facade|envelope|structure|enveloppe/.test(semanticString) || (!isDoorHint && !isWindowHint));
     const isRoomHint = /room|piece|espace|zone|area|chambre|salon|cuisine|sdb|sejour/.test(semanticString);
 
-    const strokeWidthAttr = element.getAttribute('stroke-width');
-    const strokeWidth = strokeWidthAttr ? parseFloat(strokeWidthAttr) : 1.0;
     const fillAttr = element.getAttribute('fill') || '';
 
     // Ignore les éléments explicitement invisibles
@@ -342,9 +398,10 @@ export class SvgPlanParser {
           start: p1,
           end: p2,
           thickness: context.defaultThickness,
-          isWallHint: isWallHint || (!isDoorHint && !isWindowHint),
+          isWallHint: isWallHint && !isMeasurementLine,
           isWindowHint,
-          isDoorHint
+          isDoorHint,
+          isMeasurementLine
         });
         break;
       }
@@ -366,9 +423,10 @@ export class SvgPlanParser {
               start: pts[i],
               end: pts[i + 1],
               thickness: context.defaultThickness,
-              isWallHint,
+              isWallHint: isWallHint && !isMeasurementLine,
               isWindowHint,
-              isDoorHint
+              isDoorHint,
+              isMeasurementLine
             });
           }
 
@@ -377,17 +435,20 @@ export class SvgPlanParser {
               start: pts[pts.length - 1],
               end: pts[0],
               thickness: context.defaultThickness,
-              isWallHint,
+              isWallHint: isWallHint && !isMeasurementLine,
               isWindowHint,
-              isDoorHint
+              isDoorHint,
+              isMeasurementLine
             });
 
-            // Enregistrer comme polygone candidat pièce
-            context.polygons.push({
-              points: pts,
-              isRoomHint,
-              fill: fillAttr
-            });
+            // Enregistrer comme polygone candidat pièce (si ce n'est pas une zone de cotation)
+            if (!isMeasurementLine) {
+              context.polygons.push({
+                points: pts,
+                isRoomHint,
+                fill: fillAttr
+              });
+            }
           }
         }
         break;
@@ -407,7 +468,7 @@ export class SvgPlanParser {
 
           // Si c'est un rectangle allongé (ex: mur plein représenté sous forme de rectangle)
           const ratio = Math.max(rw / rh, rh / rw);
-          if (ratio >= 3.0) {
+          if (ratio >= 3.0 && !isMeasurementLine) {
             // Ligne médiane du mur
             if (rw > rh) {
               const startMid = localTransform.transformPoint({ x: rx, y: ry + rh / 2 });
@@ -418,7 +479,8 @@ export class SvgPlanParser {
                 thickness: context.defaultThickness,
                 isWallHint: true,
                 isWindowHint,
-                isDoorHint
+                isDoorHint,
+                isMeasurementLine: false
               });
             } else {
               const startMid = localTransform.transformPoint({ x: rx + rw / 2, y: ry });
@@ -429,24 +491,27 @@ export class SvgPlanParser {
                 thickness: context.defaultThickness,
                 isWallHint: true,
                 isWindowHint,
-                isDoorHint
+                isDoorHint,
+                isMeasurementLine: false
               });
             }
           } else {
             // Rectangle de pièce ou 4 murs
-            context.polygons.push({
-              points: [p1, p2, p3, p4],
-              isRoomHint: isRoomHint || (fillAttr !== 'none' && fillAttr !== '#000000' && fillAttr !== 'black'),
-              fill: fillAttr
-            });
+            if (!isMeasurementLine) {
+              context.polygons.push({
+                points: [p1, p2, p3, p4],
+                isRoomHint: isRoomHint || (fillAttr !== 'none' && fillAttr !== '#000000' && fillAttr !== 'black'),
+                fill: fillAttr
+              });
 
-            // 4 contours
-            context.segments.push(
-              { start: p1, end: p2, thickness: context.defaultThickness, isWallHint, isWindowHint, isDoorHint },
-              { start: p2, end: p3, thickness: context.defaultThickness, isWallHint, isWindowHint, isDoorHint },
-              { start: p3, end: p4, thickness: context.defaultThickness, isWallHint, isWindowHint, isDoorHint },
-              { start: p4, end: p1, thickness: context.defaultThickness, isWallHint, isWindowHint, isDoorHint }
-            );
+              // 4 contours
+              context.segments.push(
+                { start: p1, end: p2, thickness: context.defaultThickness, isWallHint, isWindowHint, isDoorHint, isMeasurementLine: false },
+                { start: p2, end: p3, thickness: context.defaultThickness, isWallHint, isWindowHint, isDoorHint, isMeasurementLine: false },
+                { start: p3, end: p4, thickness: context.defaultThickness, isWallHint, isWindowHint, isDoorHint, isMeasurementLine: false },
+                { start: p4, end: p1, thickness: context.defaultThickness, isWallHint, isWindowHint, isDoorHint, isMeasurementLine: false }
+              );
+            }
           }
         }
         break;
@@ -455,7 +520,16 @@ export class SvgPlanParser {
       case 'path': {
         const d = element.getAttribute('d');
         if (d) {
-          this.parsePathData(d, localTransform, context, isWallHint, isWindowHint, isDoorHint, fillAttr);
+          this.parsePathData(
+            d, 
+            localTransform, 
+            context, 
+            isWallHint && !isMeasurementLine, 
+            isWindowHint, 
+            isDoorHint, 
+            isMeasurementLine, 
+            fillAttr
+          );
         }
         break;
       }
@@ -465,7 +539,10 @@ export class SvgPlanParser {
         const ty = parseFloat(element.getAttribute('y') || '0');
         const textContent = element.textContent?.trim() || '';
 
-        if (textContent.length > 0) {
+        // Ignorer les textes purement numériques de cotation (ex: "3.40", "120 cm", "2.85 m")
+        const isNumericDimension = /^\d+([.,]\d+)?\s*(m|cm|mm)?$/i.test(textContent);
+
+        if (textContent.length > 0 && !isNumericDimension) {
           const pos = localTransform.transformPoint({ x: tx, y: ty });
           context.textLabels.push({
             text: textContent,
@@ -500,6 +577,7 @@ export class SvgPlanParser {
     isWallHint: boolean,
     isWindowHint: boolean,
     isDoorHint: boolean,
+    isMeasurementLine: boolean,
     fill: string
   ): void {
     // Tokeniseur pour commandes et nombres (incluant signes moins et notation exponentielle)
@@ -534,7 +612,7 @@ export class SvgPlanParser {
           if (!isNaN(x) && !isNaN(y)) {
             cursor = isRelative ? { x: cursor.x + x, y: cursor.y + y } : { x, y };
             subpathStart = { ...cursor };
-            if (currentPolygonPts.length >= 3) {
+            if (currentPolygonPts.length >= 3 && !isMeasurementLine) {
               context.polygons.push({
                 points: currentPolygonPts.map(p => transform.transformPoint(p)),
                 isRoomHint: isWallHint ? false : (fill !== 'none' && fill !== ''),
@@ -558,9 +636,10 @@ export class SvgPlanParser {
               start: p1,
               end: p2,
               thickness: context.defaultThickness,
-              isWallHint,
+              isWallHint: isWallHint && !isMeasurementLine,
               isWindowHint,
-              isDoorHint
+              isDoorHint,
+              isMeasurementLine
             });
 
             cursor = nextPt;
@@ -580,9 +659,10 @@ export class SvgPlanParser {
               start: p1,
               end: p2,
               thickness: context.defaultThickness,
-              isWallHint,
+              isWallHint: isWallHint && !isMeasurementLine,
               isWindowHint,
-              isDoorHint
+              isDoorHint,
+              isMeasurementLine
             });
 
             cursor = nextPt;
@@ -602,9 +682,10 @@ export class SvgPlanParser {
               start: p1,
               end: p2,
               thickness: context.defaultThickness,
-              isWallHint,
+              isWallHint: isWallHint && !isMeasurementLine,
               isWindowHint,
-              isDoorHint
+              isDoorHint,
+              isMeasurementLine
             });
 
             cursor = nextPt;
@@ -629,6 +710,7 @@ export class SvgPlanParser {
             const p2 = transform.transformPoint(nextPt);
 
             // Détection arc battant de porte (rayon ~ 0.60m à 1.30m)
+            // Note: les arcs de portes peuvent parfois être en pointillés sur le plan
             context.arcs.push({
               start: p1,
               end: p2,
@@ -669,13 +751,14 @@ export class SvgPlanParser {
               start: p1,
               end: p2,
               thickness: context.defaultThickness,
-              isWallHint,
+              isWallHint: isWallHint && !isMeasurementLine,
               isWindowHint,
-              isDoorHint
+              isDoorHint,
+              isMeasurementLine
             });
           }
 
-          if (currentPolygonPts.length >= 3) {
+          if (currentPolygonPts.length >= 3 && !isMeasurementLine) {
             context.polygons.push({
               points: currentPolygonPts.map(p => transform.transformPoint(p)),
               isRoomHint: isWallHint ? false : (fill !== 'none' && fill !== ''),
@@ -708,8 +791,8 @@ export class SvgPlanParser {
     const rawWalls: Wall[] = [];
 
     for (const seg of segments) {
-      // Filtrer les segments de portes ou fenêtres pour ne pas les transformer en murs porteurs
-      if (seg.isDoorHint || seg.isWindowHint) continue;
+      // Filtrer STRICTEMENT les lignes de mesure/cotation/pointillés et les ouvrants
+      if (seg.isMeasurementLine || seg.isDoorHint || seg.isWindowHint) continue;
 
       const p1: Point = {
         x: (seg.start.x - viewBox.x) * metersPerUnit,
@@ -879,7 +962,7 @@ export class SvgPlanParser {
 
     // 2. Fenêtres et Portes depuis les segments balisés sémantiquement
     for (const seg of segments) {
-      if (!seg.isWindowHint && !seg.isDoorHint) continue;
+      if ((!seg.isWindowHint && !seg.isDoorHint) || seg.isMeasurementLine) continue;
 
       const p1: Point = {
         x: (seg.start.x - viewBox.x) * metersPerUnit,
@@ -930,7 +1013,8 @@ export class SvgPlanParser {
     textLabels: RawTextLabel[],
     viewBox: { x: number; y: number; width: number; height: number },
     metersPerUnit: number,
-    defaultHeight: number
+    defaultHeight: number,
+    useTextLabels: boolean = true
   ): Room[] {
     const rooms: Room[] = [];
 
@@ -958,10 +1042,12 @@ export class SvgPlanParser {
 
       // Chercher une étiquette de texte située à l'intérieur
       let roomName = '';
-      for (const label of worldLabels) {
-        if (PolygonUtils.isPointInPolygon(label.position, worldPolygon)) {
-          roomName = label.text;
-          break;
+      if (useTextLabels) {
+        for (const label of worldLabels) {
+          if (PolygonUtils.isPointInPolygon(label.position, worldPolygon)) {
+            roomName = label.text;
+            break;
+          }
         }
       }
 
@@ -982,8 +1068,8 @@ export class SvgPlanParser {
     }
 
     // 2. Si aucune pièce n'a été détectée via polygones mais qu'on a des étiquettes de texte
-    //    et des murs formants des contours, on attribue les étiquettes orphelines
-    if (rooms.length === 0 && worldLabels.length > 0 && walls.length >= 4) {
+    //    et des murs formants des contours, on attribue les étiquettes
+    if (rooms.length === 0 && worldLabels.length > 0 && walls.length >= 4 && useTextLabels) {
       for (const label of worldLabels) {
         const lower = label.text.toLowerCase();
         if (/salon|sejour|chambre|cuisine|sdb|bain|wc|bureau|entree|garage|couloir/i.test(lower)) {
