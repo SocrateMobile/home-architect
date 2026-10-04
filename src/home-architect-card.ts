@@ -1,4 +1,4 @@
-import { LitElement, html, css } from 'lit';
+import { LitElement, html, css, PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import './components/canvas-view';
 import { HomeArchitectProject } from './core/types';
@@ -109,12 +109,22 @@ export class HomeArchitectCard extends LitElement {
     }
   }
 
+  private _projectLoaded: boolean = false;
+
   public getCardSize(): number {
     return 6;
   }
 
   firstUpdated() {
     this.loadProject();
+  }
+
+  updated(changedProperties: PropertyValues) {
+    super.updated(changedProperties);
+    if (changedProperties.has('hass') && !this._projectLoaded && this.hass) {
+      this._projectLoaded = true;
+      this.loadProject();
+    }
   }
 
   private async loadProject() {

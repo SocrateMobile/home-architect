@@ -131,10 +131,13 @@ class HomeArchitectSvgView(HomeAssistantView):
         """Serve the SVG for a project."""
         from aiohttp import web
         import os
-        www_target = self.hass.config.path("www", f"plan_{project_id}.svg")
+        clean_id = os.path.basename(project_id)
+        www_target = self.hass.config.path("www", f"plan_{clean_id}.svg")
         if os.path.exists(www_target):
-            with open(www_target, "r", encoding="utf-8") as f:
-                content = f.read()
+            def _read():
+                with open(www_target, "r", encoding="utf-8") as f:
+                    return f.read()
+            content = await self.hass.async_add_executor_job(_read)
             return web.Response(text=content, content_type="image/svg+xml")
 
-        return web.Response(status=404, text=f"Floorplan SVG for {project_id} not found in www")
+        return web.Response(status=404, text=f"Floorplan SVG for {clean_id} not found in www")

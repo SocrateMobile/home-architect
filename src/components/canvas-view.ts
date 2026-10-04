@@ -118,6 +118,11 @@ export class HomeArchitectCanvas extends LitElement {
 
   private _boundKeyDown: any = null;
 
+  @state()
+  private draggingBindingId: string | null = null;
+  private dragBindingMoved: boolean = false;
+  private dragBindingStartPos: Point = { x: 0, y: 0 };
+
   // État Orbite / Rotation 3D
   @state()
   private orbitPitch: number = 55;
@@ -229,7 +234,22 @@ export class HomeArchitectCanvas extends LitElement {
 
     if (e.button !== 0) return;
 
+    const targetEl = e.target as Element;
+    const isClickOnObject = !!targetEl?.closest?.(
+      '.wall-element, .wall-element-3d, .room-group, .entity-pin, .opening-element, .dimension-badge, .hud-btn'
+    );
+
+    // Clic direct sur une entité : laisser l'entité gérer son interaction et son glisser-déposer
+    if (targetEl?.closest?.('.entity-pin')) {
+      return;
+    }
+
     if (this.activeTool === 'select') {
+      if (isClickOnObject) {
+        // Clic sur un objet sélectionnable : ne pas démarrer le pan ni vider la sélection
+        return;
+      }
+
       if (e.shiftKey) {
         // Shift+Click sur fond : sélection par rectangle (Marquee)
         const worldPt = this.screenToWorld(e.clientX, e.clientY);
@@ -410,6 +430,31 @@ export class HomeArchitectCanvas extends LitElement {
       return;
     }
 
+    if (this.draggingBindingId) {
+      const dist = Math.hypot(e.clientX - this.dragBindingStartPos.x, e.clientY - this.dragBindingStartPos.y);
+      if (dist > 3) {
+        this.dragBindingMoved = true;
+        const worldPt = this.screenToWorld(e.clientX, e.clientY);
+        const matchingRoom = PolygonUtils.findRoomContainingPoint(worldPt, this.project.rooms);
+        const newBindings = this.project.bindings.map(b => {
+          if (b.id === this.draggingBindingId) {
+            return {
+              ...b,
+              position: {
+                x: SnappingEngine.roundMeters(worldPt.x),
+                y: SnappingEngine.roundMeters(worldPt.y)
+              },
+              roomId: matchingRoom?.id
+            };
+          }
+          return b;
+        });
+        this.project = { ...this.project, bindings: newBindings };
+        this.requestUpdate();
+      }
+      return;
+    }
+
     if (this.isMarqueeSelecting && this.marqueeStart) {
       this.marqueeCurrent = this.screenToWorld(e.clientX, e.clientY);
       this.requestUpdate();
@@ -481,6 +526,19 @@ export class HomeArchitectCanvas extends LitElement {
   }
 
   private handlePointerUp(e: PointerEvent): void {
+    if (this.draggingBindingId) {
+      const moved = this.dragBindingMoved;
+      this.draggingBindingId = null;
+      this.dragBindingMoved = false;
+      try {
+        (e.target as HTMLElement).releasePointerCapture?.(e.pointerId);
+      } catch (_) {}
+      if (moved) {
+        this.dispatchProjectChanged();
+        return;
+      }
+    }
+
     if (this.isOrbiting) {
       this.isOrbiting = false;
       (e.target as HTMLElement).releasePointerCapture?.(e.pointerId);
@@ -674,8 +732,38 @@ export class HomeArchitectCanvas extends LitElement {
     `;
   }
 
+  private handleEntityPointerDown(binding: EntityBinding, e: PointerEvent): void {
+    if (this.isDashboardMode) return;
+    if (e.button !== 0) return;
+    e.stopPropagation();
+
+    this.draggingBindingId = binding.id;
+    this.dragBindingMoved = false;
+    this.dragBindingStartPos = { x: e.clientX, y: e.clientY };
+
+    if (this.activeTool === 'select') {
+      const me = e as MouseEvent;
+      const isMulti = me.shiftKey || me.ctrlKey || me.metaKey;
+      const exists = this.selectedElements.bindingIds.includes(binding.id);
+      if (isMulti) {
+        const newBindingIds = exists
+          ? this.selectedElements.bindingIds.filter(id => id !== binding.id)
+          : [...this.selectedElements.bindingIds, binding.id];
+        this.selectedElements = { ...this.selectedElements, bindingIds: newBindingIds };
+      } else if (!exists) {
+        this.selectedElements = { wallIds: [], openingIds: [], roomIds: [], bindingIds: [binding.id] };
+      }
+      this.dispatchSelectionChanged();
+    }
+
+    (e.currentTarget as HTMLElement)?.setPointerCapture?.(e.pointerId);
+  }
+
   private handleEntityClick(binding: EntityBinding, e: Event): void {
     e.stopPropagation();
+    if (this.dragBindingMoved) {
+      return;
+    }
 
     // En mode dashboard Lovelace : interaction directe au clic
     if (this.isDashboardMode) {
@@ -750,18 +838,6 @@ export class HomeArchitectCanvas extends LitElement {
       this.selectedElements = { wallIds: [], openingIds: [], roomIds: [], bindingIds: [] };
       this.dispatchSelectionChanged();
       this.requestUpdate();
-    } else if (e.key === 'Delete' || e.key === 'Backspace') {
-      const total = this.selectedElements.wallIds.length + 
-                    this.selectedElements.openingIds.length + 
-                    this.selectedElements.roomIds.length + 
-                    this.selectedElements.bindingIds.length;
-      if (total > 0) {
-        e.preventDefault();
-        this.dispatchEvent(new CustomEvent('request-delete-selected', {
-          bubbles: true,
-          composed: true
-        }));
-      }
     } else if (e.key === ' ' || e.key === 'Spacebar') {
       if (this.wallSnap) {
         e.preventDefault();
@@ -1255,6 +1331,7 @@ export class HomeArchitectCanvas extends LitElement {
         <g 
           class="entity-pin ${isBindingSelected ? 'selected' : ''} ${isLightOn ? 'active-light' : ''} ${isRadarActive ? 'active-radar' : ''}"
           transform="translate(${sPos.x}, ${sPos.y})"
+          @pointerdown=${(e: PointerEvent) => this.handleEntityPointerDown(binding, e)}
           @click=${(e: Event) => this.handleEntityClick(binding, e)}
           @dblclick=${(e: Event) => this.handleEntityDblClick(binding, e)}
           title="${binding.customName || binding.entityId} : ${stateStr} (Clic pour basculer)"
