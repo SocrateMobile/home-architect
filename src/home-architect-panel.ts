@@ -12,6 +12,7 @@ import './components/rescale-modal';
 import { RescaleModalResult } from './components/rescale-modal';
 import './components/export-modal';
 import './components/save-load-modal';
+import { PLAN_CATEGORIES } from './components/save-load-modal';
 import { SnappingEngine } from './core/snapping';
 import { PolygonUtils } from './core/polygon';
 import { 
@@ -927,6 +928,238 @@ export class HomeArchitectPanel extends LitElement {
       from { transform: translate(-50%, -12px); opacity: 0; }
       to { transform: translate(-50%, 0); opacity: 1; }
     }
+
+    /* Modales Nouveau Plan & Reset */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(12px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 120;
+      animation: modalFadeIn 0.2s ease-out;
+    }
+
+    @keyframes modalFadeIn {
+      from { opacity: 0; transform: scale(0.98); }
+      to { opacity: 1; transform: scale(1); }
+    }
+
+    .modal-dialog {
+      background: #1e293b;
+      border: 1px solid rgba(56, 189, 248, 0.35);
+      border-radius: 16px;
+      width: 520px;
+      max-width: 92vw;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.75), 0 0 30px rgba(56, 189, 248, 0.2);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .modal-dialog.danger {
+      border-color: rgba(239, 68, 68, 0.4);
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.75), 0 0 30px rgba(239, 68, 68, 0.2);
+    }
+
+    .modal-dialog-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: rgba(15, 23, 42, 0.6);
+    }
+
+    .modal-dialog-header.danger {
+      background: rgba(239, 68, 68, 0.08);
+      border-bottom-color: rgba(239, 68, 68, 0.2);
+    }
+
+    .modal-dialog-title-group {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .modal-dialog-icon {
+      font-size: 1.5rem;
+    }
+
+    .modal-dialog-title {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: #f1f5f9;
+      margin: 0;
+    }
+
+    .modal-dialog-subtitle {
+      font-size: 0.8rem;
+      color: #94a3b8;
+      margin: 2px 0 0 0;
+    }
+
+    .btn-dialog-close {
+      background: transparent;
+      border: none;
+      color: #94a3b8;
+      font-size: 1.2rem;
+      cursor: pointer;
+      padding: 4px;
+      border-radius: 6px;
+      transition: all 0.15s ease;
+    }
+
+    .btn-dialog-close:hover {
+      color: #ffffff;
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    .modal-dialog-body {
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .dialog-form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .dialog-label {
+      font-size: 0.84rem;
+      font-weight: 600;
+      color: #cbd5e1;
+    }
+
+    .dialog-input {
+      background: rgba(15, 23, 42, 0.8);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 0.92rem;
+      color: #f8fafc;
+      outline: none;
+      transition: border-color 0.2s ease;
+    }
+
+    .dialog-input:focus {
+      border-color: #38bdf8;
+      box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.2);
+    }
+
+    .category-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+      gap: 8px;
+    }
+
+    .category-btn {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      padding: 8px 6px;
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      color: #94a3b8;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      font-size: 0.8rem;
+    }
+
+    .category-btn:hover {
+      background: rgba(51, 65, 85, 0.5);
+      color: #f1f5f9;
+    }
+
+    .category-btn.active {
+      background: rgba(56, 189, 248, 0.2);
+      border-color: #38bdf8;
+      color: #38bdf8;
+      font-weight: 600;
+    }
+
+    .reset-summary-box {
+      background: rgba(15, 23, 42, 0.7);
+      border: 1px solid rgba(239, 68, 68, 0.2);
+      border-radius: 10px;
+      padding: 12px 16px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      font-size: 0.85rem;
+      color: #e2e8f0;
+    }
+
+    .modal-dialog-footer {
+      padding: 14px 20px;
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 10px;
+      background: rgba(15, 23, 42, 0.4);
+    }
+
+    .btn-dialog-cancel {
+      padding: 8px 16px;
+      background: transparent;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 8px;
+      color: #cbd5e1;
+      font-size: 0.88rem;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .btn-dialog-cancel:hover {
+      background: rgba(255, 255, 255, 0.08);
+      color: #ffffff;
+    }
+
+    .btn-dialog-confirm {
+      padding: 8px 18px;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.88rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.15s ease;
+    }
+
+    .btn-dialog-confirm.primary {
+      background: #0284c7;
+      color: #ffffff;
+      box-shadow: 0 4px 12px rgba(2, 132, 199, 0.35);
+    }
+
+    .btn-dialog-confirm.primary:hover {
+      background: #0369a1;
+    }
+
+    .btn-dialog-confirm.danger {
+      background: #ef4444;
+      color: #ffffff;
+      box-shadow: 0 4px 12px rgba(239, 68, 68, 0.35);
+    }
+
+    .btn-dialog-confirm.danger:hover {
+      background: #dc2626;
+    }
+
+    .dropdown-item.danger:hover {
+      background: rgba(239, 68, 68, 0.15);
+      color: #f87171;
+    }
   `;
 
   @property({ type: Object })
@@ -988,6 +1221,18 @@ export class HomeArchitectPanel extends LitElement {
 
   @state()
   private isSaveLoadModalOpen: boolean = false;
+
+  @state()
+  private isNewPlanModalOpen: boolean = false;
+
+  @state()
+  private newPlanName: string = 'Nouveau Plan';
+
+  @state()
+  private newPlanCategory: string = 'rdc';
+
+  @state()
+  private isResetModalOpen: boolean = false;
 
   @state()
   private saveLoadModalTab: 'save' | 'load' = 'save';
@@ -2019,12 +2264,34 @@ export class HomeArchitectPanel extends LitElement {
   }
 
   private handleKeyDown(e: KeyboardEvent) {
+    if (e.key === 'Escape') {
+      if (this.isNewPlanModalOpen) {
+        this.isNewPlanModalOpen = false;
+        return;
+      }
+      if (this.isResetModalOpen) {
+        this.isResetModalOpen = false;
+        return;
+      }
+      if (this.isFullscreen) {
+        this.toggleFullscreen();
+      }
+      if (this.activeDropdown) {
+        this.activeDropdown = null;
+      }
+      this.clearSelection();
+      return;
+    }
+
     const tag = (e.target as HTMLElement)?.tagName?.toLowerCase();
     if (tag === 'input' || tag === 'textarea' || (e.target as HTMLElement)?.isContentEditable) {
       return;
     }
 
-    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !e.shiftKey) {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'n') {
+      e.preventDefault();
+      this.openNewPlanModal();
+    } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !e.shiftKey) {
       e.preventDefault();
       this.handleUndo();
     } else if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 'y' || (e.key.toLowerCase() === 'z' && e.shiftKey))) {
@@ -2040,14 +2307,6 @@ export class HomeArchitectPanel extends LitElement {
         e.preventDefault();
         this.handleDeleteSelected();
       }
-    } else if (e.key === 'Escape') {
-      if (this.isFullscreen) {
-        this.toggleFullscreen();
-      }
-      if (this.activeDropdown) {
-        this.activeDropdown = null;
-      }
-      this.clearSelection();
     } else if (e.key.toLowerCase() === 'r') {
       if (this.selectedElements.furnitureIds && this.selectedElements.furnitureIds.length > 0) {
         e.preventDefault();
@@ -2107,6 +2366,77 @@ export class HomeArchitectPanel extends LitElement {
       this.updateSidebarOffset();
       this.showToast('🗗 Sortie du plein écran');
     }
+  }
+
+  private openNewPlanModal() {
+    this.newPlanName = `Plan ${this.getLevelLabel(this.activeLevel)}`;
+    this.newPlanCategory = this.activeLevel;
+    this.isNewPlanModalOpen = true;
+    this.activeDropdown = null;
+  }
+
+  private handleConfirmNewPlan() {
+    this.pushUndoSnapshot();
+    const name = this.newPlanName.trim() || 'Nouveau Plan';
+    const category = this.newPlanCategory || 'rdc';
+    const knownCategories = ['sous-sol', 'rdc', 'etage1', 'etage2', 'etage3', 'jardin'];
+    const projectId = knownCategories.includes(category) ? category : `plan_${Date.now()}`;
+    this.project = {
+      id: projectId,
+      name,
+      category,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      pixelsPerMeter: 50,
+      grid: {
+        size: 0.5,
+        subdivisions: 2,
+        snapToGrid: true,
+        snapToAngles: true,
+        snapToElements: true
+      },
+      walls: [],
+      openings: [],
+      rooms: [],
+      bindings: [],
+      furniture: []
+    };
+    if (knownCategories.includes(category)) {
+      this.activeLevel = category;
+    }
+    this.levelProjects[this.activeLevel] = { ...this.project };
+    this.clearSelection();
+    this.isNewPlanModalOpen = false;
+    this.showToast(`📄 Nouveau plan "${name}" créé avec succès !`);
+    setTimeout(() => {
+      (this.shadowRoot?.querySelector('home-architect-canvas') as any)?.fitToScreen();
+    }, 80);
+  }
+
+  private openResetModal() {
+    this.isResetModalOpen = true;
+    this.activeDropdown = null;
+  }
+
+  private handleConfirmResetPlan() {
+    this.pushUndoSnapshot();
+    this.project = {
+      ...this.project,
+      walls: [],
+      openings: [],
+      rooms: [],
+      bindings: [],
+      furniture: [],
+      background: undefined,
+      updated_at: new Date().toISOString()
+    };
+    this.levelProjects[this.activeLevel] = { ...this.project };
+    this.clearSelection();
+    this.isResetModalOpen = false;
+    this.showToast(`🗑️ Plan effacé (Réinitialisé). Annulez avec Ctrl+Z si besoin.`);
+    setTimeout(() => {
+      (this.shadowRoot?.querySelector('home-architect-canvas') as any)?.fitToScreen();
+    }, 80);
   }
 
   private openSaveModal() {
@@ -2236,6 +2566,10 @@ export class HomeArchitectPanel extends LitElement {
             </button>
             ${this.activeDropdown === 'file' ? html`
               <div class="dropdown-menu-popup">
+                <button class="dropdown-item" @click=${() => this.openNewPlanModal()}>
+                  <span>📄</span>
+                  <span>Nouveau plan...</span>
+                </button>
                 <button class="dropdown-item" @click=${() => this.openLoadModal()}>
                   <span>📂</span>
                   <span>Ouvrir / Recharger un plan...</span>
@@ -2252,6 +2586,11 @@ export class HomeArchitectPanel extends LitElement {
                 <button class="dropdown-item" @click=${() => { this.isExportModalOpen = true; this.activeDropdown = null; }}>
                   <span>📤</span>
                   <span>Exporter Lovelace...</span>
+                </button>
+                <div class="dropdown-divider"></div>
+                <button class="dropdown-item danger" @click=${() => this.openResetModal()}>
+                  <span>🗑️</span>
+                  <span>Effacer le plan (Reset)...</span>
                 </button>
               </div>
             ` : null}
@@ -2301,6 +2640,11 @@ export class HomeArchitectPanel extends LitElement {
                   <span>${this.isFullscreen ? '🗗' : '⛶'}</span>
                   <span>${this.isFullscreen ? 'Sortir du plein écran' : 'Plein écran'}</span>
                   ${this.isFullscreen ? html`<span class="dropdown-item-check">✓</span>` : null}
+                </button>
+                <div class="dropdown-divider"></div>
+                <button class="dropdown-item danger" @click=${() => this.openResetModal()}>
+                  <span>🗑️</span>
+                  <span>Effacer le plan (Reset)...</span>
                 </button>
               </div>
             ` : null}
@@ -2739,6 +3083,104 @@ export class HomeArchitectPanel extends LitElement {
           @load-project=${this.handleLoadProject}
           @close=${() => this.isSaveLoadModalOpen = false}
         ></home-architect-save-load-modal>
+      ` : null}
+
+      <!-- Modal Nouveau Plan -->
+      ${this.isNewPlanModalOpen ? html`
+        <div class="modal-backdrop" @click=${(e: MouseEvent) => { if (e.target === e.currentTarget) this.isNewPlanModalOpen = false; }}>
+          <div class="modal-dialog">
+            <div class="modal-dialog-header">
+              <div class="modal-dialog-title-group">
+                <span class="modal-dialog-icon">📄</span>
+                <div>
+                  <h3 class="modal-dialog-title">Nouveau Plan</h3>
+                  <p class="modal-dialog-subtitle">Créer une feuille de dessin vierge</p>
+                </div>
+              </div>
+              <button class="btn-dialog-close" @click=${() => this.isNewPlanModalOpen = false}>✕</button>
+            </div>
+            <div class="modal-dialog-body">
+              <div class="dialog-form-group">
+                <label class="dialog-label">Nom du plan :</label>
+                <input
+                  type="text"
+                  class="dialog-input"
+                  .value=${this.newPlanName}
+                  @input=${(e: any) => this.newPlanName = e.target.value}
+                  placeholder="Ex: Mon Appartement, RDC..."
+                  autofocus
+                />
+              </div>
+
+              <div class="dialog-form-group">
+                <label class="dialog-label">Catégorie / Niveau :</label>
+                <div class="category-grid">
+                  ${PLAN_CATEGORIES.map(cat => html`
+                    <button
+                      type="button"
+                      class="category-btn ${this.newPlanCategory === cat.id ? 'active' : ''}"
+                      @click=${() => this.newPlanCategory = cat.id}
+                    >
+                      <span>${cat.icon}</span>
+                      <span>${cat.label}</span>
+                    </button>
+                  `)}
+                </div>
+              </div>
+            </div>
+            <div class="modal-dialog-footer">
+              <button class="btn-dialog-cancel" @click=${() => this.isNewPlanModalOpen = false}>Annuler</button>
+              <button class="btn-dialog-confirm primary" @click=${() => this.handleConfirmNewPlan()}>
+                <span>✨</span>
+                <span>Créer le plan</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      ` : null}
+
+      <!-- Modal Effacer le Plan (Reset) -->
+      ${this.isResetModalOpen ? html`
+        <div class="modal-backdrop" @click=${(e: MouseEvent) => { if (e.target === e.currentTarget) this.isResetModalOpen = false; }}>
+          <div class="modal-dialog danger">
+            <div class="modal-dialog-header danger">
+              <div class="modal-dialog-title-group">
+                <span class="modal-dialog-icon">🗑️</span>
+                <div>
+                  <h3 class="modal-dialog-title" style="color: #f87171;">Effacer le Plan</h3>
+                  <p class="modal-dialog-subtitle">Réinitialisation de l'espace de travail</p>
+                </div>
+              </div>
+              <button class="btn-dialog-close" @click=${() => this.isResetModalOpen = false}>✕</button>
+            </div>
+            <div class="modal-dialog-body">
+              <p style="color: #f1f5f9; margin: 0; line-height: 1.5; font-size: 0.92rem;">
+                Êtes-vous sûr de vouloir <strong>effacer tout le contenu</strong> du plan actuel
+                (<strong>${this.project.name || this.getLevelLabel(this.activeLevel)}</strong>) ?
+              </p>
+
+              <div class="reset-summary-box">
+                <div>🧱 <strong>Murs :</strong> ${this.project.walls.length}</div>
+                <div>🚪 <strong>Ouvrants :</strong> ${this.project.openings.length}</div>
+                <div>🏷️ <strong>Pièces :</strong> ${this.project.rooms.length}</div>
+                <div>⚡ <strong>Entités HA :</strong> ${this.project.bindings.length}</div>
+                <div>🛋️ <strong>Meubles :</strong> ${this.project.furniture?.length || 0}</div>
+                <div>🖼️ <strong>Image de fond :</strong> ${this.project.background?.imageUrl ? 'Oui' : 'Non'}</div>
+              </div>
+
+              <p style="color: #94a3b8; font-size: 0.8rem; margin: 0;">
+                ℹ️ Cette action est réversible avec le bouton Annuler (Ctrl+Z).
+              </p>
+            </div>
+            <div class="modal-dialog-footer">
+              <button class="btn-dialog-cancel" @click=${() => this.isResetModalOpen = false}>Annuler</button>
+              <button class="btn-dialog-confirm danger" @click=${() => this.handleConfirmResetPlan()}>
+                <span>🗑️</span>
+                <span>Effacer tout</span>
+              </button>
+            </div>
+          </div>
+        </div>
       ` : null}
     `;
   }
