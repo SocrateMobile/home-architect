@@ -8,6 +8,8 @@ interface CardConfig {
   project_id?: string;
   view_mode?: '2d' | '3d';
   title?: string;
+  show_header?: boolean;
+  height?: string;
 }
 
 @customElement('home-architect-card')
@@ -15,7 +17,7 @@ export class HomeArchitectCard extends LitElement {
   static styles = css`
     :host {
       display: block;
-      height: 480px;
+      height: var(--card-custom-height, 480px);
       position: relative;
       background: #0f172a;
       border-radius: 16px;
@@ -102,6 +104,9 @@ export class HomeArchitectCard extends LitElement {
     if (!config) throw new Error('Configuration invalide');
     this.config = config;
     this.is3DMode = config.view_mode === '3d';
+    if (config.height) {
+      this.style.setProperty('--card-custom-height', config.height);
+    }
   }
 
   public getCardSize(): number {
@@ -113,7 +118,7 @@ export class HomeArchitectCard extends LitElement {
   }
 
   private async loadProject() {
-    const projectId = this.config.project_id || 'rdc';
+    const projectId = this.config?.project_id || 'rdc';
 
     if (this.hass && this.hass.callWS) {
       try {
@@ -137,14 +142,28 @@ export class HomeArchitectCard extends LitElement {
     }
   }
 
+  private handleMoreInfo(e: CustomEvent): void {
+    // Propage l'événement Home Assistant standard pour ouvrir la modale détaillée
+    const ev = new CustomEvent('hass-more-info', {
+      detail: e.detail,
+      bubbles: true,
+      composed: true
+    });
+    this.dispatchEvent(ev);
+  }
+
   render() {
+    const showHeader = this.config?.show_header !== false;
+
     return html`
-      <div class="card-header">
-        <div class="card-title">${this.config?.title || this.project.name || 'Home Architect'}</div>
-        <button class="view-toggle" @click=${() => this.is3DMode = !this.is3DMode}>
-          ${this.is3DMode ? '🧊 3D' : '📐 2D'}
-        </button>
-      </div>
+      ${showHeader ? html`
+        <div class="card-header">
+          <div class="card-title">${this.config?.title || this.project.name || 'Home Architect'}</div>
+          <button class="view-toggle" @click=${() => this.is3DMode = !this.is3DMode}>
+            ${this.is3DMode ? '🧊 3D' : '📐 2D'}
+          </button>
+        </div>
+      ` : null}
 
       <div class="canvas-wrapper">
         <home-architect-canvas
@@ -152,6 +171,8 @@ export class HomeArchitectCard extends LitElement {
           .project=${this.project}
           .activeTool=${'select'}
           .is3DMode=${this.is3DMode}
+          .isDashboardMode=${true}
+          @hass-more-info=${this.handleMoreInfo}
         ></home-architect-canvas>
       </div>
     `;

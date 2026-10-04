@@ -55,6 +55,9 @@ export class HomeArchitectCanvas extends LitElement {
     bindingIds: []
   };
 
+  @property({ type: Boolean })
+  public isDashboardMode: boolean = false;
+
   @state()
   private isMarqueeSelecting: boolean = false;
 
@@ -665,6 +668,27 @@ export class HomeArchitectCanvas extends LitElement {
 
   private handleEntityClick(binding: EntityBinding, e: Event): void {
     e.stopPropagation();
+
+    // En mode dashboard Lovelace : interaction directe au clic
+    if (this.isDashboardMode) {
+      const domain = binding.entityId.split('.')[0];
+      if (binding.tapAction === 'more-info' || (domain !== 'light' && domain !== 'switch')) {
+        this.dispatchEvent(new CustomEvent('hass-more-info', {
+          detail: { entityId: binding.entityId },
+          bubbles: true,
+          composed: true
+        }));
+        return;
+      }
+
+      if (this.hass && this.hass.callService) {
+        this.hass.callService(domain, 'toggle', { entity_id: binding.entityId })
+          .catch(() => {
+            this.hass.callService('homeassistant', 'toggle', { entity_id: binding.entityId });
+          });
+      }
+      return;
+    }
 
     if (this.activeTool === 'select') {
       const me = e as MouseEvent;
@@ -1394,6 +1418,7 @@ export class HomeArchitectCanvas extends LitElement {
   }
 
   private getHelpMessage(): string | null {
+    if (this.isDashboardMode) return null;
     if (this.is3DMode) {
       return "Vue 3D Interactive : Glisser (clic gauche/droit) pour pivoter 360°, Molette pour zoomer, Shift+glisser pour déplacer.";
     }
@@ -1425,7 +1450,7 @@ export class HomeArchitectCanvas extends LitElement {
 
     return html`
       <div 
-        class="canvas-container ${this.isPanning ? 'is-panning' : ''} ${this.isOrbiting ? 'is-orbiting' : ''}"
+        class="canvas-container ${this.isPanning ? 'is-panning' : ''} ${this.isOrbiting ? 'is-orbiting' : ''} ${this.isDashboardMode ? 'dashboard-mode' : ''}"
         @wheel=${this.handleWheel}
         @pointerdown=${this.handlePointerDown}
         @pointermove=${this.handlePointerMove}
@@ -1454,11 +1479,13 @@ export class HomeArchitectCanvas extends LitElement {
           </svg>
         </div>
 
-        ${helpMsg ? html`<div class="help-hud">${helpMsg}</div>` : null}
+        ${!this.isDashboardMode && helpMsg ? html`<div class="help-hud">${helpMsg}</div>` : null}
 
-        <div class="coords-hud">
-          X: ${this.cursorCoords.x.toFixed(2)} m | Y: ${this.cursorCoords.y.toFixed(2)} m | Outil: ${this.activeTool.toUpperCase()}
-        </div>
+        ${!this.isDashboardMode ? html`
+          <div class="coords-hud">
+            X: ${this.cursorCoords.x.toFixed(2)} m | Y: ${this.cursorCoords.y.toFixed(2)} m | Outil: ${this.activeTool.toUpperCase()}
+          </div>
+        ` : null}
 
         <!-- HUD Contrôles Zoom & 3D -->
         <div class="canvas-hud">

@@ -10,6 +10,7 @@ import './components/import-modal';
 import { ImportModalResult } from './components/import-modal';
 import './components/rescale-modal';
 import { RescaleModalResult } from './components/rescale-modal';
+import './components/export-modal';
 import { SnappingEngine } from './core/snapping';
 import { PolygonUtils } from './core/polygon';
 import { 
@@ -242,6 +243,27 @@ export class HomeArchitectPanel extends LitElement {
       color: #ffffff;
     }
 
+    button.btn-export {
+      background: rgba(168, 85, 247, 0.2);
+      color: #c084fc;
+      border: 1px solid rgba(168, 85, 247, 0.45);
+      border-radius: 8px;
+      padding: 6px 13px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s ease;
+    }
+
+    button.btn-export:hover {
+      background: #9333ea;
+      color: #ffffff;
+      box-shadow: 0 0 14px rgba(168, 85, 247, 0.5);
+    }
+
     .workspace {
       flex: 1;
       display: flex;
@@ -449,6 +471,9 @@ export class HomeArchitectPanel extends LitElement {
 
   @state()
   private isImportModalOpen: boolean = false;
+
+  @state()
+  private isExportModalOpen: boolean = false;
 
   @state()
   private isCalibrateModalOpen: boolean = false;
@@ -1164,6 +1189,16 @@ export class HomeArchitectPanel extends LitElement {
             ⚡ Entités HA (${this.project.bindings.length})
           </button>
 
+          <!-- Bouton Exporter vers Lovelace -->
+          <button 
+            class="btn-export" 
+            @click=${() => this.isExportModalOpen = true} 
+            title="Exporter le plan vers Lovelace (Carte Picture-Elements ou Carte 2D/3D)"
+          >
+            <span>📤</span>
+            <span>Exporter Lovelace</span>
+          </button>
+
           <!-- Épaisseur mur -->
           ${this.activeTool === 'wall' ? html`
             <div class="control-group">
@@ -1351,6 +1386,14 @@ export class HomeArchitectPanel extends LitElement {
           @rescale-confirmed=${this.handleRescaleConfirmed}
           @close=${() => this.isRescaleModalOpen = false}
         ></home-architect-rescale-modal>
+      ` : null}
+
+      <!-- Modal Exporter vers Lovelace -->
+      ${this.isExportModalOpen ? html`
+        <home-architect-export-modal
+          .project=${this.project}
+          @close=${() => this.isExportModalOpen = false}
+        ></home-architect-export-modal>
       ` : null}
     `;
   }
