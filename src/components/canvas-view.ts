@@ -1032,6 +1032,50 @@ export class HomeArchitectCanvas extends LitElement {
     } catch (_) {}
   }
 
+  private executeEntityTapAction(binding: EntityBinding): void {
+    const domain = (binding.entityId || '').split('.')[0];
+
+    // Security & Safety: Critical domains must NEVER trigger blind action on simple tap
+    const safeToggleDomains = ['light', 'switch', 'input_boolean', 'fan'];
+    const moreInfoOnlyDomains = ['lock', 'alarm_control_panel', 'camera', 'climate', 'media_player', 'sensor', 'binary_sensor', 'device_tracker'];
+
+    if (binding.tapAction === 'more-info' || moreInfoOnlyDomains.includes(domain)) {
+      this.dispatchEvent(new CustomEvent('hass-more-info', {
+        detail: { entityId: binding.entityId },
+        bubbles: true,
+        composed: true
+      }));
+      return;
+    }
+
+    if (this.hass && this.hass.callService) {
+      if (safeToggleDomains.includes(domain)) {
+        this.hass.callService(domain, 'toggle', { entity_id: binding.entityId })
+          .catch(() => {
+            this.hass.callService('homeassistant', 'toggle', { entity_id: binding.entityId });
+          });
+      } else if (domain === 'cover') {
+        this.hass.callService('cover', 'toggle', { entity_id: binding.entityId })
+          .catch(() => {
+            this.hass.callService('homeassistant', 'toggle', { entity_id: binding.entityId });
+          });
+      } else if (domain === 'scene') {
+        this.hass.callService('scene', 'turn_on', { entity_id: binding.entityId });
+      } else if (domain === 'script') {
+        this.hass.callService('script', 'turn_on', { entity_id: binding.entityId });
+      } else if (domain === 'button' || domain === 'input_button') {
+        this.hass.callService('button', 'press', { entity_id: binding.entityId });
+      } else {
+        // Fallback: More-info dialog rather than dangerous unexpected blind action
+        this.dispatchEvent(new CustomEvent('hass-more-info', {
+          detail: { entityId: binding.entityId },
+          bubbles: true,
+          composed: true
+        }));
+      }
+    }
+  }
+
   private handleEntityClick(binding: EntityBinding, e: Event): void {
     e.stopPropagation();
     if (this.dragBindingMoved) {
@@ -1040,22 +1084,7 @@ export class HomeArchitectCanvas extends LitElement {
 
     // En mode dashboard Lovelace : interaction directe au clic
     if (this.isDashboardMode) {
-      const domain = binding.entityId.split('.')[0];
-      if (binding.tapAction === 'more-info' || (domain !== 'light' && domain !== 'switch')) {
-        this.dispatchEvent(new CustomEvent('hass-more-info', {
-          detail: { entityId: binding.entityId },
-          bubbles: true,
-          composed: true
-        }));
-        return;
-      }
-
-      if (this.hass && this.hass.callService) {
-        this.hass.callService(domain, 'toggle', { entity_id: binding.entityId })
-          .catch(() => {
-            this.hass.callService('homeassistant', 'toggle', { entity_id: binding.entityId });
-          });
-      }
+      this.executeEntityTapAction(binding);
       return;
     }
 
@@ -1075,18 +1104,8 @@ export class HomeArchitectCanvas extends LitElement {
       return;
     }
 
-    // Interaction 1 : Toggle via service HA
-    if (this.hass && this.hass.callService) {
-      const domain = binding.entityId.split('.')[0];
-      const service = domain === 'light' || domain === 'switch' ? 'toggle' : 'toggle';
-      this.hass.callService(domain, service, { entity_id: binding.entityId })
-        .catch(() => {
-          // Fallback générique homeassistant.toggle
-          this.hass.callService('homeassistant', 'toggle', { entity_id: binding.entityId });
-        });
-    } else {
-      console.log(`[Demo Standalone] Toggle entité: ${binding.entityId}`);
-    }
+    // Si pas en mode sélection : déclenchement de l'action selon la table sécurisée
+    this.executeEntityTapAction(binding);
   }
 
   private handleEntityDblClick(binding: EntityBinding, e: Event): void {

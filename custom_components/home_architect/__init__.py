@@ -121,7 +121,7 @@ class HomeArchitectSvgView(HomeAssistantView):
 
     url = "/api/home_architect/plan/{project_id}.svg"
     name = "api:home_architect:plan_svg"
-    requires_auth = False
+    requires_auth = True
 
     def __init__(self, hass: HomeAssistant) -> None:
         """Initialize the view."""
@@ -131,7 +131,12 @@ class HomeArchitectSvgView(HomeAssistantView):
         """Serve the SVG for a project."""
         from aiohttp import web
         import os
+        import re
+
         clean_id = os.path.basename(project_id)
+        if not re.match(r"^[a-zA-Z0-9_\-]{1,64}$", clean_id):
+            return web.Response(status=400, text="Invalid project_id")
+
         www_target = self.hass.config.path("www", f"plan_{clean_id}.svg")
         if os.path.exists(www_target):
             def _read():
