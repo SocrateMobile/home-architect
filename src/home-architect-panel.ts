@@ -13,7 +13,7 @@ import { RescaleModalResult } from './components/rescale-modal';
 import { SnappingEngine } from './core/snapping';
 import { PolygonUtils } from './core/polygon';
 import { 
-  ActiveTool, HomeArchitectProject, Wall, Opening, Room, Point, EntityBinding 
+  ActiveTool, HomeArchitectProject, Wall, Opening, Room, Point, EntityBinding, SelectedElements 
 } from './core/types';
 
 @customElement('home-architect-panel')
@@ -22,26 +22,40 @@ export class HomeArchitectPanel extends LitElement {
     :host {
       display: flex;
       flex-direction: column;
-      width: 100vw;
-      height: 100vh;
+      width: 100%;
+      height: 100%;
+      max-width: 100%;
+      max-height: 100%;
       overflow: hidden;
       background: #0f172a;
       color: #f8fafc;
       font-family: var(--ha-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
-      position: relative;
+      position: absolute;
+      inset: 0;
+      box-sizing: border-box;
     }
 
     header.top-bar {
-      height: 56px;
+      min-height: 56px;
+      max-width: 100%;
       background: rgba(30, 41, 59, 0.9);
       backdrop-filter: blur(12px);
       border-bottom: 1px solid rgba(255, 255, 255, 0.1);
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 0 18px;
+      padding: 0 14px;
       z-index: 30;
       flex-shrink: 0;
+      overflow-x: auto;
+      overflow-y: hidden;
+      scrollbar-width: none;
+      box-sizing: border-box;
+      gap: 10px;
+    }
+
+    header.top-bar::-webkit-scrollbar {
+      display: none;
     }
 
     .brand {
@@ -233,9 +247,110 @@ export class HomeArchitectPanel extends LitElement {
       display: flex;
       flex-direction: row;
       width: 100%;
-      height: calc(100vh - 56px);
+      height: calc(100% - 56px);
+      min-height: 0;
+      min-width: 0;
       overflow: hidden;
       position: relative;
+      box-sizing: border-box;
+    }
+
+    button.btn-history {
+      background: rgba(51, 65, 85, 0.6);
+      color: #f1f5f9;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 8px;
+      padding: 6px 10px;
+      font-size: 0.84rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      transition: all 0.15s ease;
+      white-space: nowrap;
+    }
+
+    button.btn-history:hover:not(:disabled) {
+      background: #0284c7;
+      border-color: #38bdf8;
+      color: #ffffff;
+      box-shadow: 0 0 10px rgba(56, 189, 248, 0.35);
+    }
+
+    button.btn-history:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+    }
+
+    .selection-hud {
+      position: absolute;
+      top: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(15, 23, 42, 0.95);
+      backdrop-filter: blur(14px);
+      border: 1.5px solid #06b6d4;
+      border-radius: 12px;
+      padding: 8px 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6), 0 0 20px rgba(6, 182, 212, 0.35);
+      z-index: 60;
+      animation: popSelection 0.2s ease-out;
+      white-space: nowrap;
+    }
+
+    @keyframes popSelection {
+      from { opacity: 0; transform: translate(-50%, -10px); }
+      to { opacity: 1; transform: translate(-50%, 0); }
+    }
+
+    .selection-info {
+      font-size: 0.88rem;
+      font-weight: 700;
+      color: #e2e8f0;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .btn-delete-selection {
+      background: #ef4444;
+      color: #ffffff;
+      border: 1px solid #f87171;
+      border-radius: 8px;
+      padding: 6px 13px;
+      font-size: 0.84rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      transition: all 0.15s ease;
+      box-shadow: 0 0 10px rgba(239, 68, 68, 0.4);
+    }
+
+    .btn-delete-selection:hover {
+      background: #dc2626;
+      transform: scale(1.03);
+    }
+
+    .btn-clear-selection {
+      background: transparent;
+      color: #94a3b8;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 8px;
+      padding: 6px 10px;
+      font-size: 0.84rem;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .btn-clear-selection:hover {
+      color: #ffffff;
+      background: rgba(255, 255, 255, 0.1);
     }
 
     .canvas-area {
@@ -351,6 +466,20 @@ export class HomeArchitectPanel extends LitElement {
   private selectedRoomForEdit: Room | null = null;
 
   @state()
+  private selectedElements: SelectedElements = {
+    wallIds: [],
+    openingIds: [],
+    roomIds: [],
+    bindingIds: []
+  };
+
+  @state()
+  private undoStack: HomeArchitectProject[] = [];
+
+  @state()
+  private redoStack: HomeArchitectProject[] = [];
+
+  @state()
   private project: HomeArchitectProject = {
     id: 'rdc',
     name: 'Rez-de-Chaussée',
@@ -384,6 +513,7 @@ export class HomeArchitectPanel extends LitElement {
   }
 
   private handleProjectChanged(e: CustomEvent<{ project: HomeArchitectProject }>) {
+    this.pushUndoSnapshot();
     this.project = { ...e.detail.project };
   }
 
@@ -396,6 +526,7 @@ export class HomeArchitectPanel extends LitElement {
   }
 
   private handleCreateRoomFromWizard(e: CustomEvent<any>) {
+    this.pushUndoSnapshot();
     const { name, width, length, thickness, height, color, icon, addDoor, addWindow } = e.detail;
     const roomH = height || 2.50;
 
@@ -491,17 +622,23 @@ export class HomeArchitectPanel extends LitElement {
   private toastMessage: string | null = null;
   private toastTimeout: any = null;
   private _boundPaste: any = null;
+  private _boundKeyDown: any = null;
 
   connectedCallback() {
     super.connectedCallback();
     this._boundPaste = this.handlePaste.bind(this);
     window.addEventListener('paste', this._boundPaste);
+    this._boundKeyDown = this.handleKeyDown.bind(this);
+    window.addEventListener('keydown', this._boundKeyDown);
   }
 
   disconnectedCallback() {
     super.disconnectedCallback();
     if (this._boundPaste) {
       window.removeEventListener('paste', this._boundPaste);
+    }
+    if (this._boundKeyDown) {
+      window.removeEventListener('keydown', this._boundKeyDown);
     }
     if (this.toastTimeout) {
       clearTimeout(this.toastTimeout);
@@ -519,6 +656,7 @@ export class HomeArchitectPanel extends LitElement {
   public loadBackgroundImage(dataUrl: string, sourceLabel: string = 'Plan chargé !') {
     const img = new Image();
     img.onload = () => {
+      this.pushUndoSnapshot();
       this.project = {
         ...this.project,
         background: {
@@ -542,6 +680,7 @@ export class HomeArchitectPanel extends LitElement {
   }
 
   private handleImportConfirmed(e: CustomEvent<ImportModalResult>) {
+    this.pushUndoSnapshot();
     const { dataUrl, widthPx, heightPx, opacity, mode, totalWidthMeters } = e.detail;
     this.isImportModalOpen = false;
 
@@ -635,6 +774,7 @@ export class HomeArchitectPanel extends LitElement {
   }
 
   private handleCalibrateConfirmed(e: CustomEvent<{ pixelsPerMeter: number }>) {
+    this.pushUndoSnapshot();
     const { pixelsPerMeter } = e.detail;
     this.project = {
       ...this.project,
@@ -651,6 +791,7 @@ export class HomeArchitectPanel extends LitElement {
   }
 
   private handleRescaleConfirmed(e: CustomEvent<RescaleModalResult>) {
+    this.pushUndoSnapshot();
     const { currentMeters, targetMeters, scaleFactor, adjustBackground } = e.detail;
     this.isRescaleModalOpen = false;
 
@@ -750,6 +891,7 @@ export class HomeArchitectPanel extends LitElement {
   }
 
   private handleSaveRoom(e: CustomEvent<any>) {
+    this.pushUndoSnapshot();
     const { roomId, name, height, color } = e.detail;
     const updatedRooms = this.project.rooms.map(r => {
       if (r.id === roomId) {
@@ -767,6 +909,7 @@ export class HomeArchitectPanel extends LitElement {
   }
 
   private handleDeleteRoom(e: CustomEvent<any>) {
+    this.pushUndoSnapshot();
     const { roomId } = e.detail;
     this.project = {
       ...this.project,
@@ -774,6 +917,111 @@ export class HomeArchitectPanel extends LitElement {
     };
     this.selectedRoomForEdit = null;
     this.showToast('🗑️ Pièce supprimée');
+  }
+
+  private pushUndoSnapshot(snapshot?: HomeArchitectProject) {
+    const snap = JSON.parse(JSON.stringify(snapshot || this.project));
+    this.undoStack = [...this.undoStack.slice(-39), snap];
+    this.redoStack = [];
+  }
+
+  private handleUndo() {
+    if (this.undoStack.length === 0) return;
+    const previous = this.undoStack[this.undoStack.length - 1];
+    const newUndo = this.undoStack.slice(0, -1);
+    const currentSnap = JSON.parse(JSON.stringify(this.project));
+    this.redoStack = [...this.redoStack.slice(-39), currentSnap];
+    this.undoStack = newUndo;
+    this.project = previous;
+    this.selectedElements = { wallIds: [], openingIds: [], roomIds: [], bindingIds: [] };
+    this.showToast('↩️ Action annulée');
+  }
+
+  private handleRedo() {
+    if (this.redoStack.length === 0) return;
+    const next = this.redoStack[this.redoStack.length - 1];
+    const newRedo = this.redoStack.slice(0, -1);
+    const currentSnap = JSON.parse(JSON.stringify(this.project));
+    this.undoStack = [...this.undoStack.slice(-39), currentSnap];
+    this.redoStack = newRedo;
+    this.project = next;
+    this.selectedElements = { wallIds: [], openingIds: [], roomIds: [], bindingIds: [] };
+    this.showToast('↪️ Action rétablie');
+  }
+
+  private handleDeleteSelected() {
+    const { wallIds, openingIds, roomIds, bindingIds } = this.selectedElements;
+    const total = wallIds.length + openingIds.length + roomIds.length + bindingIds.length;
+    if (total === 0) return;
+
+    this.pushUndoSnapshot();
+
+    const remainingWalls = this.project.walls.filter(w => !wallIds.includes(w.id));
+    const remainingOpenings = this.project.openings.filter(
+      op => !openingIds.includes(op.id) && !wallIds.includes(op.wallId)
+    );
+    const remainingRooms = this.project.rooms.filter(r => !roomIds.includes(r.id));
+    const remainingBindings = this.project.bindings.filter(b => !bindingIds.includes(b.id));
+
+    this.project = {
+      ...this.project,
+      walls: remainingWalls,
+      openings: remainingOpenings,
+      rooms: remainingRooms,
+      bindings: remainingBindings
+    };
+
+    this.selectedElements = { wallIds: [], openingIds: [], roomIds: [], bindingIds: [] };
+    this.showToast(`🗑️ ${total} élément${total > 1 ? 's' : ''} supprimé${total > 1 ? 's' : ''} !`);
+  }
+
+  private clearSelection() {
+    this.selectedElements = { wallIds: [], openingIds: [], roomIds: [], bindingIds: [] };
+  }
+
+  private getSelectedSummary(): string {
+    const parts: string[] = [];
+    if (this.selectedElements.wallIds.length > 0) {
+      parts.push(`${this.selectedElements.wallIds.length} mur${this.selectedElements.wallIds.length > 1 ? 's' : ''}`);
+    }
+    if (this.selectedElements.openingIds.length > 0) {
+      parts.push(`${this.selectedElements.openingIds.length} ouvrant${this.selectedElements.openingIds.length > 1 ? 's' : ''}`);
+    }
+    if (this.selectedElements.roomIds.length > 0) {
+      parts.push(`${this.selectedElements.roomIds.length} pièce${this.selectedElements.roomIds.length > 1 ? 's' : ''}`);
+    }
+    if (this.selectedElements.bindingIds.length > 0) {
+      parts.push(`${this.selectedElements.bindingIds.length} entité${this.selectedElements.bindingIds.length > 1 ? 's' : ''}`);
+    }
+    return parts.join(', ');
+  }
+
+  private handleKeyDown(e: KeyboardEvent) {
+    const tag = (e.target as HTMLElement)?.tagName?.toLowerCase();
+    if (tag === 'input' || tag === 'textarea' || (e.target as HTMLElement)?.isContentEditable) {
+      return;
+    }
+
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !e.shiftKey) {
+      e.preventDefault();
+      this.handleUndo();
+    } else if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 'y' || (e.key.toLowerCase() === 'z' && e.shiftKey))) {
+      e.preventDefault();
+      this.handleRedo();
+    } else if (e.key === 'Delete' || e.key === 'Backspace') {
+      const total = this.selectedElements.wallIds.length + 
+                    this.selectedElements.openingIds.length + 
+                    this.selectedElements.roomIds.length + 
+                    this.selectedElements.bindingIds.length;
+      if (total > 0) {
+        e.preventDefault();
+        this.handleDeleteSelected();
+      }
+    } else if (e.key === 'Escape') {
+      this.clearSelection();
+    } else if (e.key.toLowerCase() === 'v') {
+      this.activeTool = 'select';
+    }
   }
 
   private saveProject() {
@@ -813,6 +1061,26 @@ export class HomeArchitectPanel extends LitElement {
         </div>
 
         <div class="top-controls">
+          <!-- Historique Annuler / Rétablir -->
+          <div class="control-group" style="padding: 2px 4px; gap: 4px;">
+            <button 
+              class="btn-history" 
+              @click=${this.handleUndo} 
+              ?disabled=${this.undoStack.length === 0}
+              title="Annuler la dernière action (Ctrl+Z / Cmd+Z)"
+            >
+              ↩️ Annuler
+            </button>
+            <button 
+              class="btn-history" 
+              @click=${this.handleRedo} 
+              ?disabled=${this.redoStack.length === 0}
+              title="Rétablir l'action (Ctrl+Y / Cmd+Shift+Z)"
+            >
+              ↪️ Rétablir
+            </button>
+          </div>
+
           <!-- Bouton Importer un plan (Automatisé) -->
           <button class="btn-import" @click=${() => this.isImportModalOpen = true} title="Importer et calibrer un plan image (PNG, JPG, SVG)">
             <span>📥</span>
@@ -927,6 +1195,10 @@ export class HomeArchitectPanel extends LitElement {
         <div class="canvas-area">
           <home-architect-toolbar 
             .activeTool=${this.activeTool}
+            .canUndo=${this.undoStack.length > 0}
+            .canRedo=${this.redoStack.length > 0}
+            @undo=${this.handleUndo}
+            @redo=${this.handleRedo}
             @tool-selected=${this.handleToolSelected}
             @open-wizard=${() => this.isWizardOpen = true}
             @open-import-modal=${() => this.isImportModalOpen = true}
@@ -940,6 +1212,9 @@ export class HomeArchitectPanel extends LitElement {
             .currentWallThickness=${this.currentThickness}
             .currentOpeningWidth=${this.currentOpeningWidth}
             .is3DMode=${this.is3DMode}
+            .selectedElements=${this.selectedElements}
+            @selection-changed=${(e: any) => this.selectedElements = e.detail.selectedElements}
+            @request-delete-selected=${this.handleDeleteSelected}
             @toggle-3d=${(e: any) => this.is3DMode = e.detail.is3DMode}
             @room-selected=${(e: any) => this.selectedRoomForEdit = e.detail.room}
             @project-changed=${this.handleProjectChanged}
@@ -947,6 +1222,26 @@ export class HomeArchitectPanel extends LitElement {
             @request-rescale=${this.handleRequestRescale}
             @background-image-loaded=${(e: any) => this.loadBackgroundImage(e.detail.dataUrl, '🖼️ Image de plan glissée-déposée !')}
           ></home-architect-canvas>
+
+          <!-- Floating HUD de sélection multi-éléments -->
+          ${(this.selectedElements.wallIds.length + 
+             this.selectedElements.openingIds.length + 
+             this.selectedElements.roomIds.length + 
+             this.selectedElements.bindingIds.length) > 0 ? html`
+            <div class="selection-hud">
+              <span class="selection-info">
+                <span>🎯</span>
+                <span>${this.getSelectedSummary()} sélectionné(s)</span>
+              </span>
+              <button class="btn-delete-selection" @click=${this.handleDeleteSelected} title="Supprimer les éléments sélectionnés (Touche Suppr / Retour)">
+                <span>🗑️</span>
+                <span>Supprimer</span>
+              </button>
+              <button class="btn-clear-selection" @click=${this.clearSelection} title="Désélectionner tout (Échap)">
+                ✕
+              </button>
+            </div>
+          ` : null}
 
           <!-- Notification Toast -->
           ${this.toastMessage ? html`

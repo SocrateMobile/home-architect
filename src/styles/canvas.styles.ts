@@ -263,6 +263,71 @@ export const canvasStyles = css`
   }
 
   /* ======================================= */
+  /* ÉLÉMENTS SÉLECTIONNÉS & MULTI-SÉLECTION */
+  /* ======================================= */
+
+  .wall-element.selected .wall-rect {
+    stroke: #06b6d4 !important;
+    stroke-width: 2.5px !important;
+    fill: rgba(6, 182, 212, 0.45) !important;
+    filter: drop-shadow(0 0 10px rgba(6, 182, 212, 0.8));
+  }
+
+  .wall-element.selected .wall-centerline {
+    stroke: #22d3ee !important;
+    stroke-width: 2px !important;
+    stroke-dasharray: none;
+  }
+
+  .wall-element-3d.selected .wall-3d-top {
+    stroke: #06b6d4 !important;
+    stroke-width: 2px !important;
+    fill: #0e7490 !important;
+    filter: drop-shadow(0 0 12px rgba(6, 182, 212, 0.9));
+  }
+
+  .wall-element-3d.selected .wall-3d-side-shaded,
+  .wall-element-3d.selected .wall-3d-side-light {
+    stroke: #06b6d4 !important;
+    stroke-width: 1.5px !important;
+    filter: drop-shadow(0 0 8px rgba(6, 182, 212, 0.6));
+  }
+
+  .opening-element.selected .opening-door-leaf,
+  .opening-element.selected .opening-window-frame,
+  .opening-element.selected .opening-window-glass {
+    stroke: #06b6d4 !important;
+    stroke-width: 3px !important;
+    filter: drop-shadow(0 0 10px rgba(6, 182, 212, 0.9));
+  }
+
+  .opening-element.selected .wall-cutout {
+    stroke: #06b6d4 !important;
+    stroke-width: 2px !important;
+  }
+
+  .room-group.selected .room-polygon {
+    stroke: #06b6d4 !important;
+    stroke-width: 3px !important;
+    stroke-dasharray: 6, 4;
+    filter: drop-shadow(0 0 14px rgba(6, 182, 212, 0.7));
+  }
+
+  .entity-pin.selected .entity-pin-bg {
+    stroke: #06b6d4 !important;
+    stroke-width: 3px !important;
+    filter: drop-shadow(0 0 14px rgba(6, 182, 212, 0.9));
+  }
+
+  .marquee-selection-box {
+    fill: rgba(6, 182, 212, 0.15);
+    stroke: #06b6d4;
+    stroke-width: 1.5;
+    stroke-dasharray: 4, 3;
+    pointer-events: none;
+  }
+
+  /* ======================================= */
   /* ENTITY PINS & LIVE HOME ASSISTANT STATES */
   /* ======================================= */
 

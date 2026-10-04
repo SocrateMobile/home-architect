@@ -91,6 +91,12 @@ export class HomeArchitectToolbar extends LitElement {
       color: #ffffff;
     }
 
+    .tool-btn:disabled {
+      opacity: 0.3;
+      cursor: not-allowed;
+      transform: none !important;
+    }
+
     .divider {
       height: 1px;
       background: rgba(255, 255, 255, 0.1);
@@ -100,6 +106,12 @@ export class HomeArchitectToolbar extends LitElement {
 
   @property({ type: String })
   public activeTool: ActiveTool = 'wall';
+
+  @property({ type: Boolean })
+  public canUndo: boolean = false;
+
+  @property({ type: Boolean })
+  public canRedo: boolean = false;
 
   @state()
   private position: { x: number; y: number } = { x: 20, y: 20 };
@@ -228,6 +240,26 @@ export class HomeArchitectToolbar extends LitElement {
         title="Assistant Débutant : Créer une pièce guidée (🪄)"
       >
         🪄
+      </button>
+
+      <div class="divider"></div>
+
+      <!-- Annuler & Rétablir -->
+      <button 
+        class="tool-btn" 
+        ?disabled=${!this.canUndo}
+        @click=${() => this.dispatchEvent(new CustomEvent('undo', { bubbles: true, composed: true }))}
+        title="Annuler (Ctrl+Z / Cmd+Z)"
+      >
+        ↩️
+      </button>
+      <button 
+        class="tool-btn" 
+        ?disabled=${!this.canRedo}
+        @click=${() => this.dispatchEvent(new CustomEvent('redo', { bubbles: true, composed: true }))}
+        title="Rétablir (Ctrl+Y / Cmd+Shift+Z)"
+      >
+        ↪️
       </button>
 
       <div class="divider"></div>

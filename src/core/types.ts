@@ -121,3 +121,10 @@ export interface RoomTemplate {
   addDoor: boolean;
   addWindow: boolean;
 }
+
+export interface SelectedElements {
+  wallIds: string[];
+  openingIds: string[];
+  roomIds: string[];
+  bindingIds: string[];
+}
