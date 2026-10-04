@@ -15,6 +15,8 @@ import './components/save-load-modal';
 import { PLAN_CATEGORIES } from './components/save-load-modal';
 import { SnappingEngine } from './core/snapping';
 import { PolygonUtils } from './core/polygon';
+import { VERSION } from './version';
+import { launchSocrateRulesEasterEgg } from './core/easter-egg';
 import { 
   ActiveTool, HomeArchitectProject, Wall, Opening, OpeningType, Room, Point, EntityBinding, SelectedElements 
 } from './core/types';
@@ -243,6 +245,58 @@ export class HomeArchitectPanel extends LitElement {
       border-radius: 9999px;
       border: 1px solid rgba(56, 189, 248, 0.3);
       font-weight: 600;
+    }
+
+    .brand-version {
+      font-size: 0.72rem;
+      padding: 2px 7px;
+      background: rgba(148, 163, 184, 0.15);
+      color: #94a3b8;
+      border-radius: 6px;
+      font-family: monospace;
+      font-weight: 600;
+      border: 1px solid rgba(148, 163, 184, 0.25);
+    }
+
+    .btn-update-auto {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      background: linear-gradient(135deg, #f59e0b, #ef4444);
+      color: #ffffff;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      padding: 5px 12px;
+      border-radius: 9999px;
+      font-size: 0.82rem;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 2px 10px rgba(245, 158, 11, 0.45);
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      animation: pulse-update-btn 2.2s infinite;
+      white-space: nowrap;
+    }
+
+    .btn-update-auto:hover {
+      transform: translateY(-1px) scale(1.02);
+      box-shadow: 0 4px 16px rgba(245, 158, 11, 0.65);
+    }
+
+    .btn-update-auto:active {
+      transform: translateY(1px);
+    }
+
+    .btn-update-auto .update-version-tag {
+      background: rgba(255, 255, 255, 0.25);
+      padding: 1px 6px;
+      border-radius: 6px;
+      font-size: 0.72rem;
+      font-weight: 800;
+    }
+
+    @keyframes pulse-update-btn {
+      0% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.6); }
+      70% { box-shadow: 0 0 0 9px rgba(245, 158, 11, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
     }
 
     .top-controls {
@@ -1271,6 +1325,27 @@ export class HomeArchitectPanel extends LitElement {
   private isIconPickerOpen: boolean = true;
 
   @state()
+  private updateInfo: {
+    available: boolean;
+    latestVersion: string;
+    releaseNotes: string;
+    releaseUrl: string;
+  } = {
+    available: false,
+    latestVersion: VERSION,
+    releaseNotes: '',
+    releaseUrl: '',
+  };
+
+  @state()
+  private isUpdateModalOpen: boolean = false;
+
+  private logoClickTimes: number[] = [];
+  private socrateKeySequence: string = '';
+  private _boundEasterEggKeyDown: ((e: KeyboardEvent) => void) | null = null;
+  private _updateCheckDone: boolean = false;
+
+  @state()
   private undoStack: HomeArchitectProject[] = [];
 
   @state()
@@ -1659,10 +1734,27 @@ export class HomeArchitectPanel extends LitElement {
 
     this.updateSidebarOffset();
     setTimeout(() => this.updateSidebarOffset(), 100);
+
+    // Easter Egg: Écoute globale du mot-clé secret "socrate" au clavier
+    this._boundEasterEggKeyDown = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName?.toLowerCase();
+      if (tag === 'input' || tag === 'textarea' || (e.target as HTMLElement)?.isContentEditable) {
+        return;
+      }
+      if (e.key && e.key.length === 1) {
+        this.socrateKeySequence = (this.socrateKeySequence + e.key.toLowerCase()).slice(-7);
+        if (this.socrateKeySequence === 'socrate') {
+          this.socrateKeySequence = '';
+          this.triggerEasterEgg();
+        }
+      }
+    };
+    window.addEventListener('keydown', this._boundEasterEggKeyDown);
   }
 
   async firstUpdated() {
     this.updateSidebarOffset();
+    this.checkUpdates();
     if (this.hass && this.hass.callWS) {
       try {
         const res = await this.hass.callWS({ type: 'home_architect/get_projects' });
@@ -1694,6 +1786,268 @@ export class HomeArchitectPanel extends LitElement {
     }
   }
 
+  updated(changedProps: Map<string, any>) {
+    super.updated(changedProps);
+    if (changedProps.has('hass') && this.hass) {
+      if (!this._updateCheckDone) {
+        this._updateCheckDone = true;
+        this.checkUpdates();
+      }
+      this.syncSidebarBadge(this.updateInfo.available);
+    }
+  }
+
+  /**
+   * Vérifie les mises à jour via l'entité HA update ou direct WebSocket / GitHub
+   */
+  public async checkUpdates() {
+    try {
+      // 1. Vérifier si l'entité update.home_architect existe dans hass.states
+      const updateEntity = this.hass?.states && (
+        this.hass.states['update.home_architect'] ||
+        this.hass.states['update.home_architect_mise_a_jour']
+      );
+
+      if (updateEntity) {
+        const installed = (updateEntity.attributes && updateEntity.attributes.installed_version) || VERSION;
+        const latest = (updateEntity.attributes && updateEntity.attributes.latest_version) || installed;
+        const hasUpdate = Boolean(
+          updateEntity.state === 'on' ||
+          (updateEntity.attributes && updateEntity.attributes.update_available) ||
+          this.isNewerVersion(latest, installed)
+        );
+
+        this.updateInfo = {
+          available: hasUpdate,
+          latestVersion: latest,
+          releaseNotes: (updateEntity.attributes && updateEntity.attributes.release_summary) || 'Nouvelle version de Home Architect disponible.',
+          releaseUrl: (updateEntity.attributes && updateEntity.attributes.release_url) || `https://github.com/SocrateMobile/home-architect/releases/tag/v${latest}`,
+        };
+        this.syncSidebarBadge(hasUpdate);
+        return;
+      }
+
+      // 2. Si non présent ou chargement direct, interroger le websocket backend home_architect/check_updates
+      if (this.hass?.callWS) {
+        try {
+          const res = await this.hass.callWS({ type: 'home_architect/check_updates' });
+          if (res && res.latest_version) {
+            const hasUpdate = Boolean(res.update_available || this.isNewerVersion(res.latest_version, VERSION));
+            this.updateInfo = {
+              available: hasUpdate,
+              latestVersion: res.latest_version,
+              releaseNotes: res.release_notes || 'Nouvelle version officielle disponible sur GitHub.',
+              releaseUrl: res.release_url || `https://github.com/SocrateMobile/home-architect/releases/tag/v${res.latest_version}`,
+            };
+            this.syncSidebarBadge(hasUpdate);
+            return;
+          }
+        } catch (_) {}
+      }
+
+      // 3. Fallback direct via GitHub API
+      try {
+        const resp = await fetch('https://api.github.com/repos/SocrateMobile/home-architect/releases/latest', {
+          headers: { Accept: 'application/vnd.github.v3+json' },
+        });
+        if (resp.ok) {
+          const data = await resp.json();
+          const cleanTag = (data.tag_name || '').replace(/^[vV]/, '').trim();
+          if (cleanTag) {
+            const hasUpdate = this.isNewerVersion(cleanTag, VERSION);
+            this.updateInfo = {
+              available: hasUpdate,
+              latestVersion: cleanTag,
+              releaseNotes: data.body || data.name || 'Mise à jour disponible.',
+              releaseUrl: data.html_url || `https://github.com/SocrateMobile/home-architect/releases/tag/v${cleanTag}`,
+            };
+            this.syncSidebarBadge(hasUpdate);
+          }
+        }
+      } catch (_) {}
+    } catch (e) {
+      console.debug('Home Architect update check failed:', e);
+    }
+  }
+
+  private isNewerVersion(latestStr: string, currentStr: string): boolean {
+    const parse = (v: string) => (v || '').replace(/^[vV]/, '').split('.').map(n => parseInt(n, 10) || 0);
+    const l = parse(latestStr);
+    const c = parse(currentStr);
+    const len = Math.max(l.length, c.length);
+    for (let i = 0; i < len; i++) {
+      const lp = l[i] || 0;
+      const cp = c[i] || 0;
+      if (lp > cp) return true;
+      if (lp < cp) return false;
+    }
+    return false;
+  }
+
+  /**
+   * Synchronise le badge rouge "MAJ" dans le volet latéral Home Assistant
+   */
+  public syncSidebarBadge(hasUpdate: boolean) {
+    try {
+      const ha = document.querySelector('home-assistant');
+      const main = ha && ha.shadowRoot && ha.shadowRoot.querySelector('home-assistant-main');
+      const sidebar = main && main.shadowRoot && main.shadowRoot.querySelector('ha-sidebar');
+      if (!sidebar || !sidebar.shadowRoot) return;
+
+      const container = sidebar.shadowRoot.querySelector('paper-listbox, ha-md-list, nav, div.menu, div.items');
+      const items = (container || sidebar.shadowRoot).querySelectorAll('paper-icon-item, ha-md-list-item, ha-sidebar-item, a');
+
+      const patterns = ['home-architect', 'home_architect', 'home architect'];
+
+      for (const item of Array.from(items)) {
+        const href = item.getAttribute('href') || (item as any).dataset?.panel || (item as any).dataset?.href || '';
+        const id = item.id || '';
+        const ariaLabel = item.getAttribute('aria-label') || '';
+        const text = (item.textContent || '').toLowerCase();
+
+        const isMatch = patterns.some((p) =>
+          href.toLowerCase().includes(p) ||
+          id.toLowerCase().includes(p) ||
+          ariaLabel.toLowerCase().includes(p) ||
+          text.includes(p)
+        );
+
+        if (isMatch) {
+          let badge = item.querySelector('.domolink-sidebar-badge');
+          if (hasUpdate) {
+            if (!badge) {
+              badge = document.createElement('span');
+              badge.className = 'badge domolink-sidebar-badge';
+              badge.setAttribute('slot', 'end');
+              badge.setAttribute('style', 'background: linear-gradient(135deg, #ef4444, #f59e0b); color: white; border-radius: 9999px; padding: 2px 7px; font-size: 10px; font-weight: 800; box-shadow: 0 2px 6px rgba(239,68,68,0.4); margin-left: auto; letter-spacing: 0.5px; z-index: 10; display: inline-block;');
+              badge.textContent = 'MAJ';
+              badge.setAttribute('title', 'Mise à jour disponible !');
+              item.appendChild(badge);
+            }
+          } else if (badge) {
+            badge.remove();
+          }
+        }
+      }
+    } catch (_) {}
+  }
+
+  /**
+   * Déclenche l'easter egg Socrate Rules
+   */
+  public triggerEasterEgg() {
+    const root = this.shadowRoot || this;
+    launchSocrateRulesEasterEgg(root);
+  }
+
+  /**
+   * Gestion du clic sur le logo (5 clics consécutifs pour lancer l'easter egg)
+   */
+  private handleLogoClick() {
+    const now = Date.now();
+    this.logoClickTimes = this.logoClickTimes.filter((t) => now - t < 2500);
+    this.logoClickTimes.push(now);
+
+    if (this.logoClickTimes.length >= 5) {
+      this.logoClickTimes = [];
+      this.triggerEasterEgg();
+    }
+  }
+
+  /**
+   * Ouvre la modale d'information / installation de mise à jour
+   */
+  public openUpdateModal() {
+    this.isUpdateModalOpen = true;
+  }
+
+  public closeUpdateModal() {
+    this.isUpdateModalOpen = false;
+  }
+
+  /**
+   * Lance l'installation de la mise à jour (comme dans DomoLink)
+   */
+  public async executeAutoUpdate() {
+    this.isUpdateModalOpen = false;
+
+    // Overlay plein écran d'installation et reconnexion
+    const overlay = document.createElement('div');
+    overlay.id = 'home-architect-update-overlay';
+    overlay.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,0.92); backdrop-filter:blur(12px); z-index:9999999; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:24px; cursor:wait; font-family:-apple-system,BlinkMacSystemFont,sans-serif; color:#f8fafc;';
+    overlay.innerHTML = `
+      <div style="background:#1e293b; border:1px solid rgba(245,158,11,0.4); border-radius:20px; padding:32px; width:90vw; max-width:480px; text-align:center; box-shadow:0 30px 70px rgba(0,0,0,0.9);">
+        <div style="width:60px; height:60px; border-radius:50%; background:linear-gradient(135deg, #f59e0b, #d97706); margin:0 auto 20px; display:flex; align-items:center; justify-content:center; font-size:28px; box-shadow:0 0 24px rgba(245,158,11,0.6);">
+          🚀
+        </div>
+        <div style="font-size:18px; font-weight:800; color:#fff; margin-bottom:8px;" id="update-status-title">Mise à jour en cours...</div>
+        <div style="font-size:13px; color:#94a3b8; line-height:1.6; margin-bottom:24px;" id="update-status-desc">
+          Téléchargement de la release GitHub v${this.updateInfo.latestVersion} et application des fichiers...
+        </div>
+        <div style="width:100%; height:8px; background:rgba(255,255,255,0.1); border-radius:999px; overflow:hidden; margin-bottom:16px;">
+          <div id="update-progress-bar" style="width:25%; height:100%; background:linear-gradient(90deg, #f59e0b, #10b981); border-radius:999px; transition:width 0.4s ease;"></div>
+        </div>
+        <div style="font-size:11px; color:#64748b; font-family:monospace;" id="update-timer-msg">Veuillez patienter sans fermer la page</div>
+      </div>
+    `;
+    (this.shadowRoot || this).appendChild(overlay);
+
+    // Déclenchement de la mise à jour côté HA
+    try {
+      if (this.hass?.callService) {
+        await this.hass.callService('update', 'install', { entity_id: 'update.home_architect' });
+      } else if (this.hass?.callWS) {
+        await this.hass.callWS({ type: 'home_architect/install_update', backup: true });
+      }
+    } catch (_) {
+      try {
+        if (this.hass?.callWS) {
+          await this.hass.callWS({ type: 'home_architect/install_update', backup: true });
+        }
+      } catch (err) {
+        console.warn('Update trigger returned error (may be restarting already):', err);
+      }
+    }
+
+    const progressBar = overlay.querySelector('#update-progress-bar') as HTMLElement;
+    const statusTitle = overlay.querySelector('#update-status-title') as HTMLElement;
+    const statusDesc = overlay.querySelector('#update-status-desc') as HTMLElement;
+    const timerMsg = overlay.querySelector('#update-timer-msg') as HTMLElement;
+
+    let percent = 25;
+    const progressInterval = setInterval(() => {
+      if (percent < 85) {
+        percent += 15;
+        if (progressBar) progressBar.style.width = percent + '%';
+      }
+    }, 1500);
+
+    setTimeout(() => {
+      clearInterval(progressInterval);
+      if (progressBar) progressBar.style.width = '95%';
+      if (statusTitle) statusTitle.textContent = 'Redémarrage de Home Assistant...';
+      if (statusDesc) statusDesc.textContent = 'Fichiers mis à jour ! Reconnexion automatique au serveur en cours...';
+
+      let count = 0;
+      const pollInterval = setInterval(async () => {
+        count++;
+        if (timerMsg) timerMsg.textContent = `Tentative de reconnexion (${count * 2}s)...`;
+        try {
+          const resp = await fetch('/manifest.json', { cache: 'no-store' });
+          if (resp.ok) {
+            clearInterval(pollInterval);
+            if (progressBar) progressBar.style.width = '100%';
+            if (statusTitle) statusTitle.textContent = 'Mise à jour terminée !';
+            if (statusDesc) statusDesc.textContent = 'Rechargement de la page...';
+            setTimeout(() => {
+              window.location.reload();
+            }, 1000);
+          }
+        } catch (_) {}
+      }, 2000);
+    }, 6000);
+  }
+
   disconnectedCallback() {
     super.disconnectedCallback();
     if (this._boundPaste) {
@@ -1701,6 +2055,9 @@ export class HomeArchitectPanel extends LitElement {
     }
     if (this._boundKeyDown) {
       window.removeEventListener('keydown', this._boundKeyDown);
+    }
+    if (this._boundEasterEggKeyDown) {
+      window.removeEventListener('keydown', this._boundEasterEggKeyDown);
     }
     if (this._boundClickOutside) {
       window.removeEventListener('click', this._boundClickOutside);
@@ -2539,7 +2896,7 @@ export class HomeArchitectPanel extends LitElement {
 
     return html`
       <header class="top-bar">
-        <div class="brand">
+        <div class="brand" @click=${this.handleLogoClick} style="cursor: pointer;" title="Home Architect Studio (Cliquez pour secret)">
           <span class="brand-icon">
             <svg viewBox="0 0 512 512" width="28" height="28" style="vertical-align: middle; border-radius: 7px; overflow: hidden; box-shadow: 0 2px 8px rgba(56, 189, 248, 0.25);">
               <rect width="512" height="512" rx="108" fill="#0f172a" stroke="#38bdf8" stroke-width="14" />
@@ -2563,7 +2920,16 @@ export class HomeArchitectPanel extends LitElement {
           </span>
           <span>Home Architect</span>
           <span class="brand-tag">Studio</span>
+          <span class="brand-version" title="Version unique du composant">v${VERSION}</span>
         </div>
+
+        ${this.updateInfo.available ? html`
+          <button class="btn-update-auto" @click=${() => this.openUpdateModal()} title="Nouvelle version ${this.updateInfo.latestVersion} disponible">
+            <span>🚀</span>
+            <span>Mise à jour dispo</span>
+            <span class="update-version-tag">v${this.updateInfo.latestVersion}</span>
+          </button>
+        ` : null}
 
         <!-- 3 Menus Déroulants Principaux : Fichier, Plan, Pièce -->
         <div style="display: flex; align-items: center; gap: 8px;">
@@ -3188,6 +3554,72 @@ export class HomeArchitectPanel extends LitElement {
                 <span>🗑️</span>
                 <span>Effacer tout</span>
               </button>
+            </div>
+          </div>
+        </div>
+      ` : null}
+
+      <!-- Modal Information & Lancement Mise à jour (DomoLink Suite) -->
+      ${this.isUpdateModalOpen ? html`
+        <div class="modal-backdrop" @click=${(e: MouseEvent) => { if (e.target === e.currentTarget) this.closeUpdateModal(); }}>
+          <div class="modal-dialog" style="max-width: 540px; border-color: rgba(245, 158, 11, 0.45); box-shadow: 0 25px 60px rgba(0,0,0,0.8), 0 0 25px rgba(245, 158, 11, 0.25);">
+            <div class="modal-dialog-header" style="background: linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(217, 119, 6, 0.05)); border-bottom: 1px solid rgba(245, 158, 11, 0.25);">
+              <div class="modal-dialog-title-group">
+                <span class="modal-dialog-icon" style="background: linear-gradient(135deg, #f59e0b, #d97706); color: #fff; width: 38px; height: 38px; display: flex; align-items: center; justify-content: center; border-radius: 10px; font-size: 20px;">🚀</span>
+                <div>
+                  <h3 class="modal-dialog-title" style="color: #fff;">Mise à jour Home Architect</h3>
+                  <p class="modal-dialog-subtitle" style="color: #94a3b8;">Nouvelle version officielle disponible</p>
+                </div>
+              </div>
+              <button class="btn-dialog-close" @click=${() => this.closeUpdateModal()}>✕</button>
+            </div>
+
+            <div class="modal-dialog-body" style="gap: 16px;">
+              <!-- Comparateur de version -->
+              <div style="display: flex; align-items: center; justify-content: space-around; background: rgba(0,0,0,0.35); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 12px;">
+                <div style="text-align: center;">
+                  <div style="font-size: 11px; color: #94a3b8; font-weight: 600; text-transform: uppercase; margin-bottom: 4px;">Version installée</div>
+                  <div style="font-size: 16px; font-weight: 800; color: #fff; font-family: monospace;">v${VERSION}</div>
+                </div>
+                <div style="color: #f59e0b; font-size: 18px; font-weight: 800;">➔</div>
+                <div style="text-align: center;">
+                  <div style="font-size: 11px; color: #f59e0b; font-weight: 600; text-transform: uppercase; margin-bottom: 4px;">Nouvelle version</div>
+                  <div style="font-size: 16px; font-weight: 800; color: #10b981; font-family: monospace;">v${this.updateInfo.latestVersion}</div>
+                </div>
+              </div>
+
+              <!-- Changelog / Notes de version -->
+              <div>
+                <div style="font-size: 12px; font-weight: 700; color: #f1f5f9; margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">
+                  <span>📋</span> Notes de version & Nouveautés GitHub :
+                </div>
+                <div style="background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 12px; max-height: 160px; overflow-y: auto; font-size: 12px; color: #cbd5e1; line-height: 1.5; white-space: pre-wrap; font-family: -apple-system, BlinkMacSystemFont, sans-serif;">${this.updateInfo.releaseNotes || 'Mise à jour officielle de Home Architect.'}</div>
+              </div>
+
+              <!-- Note de sécurité -->
+              <div style="background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.25); border-radius: 10px; padding: 10px 12px; display: flex; align-items: flex-start; gap: 8px; font-size: 11.5px; color: #f8fafc; line-height: 1.45;">
+                <span style="font-size: 16px;">💡</span>
+                <div>
+                  L'installation remplace les fichiers par la release officielle GitHub, applique une sauvegarde préalable de sécurité, puis <strong>redémarre automatiquement Home Assistant</strong>.
+                </div>
+              </div>
+            </div>
+
+            <div class="modal-dialog-footer" style="justify-content: space-between;">
+              <a href="${this.updateInfo.releaseUrl || 'https://github.com/SocrateMobile/home-architect/releases'}" target="_blank" rel="noopener" style="font-size: 12px; color: #38bdf8; text-decoration: none; display: flex; align-items: center; gap: 4px;">
+                <span>🔗</span> Voir sur GitHub
+              </a>
+              <div style="display: flex; align-items: center; gap: 10px;">
+                <button class="btn-dialog-cancel" @click=${() => this.closeUpdateModal()}>Annuler</button>
+                <button 
+                  class="btn-dialog-confirm" 
+                  style="background: linear-gradient(135deg, #f59e0b, #d97706); color: white; border: none; box-shadow: 0 4px 14px rgba(245, 158, 11, 0.4);"
+                  @click=${() => this.executeAutoUpdate()}
+                >
+                  <span>🚀</span>
+                  <span>Confirmer et Mettre à jour</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>

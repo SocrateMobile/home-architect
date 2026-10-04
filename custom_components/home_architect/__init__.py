@@ -19,6 +19,7 @@ from .const import (
     CONF_SHOW_SIDEBAR_PANEL,
     DEFAULT_SHOW_SIDEBAR_PANEL,
     VERSION,
+    PLATFORMS,
 )
 from .storage import HomeArchitectStorage
 from .websocket import async_register_websocket_commands
@@ -94,11 +95,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             _LOGGER.warning("Could not register Home Architect panel: %s", err)
 
     entry.async_on_unload(entry.add_update_listener(async_reload_entry))
+    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
+    unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     try:
         frontend.async_remove_panel(hass, PANEL_URL_PATH)
     except Exception:
@@ -107,7 +110,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if DOMAIN in hass.data:
         hass.data.pop(DOMAIN, None)
 
-    return True
+    return unload_ok
 
 
 async def async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
