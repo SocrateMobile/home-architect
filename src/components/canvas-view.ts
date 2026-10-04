@@ -478,7 +478,7 @@ export class HomeArchitectCanvas extends LitElement {
     // 1. Dépose d'un fichier image (Glisser-Déposer depuis le bureau ou le Finder)
     if (e.dataTransfer?.files && e.dataTransfer.files.length > 0) {
       const file = e.dataTransfer.files[0];
-      if (file.type.startsWith('image/')) {
+      if (file.type.startsWith('image/') || file.name.toLowerCase().endsWith('.svg')) {
         const reader = new FileReader();
         reader.onload = (loadEvt) => {
           const dataUrl = loadEvt.target?.result as string;

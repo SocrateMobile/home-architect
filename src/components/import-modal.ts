@@ -1,5 +1,6 @@
 import { LitElement, html, css } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
+import { SvgPlanParser, SvgParseResult } from '../core/svg-parser';
 
 export interface ImportModalResult {
   dataUrl: string;
@@ -9,6 +10,10 @@ export interface ImportModalResult {
   mode: 'auto_dimension' | 'interactive_calibrate';
   totalWidthMeters?: number;
   targetLevel?: string;
+  // Données de vectorisation SVG
+  isSvgVectorized?: boolean;
+  svgInterpretation?: SvgParseResult;
+  keepSvgBackground?: boolean;
 }
 
 @customElement('home-architect-import-modal')
@@ -37,9 +42,9 @@ export class HomeArchitectImportModal extends LitElement {
       background: #1e293b;
       border: 1px solid rgba(255, 255, 255, 0.15);
       border-radius: 16px;
-      width: 580px;
-      max-width: 92vw;
-      max-height: 90vh;
+      width: 620px;
+      max-width: 94vw;
+      max-height: 92vh;
       display: flex;
       flex-direction: column;
       box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6), 0 0 20px rgba(56, 189, 248, 0.2);
@@ -169,7 +174,7 @@ export class HomeArchitectImportModal extends LitElement {
       border-color: #38bdf8;
     }
 
-    /* Aperçu de l'image chargée */
+    /* Aperçu du plan chargé */
     .preview-card {
       background: rgba(15, 23, 42, 0.7);
       border: 1px solid rgba(56, 189, 248, 0.3);
@@ -184,7 +189,7 @@ export class HomeArchitectImportModal extends LitElement {
       width: 100px;
       height: 75px;
       border-radius: 8px;
-      object-fit: cover;
+      object-fit: contain;
       border: 1px solid rgba(255, 255, 255, 0.1);
       background: #090d16;
     }
@@ -203,6 +208,19 @@ export class HomeArchitectImportModal extends LitElement {
       display: flex;
       align-items: center;
       gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .preview-badge-svg {
+      font-size: 0.72rem;
+      padding: 2px 7px;
+      background: rgba(168, 85, 247, 0.25);
+      color: #c084fc;
+      border: 1px solid rgba(168, 85, 247, 0.5);
+      border-radius: 9999px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
     }
 
     .preview-dimensions {
@@ -226,6 +244,167 @@ export class HomeArchitectImportModal extends LitElement {
     .btn-change-image:hover {
       color: #ffffff;
       border-color: #ffffff;
+    }
+
+    /* Section Vectorisation Intelligente SVG */
+    .svg-interpret-box {
+      background: linear-gradient(135deg, rgba(88, 28, 135, 0.25) 0%, rgba(30, 58, 138, 0.25) 100%);
+      border: 1.5px solid rgba(168, 85, 247, 0.5);
+      border-radius: 12px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      box-shadow: 0 4px 20px rgba(168, 85, 247, 0.15);
+    }
+
+    .svg-box-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .svg-box-icon {
+      font-size: 1.5rem;
+    }
+
+    .svg-box-title {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: #f3e8ff;
+    }
+
+    .svg-box-subtitle {
+      font-size: 0.8rem;
+      color: #cbd5e1;
+      margin-top: 2px;
+    }
+
+    .svg-mode-selector {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .svg-choice-card {
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 10px;
+      padding: 12px 14px;
+      cursor: pointer;
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      transition: all 0.2s ease;
+    }
+
+    .svg-choice-card:hover {
+      border-color: #c084fc;
+      background: rgba(15, 23, 42, 0.85);
+    }
+
+    .svg-choice-card.selected {
+      border-color: #a855f7;
+      background: rgba(168, 85, 247, 0.15);
+      box-shadow: 0 0 16px rgba(168, 85, 247, 0.25);
+    }
+
+    .svg-choice-radio {
+      margin-top: 3px;
+      accent-color: #a855f7;
+    }
+
+    .svg-choice-content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .svg-choice-title {
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: #f8fafc;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .badge-magic {
+      font-size: 0.7rem;
+      padding: 2px 7px;
+      background: rgba(168, 85, 247, 0.3);
+      color: #e9d5ff;
+      border: 1px solid rgba(168, 85, 247, 0.6);
+      border-radius: 9999px;
+      font-weight: 700;
+    }
+
+    .svg-choice-desc {
+      font-size: 0.78rem;
+      color: #cbd5e1;
+      line-height: 1.35;
+    }
+
+    .svg-pills-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 4px;
+    }
+
+    .stat-pill {
+      font-size: 0.75rem;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .stat-pill.wall {
+      background: rgba(56, 189, 248, 0.2);
+      color: #38bdf8;
+      border: 1px solid rgba(56, 189, 248, 0.4);
+    }
+
+    .stat-pill.door {
+      background: rgba(245, 158, 11, 0.2);
+      color: #fbbf24;
+      border: 1px solid rgba(245, 158, 11, 0.4);
+    }
+
+    .stat-pill.window {
+      background: rgba(16, 185, 129, 0.2);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.4);
+    }
+
+    .stat-pill.room {
+      background: rgba(168, 85, 247, 0.2);
+      color: #c084fc;
+      border: 1px solid rgba(168, 85, 247, 0.4);
+    }
+
+    .stat-pill.label {
+      background: rgba(236, 72, 153, 0.2);
+      color: #f472b6;
+      border: 1px solid rgba(236, 72, 153, 0.4);
+    }
+
+    .checkbox-wrap {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 6px;
+      font-size: 0.8rem;
+      color: #cbd5e1;
+    }
+
+    .checkbox-wrap input {
+      accent-color: #a855f7;
+      cursor: pointer;
     }
 
     /* Section Méthode d'Étalonnage */
@@ -412,9 +591,15 @@ export class HomeArchitectImportModal extends LitElement {
       box-shadow: 0 0 15px rgba(56, 189, 248, 0.3);
     }
 
+    .btn-confirm.btn-magic {
+      background: linear-gradient(135deg, #7e22ce 0%, #2563eb 100%);
+      border-color: #c084fc;
+      box-shadow: 0 0 20px rgba(168, 85, 247, 0.4);
+    }
+
     .btn-confirm:hover:not(:disabled) {
-      background: #0369a1;
-      box-shadow: 0 0 20px rgba(56, 189, 248, 0.5);
+      filter: brightness(1.1);
+      box-shadow: 0 0 25px rgba(56, 189, 248, 0.5);
     }
 
     .btn-confirm:disabled {
@@ -438,6 +623,21 @@ export class HomeArchitectImportModal extends LitElement {
 
   @state()
   private imageName: string = '';
+
+  @state()
+  private isSvg: boolean = false;
+
+  @state()
+  private svgRawText: string | null = null;
+
+  @state()
+  private svgInterpretResult: SvgParseResult | null = null;
+
+  @state()
+  private svgImportMode: 'vectorize' | 'background_only' = 'vectorize';
+
+  @state()
+  private keepSvgBackground: boolean = true;
 
   @state()
   private calibrateMode: 'auto_dimension' | 'interactive_calibrate' = 'auto_dimension';
@@ -469,6 +669,8 @@ export class HomeArchitectImportModal extends LitElement {
 
   private handleModalPaste(e: ClipboardEvent) {
     if (!e.clipboardData) return;
+
+    // 1. Image binaire dans le presse-papier
     const items = e.clipboardData.items;
     for (let i = 0; i < items.length; i++) {
       if (items[i].type.indexOf('image') !== -1) {
@@ -480,13 +682,21 @@ export class HomeArchitectImportModal extends LitElement {
         }
       }
     }
+
+    // 2. Texte SVG brut dans le presse-papier
+    const text = e.clipboardData.getData('text/plain')?.trim();
+    if (text && (text.startsWith('<svg') || (text.startsWith('<?xml') && text.includes('<svg')))) {
+      e.preventDefault();
+      this.processSvgText(text, 'Plan SVG collé depuis le presse-papier');
+      return;
+    }
   }
 
   private triggerFileInput() {
     if (!this.fileInputRef) {
       const input = document.createElement('input');
       input.type = 'file';
-      input.accept = 'image/*';
+      input.accept = 'image/*,.svg';
       input.style.display = 'none';
       input.addEventListener('change', (e: any) => {
         const file = e.target.files?.[0];
@@ -499,18 +709,69 @@ export class HomeArchitectImportModal extends LitElement {
 
   private processFile(file: File) {
     this.imageName = file.name || 'Plan importé';
-    const reader = new FileReader();
-    reader.onload = (loadEvt) => {
-      const dataUrl = loadEvt.target?.result as string;
-      const img = new Image();
-      img.onload = () => {
-        this.imageDataUrl = dataUrl;
-        this.imageWidth = img.naturalWidth;
-        this.imageHeight = img.naturalHeight;
+
+    const isSvgFile = file.type === 'image/svg+xml' || file.name.toLowerCase().endsWith('.svg');
+
+    if (isSvgFile) {
+      const textReader = new FileReader();
+      textReader.onload = (evt) => {
+        const text = evt.target?.result as string;
+        this.processSvgText(text, file.name);
       };
-      img.src = dataUrl;
+      textReader.readAsText(file);
+    } else {
+      this.isSvg = false;
+      this.svgRawText = null;
+      this.svgInterpretResult = null;
+
+      const reader = new FileReader();
+      reader.onload = (loadEvt) => {
+        const dataUrl = loadEvt.target?.result as string;
+        const img = new Image();
+        img.onload = () => {
+          this.imageDataUrl = dataUrl;
+          this.imageWidth = img.naturalWidth;
+          this.imageHeight = img.naturalHeight;
+        };
+        img.src = dataUrl;
+      };
+      reader.readAsDataURL(file);
+    }
+  }
+
+  private processSvgText(svgContent: string, name: string = 'Plan SVG importé') {
+    this.imageName = name;
+    this.isSvg = true;
+    this.svgRawText = svgContent;
+    this.computeSvgInterpretation();
+
+    // DataURL pour le rendu image
+    const dataUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgContent);
+    this.imageDataUrl = dataUrl;
+
+    const img = new Image();
+    img.onload = () => {
+      this.imageWidth = img.naturalWidth || (this.svgInterpretResult?.viewBox.width || 1000);
+      this.imageHeight = img.naturalHeight || (this.svgInterpretResult?.viewBox.height || 750);
     };
-    reader.readAsDataURL(file);
+    img.src = dataUrl;
+  }
+
+  private computeSvgInterpretation() {
+    if (!this.svgRawText) return;
+    this.svgInterpretResult = SvgPlanParser.parseSvg(
+      this.svgRawText,
+      this.totalWidthMeters,
+      0.20,
+      2.50
+    );
+  }
+
+  private handleDimensionChange(val: number) {
+    this.totalWidthMeters = val > 0 ? val : 10;
+    if (this.isSvg) {
+      this.computeSvgInterpretation();
+    }
   }
 
   private handleDrop(e: DragEvent) {
@@ -518,9 +779,7 @@ export class HomeArchitectImportModal extends LitElement {
     this.isDragOver = false;
     if (e.dataTransfer?.files && e.dataTransfer.files.length > 0) {
       const file = e.dataTransfer.files[0];
-      if (file.type.startsWith('image/')) {
-        this.processFile(file);
-      }
+      this.processFile(file);
     }
   }
 
@@ -535,6 +794,14 @@ export class HomeArchitectImportModal extends LitElement {
 
   private async handlePasteButtonClick() {
     try {
+      if (navigator.clipboard && navigator.clipboard.readText) {
+        const text = await navigator.clipboard.readText();
+        if (text && (text.trim().startsWith('<svg') || (text.trim().startsWith('<?xml') && text.includes('<svg')))) {
+          this.processSvgText(text.trim(), 'Plan SVG collé');
+          return;
+        }
+      }
+
       if (navigator.clipboard && navigator.clipboard.read) {
         const items = await navigator.clipboard.read();
         for (const item of items) {
@@ -547,9 +814,9 @@ export class HomeArchitectImportModal extends LitElement {
           }
         }
       }
-      alert('Appuyez simplement sur Cmd+V ou Ctrl+V pour coller l\'image directement !');
+      alert('Appuyez directement sur Cmd+V ou Ctrl+V pour coller l\'image ou le code SVG de votre plan !');
     } catch (_) {
-      alert('Appuyez directement sur Cmd+V ou Ctrl+V pour coller l\'image de votre plan !');
+      alert('Appuyez directement sur Cmd+V ou Ctrl+V pour coller votre plan !');
     }
   }
 
@@ -560,15 +827,20 @@ export class HomeArchitectImportModal extends LitElement {
   private confirmImport() {
     if (!this.imageDataUrl) return;
 
+    const isVectorized = this.isSvg && this.svgImportMode === 'vectorize' && !!this.svgInterpretResult?.success;
+
     this.dispatchEvent(new CustomEvent('import-confirmed', {
       detail: {
         dataUrl: this.imageDataUrl,
-        widthPx: this.imageWidth,
-        heightPx: this.imageHeight,
+        widthPx: this.imageWidth || (this.svgInterpretResult?.viewBox.width || 1000),
+        heightPx: this.imageHeight || (this.svgInterpretResult?.viewBox.height || 750),
         opacity: this.opacity,
         mode: this.calibrateMode,
         totalWidthMeters: this.totalWidthMeters,
-        targetLevel: this.currentLevel
+        targetLevel: this.currentLevel,
+        isSvgVectorized: isVectorized,
+        svgInterpretation: isVectorized ? this.svgInterpretResult : undefined,
+        keepSvgBackground: this.keepSvgBackground
       } as ImportModalResult,
       bubbles: true,
       composed: true
@@ -576,14 +848,17 @@ export class HomeArchitectImportModal extends LitElement {
   }
 
   render() {
+    const isSvgVectorMode = this.isSvg && this.svgImportMode === 'vectorize' && !!this.svgInterpretResult?.success;
+    const stats = this.svgInterpretResult?.stats;
+
     return html`
       <div class="modal-card">
         <div class="modal-header">
           <div class="modal-title-group">
             <span class="modal-icon">📥</span>
             <div>
-              <h3 class="modal-title">Importer & Vectoriser un plan</h3>
-              <p class="modal-subtitle">Chargez votre plan en image (PNG, JPG, SVG) et calibrez-le automatiquement</p>
+              <h3 class="modal-title">Importer & Interpréter un plan</h3>
+              <p class="modal-subtitle">Prend en charge SVG (vectoriel intelligent), PNG, JPG, JPEG et WebP</p>
             </div>
           </div>
           <button class="btn-close" @click=${this.close}>✕</button>
@@ -599,9 +874,9 @@ export class HomeArchitectImportModal extends LitElement {
               @drop=${this.handleDrop}
               @click=${this.triggerFileInput}
             >
-              <span class="drop-icon">🖼️</span>
-              <div class="drop-text">Glissez-déposez l'image de votre plan ici</div>
-              <div class="drop-subtext">Prend en charge PNG, JPG, JPEG, SVG et WebP</div>
+              <span class="drop-icon">📐</span>
+              <div class="drop-text">Glissez-déposez votre plan ici</div>
+              <div class="drop-subtext">SVG (Vectorisation automatique en murs 3D), PNG, JPG, WebP</div>
 
               <div class="drop-actions" @click=${(e: Event) => e.stopPropagation()}>
                 <button class="btn-action-small" @click=${this.triggerFileInput}>
@@ -619,22 +894,109 @@ export class HomeArchitectImportModal extends LitElement {
                 <div class="preview-title">
                   <span>✅</span>
                   <span>${this.imageName || 'Plan sélectionné'}</span>
+                  ${this.isSvg ? html`<span class="preview-badge-svg">SVG Vectoriel</span>` : null}
                 </div>
                 <div class="preview-dimensions">
-                  Résolution : ${this.imageWidth} × ${this.imageHeight} px
+                  Dimensions du plan : ${this.imageWidth} × ${this.imageHeight} px
                 </div>
                 <button class="btn-change-image" @click=${this.triggerFileInput}>
-                  🔄 Remplacer l'image
+                  🔄 Remplacer le fichier
                 </button>
               </div>
             </div>
           `}
 
-          <!-- Méthode d'Étalonnage Automatisée -->
+          <!-- Encadré Vectorisation Intelligente SVG si un fichier SVG est chargé -->
+          ${this.isSvg ? html`
+            <div class="svg-interpret-box">
+              <div class="svg-box-header">
+                <span class="svg-box-icon">✨</span>
+                <div>
+                  <div class="svg-box-title">Interprétation Vectorielle Intelligente SVG</div>
+                  <div class="svg-box-subtitle">
+                    Transformez directement les lignes et courbes de votre SVG en éléments réels
+                  </div>
+                </div>
+              </div>
+
+              <div class="svg-mode-selector">
+                <!-- Mode 1 : Convertir en murs, portes, fenêtres et pièces -->
+                <div 
+                  class="svg-choice-card ${this.svgImportMode === 'vectorize' ? 'selected' : ''}"
+                  @click=${() => this.svgImportMode = 'vectorize'}
+                >
+                  <input 
+                    type="radio" 
+                    name="svg_mode" 
+                    class="svg-choice-radio"
+                    .checked=${this.svgImportMode === 'vectorize'}
+                    @change=${() => this.svgImportMode = 'vectorize'}
+                  />
+                  <div class="svg-choice-content">
+                    <div class="svg-choice-title">
+                      <span>🧱 Convertir en Murs, Portes, Fenêtres & Pièces 3D</span>
+                      <span class="badge-magic">Recommandé</span>
+                    </div>
+                    <div class="svg-choice-desc">
+                      Génère instantanément les murs, baies, ouvertures et pièces prêts pour l'affichage 2D et 3D.
+                    </div>
+
+                    ${stats ? html`
+                      <div class="svg-pills-row">
+                        <span class="stat-pill wall">🧱 ${stats.wallCount} Murs</span>
+                        <span class="stat-pill door">🚪 ${stats.doorCount} Portes</span>
+                        <span class="stat-pill window">🪟 ${stats.windowCount} Fenêtres</span>
+                        <span class="stat-pill room">🏠 ${stats.roomCount} Pièces</span>
+                        ${stats.textLabelCount > 0 ? html`
+                          <span class="stat-pill label">🏷️ ${stats.textLabelCount} Noms</span>
+                        ` : null}
+                      </div>
+                    ` : null}
+
+                    <div class="checkbox-wrap" @click=${(e: Event) => e.stopPropagation()}>
+                      <input 
+                        type="checkbox" 
+                        id="chk_keep_bg"
+                        .checked=${this.keepSvgBackground} 
+                        @change=${(e: any) => this.keepSvgBackground = e.target.checked}
+                      />
+                      <label for="chk_keep_bg" style="cursor: pointer;">
+                        Conserver également le tracé SVG original en filigrane sous le plan
+                      </label>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Mode 2 : Calque de fond simple -->
+                <div 
+                  class="svg-choice-card ${this.svgImportMode === 'background_only' ? 'selected' : ''}"
+                  @click=${() => this.svgImportMode = 'background_only'}
+                >
+                  <input 
+                    type="radio" 
+                    name="svg_mode" 
+                    class="svg-choice-radio"
+                    .checked=${this.svgImportMode === 'background_only'}
+                    @change=${() => this.svgImportMode = 'background_only'}
+                  />
+                  <div class="svg-choice-content">
+                    <div class="svg-choice-title">
+                      <span>🖼️ Calque de fond simple (Décalque manuel)</span>
+                    </div>
+                    <div class="svg-choice-desc">
+                      Affiche le SVG comme une image en arrière-plan pour tracer les murs manuellement.
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ` : null}
+
+          <!-- Étalonnage de l'échelle (Mètres réels) -->
           <div>
             <div class="section-title">
               <span>📏</span>
-              <span>Étalonnage de l'échelle (Mètres réels)</span>
+              <span>Échelle du plan (Mètres réels)</span>
             </div>
 
             <div class="calibrate-options">
@@ -652,16 +1014,16 @@ export class HomeArchitectImportModal extends LitElement {
                 />
                 <div class="option-content">
                   <div class="option-title">
-                    <span>⚡ Étalonnage automatique instantané</span>
+                    <span>⚡ Étalonnage par largeur de façade / bâtiment</span>
                     <span class="option-badge">Recommandé</span>
                   </div>
                   <div class="option-desc">
-                    Indiquez la largeur totale estimée de la façade ou du bâtiment. L'échelle sera calculée automatiquement.
+                    Indiquez la largeur totale de la maison ou du bâtiment. Toutes les cotes métriques et les murs seront calculés précisément.
                   </div>
 
                   ${this.calibrateMode === 'auto_dimension' ? html`
                     <div class="input-row" @click=${(e: Event) => e.stopPropagation()}>
-                      <label style="font-size: 0.82rem; color: #94a3b8;">Largeur totale :</label>
+                      <label style="font-size: 0.82rem; color: #94a3b8;">Largeur totale estimée :</label>
                       <input 
                         type="number" 
                         step="0.5" 
@@ -669,7 +1031,7 @@ export class HomeArchitectImportModal extends LitElement {
                         max="100" 
                         class="dimension-input"
                         .value=${this.totalWidthMeters}
-                        @input=${(e: any) => this.totalWidthMeters = parseFloat(e.target.value) || 10}
+                        @input=${(e: any) => this.handleDimensionChange(parseFloat(e.target.value))}
                       />
                       <span class="unit-tag">mètres</span>
                     </div>
@@ -677,55 +1039,64 @@ export class HomeArchitectImportModal extends LitElement {
                 </div>
               </div>
 
-              <!-- Option B : Tracé manuel assisté sur un mur -->
-              <div 
-                class="option-card ${this.calibrateMode === 'interactive_calibrate' ? 'selected' : ''}"
-                @click=${() => this.calibrateMode = 'interactive_calibrate'}
-              >
-                <input 
-                  type="radio" 
-                  class="option-radio" 
-                  name="calib" 
-                  .checked=${this.calibrateMode === 'interactive_calibrate'}
-                  @change=${() => this.calibrateMode = 'interactive_calibrate'}
-                />
-                <div class="option-content">
-                  <div class="option-title">
-                    <span>📐 Étalonnage assisté par mesure de mur</span>
-                  </div>
-                  <div class="option-desc">
-                    Vous tracerez un segment directement sur un mur mesuré du plan (ex: 3,50 m) pour étalonner avec précision.
+              <!-- Option B : Tracé manuel assisté sur un mur (si pas vectorisé) -->
+              ${!isSvgVectorMode ? html`
+                <div 
+                  class="option-card ${this.calibrateMode === 'interactive_calibrate' ? 'selected' : ''}"
+                  @click=${() => this.calibrateMode = 'interactive_calibrate'}
+                >
+                  <input 
+                    type="radio" 
+                    class="option-radio" 
+                    name="calib" 
+                    .checked=${this.calibrateMode === 'interactive_calibrate'}
+                    @change=${() => this.calibrateMode = 'interactive_calibrate'}
+                  />
+                  <div class="option-content">
+                    <div class="option-title">
+                      <span>📐 Étalonnage assisté par mesure de mur</span>
+                    </div>
+                    <div class="option-desc">
+                      Vous tracerez un segment directement sur un mur mesuré du plan (ex: 3,50 m) pour étalonner avec précision.
+                    </div>
                   </div>
                 </div>
-              </div>
+              ` : null}
             </div>
           </div>
 
-          <!-- Réglage d'opacité du calque -->
-          <div class="slider-row">
-            <span class="slider-label">Opacité en filigrane :</span>
-            <input 
-              type="range" 
-              class="slider-input" 
-              min="0.10" 
-              max="1.0" 
-              step="0.05"
-              .value=${this.opacity}
-              @input=${(e: any) => this.opacity = parseFloat(e.target.value)}
-            />
-            <span class="slider-val">${Math.round(this.opacity * 100)}%</span>
-          </div>
+          <!-- Réglage d'opacité du calque si conservé -->
+          ${(!isSvgVectorMode || this.keepSvgBackground) ? html`
+            <div class="slider-row">
+              <span class="slider-label">Opacité du fond :</span>
+              <input 
+                type="range" 
+                class="slider-input" 
+                min="0.05" 
+                max="1.0" 
+                step="0.05"
+                .value=${this.opacity}
+                @input=${(e: any) => this.opacity = parseFloat(e.target.value)}
+              />
+              <span class="slider-val">${Math.round(this.opacity * 100)}%</span>
+            </div>
+          ` : null}
         </div>
 
         <div class="modal-footer">
           <button class="btn-cancel" @click=${this.close}>Annuler</button>
           <button 
-            class="btn-confirm" 
+            class="btn-confirm ${isSvgVectorMode ? 'btn-magic' : ''}" 
             ?disabled=${!this.imageDataUrl} 
             @click=${this.confirmImport}
           >
-            <span>🚀</span>
-            <span>Charger le plan</span>
+            ${isSvgVectorMode ? html`
+              <span>✨</span>
+              <span>Convertir le plan SVG (${stats?.wallCount || 0} murs)</span>
+            ` : html`
+              <span>🚀</span>
+              <span>Charger le plan</span>
+            `}
           </button>
         </div>
       </div>

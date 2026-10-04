@@ -681,9 +681,44 @@ export class HomeArchitectPanel extends LitElement {
 
   private handleImportConfirmed(e: CustomEvent<ImportModalResult>) {
     this.pushUndoSnapshot();
-    const { dataUrl, widthPx, heightPx, opacity, mode, totalWidthMeters } = e.detail;
+    const { 
+      dataUrl, widthPx, heightPx, opacity, mode, totalWidthMeters,
+      isSvgVectorized, svgInterpretation, keepSvgBackground 
+    } = e.detail;
     this.isImportModalOpen = false;
 
+    // Traitement du mode Vectorisation Intelligente SVG
+    if (isSvgVectorized && svgInterpretation && svgInterpretation.success) {
+      const { walls, openings, rooms, pixelsPerMeter: svgPpm, stats } = svgInterpretation;
+
+      const bgPlan = keepSvgBackground ? {
+        imageUrl: dataUrl,
+        opacity: opacity !== undefined ? opacity : 0.25,
+        visible: true,
+        offset: { x: 0, y: 0 },
+        scale: 1.0,
+        rotation: 0,
+        widthPx,
+        heightPx
+      } : undefined;
+
+      this.project = {
+        ...this.project,
+        pixelsPerMeter: svgPpm || this.project.pixelsPerMeter,
+        walls: [...this.project.walls, ...walls],
+        openings: [...this.project.openings, ...openings],
+        rooms: [...this.project.rooms, ...rooms],
+        background: bgPlan
+      };
+
+      this.activeTool = 'select';
+      this.showToast(
+        `✨ Plan SVG converti : ${stats.wallCount} mur${stats.wallCount > 1 ? 's' : ''}, ${stats.doorCount} porte${stats.doorCount > 1 ? 's' : ''}, ${stats.windowCount} fenêtre${stats.windowCount > 1 ? 's' : ''} et ${stats.roomCount} pièce${stats.roomCount > 1 ? 's' : ''} créés !`
+      );
+      return;
+    }
+
+    // Traitement standard (image de fond ou calque passif)
     let calculatedPpm = this.project.pixelsPerMeter;
     if (mode === 'auto_dimension' && totalWidthMeters && totalWidthMeters > 0) {
       calculatedPpm = Math.round((widthPx / totalWidthMeters) * 10) / 10;
@@ -735,8 +770,18 @@ export class HomeArchitectPanel extends LitElement {
       }
     }
 
-    // 2. URL ou data-url en texte brut
+    // 2. Traitement du texte dans le presse-papier (Code SVG ou URL)
     const text = e.clipboardData.getData('text/plain')?.trim();
+
+    // 2a. Code SVG brut
+    if (text && (text.startsWith('<svg') || (text.startsWith('<?xml') && text.includes('<svg')))) {
+      e.preventDefault();
+      this.isImportModalOpen = true;
+      this.showToast('📥 Code SVG détecté ! Configurez la vectorisation automatique.');
+      return;
+    }
+
+    // 3. URL ou data-url en texte brut
     if (text && (text.startsWith('data:image/') || text.match(/\.(png|jpe?g|svg|webp)(\?.*)?$/i))) {
       e.preventDefault();
       this.loadBackgroundImage(text, '📋 Image chargée depuis l\'URL collée !');
