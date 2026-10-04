@@ -167,17 +167,19 @@ export class HomeArchitectPanel extends LitElement {
     :host {
       display: flex;
       flex-direction: column;
-      width: 100%;
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: var(--ha-sidebar-width, 0px);
+      right: 0;
       height: 100%;
-      max-width: 100%;
       max-height: 100%;
       overflow: hidden;
       background: #0f172a;
       color: #f8fafc;
       font-family: var(--ha-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
-      position: absolute;
-      inset: 0;
       box-sizing: border-box;
+      transition: left 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     }
 
     :host(.is-fullscreen) {
@@ -192,6 +194,7 @@ export class HomeArchitectPanel extends LitElement {
       max-width: 100vw !important;
       max-height: 100vh !important;
       z-index: 99999 !important;
+      transition: none !important;
     }
 
     :host:fullscreen, :host:-webkit-full-screen {
@@ -1290,6 +1293,77 @@ export class HomeArchitectPanel extends LitElement {
   private _boundKeyDown: any = null;
   private _boundClickOutside: any = null;
   private _boundFullscreenChange: any = null;
+  private _boundResize: any = null;
+  private _boundDocumentClick: any = null;
+  private _sidebarResizeObserver: ResizeObserver | null = null;
+
+  public updateSidebarOffset(): void {
+    if (this.isFullscreen) {
+      this.style.setProperty('--ha-sidebar-width', '0px');
+      return;
+    }
+
+    let sidebarW = 0;
+
+    // 1. Détection via Shadow DOM Home Assistant (structure standard ha-sidebar)
+    try {
+      const ha = document.querySelector('home-assistant');
+      const main = ha?.shadowRoot?.querySelector('home-assistant-main');
+      const sidebar = main?.shadowRoot?.querySelector('ha-sidebar');
+      if (sidebar) {
+        const rect = sidebar.getBoundingClientRect();
+        if (rect.width > 0 && rect.right > 0 && window.getComputedStyle(sidebar).display !== 'none') {
+          sidebarW = Math.round(rect.width);
+        }
+
+        if (!this._sidebarResizeObserver && typeof ResizeObserver !== 'undefined') {
+          this._sidebarResizeObserver = new ResizeObserver(() => {
+            this.updateSidebarOffset();
+          });
+          this._sidebarResizeObserver.observe(sidebar);
+        }
+      }
+    } catch (_) {}
+
+    // 2. Recherche directe de l'élément ha-sidebar dans le document
+    if (sidebarW === 0) {
+      try {
+        const sidebar = document.querySelector('ha-sidebar');
+        if (sidebar) {
+          const rect = sidebar.getBoundingClientRect();
+          if (rect.width > 0 && rect.right > 0 && window.getComputedStyle(sidebar).display !== 'none') {
+            sidebarW = Math.round(rect.width);
+          }
+        }
+      } catch (_) {}
+    }
+
+    // 3. Fallback sur les variables CSS officielles de Home Assistant
+    if (sidebarW === 0) {
+      try {
+        const docStyles = getComputedStyle(document.documentElement);
+        const drawerW = docStyles.getPropertyValue('--app-drawer-width') || docStyles.getPropertyValue('--mdc-drawer-width');
+        if (drawerW && drawerW.trim().endsWith('px')) {
+          const val = parseFloat(drawerW);
+          if (!isNaN(val) && val > 0) sidebarW = val;
+        }
+      } catch (_) {}
+    }
+
+    // 4. Calcul de l'empiètement réel sur l'élément hôte
+    let neededOffset = 0;
+    if (sidebarW > 0) {
+      const hostRect = this.getBoundingClientRect();
+      const currentApplied = parseFloat(this.style.getPropertyValue('--ha-sidebar-width') || '0') || 0;
+      const baselineLeft = hostRect.left - currentApplied;
+
+      if (baselineLeft < sidebarW) {
+        neededOffset = Math.max(0, sidebarW - Math.max(0, baselineLeft));
+      }
+    }
+
+    this.style.setProperty('--ha-sidebar-width', `${neededOffset}px`);
+  }
 
   connectedCallback() {
     super.connectedCallback();
@@ -1322,14 +1396,28 @@ export class HomeArchitectPanel extends LitElement {
       } else {
         this.classList.remove('is-fullscreen');
       }
+      this.updateSidebarOffset();
     };
     document.addEventListener('fullscreenchange', this._boundFullscreenChange);
     document.addEventListener('webkitfullscreenchange', this._boundFullscreenChange);
     document.addEventListener('mozfullscreenchange', this._boundFullscreenChange);
     document.addEventListener('MSFullscreenChange', this._boundFullscreenChange);
+
+    this._boundResize = () => this.updateSidebarOffset();
+    window.addEventListener('resize', this._boundResize);
+
+    this._boundDocumentClick = () => {
+      setTimeout(() => this.updateSidebarOffset(), 50);
+      setTimeout(() => this.updateSidebarOffset(), 320);
+    };
+    document.addEventListener('click', this._boundDocumentClick, { passive: true });
+
+    this.updateSidebarOffset();
+    setTimeout(() => this.updateSidebarOffset(), 100);
   }
 
   async firstUpdated() {
+    this.updateSidebarOffset();
     if (this.hass && this.hass.callWS) {
       try {
         const res = await this.hass.callWS({ type: 'home_architect/get_projects' });
@@ -1377,6 +1465,16 @@ export class HomeArchitectPanel extends LitElement {
       document.removeEventListener('webkitfullscreenchange', this._boundFullscreenChange);
       document.removeEventListener('mozfullscreenchange', this._boundFullscreenChange);
       document.removeEventListener('MSFullscreenChange', this._boundFullscreenChange);
+    }
+    if (this._boundResize) {
+      window.removeEventListener('resize', this._boundResize);
+    }
+    if (this._boundDocumentClick) {
+      document.removeEventListener('click', this._boundDocumentClick);
+    }
+    if (this._sidebarResizeObserver) {
+      this._sidebarResizeObserver.disconnect();
+      this._sidebarResizeObserver = null;
     }
     if (this.toastTimeout) {
       clearTimeout(this.toastTimeout);
@@ -1985,6 +2083,7 @@ export class HomeArchitectPanel extends LitElement {
       }
       this.isFullscreen = true;
       this.classList.add('is-fullscreen');
+      this.updateSidebarOffset();
       this.showToast('⛶ Mode plein écran activé (Échap pour sortir)');
     } else {
       try {
@@ -2005,6 +2104,7 @@ export class HomeArchitectPanel extends LitElement {
       }
       this.isFullscreen = false;
       this.classList.remove('is-fullscreen');
+      this.updateSidebarOffset();
       this.showToast('🗗 Sortie du plein écran');
     }
   }

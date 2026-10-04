@@ -648,17 +648,29 @@ export const canvasStyles = css`
   .coords-hud {
     position: absolute;
     bottom: 20px;
-    left: 20px;
-    background: rgba(30, 41, 59, 0.85);
-    backdrop-filter: blur(12px);
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    border-radius: 8px;
-    padding: 6px 12px;
-    font-size: 11px;
-    color: #94a3b8;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(15, 23, 42, 0.92);
+    backdrop-filter: blur(14px);
+    border: 1px solid rgba(56, 189, 248, 0.35);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5), 0 0 12px rgba(56, 189, 248, 0.2);
+    border-radius: 10px;
+    padding: 6px 16px;
+    font-size: 11.5px;
+    font-weight: 600;
+    color: #cbd5e1;
     font-family: ui-monospace, SFMono-Regular, monospace;
     z-index: 50;
     pointer-events: none;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: bottom 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .coords-hud.selection-active {
+    bottom: 90px;
   }
 
   .help-hud {
