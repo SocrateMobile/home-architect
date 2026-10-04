@@ -6,7 +6,7 @@ import os
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.components import frontend
-from homeassistant.components.http import StaticPathConfig
+from homeassistant.components.http import StaticPathConfig, HomeAssistantView
 
 from .const import (
     DOMAIN,
@@ -61,6 +61,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         elif hasattr(frontend, "async_register_built_in_panel"):
             pass
 
+    # Register HTTP view to serve floor plan SVGs
+    hass.http.register_view(HomeArchitectSvgView(hass))
+
     # 4. Register sidebar panel
     show_panel = entry.options.get(
         CONF_SHOW_SIDEBAR_PANEL,
@@ -111,3 +114,27 @@ async def async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
     """Reload config entry upon options update."""
     await async_unload_entry(hass, entry)
     await async_setup_entry(hass, entry)
+
+
+class HomeArchitectSvgView(HomeAssistantView):
+    """View to serve exported floor plan SVGs directly via HTTP."""
+
+    url = "/api/home_architect/plan/{project_id}.svg"
+    name = "api:home_architect:plan_svg"
+    requires_auth = False
+
+    def __init__(self, hass: HomeAssistant) -> None:
+        """Initialize the view."""
+        self.hass = hass
+
+    async def get(self, request, project_id: str):
+        """Serve the SVG for a project."""
+        from aiohttp import web
+        import os
+        www_target = self.hass.config.path("www", f"plan_{project_id}.svg")
+        if os.path.exists(www_target):
+            with open(www_target, "r", encoding="utf-8") as f:
+                content = f.read()
+            return web.Response(text=content, content_type="image/svg+xml")
+
+        return web.Response(status=404, text=f"Floorplan SVG for {project_id} not found in www")

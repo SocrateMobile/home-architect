@@ -1392,6 +1392,7 @@ export class HomeArchitectPanel extends LitElement {
       ${this.isExportModalOpen ? html`
         <home-architect-export-modal
           .project=${this.project}
+          .hass=${this.hass}
           @close=${() => this.isExportModalOpen = false}
         ></home-architect-export-modal>
       ` : null}

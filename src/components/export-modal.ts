@@ -368,10 +368,88 @@ export class HomeArchitectExportModal extends LitElement {
       background: #475569;
       color: #ffffff;
     }
+
+    /* Bannière de synchronisation automatique */
+    .sync-banner {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 16px;
+      border-radius: 10px;
+      font-size: 0.84rem;
+      line-height: 1.4;
+      animation: fadeIn 0.2s ease-out;
+    }
+
+    .sync-banner.success {
+      background: rgba(16, 185, 129, 0.12);
+      border: 1px solid rgba(16, 185, 129, 0.4);
+      color: #6ee7b7;
+    }
+
+    .sync-banner.syncing {
+      background: rgba(56, 189, 248, 0.1);
+      border: 1px solid rgba(56, 189, 248, 0.35);
+      color: #7dd3fc;
+    }
+
+    .sync-banner.error {
+      background: rgba(239, 68, 68, 0.12);
+      border: 1px solid rgba(239, 68, 68, 0.4);
+      color: #fca5a5;
+    }
+
+    .sync-icon {
+      font-size: 1.4rem;
+      flex-shrink: 0;
+    }
+
+    .sync-text {
+      flex: 1;
+    }
+
+    .sync-title {
+      font-weight: 700;
+      font-size: 0.88rem;
+      margin-bottom: 2px;
+    }
+
+    .sync-desc {
+      font-size: 0.8rem;
+      opacity: 0.9;
+    }
+
+    .sync-desc code {
+      background: rgba(0, 0, 0, 0.35);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: ui-monospace, SFMono-Regular, monospace;
+      font-size: 0.78rem;
+    }
+
+    .btn-refresh-sync {
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      color: #ffffff;
+      border-radius: 6px;
+      padding: 6px 12px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.15s ease;
+    }
+
+    .btn-refresh-sync:hover {
+      background: rgba(255, 255, 255, 0.2);
+    }
   `;
 
   @property({ type: Object })
   public project!: HomeArchitectProject;
+
+  @property({ type: Object })
+  public hass: any;
 
   @state()
   private activeTab: 'picture_elements' | 'custom_card' | 'raw_files' = 'picture_elements';
@@ -385,9 +463,57 @@ export class HomeArchitectExportModal extends LitElement {
   @state()
   private copiedToast: boolean = false;
 
+  @state()
+  private syncStatus: 'idle' | 'syncing' | 'success' | 'error' = 'idle';
+
+  @state()
+  private syncErrorMsg: string = '';
+
+  @state()
+  private embedDataUri: boolean = false;
+
   connectedCallback(): void {
     super.connectedCallback();
     this.imagePath = `/local/plan_${this.project?.id || 'rdc'}.svg`;
+    this.autoSyncSvg();
+  }
+
+  public async autoSyncSvg(): Promise<void> {
+    if (!this.hass?.callWS) {
+      this.syncStatus = 'idle';
+      return;
+    }
+
+    this.syncStatus = 'syncing';
+    try {
+      const svgString = SvgExporter.exportToSvg(this.project, {
+        includeRooms: true,
+        includeWalls: true,
+        includeOpenings: true,
+        includeRoomLabels: true,
+        includeEntityMarkers: false,
+        includeBackground: true,
+        backgroundColor: '#0f172a'
+      });
+
+      const filename = `plan_${this.project?.id || 'rdc'}.svg`;
+      const res = await this.hass.callWS({
+        type: 'home_architect/save_svg_to_www',
+        filename,
+        svg_content: svgString
+      });
+
+      if (res && res.success) {
+        this.syncStatus = 'success';
+      } else {
+        this.syncStatus = 'error';
+        this.syncErrorMsg = 'Erreur lors de la sauvegarde sur le serveur';
+      }
+    } catch (err: any) {
+      console.warn('Home Architect auto-sync to www failed:', err);
+      this.syncStatus = 'error';
+      this.syncErrorMsg = err?.message || String(err);
+    }
   }
 
   private handleClose(): void {
@@ -410,6 +536,7 @@ export class HomeArchitectExportModal extends LitElement {
       includeOpenings: true,
       includeRoomLabels: true,
       includeEntityMarkers: false,
+      includeBackground: true,
       backgroundColor: '#0f172a'
     });
 
@@ -450,9 +577,21 @@ export class HomeArchitectExportModal extends LitElement {
 
   render() {
     const summary = this.getEntitySummary();
+    const svgContent = SvgExporter.exportToSvg(this.project, {
+      includeRooms: true,
+      includeWalls: true,
+      includeOpenings: true,
+      includeRoomLabels: true,
+      includeEntityMarkers: false,
+      includeBackground: true,
+      backgroundColor: '#0f172a'
+    });
+
     const picElemYaml = LovelaceGenerator.generatePictureElementsYaml(this.project, {
       imagePath: this.imagePath,
-      title: this.project.name || 'Plan Interactif'
+      title: this.project.name || 'Plan Interactif',
+      embedDataUri: this.embedDataUri,
+      svgContent
     });
 
     const customCardYaml = LovelaceGenerator.generateHomeArchitectCardYaml(this.project, {
@@ -529,29 +668,89 @@ export class HomeArchitectExportModal extends LitElement {
 
           <!-- Onglet 1 : Carte Native picture-elements -->
           ${this.activeTab === 'picture_elements' ? html`
-            <div class="config-row">
-              <div>
-                <div class="config-label">1. Télécharger le plan SVG pour Home Assistant</div>
-                <div style="font-size: 0.78rem; color: #94a3b8; margin-top: 2px;">
-                  Génère le fond de plan vectoriel avec dimensions calibrées
+            <!-- Bannière de synchronisation avec HA -->
+            ${this.syncStatus === 'success' ? html`
+              <div class="sync-banner success">
+                <span class="sync-icon">✅</span>
+                <div class="sync-text">
+                  <div class="sync-title">Plan synchronisé directement sur votre serveur Home Assistant !</div>
+                  <div class="sync-desc">
+                    Le fichier vectoriel avec ses dimensions calibrées est écrit dans <code>/config/www/plan_${this.project?.id || 'rdc'}.svg</code>.<br/>
+                    Accessible immédiatement par Lovelace via <code>${this.imagePath}</code>. Aucun transfert de fichier requis !
+                  </div>
+                </div>
+                <button class="btn-refresh-sync" @click=${this.autoSyncSvg} title="Mettre à jour le fichier SVG sur le serveur">
+                  🔄 Re-synchroniser
+                </button>
+              </div>
+            ` : this.syncStatus === 'syncing' ? html`
+              <div class="sync-banner syncing">
+                <span class="sync-icon">⏳</span>
+                <div class="sync-text">
+                  <div class="sync-title">Synchronisation automatique en cours avec Home Assistant...</div>
+                  <div class="sync-desc">Enregistrement direct dans <code>/config/www/plan_${this.project?.id || 'rdc'}.svg</code>.</div>
                 </div>
               </div>
-              <button class="btn-action emerald" @click=${this.downloadSvg}>
-                <span>📥</span>
-                <span>Télécharger plan_${this.project.id || 'rdc'}.svg</span>
-              </button>
+            ` : this.syncStatus === 'error' ? html`
+              <div class="sync-banner error">
+                <span class="sync-icon">⚠️</span>
+                <div class="sync-text">
+                  <div class="sync-title">Synchronisation automatique impossible (${this.syncErrorMsg || 'erreur'})</div>
+                  <div class="sync-desc">
+                    Vous pouvez cocher l'option <strong>"Embarquer en Data-URI"</strong> ci-dessous, ou télécharger le fichier SVG et le déposer dans <code>/config/www/</code>.
+                  </div>
+                </div>
+                <button class="btn-refresh-sync" @click=${this.autoSyncSvg}>
+                  🔄 Réessayer
+                </button>
+              </div>
+            ` : html`
+              <div class="sync-banner syncing" style="background: rgba(30, 41, 59, 0.6); border-color: rgba(255, 255, 255, 0.1);">
+                <span class="sync-icon">💡</span>
+                <div class="sync-text">
+                  <div class="sync-title">Synchroniser le plan avec Home Assistant</div>
+                  <div class="sync-desc">Enregistre directement le fichier dans <code>/config/www/</code> sans intervention manuelle.</div>
+                </div>
+                <button class="btn-refresh-sync" @click=${this.autoSyncSvg}>
+                  ⚡ Synchroniser
+                </button>
+              </div>
+            `}
+
+            <!-- Option Data-URI 100% autonome -->
+            <div class="config-row">
+              <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; user-select: none;">
+                <input 
+                  type="checkbox" 
+                  .checked=${this.embedDataUri} 
+                  @change=${(e: any) => this.embedDataUri = e.target.checked}
+                  style="accent-color: #38bdf8; width: 16px; height: 16px; cursor: pointer;"
+                />
+                <div>
+                  <div class="config-label">Embarquer le plan en Data-URI (100% autonome sans aucun fichier requis)</div>
+                  <div style="font-size: 0.78rem; color: #94a3b8;">
+                    Le code SVG est directement injecté dans le YAML Lovelace : fonctionne immédiatement même sans dossier /config/www/ !
+                  </div>
+                </div>
+              </label>
             </div>
 
-            <div class="config-row">
-              <label class="config-label">Chemin d'image dans Lovelace :</label>
-              <input 
-                type="text" 
-                class="config-input" 
-                .value=${this.imagePath} 
-                @input=${(e: any) => this.imagePath = e.target.value}
-                placeholder="/local/mon_plan.svg"
-              />
-            </div>
+            ${!this.embedDataUri ? html`
+              <div class="config-row">
+                <label class="config-label">Chemin d'image dans Lovelace :</label>
+                <input 
+                  type="text" 
+                  class="config-input" 
+                  .value=${this.imagePath} 
+                  @input=${(e: any) => this.imagePath = e.target.value}
+                  placeholder="/local/mon_plan.svg"
+                />
+                <button class="btn-action emerald" @click=${this.downloadSvg} title="Télécharger une copie locale du SVG">
+                  <span>📥</span>
+                  <span>Télécharger SVG</span>
+                </button>
+              </div>
+            ` : null}
 
             <!-- Bloc de code YAML -->
             <div class="code-container">
@@ -576,19 +775,29 @@ export class HomeArchitectExportModal extends LitElement {
               <div class="guide-step">
                 <span class="guide-num">1</span>
                 <div>
-                  Cliquez sur <strong>Télécharger plan_${this.project.id || 'rdc'}.svg</strong> ci-dessus et déposez-le dans le dossier <code>/config/www/</code> de votre Home Assistant (via Samba, SSH ou Studio Code Server).
+                  ${this.syncStatus === 'success' 
+                    ? html`Le fichier SVG est <strong>déjà présent sur votre serveur Home Assistant</strong> (aucun transfert requis !).`
+                    : this.embedDataUri
+                    ? html`Le plan est <strong>100% intégré dans le YAML</strong> (aucun fichier externe n'est requis).`
+                    : html`Assurez-vous que le fichier <code>plan_${this.project?.id || 'rdc'}.svg</code> est présent dans <code>/config/www/</code>.`}
                 </div>
               </div>
               <div class="guide-step">
                 <span class="guide-num">2</span>
                 <div>
-                  Dans votre tableau de bord Home Assistant, cliquez sur <strong>Modifier le tableau de bord</strong> > <strong>Ajouter une carte</strong> > Descendez tout en bas et choisissez <strong>Manuel</strong>.
+                  Cliquez sur <strong>Copier le YAML</strong> ci-dessus.
                 </div>
               </div>
               <div class="guide-step">
                 <span class="guide-num">3</span>
                 <div>
-                  Collez le code YAML copié ci-dessus et cliquez sur <strong>Enregistrer</strong>. Vos lumières, radars et températures sont directement interactifs !
+                  Dans votre tableau de bord Home Assistant, cliquez sur <strong>Modifier le tableau de bord</strong> > <strong>Ajouter une carte</strong> > Descendez tout en bas et choisissez <strong>Manuel</strong>.
+                </div>
+              </div>
+              <div class="guide-step">
+                <span class="guide-num">4</span>
+                <div>
+                  Collez le code YAML et cliquez sur <strong>Enregistrer</strong>. Vos lumières, radars et températures s'affichent directement à l'échelle sur votre plan !
                 </div>
               </div>
             </div>

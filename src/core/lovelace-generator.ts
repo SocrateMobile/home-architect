@@ -4,6 +4,8 @@ import { SvgExporter } from './svg-exporter';
 export interface PictureElementsOptions {
   imagePath?: string;
   title?: string;
+  embedDataUri?: boolean;
+  svgContent?: string;
 }
 
 export interface CustomCardOptions {
@@ -20,10 +22,20 @@ export class LovelaceGenerator {
     project: HomeArchitectProject,
     options?: PictureElementsOptions
   ): string {
+    let resolvedImage = options?.imagePath || `/local/plan_${project.id || 'rdc'}.svg`;
+    if (options?.embedDataUri && options?.svgContent) {
+      try {
+        const b64 = btoa(unescape(encodeURIComponent(options.svgContent)));
+        resolvedImage = `data:image/svg+xml;base64,${b64}`;
+      } catch (e) {
+        resolvedImage = options.imagePath || `/local/plan_${project.id || 'rdc'}.svg`;
+      }
+    }
+
     const opts = {
-      imagePath: `/local/plan_${project.id || 'rdc'}.svg`,
       title: project.name || 'Plan Interactif',
-      ...options
+      ...options,
+      imagePath: resolvedImage
     };
 
     const bbox = SvgExporter.calculateBoundingBox(project);
