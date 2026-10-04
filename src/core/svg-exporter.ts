@@ -212,11 +212,21 @@ export class SvgExporter {
           content += `      <rect x="${halfW - 4}" y="${-thickPx / 2}" width="4" height="${thickPx}" fill="#94a3b8" />\n`;
           content += `      <line x1="${pivotX}" y1="0" x2="${pivotX}" y2="${signSide * wPx}" stroke="#38bdf8" stroke-width="2" stroke-linecap="round" />\n`;
           content += `      <path d="M ${pivotX + (sweepSign * wPx)} 0 A ${wPx} ${wPx} 0 0 ${signSide > 0 ? (op.flipDirection ? 0 : 1) : (op.flipDirection ? 1 : 0)} ${pivotX} ${signSide * wPx}" fill="rgba(56, 189, 248, 0.08)" stroke="#38bdf8" stroke-width="1.2" stroke-dasharray="3, 3" />\n`;
-        } else {
-          // Fenêtre
+        } else if (op.type === 'french_window') {
+          // Baie vitrée coulissante
           const halfW = wPx / 2;
-          content += `      <rect x="${-halfW}" y="${-thickPx / 2}" width="${wPx}" height="${thickPx}" fill="none" stroke="#94a3b8" stroke-width="2" />\n`;
-          content += `      <line x1="${-halfW}" y1="0" x2="${halfW}" y2="0" stroke="#38bdf8" stroke-width="1.5" />\n`;
+          content += `      <rect x="${(-halfW).toFixed(1)}" y="${(-thickPx / 2).toFixed(1)}" width="${wPx.toFixed(1)}" height="${thickPx.toFixed(1)}" fill="none" stroke="#94a3b8" stroke-width="2" />\n`;
+          content += `      <rect x="${(-halfW).toFixed(1)}" y="${(-thickPx / 4).toFixed(1)}" width="${halfW.toFixed(1)}" height="3" fill="#38bdf8" />\n`;
+          content += `      <rect x="0" y="${(thickPx / 4).toFixed(1)}" width="${halfW.toFixed(1)}" height="3" fill="#38bdf8" />\n`;
+        } else {
+          // Fenêtre (1 ouvrant ou 2 battants)
+          const halfW = wPx / 2;
+          const isDouble = (op.sashCount === 2) || (op.width >= 1.25);
+          content += `      <rect x="${(-halfW).toFixed(1)}" y="${(-thickPx / 2).toFixed(1)}" width="${wPx.toFixed(1)}" height="${thickPx.toFixed(1)}" fill="none" stroke="#94a3b8" stroke-width="2" />\n`;
+          content += `      <line x1="${(-halfW).toFixed(1)}" y1="0" x2="${halfW.toFixed(1)}" y2="0" stroke="#38bdf8" stroke-width="1.5" />\n`;
+          if (isDouble) {
+            content += `      <line x1="0" y1="${(-thickPx / 2).toFixed(1)}" x2="0" y2="${(thickPx / 2).toFixed(1)}" stroke="#38bdf8" stroke-width="2" />\n`;
+          }
         }
 
         content += `    </g>\n`;

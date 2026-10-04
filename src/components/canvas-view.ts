@@ -93,11 +93,14 @@ export class HomeArchitectCanvas extends LitElement {
   @state()
   private wallSnap: WallSnapResult | null = null;
 
-  @state()
-  private openingFlipSide: boolean = false;
+  @property({ type: Boolean })
+  public openingFlipSide: boolean = false;
 
-  @state()
-  private openingFlipDirection: boolean = false;
+  @property({ type: Boolean })
+  public openingFlipDirection: boolean = false;
+
+  @property({ type: Number })
+  public windowSashCount: number = 1;
 
   // État d'étalonnage calque image
   @state()
@@ -299,14 +302,19 @@ export class HomeArchitectCanvas extends LitElement {
           this.activeTool === 'window' ? 'window' :
           this.activeTool === 'french_window' ? 'french_window' : 'door';
 
+        const defaultW = (opType === 'door')
+          ? 0.90
+          : (opType === 'french_window' ? 2.00 : (this.windowSashCount === 2 ? 1.40 : 0.90));
+
         const newOpening: Opening = {
           id: `op_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
           wallId: this.wallSnap.wall.id,
           type: opType,
           offset: SnappingEngine.roundMeters(this.wallSnap.offset),
-          width: this.currentOpeningWidth || (opType === 'door' ? 0.90 : 1.20),
+          width: this.currentOpeningWidth || defaultW,
           flipSide: this.openingFlipSide,
-          flipDirection: this.openingFlipDirection
+          flipDirection: this.openingFlipDirection,
+          sashCount: opType === 'window' ? (this.windowSashCount || 1) : (opType === 'french_window' ? 2 : 1)
         };
 
         this.project = {
@@ -1161,7 +1169,7 @@ export class HomeArchitectCanvas extends LitElement {
           />
 
           ${op.type === 'door' ? this.renderDoorSymbol(wPx, thickPx, op.flipSide, op.flipDirection) : null}
-          ${op.type === 'window' ? this.renderWindowSymbol(wPx, thickPx) : null}
+          ${op.type === 'window' ? this.renderWindowSymbol(wPx, thickPx, op.sashCount || (op.width >= 1.25 ? 2 : 1)) : null}
           ${op.type === 'french_window' ? this.renderFrenchWindowSymbol(wPx, thickPx) : null}
         </g>
       `;
@@ -1193,8 +1201,20 @@ export class HomeArchitectCanvas extends LitElement {
     `;
   }
 
-  private renderWindowSymbol(wPx: number, thickPx: number) {
+  private renderWindowSymbol(wPx: number, thickPx: number, sashCount: number = 1) {
     const halfW = wPx / 2;
+    if (sashCount === 2) {
+      return svg`
+        <g>
+          <rect x="${-halfW}" y="${-thickPx / 2}" width="${wPx}" height="${thickPx}" fill="none" class="opening-window-frame" />
+          <line x1="${-halfW}" y1="0" x2="${halfW}" y2="0" class="opening-window-glass" />
+          <line x1="0" y1="${-thickPx / 2}" x2="0" y2="${thickPx / 2}" stroke="#38bdf8" stroke-width="2.5" />
+          <line x1="${-halfW + 4}" y1="${-thickPx / 4}" x2="-3" y2="${-thickPx / 4}" stroke="rgba(56, 189, 248, 0.45)" stroke-width="1.2" />
+          <line x1="3" y1="${thickPx / 4}" x2="${halfW - 4}" y2="${thickPx / 4}" stroke="rgba(56, 189, 248, 0.45)" stroke-width="1.2" />
+        </g>
+      `;
+    }
+
     return svg`
       <g>
         <rect x="${-halfW}" y="${-thickPx / 2}" width="${wPx}" height="${thickPx}" fill="none" class="opening-window-frame" />

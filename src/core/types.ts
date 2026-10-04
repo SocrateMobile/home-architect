@@ -25,6 +25,7 @@ export interface Opening {
   height?: number; // Height in meters
   flipSide: boolean; // Invert open swing side (interior/exterior)
   flipDirection: boolean; // Invert open swing direction (left/right)
+  sashCount?: number; // 1 = simple ouvrant, 2 = double battants
   entityId?: string; // Optional bound sensor (e.g. binary_sensor.door_front)
 }
 
