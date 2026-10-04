@@ -1,5 +1,6 @@
 import { LitElement, html, css } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
+import { FURNITURE_CATALOG, FurnitureCatalogTemplate } from '../core/furniture-catalog';
 
 interface EntityItem {
   entity_id: string;
@@ -268,6 +269,93 @@ export class HomeArchitectEntityDrawer extends LitElement {
       gap: 6px;
     }
 
+    .drawer-tabs {
+      display: flex;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      background: rgba(15, 23, 42, 0.5);
+    }
+
+    .tab-btn {
+      flex: 1;
+      padding: 10px 8px;
+      background: transparent;
+      border: none;
+      border-bottom: 2px solid transparent;
+      color: #94a3b8;
+      font-size: 0.80rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: all 0.2s ease;
+    }
+
+    .tab-btn:hover {
+      color: #f1f5f9;
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    .tab-btn.active {
+      color: #38bdf8;
+      border-bottom-color: #38bdf8;
+      background: rgba(56, 189, 248, 0.08);
+    }
+
+    .furniture-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+      padding: 10px 14px;
+      overflow-y: auto;
+      flex: 1;
+    }
+
+    .furniture-card {
+      background: rgba(30, 41, 59, 0.65);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 9px;
+      padding: 10px 6px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      cursor: grab;
+      transition: all 0.18s ease;
+      user-select: none;
+      gap: 4px;
+    }
+
+    .furniture-card:hover {
+      background: rgba(51, 65, 85, 0.9);
+      border-color: #38bdf8;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    }
+
+    .furniture-card:active {
+      cursor: grabbing;
+    }
+
+    .furniture-card-icon {
+      font-size: 1.5rem;
+    }
+
+    .furniture-card-name {
+      font-size: 0.76rem;
+      font-weight: 600;
+      color: #f1f5f9;
+      line-height: 1.2;
+    }
+
+    .furniture-card-dim {
+      font-size: 0.68rem;
+      color: #38bdf8;
+      font-family: ui-monospace, SFMono-Regular, monospace;
+      font-weight: 600;
+    }
+
     .empty-message {
       padding: 30px 16px;
       text-align: center;
@@ -281,6 +369,12 @@ export class HomeArchitectEntityDrawer extends LitElement {
 
   @property({ type: Boolean, reflect: true })
   public collapsed: boolean = false;
+
+  @state()
+  private activeTab: 'entities' | 'furniture' = 'entities';
+
+  @state()
+  private furnitureCategory: string = 'all';
 
   @state()
   private searchQuery: string = '';
@@ -329,6 +423,16 @@ export class HomeArchitectEntityDrawer extends LitElement {
     }
   }
 
+  private handleFurnitureDragStart(e: DragEvent, item: FurnitureCatalogTemplate) {
+    if (e.dataTransfer) {
+      e.dataTransfer.setData('application/json', JSON.stringify({
+        kind: 'furniture',
+        furnitureType: item.type
+      }));
+      e.dataTransfer.effectAllowed = 'copy';
+    }
+  }
+
   private toggleCollapse() {
     this.dispatchEvent(new CustomEvent('toggle-collapse', {
       bubbles: true,
@@ -346,73 +450,145 @@ export class HomeArchitectEntityDrawer extends LitElement {
       entities = entities.filter(e => e.domain === this.activeCategory);
     }
 
-    if (this.searchQuery.trim()) {
+    if (this.searchQuery.trim() && this.activeTab === 'entities') {
       const q = this.searchQuery.toLowerCase();
       entities = entities.filter(e => e.name.toLowerCase().includes(q) || e.entity_id.toLowerCase().includes(q));
+    }
+
+    let furniture = FURNITURE_CATALOG;
+    if (this.furnitureCategory !== 'all') {
+      furniture = furniture.filter(f => f.category === this.furnitureCategory);
+    }
+    if (this.searchQuery.trim() && this.activeTab === 'furniture') {
+      const q = this.searchQuery.toLowerCase();
+      furniture = furniture.filter(f => f.name.toLowerCase().includes(q));
     }
 
     return html`
       <div class="drawer-header">
         <div class="drawer-title">
-          <span>⚡</span>
-          <span>Entités HA</span>
-          <span class="count-badge">${entities.length}</span>
+          <span>${this.activeTab === 'entities' ? '⚡' : '🛋️'}</span>
+          <span>${this.activeTab === 'entities' ? 'Objets & Domotique' : 'Meubles & Déco'}</span>
         </div>
         <button class="btn-toggle" @click=${this.toggleCollapse} title="Masquer / Réduire le volet">
           ⇤
         </button>
       </div>
 
-      <div class="search-section">
-        <div class="search-input-wrapper">
-          <input 
-            type="text" 
-            class="search-input" 
-            placeholder="Rechercher une entité..."
-            .value=${this.searchQuery}
-            @input=${(e: any) => this.searchQuery = e.target.value}
-          />
-        </div>
-
-        <div class="categories-bar">
-          <button class="cat-btn ${this.activeCategory === 'all' ? 'active' : ''}" @click=${() => this.activeCategory = 'all'}>Tous</button>
-          <button class="cat-btn ${this.activeCategory === 'light' ? 'active' : ''}" @click=${() => this.activeCategory = 'light'}>Lumières</button>
-          <button class="cat-btn ${this.activeCategory === 'binary_sensor' ? 'active' : ''}" @click=${() => this.activeCategory = 'binary_sensor'}>Capteurs</button>
-          <button class="cat-btn ${this.activeCategory === 'climate' ? 'active' : ''}" @click=${() => this.activeCategory = 'climate'}>Climat</button>
-          <button class="cat-btn ${this.activeCategory === 'switch' ? 'active' : ''}" @click=${() => this.activeCategory = 'switch'}>Prises</button>
-          <button class="cat-btn ${this.activeCategory === 'camera' ? 'active' : ''}" @click=${() => this.activeCategory = 'camera'}>Caméras</button>
-        </div>
+      <div class="drawer-tabs">
+        <button 
+          class="tab-btn ${this.activeTab === 'entities' ? 'active' : ''}" 
+          @click=${() => { this.activeTab = 'entities'; this.searchQuery = ''; }}
+        >
+          <span>⚡</span>
+          <span>Entités HA</span>
+          <span class="count-badge">${entities.length}</span>
+        </button>
+        <button 
+          class="tab-btn ${this.activeTab === 'furniture' ? 'active' : ''}" 
+          @click=${() => { this.activeTab = 'furniture'; this.searchQuery = ''; }}
+        >
+          <span>🛋️</span>
+          <span>Meubles</span>
+          <span class="count-badge">${FURNITURE_CATALOG.length}</span>
+        </button>
       </div>
 
-      <div class="entities-list">
-        ${entities.length === 0 ? html`
-          <div class="empty-message">Aucune entité trouvée</div>
-        ` : entities.map(item => html`
-          <div 
-            class="entity-card" 
-            draggable="true"
-            @dragstart=${(e: DragEvent) => this.handleDragStart(e, item)}
-            title="Glissez et déposez sur une pièce du plan"
-          >
-            <div class="entity-info">
-              <span class="entity-icon">${item.icon}</span>
-              <div class="entity-details">
-                <span class="entity-name">${item.name}</span>
-                <span class="entity-id">${item.entity_id}</span>
-              </div>
-            </div>
-
-            <span class="entity-state-badge ${item.state === 'on' ? 'state-on' : 'state-off'}">
-              ${item.state}${item.unit ? ' ' + item.unit : ''}
-            </span>
+      ${this.activeTab === 'entities' ? html`
+        <div class="search-section">
+          <div class="search-input-wrapper">
+            <input 
+              type="text" 
+              class="search-input" 
+              placeholder="Rechercher une entité..."
+              .value=${this.searchQuery}
+              @input=${(e: any) => this.searchQuery = e.target.value}
+            />
           </div>
-        `)}
-      </div>
 
-      <div class="drag-hint">
-        <span>👆</span>
-        <span>Glissez une entité sur une pièce du plan</span>
-      </div>
+          <div class="categories-bar">
+            <button class="cat-btn ${this.activeCategory === 'all' ? 'active' : ''}" @click=${() => this.activeCategory = 'all'}>Tous</button>
+            <button class="cat-btn ${this.activeCategory === 'light' ? 'active' : ''}" @click=${() => this.activeCategory = 'light'}>Lumières</button>
+            <button class="cat-btn ${this.activeCategory === 'binary_sensor' ? 'active' : ''}" @click=${() => this.activeCategory = 'binary_sensor'}>Capteurs</button>
+            <button class="cat-btn ${this.activeCategory === 'climate' ? 'active' : ''}" @click=${() => this.activeCategory = 'climate'}>Climat</button>
+            <button class="cat-btn ${this.activeCategory === 'switch' ? 'active' : ''}" @click=${() => this.activeCategory = 'switch'}>Prises</button>
+            <button class="cat-btn ${this.activeCategory === 'camera' ? 'active' : ''}" @click=${() => this.activeCategory = 'camera'}>Caméras</button>
+          </div>
+        </div>
+
+        <div class="entities-list">
+          ${entities.length === 0 ? html`
+            <div class="empty-message">Aucune entité trouvée</div>
+          ` : entities.map(item => html`
+            <div 
+              class="entity-card" 
+              draggable="true"
+              @dragstart=${(e: DragEvent) => this.handleDragStart(e, item)}
+              title="Glissez et déposez sur une pièce du plan"
+            >
+              <div class="entity-info">
+                <span class="entity-icon">${item.icon}</span>
+                <div class="entity-details">
+                  <span class="entity-name">${item.name}</span>
+                  <span class="entity-id">${item.entity_id}</span>
+                </div>
+              </div>
+
+              <span class="entity-state-badge ${item.state === 'on' ? 'state-on' : 'state-off'}">
+                ${item.state}${item.unit ? ' ' + item.unit : ''}
+              </span>
+            </div>
+          `)}
+        </div>
+
+        <div class="drag-hint">
+          <span>👆</span>
+          <span>Glissez une entité sur une pièce du plan</span>
+        </div>
+      ` : html`
+        <div class="search-section">
+          <div class="search-input-wrapper">
+            <input 
+              type="text" 
+              class="search-input" 
+              placeholder="Rechercher un meuble..."
+              .value=${this.searchQuery}
+              @input=${(e: any) => this.searchQuery = e.target.value}
+            />
+          </div>
+
+          <div class="categories-bar">
+            <button class="cat-btn ${this.furnitureCategory === 'all' ? 'active' : ''}" @click=${() => this.furnitureCategory = 'all'}>Tous</button>
+            <button class="cat-btn ${this.furnitureCategory === 'seating' ? 'active' : ''}" @click=${() => this.furnitureCategory = 'seating'}>Salon</button>
+            <button class="cat-btn ${this.furnitureCategory === 'bed' ? 'active' : ''}" @click=${() => this.furnitureCategory = 'bed'}>Chambre</button>
+            <button class="cat-btn ${this.furnitureCategory === 'table' ? 'active' : ''}" @click=${() => this.furnitureCategory = 'table'}>Tables</button>
+            <button class="cat-btn ${this.furnitureCategory === 'bathroom' ? 'active' : ''}" @click=${() => this.furnitureCategory = 'bathroom'}>Bains</button>
+            <button class="cat-btn ${this.furnitureCategory === 'kitchen' ? 'active' : ''}" @click=${() => this.furnitureCategory = 'kitchen'}>Cuisine</button>
+          </div>
+        </div>
+
+        <div class="furniture-grid">
+          ${furniture.length === 0 ? html`
+            <div class="empty-message" style="grid-column: 1 / -1;">Aucun meuble trouvé</div>
+          ` : furniture.map(item => html`
+            <div 
+              class="furniture-card" 
+              draggable="true"
+              @dragstart=${(e: DragEvent) => this.handleFurnitureDragStart(e, item)}
+              title="Glissez et déposez sur le plan (${item.width.toFixed(2)} × ${item.length.toFixed(2)} m)"
+            >
+              <span class="furniture-card-icon">${item.icon}</span>
+              <span class="furniture-card-name">${item.name}</span>
+              <span class="furniture-card-dim">${item.width.toFixed(2)} × ${item.length.toFixed(2)} m</span>
+            </div>
+          `)}
+        </div>
+
+        <div class="drag-hint">
+          <span>👆</span>
+          <span>Glissez un meuble sur le plan (R pour pivoter)</span>
+        </div>
+      `}
     `;
   }
 }

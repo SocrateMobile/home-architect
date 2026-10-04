@@ -3,18 +3,18 @@
  * Copyright 2019 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
  */
-const Et = globalThis, qt = Et.ShadowRoot && (Et.ShadyCSS === void 0 || Et.ShadyCSS.nativeShadow) && "adoptedStyleSheets" in Document.prototype && "replace" in CSSStyleSheet.prototype, Vt = Symbol(), Xt = /* @__PURE__ */ new WeakMap();
-let ce = class {
-  constructor(t, s, i) {
-    if (this._$cssResult$ = !0, i !== Vt) throw Error("CSSResult is not constructable. Use `unsafeCSS` or `css` instead.");
-    this.cssText = t, this.t = s;
+const zt = globalThis, Gt = zt.ShadowRoot && (zt.ShadyCSS === void 0 || zt.ShadyCSS.nativeShadow) && "adoptedStyleSheets" in Document.prototype && "replace" in CSSStyleSheet.prototype, Yt = Symbol(), Jt = /* @__PURE__ */ new WeakMap();
+let he = class {
+  constructor(t, i, s) {
+    if (this._$cssResult$ = !0, s !== Yt) throw Error("CSSResult is not constructable. Use `unsafeCSS` or `css` instead.");
+    this.cssText = t, this.t = i;
   }
   get styleSheet() {
     let t = this.o;
-    const s = this.t;
-    if (qt && t === void 0) {
-      const i = s !== void 0 && s.length === 1;
-      i && (t = Xt.get(s)), t === void 0 && ((this.o = t = new CSSStyleSheet()).replaceSync(this.cssText), i && Xt.set(s, t));
+    const i = this.t;
+    if (Gt && t === void 0) {
+      const s = i !== void 0 && i.length === 1;
+      s && (t = Jt.get(i)), t === void 0 && ((this.o = t = new CSSStyleSheet()).replaceSync(this.cssText), s && Jt.set(i, t));
     }
     return t;
   }
@@ -22,33 +22,33 @@ let ce = class {
     return this.cssText;
   }
 };
-const fe = (e) => new ce(typeof e == "string" ? e : e + "", void 0, Vt), K = (e, ...t) => {
-  const s = e.length === 1 ? e[0] : t.reduce((i, o, r) => i + ((n) => {
+const xe = (e) => new he(typeof e == "string" ? e : e + "", void 0, Yt), J = (e, ...t) => {
+  const i = e.length === 1 ? e[0] : t.reduce((s, o, r) => s + ((n) => {
     if (n._$cssResult$ === !0) return n.cssText;
     if (typeof n == "number") return n;
     throw Error("Value passed to 'css' function must be a 'css' function result: " + n + ". Use 'unsafeCSS' to pass non-literal values, but take care to ensure page security.");
   })(o) + e[r + 1], e[0]);
-  return new ce(s, e, Vt);
-}, be = (e, t) => {
-  if (qt) e.adoptedStyleSheets = t.map((s) => s instanceof CSSStyleSheet ? s : s.styleSheet);
-  else for (const s of t) {
-    const i = document.createElement("style"), o = Et.litNonce;
-    o !== void 0 && i.setAttribute("nonce", o), i.textContent = s.cssText, e.appendChild(i);
+  return new he(i, e, Yt);
+}, ye = (e, t) => {
+  if (Gt) e.adoptedStyleSheets = t.map((i) => i instanceof CSSStyleSheet ? i : i.styleSheet);
+  else for (const i of t) {
+    const s = document.createElement("style"), o = zt.litNonce;
+    o !== void 0 && s.setAttribute("nonce", o), s.textContent = i.cssText, e.appendChild(s);
   }
-}, Kt = qt ? (e) => e : (e) => e instanceof CSSStyleSheet ? ((t) => {
-  let s = "";
-  for (const i of t.cssRules) s += i.cssText;
-  return fe(s);
+}, Zt = Gt ? (e) => e : (e) => e instanceof CSSStyleSheet ? ((t) => {
+  let i = "";
+  for (const s of t.cssRules) i += s.cssText;
+  return xe(i);
 })(e) : e;
 /**
  * @license
  * Copyright 2017 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
  */
-const { is: me, defineProperty: xe, getOwnPropertyDescriptor: ve, getOwnPropertyNames: ye, getOwnPropertySymbols: we, getPrototypeOf: $e } = Object, ot = globalThis, Jt = ot.trustedTypes, ke = Jt ? Jt.emptyScript : "", Nt = ot.reactiveElementPolyfillSupport, wt = (e, t) => e, jt = { toAttribute(e, t) {
+const { is: ve, defineProperty: we, getOwnPropertyDescriptor: $e, getOwnPropertyNames: ke, getOwnPropertySymbols: Se, getPrototypeOf: Me } = Object, lt = globalThis, Qt = lt.trustedTypes, Ce = Qt ? Qt.emptyScript : "", Ht = lt.reactiveElementPolyfillSupport, Mt = (e, t) => e, Ft = { toAttribute(e, t) {
   switch (t) {
     case Boolean:
-      e = e ? ke : null;
+      e = e ? Ce : null;
       break;
     case Object:
     case Array:
@@ -56,166 +56,166 @@ const { is: me, defineProperty: xe, getOwnPropertyDescriptor: ve, getOwnProperty
   }
   return e;
 }, fromAttribute(e, t) {
-  let s = e;
+  let i = e;
   switch (t) {
     case Boolean:
-      s = e !== null;
+      i = e !== null;
       break;
     case Number:
-      s = e === null ? null : Number(e);
+      i = e === null ? null : Number(e);
       break;
     case Object:
     case Array:
       try {
-        s = JSON.parse(e);
+        i = JSON.parse(e);
       } catch {
-        s = null;
+        i = null;
       }
   }
-  return s;
-} }, Yt = (e, t) => !me(e, t), Zt = { attribute: !0, type: String, converter: jt, reflect: !1, useDefault: !1, hasChanged: Yt };
-Symbol.metadata ?? (Symbol.metadata = Symbol("metadata")), ot.litPropertyMetadata ?? (ot.litPropertyMetadata = /* @__PURE__ */ new WeakMap());
-let ft = class extends HTMLElement {
+  return i;
+} }, Vt = (e, t) => !ve(e, t), te = { attribute: !0, type: String, converter: Ft, reflect: !1, useDefault: !1, hasChanged: Vt };
+Symbol.metadata ?? (Symbol.metadata = Symbol("metadata")), lt.litPropertyMetadata ?? (lt.litPropertyMetadata = /* @__PURE__ */ new WeakMap());
+let yt = class extends HTMLElement {
   static addInitializer(t) {
     this._$Ei(), (this.l ?? (this.l = [])).push(t);
   }
   static get observedAttributes() {
     return this.finalize(), this._$Eh && [...this._$Eh.keys()];
   }
-  static createProperty(t, s = Zt) {
-    if (s.state && (s.attribute = !1), this._$Ei(), this.prototype.hasOwnProperty(t) && ((s = Object.create(s)).wrapped = !0), this.elementProperties.set(t, s), !s.noAccessor) {
-      const i = Symbol(), o = this.getPropertyDescriptor(t, i, s);
-      o !== void 0 && xe(this.prototype, t, o);
+  static createProperty(t, i = te) {
+    if (i.state && (i.attribute = !1), this._$Ei(), this.prototype.hasOwnProperty(t) && ((i = Object.create(i)).wrapped = !0), this.elementProperties.set(t, i), !i.noAccessor) {
+      const s = Symbol(), o = this.getPropertyDescriptor(t, s, i);
+      o !== void 0 && we(this.prototype, t, o);
     }
   }
-  static getPropertyDescriptor(t, s, i) {
-    const { get: o, set: r } = ve(this.prototype, t) ?? { get() {
-      return this[s];
+  static getPropertyDescriptor(t, i, s) {
+    const { get: o, set: r } = $e(this.prototype, t) ?? { get() {
+      return this[i];
     }, set(n) {
-      this[s] = n;
+      this[i] = n;
     } };
     return { get: o, set(n) {
       const a = o == null ? void 0 : o.call(this);
-      r == null || r.call(this, n), this.requestUpdate(t, a, i);
+      r == null || r.call(this, n), this.requestUpdate(t, a, s);
     }, configurable: !0, enumerable: !0 };
   }
   static getPropertyOptions(t) {
-    return this.elementProperties.get(t) ?? Zt;
+    return this.elementProperties.get(t) ?? te;
   }
   static _$Ei() {
-    if (this.hasOwnProperty(wt("elementProperties"))) return;
-    const t = $e(this);
+    if (this.hasOwnProperty(Mt("elementProperties"))) return;
+    const t = Me(this);
     t.finalize(), t.l !== void 0 && (this.l = [...t.l]), this.elementProperties = new Map(t.elementProperties);
   }
   static finalize() {
-    if (this.hasOwnProperty(wt("finalized"))) return;
-    if (this.finalized = !0, this._$Ei(), this.hasOwnProperty(wt("properties"))) {
-      const s = this.properties, i = [...ye(s), ...we(s)];
-      for (const o of i) this.createProperty(o, s[o]);
+    if (this.hasOwnProperty(Mt("finalized"))) return;
+    if (this.finalized = !0, this._$Ei(), this.hasOwnProperty(Mt("properties"))) {
+      const i = this.properties, s = [...ke(i), ...Se(i)];
+      for (const o of s) this.createProperty(o, i[o]);
     }
     const t = this[Symbol.metadata];
     if (t !== null) {
-      const s = litPropertyMetadata.get(t);
-      if (s !== void 0) for (const [i, o] of s) this.elementProperties.set(i, o);
+      const i = litPropertyMetadata.get(t);
+      if (i !== void 0) for (const [s, o] of i) this.elementProperties.set(s, o);
     }
     this._$Eh = /* @__PURE__ */ new Map();
-    for (const [s, i] of this.elementProperties) {
-      const o = this._$Eu(s, i);
-      o !== void 0 && this._$Eh.set(o, s);
+    for (const [i, s] of this.elementProperties) {
+      const o = this._$Eu(i, s);
+      o !== void 0 && this._$Eh.set(o, i);
     }
     this.elementStyles = this.finalizeStyles(this.styles);
   }
   static finalizeStyles(t) {
-    const s = [];
+    const i = [];
     if (Array.isArray(t)) {
-      const i = new Set(t.flat(1 / 0).reverse());
-      for (const o of i) s.unshift(Kt(o));
-    } else t !== void 0 && s.push(Kt(t));
-    return s;
+      const s = new Set(t.flat(1 / 0).reverse());
+      for (const o of s) i.unshift(Zt(o));
+    } else t !== void 0 && i.push(Zt(t));
+    return i;
   }
-  static _$Eu(t, s) {
-    const i = s.attribute;
-    return i === !1 ? void 0 : typeof i == "string" ? i : typeof t == "string" ? t.toLowerCase() : void 0;
+  static _$Eu(t, i) {
+    const s = i.attribute;
+    return s === !1 ? void 0 : typeof s == "string" ? s : typeof t == "string" ? t.toLowerCase() : void 0;
   }
   constructor() {
     super(), this._$Ep = void 0, this.isUpdatePending = !1, this.hasUpdated = !1, this._$Em = null, this._$Ev();
   }
   _$Ev() {
     var t;
-    this._$ES = new Promise((s) => this.enableUpdating = s), this._$AL = /* @__PURE__ */ new Map(), this._$E_(), this.requestUpdate(), (t = this.constructor.l) == null || t.forEach((s) => s(this));
+    this._$ES = new Promise((i) => this.enableUpdating = i), this._$AL = /* @__PURE__ */ new Map(), this._$E_(), this.requestUpdate(), (t = this.constructor.l) == null || t.forEach((i) => i(this));
   }
   addController(t) {
-    var s;
-    (this._$EO ?? (this._$EO = /* @__PURE__ */ new Set())).add(t), this.renderRoot !== void 0 && this.isConnected && ((s = t.hostConnected) == null || s.call(t));
+    var i;
+    (this._$EO ?? (this._$EO = /* @__PURE__ */ new Set())).add(t), this.renderRoot !== void 0 && this.isConnected && ((i = t.hostConnected) == null || i.call(t));
   }
   removeController(t) {
-    var s;
-    (s = this._$EO) == null || s.delete(t);
+    var i;
+    (i = this._$EO) == null || i.delete(t);
   }
   _$E_() {
-    const t = /* @__PURE__ */ new Map(), s = this.constructor.elementProperties;
-    for (const i of s.keys()) this.hasOwnProperty(i) && (t.set(i, this[i]), delete this[i]);
+    const t = /* @__PURE__ */ new Map(), i = this.constructor.elementProperties;
+    for (const s of i.keys()) this.hasOwnProperty(s) && (t.set(s, this[s]), delete this[s]);
     t.size > 0 && (this._$Ep = t);
   }
   createRenderRoot() {
     const t = this.shadowRoot ?? this.attachShadow(this.constructor.shadowRootOptions);
-    return be(t, this.constructor.elementStyles), t;
+    return ye(t, this.constructor.elementStyles), t;
   }
   connectedCallback() {
     var t;
-    this.renderRoot ?? (this.renderRoot = this.createRenderRoot()), this.enableUpdating(!0), (t = this._$EO) == null || t.forEach((s) => {
-      var i;
-      return (i = s.hostConnected) == null ? void 0 : i.call(s);
+    this.renderRoot ?? (this.renderRoot = this.createRenderRoot()), this.enableUpdating(!0), (t = this._$EO) == null || t.forEach((i) => {
+      var s;
+      return (s = i.hostConnected) == null ? void 0 : s.call(i);
     });
   }
   enableUpdating(t) {
   }
   disconnectedCallback() {
     var t;
-    (t = this._$EO) == null || t.forEach((s) => {
-      var i;
-      return (i = s.hostDisconnected) == null ? void 0 : i.call(s);
+    (t = this._$EO) == null || t.forEach((i) => {
+      var s;
+      return (s = i.hostDisconnected) == null ? void 0 : s.call(i);
     });
   }
-  attributeChangedCallback(t, s, i) {
-    this._$AK(t, i);
+  attributeChangedCallback(t, i, s) {
+    this._$AK(t, s);
   }
-  _$ET(t, s) {
+  _$ET(t, i) {
     var r;
-    const i = this.constructor.elementProperties.get(t), o = this.constructor._$Eu(t, i);
-    if (o !== void 0 && i.reflect === !0) {
-      const n = (((r = i.converter) == null ? void 0 : r.toAttribute) !== void 0 ? i.converter : jt).toAttribute(s, i.type);
+    const s = this.constructor.elementProperties.get(t), o = this.constructor._$Eu(t, s);
+    if (o !== void 0 && s.reflect === !0) {
+      const n = (((r = s.converter) == null ? void 0 : r.toAttribute) !== void 0 ? s.converter : Ft).toAttribute(i, s.type);
       this._$Em = t, n == null ? this.removeAttribute(o) : this.setAttribute(o, n), this._$Em = null;
     }
   }
-  _$AK(t, s) {
+  _$AK(t, i) {
     var r, n;
-    const i = this.constructor, o = i._$Eh.get(t);
+    const s = this.constructor, o = s._$Eh.get(t);
     if (o !== void 0 && this._$Em !== o) {
-      const a = i.getPropertyOptions(o), l = typeof a.converter == "function" ? { fromAttribute: a.converter } : ((r = a.converter) == null ? void 0 : r.fromAttribute) !== void 0 ? a.converter : jt;
+      const a = s.getPropertyOptions(o), l = typeof a.converter == "function" ? { fromAttribute: a.converter } : ((r = a.converter) == null ? void 0 : r.fromAttribute) !== void 0 ? a.converter : Ft;
       this._$Em = o;
-      const h = l.fromAttribute(s, a.type);
-      this[o] = h ?? ((n = this._$Ej) == null ? void 0 : n.get(o)) ?? h, this._$Em = null;
+      const u = l.fromAttribute(i, a.type);
+      this[o] = u ?? ((n = this._$Ej) == null ? void 0 : n.get(o)) ?? u, this._$Em = null;
     }
   }
-  requestUpdate(t, s, i, o = !1, r) {
+  requestUpdate(t, i, s, o = !1, r) {
     var n;
     if (t !== void 0) {
       const a = this.constructor;
-      if (o === !1 && (r = this[t]), i ?? (i = a.getPropertyOptions(t)), !((i.hasChanged ?? Yt)(r, s) || i.useDefault && i.reflect && r === ((n = this._$Ej) == null ? void 0 : n.get(t)) && !this.hasAttribute(a._$Eu(t, i)))) return;
-      this.C(t, s, i);
+      if (o === !1 && (r = this[t]), s ?? (s = a.getPropertyOptions(t)), !((s.hasChanged ?? Vt)(r, i) || s.useDefault && s.reflect && r === ((n = this._$Ej) == null ? void 0 : n.get(t)) && !this.hasAttribute(a._$Eu(t, s)))) return;
+      this.C(t, i, s);
     }
     this.isUpdatePending === !1 && (this._$ES = this._$EP());
   }
-  C(t, s, { useDefault: i, reflect: o, wrapped: r }, n) {
-    i && !(this._$Ej ?? (this._$Ej = /* @__PURE__ */ new Map())).has(t) && (this._$Ej.set(t, n ?? s ?? this[t]), r !== !0 || n !== void 0) || (this._$AL.has(t) || (this.hasUpdated || i || (s = void 0), this._$AL.set(t, s)), o === !0 && this._$Em !== t && (this._$Eq ?? (this._$Eq = /* @__PURE__ */ new Set())).add(t));
+  C(t, i, { useDefault: s, reflect: o, wrapped: r }, n) {
+    s && !(this._$Ej ?? (this._$Ej = /* @__PURE__ */ new Map())).has(t) && (this._$Ej.set(t, n ?? i ?? this[t]), r !== !0 || n !== void 0) || (this._$AL.has(t) || (this.hasUpdated || s || (i = void 0), this._$AL.set(t, i)), o === !0 && this._$Em !== t && (this._$Eq ?? (this._$Eq = /* @__PURE__ */ new Set())).add(t));
   }
   async _$EP() {
     this.isUpdatePending = !0;
     try {
       await this._$ES;
-    } catch (s) {
-      Promise.reject(s);
+    } catch (i) {
+      Promise.reject(i);
     }
     const t = this.scheduleUpdate();
     return t != null && await t, !this.isUpdatePending;
@@ -224,7 +224,7 @@ let ft = class extends HTMLElement {
     return this.performUpdate();
   }
   performUpdate() {
-    var i;
+    var s;
     if (!this.isUpdatePending) return;
     if (!this.hasUpdated) {
       if (this.renderRoot ?? (this.renderRoot = this.createRenderRoot()), this._$Ep) {
@@ -238,24 +238,24 @@ let ft = class extends HTMLElement {
       }
     }
     let t = !1;
-    const s = this._$AL;
+    const i = this._$AL;
     try {
-      t = this.shouldUpdate(s), t ? (this.willUpdate(s), (i = this._$EO) == null || i.forEach((o) => {
+      t = this.shouldUpdate(i), t ? (this.willUpdate(i), (s = this._$EO) == null || s.forEach((o) => {
         var r;
         return (r = o.hostUpdate) == null ? void 0 : r.call(o);
-      }), this.update(s)) : this._$EM();
+      }), this.update(i)) : this._$EM();
     } catch (o) {
       throw t = !1, this._$EM(), o;
     }
-    t && this._$AE(s);
+    t && this._$AE(i);
   }
   willUpdate(t) {
   }
   _$AE(t) {
-    var s;
-    (s = this._$EO) == null || s.forEach((i) => {
+    var i;
+    (i = this._$EO) == null || i.forEach((s) => {
       var o;
-      return (o = i.hostUpdated) == null ? void 0 : o.call(i);
+      return (o = s.hostUpdated) == null ? void 0 : o.call(s);
     }), this.hasUpdated || (this.hasUpdated = !0, this.firstUpdated(t)), this.updated(t);
   }
   _$EM() {
@@ -271,85 +271,85 @@ let ft = class extends HTMLElement {
     return !0;
   }
   update(t) {
-    this._$Eq && (this._$Eq = this._$Eq.forEach((s) => this._$ET(s, this[s]))), this._$EM();
+    this._$Eq && (this._$Eq = this._$Eq.forEach((i) => this._$ET(i, this[i]))), this._$EM();
   }
   updated(t) {
   }
   firstUpdated(t) {
   }
 };
-ft.elementStyles = [], ft.shadowRootOptions = { mode: "open" }, ft[wt("elementProperties")] = /* @__PURE__ */ new Map(), ft[wt("finalized")] = /* @__PURE__ */ new Map(), Nt == null || Nt({ ReactiveElement: ft }), (ot.reactiveElementVersions ?? (ot.reactiveElementVersions = [])).push("2.1.2");
+yt.elementStyles = [], yt.shadowRootOptions = { mode: "open" }, yt[Mt("elementProperties")] = /* @__PURE__ */ new Map(), yt[Mt("finalized")] = /* @__PURE__ */ new Map(), Ht == null || Ht({ ReactiveElement: yt }), (lt.reactiveElementVersions ?? (lt.reactiveElementVersions = [])).push("2.1.2");
 /**
  * @license
  * Copyright 2017 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
  */
-const $t = globalThis, Qt = (e) => e, zt = $t.trustedTypes, te = zt ? zt.createPolicy("lit-html", { createHTML: (e) => e }) : void 0, de = "$lit$", it = `lit$${Math.random().toFixed(9).slice(2)}$`, pe = "?" + it, Se = `<${pe}>`, ct = document, St = () => ct.createComment(""), Mt = (e) => e === null || typeof e != "object" && typeof e != "function", Gt = Array.isArray, Me = (e) => Gt(e) || typeof (e == null ? void 0 : e[Symbol.iterator]) == "function", Ut = `[ 	
-\f\r]`, yt = /<(?:(!--|\/[^a-zA-Z])|(\/?[a-zA-Z][^>\s]*)|(\/?$))/g, ee = /-->/g, se = />/g, nt = RegExp(`>|${Ut}(?:([^\\s"'>=/]+)(${Ut}*=${Ut}*(?:[^ 	
-\f\r"'\`<>=]|("|')|))|$)`, "g"), ie = /'/g, oe = /"/g, he = /^(?:script|style|textarea|title)$/i, ue = (e) => (t, ...s) => ({ _$litType$: e, strings: t, values: s }), v = ue(1), O = ue(2), bt = Symbol.for("lit-noChange"), L = Symbol.for("lit-nothing"), re = /* @__PURE__ */ new WeakMap(), at = ct.createTreeWalker(ct, 129);
-function ge(e, t) {
-  if (!Gt(e) || !e.hasOwnProperty("raw")) throw Error("invalid template strings array");
-  return te !== void 0 ? te.createHTML(t) : t;
+const Ct = globalThis, ee = (e) => e, At = Ct.trustedTypes, ie = At ? At.createPolicy("lit-html", { createHTML: (e) => e }) : void 0, ue = "$lit$", at = `lit$${Math.random().toFixed(9).slice(2)}$`, ge = "?" + at, Ie = `<${ge}>`, gt = document, Pt = () => gt.createComment(""), Tt = (e) => e === null || typeof e != "object" && typeof e != "function", Xt = Array.isArray, Pe = (e) => Xt(e) || typeof (e == null ? void 0 : e[Symbol.iterator]) == "function", Nt = `[ 	
+\f\r]`, St = /<(?:(!--|\/[^a-zA-Z])|(\/?[a-zA-Z][^>\s]*)|(\/?$))/g, se = /-->/g, oe = />/g, pt = RegExp(`>|${Nt}(?:([^\\s"'>=/]+)(${Nt}*=${Nt}*(?:[^ 	
+\f\r"'\`<>=]|("|')|))|$)`, "g"), re = /'/g, ne = /"/g, fe = /^(?:script|style|textarea|title)$/i, be = (e) => (t, ...i) => ({ _$litType$: e, strings: t, values: i }), w = be(1), C = be(2), vt = Symbol.for("lit-noChange"), H = Symbol.for("lit-nothing"), ae = /* @__PURE__ */ new WeakMap(), ht = gt.createTreeWalker(gt, 129);
+function me(e, t) {
+  if (!Xt(e) || !e.hasOwnProperty("raw")) throw Error("invalid template strings array");
+  return ie !== void 0 ? ie.createHTML(t) : t;
 }
-const Ce = (e, t) => {
-  const s = e.length - 1, i = [];
-  let o, r = t === 2 ? "<svg>" : t === 3 ? "<math>" : "", n = yt;
-  for (let a = 0; a < s; a++) {
+const Te = (e, t) => {
+  const i = e.length - 1, s = [];
+  let o, r = t === 2 ? "<svg>" : t === 3 ? "<math>" : "", n = St;
+  for (let a = 0; a < i; a++) {
     const l = e[a];
-    let h, c, u = -1, p = 0;
-    for (; p < l.length && (n.lastIndex = p, c = n.exec(l), c !== null); ) p = n.lastIndex, n === yt ? c[1] === "!--" ? n = ee : c[1] !== void 0 ? n = se : c[2] !== void 0 ? (he.test(c[2]) && (o = RegExp("</" + c[2], "g")), n = nt) : c[3] !== void 0 && (n = nt) : n === nt ? c[0] === ">" ? (n = o ?? yt, u = -1) : c[1] === void 0 ? u = -2 : (u = n.lastIndex - c[2].length, h = c[1], n = c[3] === void 0 ? nt : c[3] === '"' ? oe : ie) : n === oe || n === ie ? n = nt : n === ee || n === se ? n = yt : (n = nt, o = void 0);
-    const g = n === nt && e[a + 1].startsWith("/>") ? " " : "";
-    r += n === yt ? l + Se : u >= 0 ? (i.push(h), l.slice(0, u) + de + l.slice(u) + it + g) : l + it + (u === -2 ? a : g);
+    let u, d, c = -1, p = 0;
+    for (; p < l.length && (n.lastIndex = p, d = n.exec(l), d !== null); ) p = n.lastIndex, n === St ? d[1] === "!--" ? n = se : d[1] !== void 0 ? n = oe : d[2] !== void 0 ? (fe.test(d[2]) && (o = RegExp("</" + d[2], "g")), n = pt) : d[3] !== void 0 && (n = pt) : n === pt ? d[0] === ">" ? (n = o ?? St, c = -1) : d[1] === void 0 ? c = -2 : (c = n.lastIndex - d[2].length, u = d[1], n = d[3] === void 0 ? pt : d[3] === '"' ? ne : re) : n === ne || n === re ? n = pt : n === se || n === oe ? n = St : (n = pt, o = void 0);
+    const g = n === pt && e[a + 1].startsWith("/>") ? " " : "";
+    r += n === St ? l + Ie : c >= 0 ? (s.push(u), l.slice(0, c) + ue + l.slice(c) + at + g) : l + at + (c === -2 ? a : g);
   }
-  return [ge(e, r + (e[s] || "<?>") + (t === 2 ? "</svg>" : t === 3 ? "</math>" : "")), i];
+  return [me(e, r + (e[i] || "<?>") + (t === 2 ? "</svg>" : t === 3 ? "</math>" : "")), s];
 };
-class Ct {
-  constructor({ strings: t, _$litType$: s }, i) {
+class _t {
+  constructor({ strings: t, _$litType$: i }, s) {
     let o;
     this.parts = [];
     let r = 0, n = 0;
-    const a = t.length - 1, l = this.parts, [h, c] = Ce(t, s);
-    if (this.el = Ct.createElement(h, i), at.currentNode = this.el.content, s === 2 || s === 3) {
-      const u = this.el.content.firstChild;
-      u.replaceWith(...u.childNodes);
+    const a = t.length - 1, l = this.parts, [u, d] = Te(t, i);
+    if (this.el = _t.createElement(u, s), ht.currentNode = this.el.content, i === 2 || i === 3) {
+      const c = this.el.content.firstChild;
+      c.replaceWith(...c.childNodes);
     }
-    for (; (o = at.nextNode()) !== null && l.length < a; ) {
+    for (; (o = ht.nextNode()) !== null && l.length < a; ) {
       if (o.nodeType === 1) {
-        if (o.hasAttributes()) for (const u of o.getAttributeNames()) if (u.endsWith(de)) {
-          const p = c[n++], g = o.getAttribute(u).split(it), d = /([.?@])?(.*)/.exec(p);
-          l.push({ type: 1, index: r, name: d[2], strings: g, ctor: d[1] === "." ? Pe : d[1] === "?" ? De : d[1] === "@" ? Te : At }), o.removeAttribute(u);
-        } else u.startsWith(it) && (l.push({ type: 6, index: r }), o.removeAttribute(u));
-        if (he.test(o.tagName)) {
-          const u = o.textContent.split(it), p = u.length - 1;
+        if (o.hasAttributes()) for (const c of o.getAttributeNames()) if (c.endsWith(ue)) {
+          const p = d[n++], g = o.getAttribute(c).split(at), h = /([.?@])?(.*)/.exec(p);
+          l.push({ type: 1, index: r, name: h[2], strings: g, ctor: h[1] === "." ? De : h[1] === "?" ? Ee : h[1] === "@" ? je : Ot }), o.removeAttribute(c);
+        } else c.startsWith(at) && (l.push({ type: 6, index: r }), o.removeAttribute(c));
+        if (fe.test(o.tagName)) {
+          const c = o.textContent.split(at), p = c.length - 1;
           if (p > 0) {
-            o.textContent = zt ? zt.emptyScript : "";
-            for (let g = 0; g < p; g++) o.append(u[g], St()), at.nextNode(), l.push({ type: 2, index: ++r });
-            o.append(u[p], St());
+            o.textContent = At ? At.emptyScript : "";
+            for (let g = 0; g < p; g++) o.append(c[g], Pt()), ht.nextNode(), l.push({ type: 2, index: ++r });
+            o.append(c[p], Pt());
           }
         }
-      } else if (o.nodeType === 8) if (o.data === pe) l.push({ type: 2, index: r });
+      } else if (o.nodeType === 8) if (o.data === ge) l.push({ type: 2, index: r });
       else {
-        let u = -1;
-        for (; (u = o.data.indexOf(it, u + 1)) !== -1; ) l.push({ type: 7, index: r }), u += it.length - 1;
+        let c = -1;
+        for (; (c = o.data.indexOf(at, c + 1)) !== -1; ) l.push({ type: 7, index: r }), c += at.length - 1;
       }
       r++;
     }
   }
-  static createElement(t, s) {
-    const i = ct.createElement("template");
-    return i.innerHTML = t, i;
+  static createElement(t, i) {
+    const s = gt.createElement("template");
+    return s.innerHTML = t, s;
   }
 }
-function mt(e, t, s = e, i) {
+function wt(e, t, i = e, s) {
   var n, a;
-  if (t === bt) return t;
-  let o = i !== void 0 ? (n = s._$Co) == null ? void 0 : n[i] : s._$Cl;
-  const r = Mt(t) ? void 0 : t._$litDirective$;
-  return (o == null ? void 0 : o.constructor) !== r && ((a = o == null ? void 0 : o._$AO) == null || a.call(o, !1), r === void 0 ? o = void 0 : (o = new r(e), o._$AT(e, s, i)), i !== void 0 ? (s._$Co ?? (s._$Co = []))[i] = o : s._$Cl = o), o !== void 0 && (t = mt(e, o._$AS(e, t.values), o, i)), t;
+  if (t === vt) return t;
+  let o = s !== void 0 ? (n = i._$Co) == null ? void 0 : n[s] : i._$Cl;
+  const r = Tt(t) ? void 0 : t._$litDirective$;
+  return (o == null ? void 0 : o.constructor) !== r && ((a = o == null ? void 0 : o._$AO) == null || a.call(o, !1), r === void 0 ? o = void 0 : (o = new r(e), o._$AT(e, i, s)), s !== void 0 ? (i._$Co ?? (i._$Co = []))[s] = o : i._$Cl = o), o !== void 0 && (t = wt(e, o._$AS(e, t.values), o, s)), t;
 }
 class _e {
-  constructor(t, s) {
-    this._$AV = [], this._$AN = void 0, this._$AD = t, this._$AM = s;
+  constructor(t, i) {
+    this._$AV = [], this._$AN = void 0, this._$AD = t, this._$AM = i;
   }
   get parentNode() {
     return this._$AM.parentNode;
@@ -358,35 +358,35 @@ class _e {
     return this._$AM._$AU;
   }
   u(t) {
-    const { el: { content: s }, parts: i } = this._$AD, o = ((t == null ? void 0 : t.creationScope) ?? ct).importNode(s, !0);
-    at.currentNode = o;
-    let r = at.nextNode(), n = 0, a = 0, l = i[0];
+    const { el: { content: i }, parts: s } = this._$AD, o = ((t == null ? void 0 : t.creationScope) ?? gt).importNode(i, !0);
+    ht.currentNode = o;
+    let r = ht.nextNode(), n = 0, a = 0, l = s[0];
     for (; l !== void 0; ) {
       if (n === l.index) {
-        let h;
-        l.type === 2 ? h = new _t(r, r.nextSibling, this, t) : l.type === 1 ? h = new l.ctor(r, l.name, l.strings, this, t) : l.type === 6 && (h = new Ie(r, this, t)), this._$AV.push(h), l = i[++a];
+        let u;
+        l.type === 2 ? u = new Dt(r, r.nextSibling, this, t) : l.type === 1 ? u = new l.ctor(r, l.name, l.strings, this, t) : l.type === 6 && (u = new ze(r, this, t)), this._$AV.push(u), l = s[++a];
       }
-      n !== (l == null ? void 0 : l.index) && (r = at.nextNode(), n++);
+      n !== (l == null ? void 0 : l.index) && (r = ht.nextNode(), n++);
     }
-    return at.currentNode = ct, o;
+    return ht.currentNode = gt, o;
   }
   p(t) {
-    let s = 0;
-    for (const i of this._$AV) i !== void 0 && (i.strings !== void 0 ? (i._$AI(t, i, s), s += i.strings.length - 2) : i._$AI(t[s])), s++;
+    let i = 0;
+    for (const s of this._$AV) s !== void 0 && (s.strings !== void 0 ? (s._$AI(t, s, i), i += s.strings.length - 2) : s._$AI(t[i])), i++;
   }
 }
-class _t {
+class Dt {
   get _$AU() {
     var t;
     return ((t = this._$AM) == null ? void 0 : t._$AU) ?? this._$Cv;
   }
-  constructor(t, s, i, o) {
-    this.type = 2, this._$AH = L, this._$AN = void 0, this._$AA = t, this._$AB = s, this._$AM = i, this.options = o, this._$Cv = (o == null ? void 0 : o.isConnected) ?? !0;
+  constructor(t, i, s, o) {
+    this.type = 2, this._$AH = H, this._$AN = void 0, this._$AA = t, this._$AB = i, this._$AM = s, this.options = o, this._$Cv = (o == null ? void 0 : o.isConnected) ?? !0;
   }
   get parentNode() {
     let t = this._$AA.parentNode;
-    const s = this._$AM;
-    return s !== void 0 && (t == null ? void 0 : t.nodeType) === 11 && (t = s.parentNode), t;
+    const i = this._$AM;
+    return i !== void 0 && (t == null ? void 0 : t.nodeType) === 11 && (t = i.parentNode), t;
   }
   get startNode() {
     return this._$AA;
@@ -394,8 +394,8 @@ class _t {
   get endNode() {
     return this._$AB;
   }
-  _$AI(t, s = this) {
-    t = mt(this, t, s), Mt(t) ? t === L || t == null || t === "" ? (this._$AH !== L && this._$AR(), this._$AH = L) : t !== this._$AH && t !== bt && this._(t) : t._$litType$ !== void 0 ? this.$(t) : t.nodeType !== void 0 ? this.T(t) : Me(t) ? this.k(t) : this._(t);
+  _$AI(t, i = this) {
+    t = wt(this, t, i), Tt(t) ? t === H || t == null || t === "" ? (this._$AH !== H && this._$AR(), this._$AH = H) : t !== this._$AH && t !== vt && this._(t) : t._$litType$ !== void 0 ? this.$(t) : t.nodeType !== void 0 ? this.T(t) : Pe(t) ? this.k(t) : this._(t);
   }
   O(t) {
     return this._$AA.parentNode.insertBefore(t, this._$AB);
@@ -404,114 +404,114 @@ class _t {
     this._$AH !== t && (this._$AR(), this._$AH = this.O(t));
   }
   _(t) {
-    this._$AH !== L && Mt(this._$AH) ? this._$AA.nextSibling.data = t : this.T(ct.createTextNode(t)), this._$AH = t;
+    this._$AH !== H && Tt(this._$AH) ? this._$AA.nextSibling.data = t : this.T(gt.createTextNode(t)), this._$AH = t;
   }
   $(t) {
     var r;
-    const { values: s, _$litType$: i } = t, o = typeof i == "number" ? this._$AC(t) : (i.el === void 0 && (i.el = Ct.createElement(ge(i.h, i.h[0]), this.options)), i);
-    if (((r = this._$AH) == null ? void 0 : r._$AD) === o) this._$AH.p(s);
+    const { values: i, _$litType$: s } = t, o = typeof s == "number" ? this._$AC(t) : (s.el === void 0 && (s.el = _t.createElement(me(s.h, s.h[0]), this.options)), s);
+    if (((r = this._$AH) == null ? void 0 : r._$AD) === o) this._$AH.p(i);
     else {
       const n = new _e(o, this), a = n.u(this.options);
-      n.p(s), this.T(a), this._$AH = n;
+      n.p(i), this.T(a), this._$AH = n;
     }
   }
   _$AC(t) {
-    let s = re.get(t.strings);
-    return s === void 0 && re.set(t.strings, s = new Ct(t)), s;
+    let i = ae.get(t.strings);
+    return i === void 0 && ae.set(t.strings, i = new _t(t)), i;
   }
   k(t) {
-    Gt(this._$AH) || (this._$AH = [], this._$AR());
-    const s = this._$AH;
-    let i, o = 0;
-    for (const r of t) o === s.length ? s.push(i = new _t(this.O(St()), this.O(St()), this, this.options)) : i = s[o], i._$AI(r), o++;
-    o < s.length && (this._$AR(i && i._$AB.nextSibling, o), s.length = o);
+    Xt(this._$AH) || (this._$AH = [], this._$AR());
+    const i = this._$AH;
+    let s, o = 0;
+    for (const r of t) o === i.length ? i.push(s = new Dt(this.O(Pt()), this.O(Pt()), this, this.options)) : s = i[o], s._$AI(r), o++;
+    o < i.length && (this._$AR(s && s._$AB.nextSibling, o), i.length = o);
   }
-  _$AR(t = this._$AA.nextSibling, s) {
-    var i;
-    for ((i = this._$AP) == null ? void 0 : i.call(this, !1, !0, s); t !== this._$AB; ) {
-      const o = Qt(t).nextSibling;
-      Qt(t).remove(), t = o;
+  _$AR(t = this._$AA.nextSibling, i) {
+    var s;
+    for ((s = this._$AP) == null ? void 0 : s.call(this, !1, !0, i); t !== this._$AB; ) {
+      const o = ee(t).nextSibling;
+      ee(t).remove(), t = o;
     }
   }
   setConnected(t) {
-    var s;
-    this._$AM === void 0 && (this._$Cv = t, (s = this._$AP) == null || s.call(this, t));
+    var i;
+    this._$AM === void 0 && (this._$Cv = t, (i = this._$AP) == null || i.call(this, t));
   }
 }
-class At {
+class Ot {
   get tagName() {
     return this.element.tagName;
   }
   get _$AU() {
     return this._$AM._$AU;
   }
-  constructor(t, s, i, o, r) {
-    this.type = 1, this._$AH = L, this._$AN = void 0, this.element = t, this.name = s, this._$AM = o, this.options = r, i.length > 2 || i[0] !== "" || i[1] !== "" ? (this._$AH = Array(i.length - 1).fill(new String()), this.strings = i) : this._$AH = L;
+  constructor(t, i, s, o, r) {
+    this.type = 1, this._$AH = H, this._$AN = void 0, this.element = t, this.name = i, this._$AM = o, this.options = r, s.length > 2 || s[0] !== "" || s[1] !== "" ? (this._$AH = Array(s.length - 1).fill(new String()), this.strings = s) : this._$AH = H;
   }
-  _$AI(t, s = this, i, o) {
+  _$AI(t, i = this, s, o) {
     const r = this.strings;
     let n = !1;
-    if (r === void 0) t = mt(this, t, s, 0), n = !Mt(t) || t !== this._$AH && t !== bt, n && (this._$AH = t);
+    if (r === void 0) t = wt(this, t, i, 0), n = !Tt(t) || t !== this._$AH && t !== vt, n && (this._$AH = t);
     else {
       const a = t;
-      let l, h;
-      for (t = r[0], l = 0; l < r.length - 1; l++) h = mt(this, a[i + l], s, l), h === bt && (h = this._$AH[l]), n || (n = !Mt(h) || h !== this._$AH[l]), h === L ? t = L : t !== L && (t += (h ?? "") + r[l + 1]), this._$AH[l] = h;
+      let l, u;
+      for (t = r[0], l = 0; l < r.length - 1; l++) u = wt(this, a[s + l], i, l), u === vt && (u = this._$AH[l]), n || (n = !Tt(u) || u !== this._$AH[l]), u === H ? t = H : t !== H && (t += (u ?? "") + r[l + 1]), this._$AH[l] = u;
     }
     n && !o && this.j(t);
   }
   j(t) {
-    t === L ? this.element.removeAttribute(this.name) : this.element.setAttribute(this.name, t ?? "");
+    t === H ? this.element.removeAttribute(this.name) : this.element.setAttribute(this.name, t ?? "");
   }
 }
-class Pe extends At {
+class De extends Ot {
   constructor() {
     super(...arguments), this.type = 3;
   }
   j(t) {
-    this.element[this.name] = t === L ? void 0 : t;
+    this.element[this.name] = t === H ? void 0 : t;
   }
 }
-class De extends At {
+class Ee extends Ot {
   constructor() {
     super(...arguments), this.type = 4;
   }
   j(t) {
-    this.element.toggleAttribute(this.name, !!t && t !== L);
+    this.element.toggleAttribute(this.name, !!t && t !== H);
   }
 }
-class Te extends At {
-  constructor(t, s, i, o, r) {
-    super(t, s, i, o, r), this.type = 5;
+class je extends Ot {
+  constructor(t, i, s, o, r) {
+    super(t, i, s, o, r), this.type = 5;
   }
-  _$AI(t, s = this) {
-    if ((t = mt(this, t, s, 0) ?? L) === bt) return;
-    const i = this._$AH, o = t === L && i !== L || t.capture !== i.capture || t.once !== i.once || t.passive !== i.passive, r = t !== L && (i === L || o);
-    o && this.element.removeEventListener(this.name, this, i), r && this.element.addEventListener(this.name, this, t), this._$AH = t;
+  _$AI(t, i = this) {
+    if ((t = wt(this, t, i, 0) ?? H) === vt) return;
+    const s = this._$AH, o = t === H && s !== H || t.capture !== s.capture || t.once !== s.once || t.passive !== s.passive, r = t !== H && (s === H || o);
+    o && this.element.removeEventListener(this.name, this, s), r && this.element.addEventListener(this.name, this, t), this._$AH = t;
   }
   handleEvent(t) {
-    var s;
-    typeof this._$AH == "function" ? this._$AH.call(((s = this.options) == null ? void 0 : s.host) ?? this.element, t) : this._$AH.handleEvent(t);
+    var i;
+    typeof this._$AH == "function" ? this._$AH.call(((i = this.options) == null ? void 0 : i.host) ?? this.element, t) : this._$AH.handleEvent(t);
   }
 }
-class Ie {
-  constructor(t, s, i) {
-    this.element = t, this.type = 6, this._$AN = void 0, this._$AM = s, this.options = i;
+class ze {
+  constructor(t, i, s) {
+    this.element = t, this.type = 6, this._$AN = void 0, this._$AM = i, this.options = s;
   }
   get _$AU() {
     return this._$AM._$AU;
   }
   _$AI(t) {
-    mt(this, t);
+    wt(this, t);
   }
 }
-const Bt = $t.litHtmlPolyfillSupport;
-Bt == null || Bt(Ct, _t), ($t.litHtmlVersions ?? ($t.litHtmlVersions = [])).push("3.3.3");
-const Ee = (e, t, s) => {
-  const i = (s == null ? void 0 : s.renderBefore) ?? t;
-  let o = i._$litPart$;
+const Bt = Ct.litHtmlPolyfillSupport;
+Bt == null || Bt(_t, Dt), (Ct.litHtmlVersions ?? (Ct.litHtmlVersions = [])).push("3.3.3");
+const Fe = (e, t, i) => {
+  const s = (i == null ? void 0 : i.renderBefore) ?? t;
+  let o = s._$litPart$;
   if (o === void 0) {
-    const r = (s == null ? void 0 : s.renderBefore) ?? null;
-    i._$litPart$ = o = new _t(t.insertBefore(St(), r), r, void 0, s ?? {});
+    const r = (i == null ? void 0 : i.renderBefore) ?? null;
+    s._$litPart$ = o = new Dt(t.insertBefore(Pt(), r), r, void 0, i ?? {});
   }
   return o._$AI(e), o;
 };
@@ -520,19 +520,19 @@ const Ee = (e, t, s) => {
  * Copyright 2017 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
  */
-const lt = globalThis;
-class H extends ft {
+const ut = globalThis;
+class U extends yt {
   constructor() {
     super(...arguments), this.renderOptions = { host: this }, this._$Do = void 0;
   }
   createRenderRoot() {
-    var s;
+    var i;
     const t = super.createRenderRoot();
-    return (s = this.renderOptions).renderBefore ?? (s.renderBefore = t.firstChild), t;
+    return (i = this.renderOptions).renderBefore ?? (i.renderBefore = t.firstChild), t;
   }
   update(t) {
-    const s = this.render();
-    this.hasUpdated || (this.renderOptions.isConnected = this.isConnected), super.update(t), this._$Do = Ee(s, this.renderRoot, this.renderOptions);
+    const i = this.render();
+    this.hasUpdated || (this.renderOptions.isConnected = this.isConnected), super.update(t), this._$Do = Fe(i, this.renderRoot, this.renderOptions);
   }
   connectedCallback() {
     var t;
@@ -543,21 +543,21 @@ class H extends ft {
     super.disconnectedCallback(), (t = this._$Do) == null || t.setConnected(!1);
   }
   render() {
-    return bt;
+    return vt;
   }
 }
-var le;
-H._$litElement$ = !0, H.finalized = !0, (le = lt.litElementHydrateSupport) == null || le.call(lt, { LitElement: H });
-const Ht = lt.litElementPolyfillSupport;
-Ht == null || Ht({ LitElement: H });
-(lt.litElementVersions ?? (lt.litElementVersions = [])).push("4.2.2");
+var pe;
+U._$litElement$ = !0, U.finalized = !0, (pe = ut.litElementHydrateSupport) == null || pe.call(ut, { LitElement: U });
+const Ut = ut.litElementPolyfillSupport;
+Ut == null || Ut({ LitElement: U });
+(ut.litElementVersions ?? (ut.litElementVersions = [])).push("4.2.2");
 /**
  * @license
  * Copyright 2017 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
  */
-const J = (e) => (t, s) => {
-  s !== void 0 ? s.addInitializer(() => {
+const Z = (e) => (t, i) => {
+  i !== void 0 ? i.addInitializer(() => {
     customElements.define(e, t);
   }) : customElements.define(e, t);
 };
@@ -566,11 +566,11 @@ const J = (e) => (t, s) => {
  * Copyright 2017 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
  */
-const je = { attribute: !0, type: String, converter: jt, reflect: !1, hasChanged: Yt }, ze = (e = je, t, s) => {
-  const { kind: i, metadata: o } = s;
+const Ae = { attribute: !0, type: String, converter: Ft, reflect: !1, hasChanged: Vt }, Oe = (e = Ae, t, i) => {
+  const { kind: s, metadata: o } = i;
   let r = globalThis.litPropertyMetadata.get(o);
-  if (r === void 0 && globalThis.litPropertyMetadata.set(o, r = /* @__PURE__ */ new Map()), i === "setter" && ((e = Object.create(e)).wrapped = !0), r.set(s.name, e), i === "accessor") {
-    const { name: n } = s;
+  if (r === void 0 && globalThis.litPropertyMetadata.set(o, r = /* @__PURE__ */ new Map()), s === "setter" && ((e = Object.create(e)).wrapped = !0), r.set(i.name, e), s === "accessor") {
+    const { name: n } = i;
     return { set(a) {
       const l = t.get.call(this);
       t.set.call(this, a), this.requestUpdate(n, l, e, !0, a);
@@ -578,20 +578,20 @@ const je = { attribute: !0, type: String, converter: jt, reflect: !1, hasChanged
       return a !== void 0 && this.C(n, void 0, e, a), a;
     } };
   }
-  if (i === "setter") {
-    const { name: n } = s;
+  if (s === "setter") {
+    const { name: n } = i;
     return function(a) {
       const l = this[n];
       t.call(this, a), this.requestUpdate(n, l, e, !0, a);
     };
   }
-  throw Error("Unsupported decorator location: " + i);
+  throw Error("Unsupported decorator location: " + s);
 };
-function P(e) {
-  return (t, s) => typeof s == "object" ? ze(e, t, s) : ((i, o, r) => {
+function _(e) {
+  return (t, i) => typeof i == "object" ? Oe(e, t, i) : ((s, o, r) => {
     const n = o.hasOwnProperty(r);
-    return o.constructor.createProperty(r, i), n ? Object.getOwnPropertyDescriptor(o, r) : void 0;
-  })(e, t, s);
+    return o.constructor.createProperty(r, s), n ? Object.getOwnPropertyDescriptor(o, r) : void 0;
+  })(e, t, i);
 }
 /**
  * @license
@@ -599,9 +599,9 @@ function P(e) {
  * SPDX-License-Identifier: BSD-3-Clause
  */
 function b(e) {
-  return P({ ...e, state: !0, attribute: !1 });
+  return _({ ...e, state: !0, attribute: !1 });
 }
-const Ae = K`
+const Re = J`
   :host {
     display: block;
     position: relative;
@@ -851,6 +851,92 @@ const Ae = K`
     stroke-width: 1.5;
     stroke-dasharray: 4, 4;
     opacity: 0.8;
+  }
+
+  /* Smart Guides orthogonaux */
+  .smart-guide-line {
+    stroke: #d946ef;
+    stroke-width: 1.5;
+    stroke-dasharray: 4, 3;
+    opacity: 0.85;
+    pointer-events: none;
+    filter: drop-shadow(0 0 4px rgba(217, 70, 239, 0.6));
+  }
+
+  /* Cotation dynamique automatique des murs */
+  .wall-dim-badge {
+    pointer-events: none;
+    user-select: none;
+  }
+
+  .wall-dim-badge rect {
+    fill: rgba(15, 23, 42, 0.82);
+    stroke: rgba(148, 163, 184, 0.35);
+    stroke-width: 0.8;
+    rx: 3;
+  }
+
+  .wall-dim-badge text {
+    fill: #cbd5e1;
+    font-size: 9.5px;
+    font-weight: 700;
+    text-anchor: middle;
+    dominant-baseline: central;
+    font-family: ui-monospace, SFMono-Regular, monospace;
+  }
+
+  /* Meubles & Sanitaires architecturaux */
+  .furniture-group {
+    cursor: grab;
+    transition: filter 0.15s ease;
+  }
+
+  .furniture-group:active {
+    cursor: grabbing;
+  }
+
+  .furniture-group:hover .furniture-symbol {
+    stroke: #38bdf8;
+    filter: drop-shadow(0 0 8px rgba(56, 189, 248, 0.5));
+  }
+
+  .furniture-group.selected .furniture-symbol {
+    stroke: #06b6d4 !important;
+    stroke-width: 2.2 !important;
+    filter: drop-shadow(0 0 12px rgba(6, 182, 212, 0.8)) !important;
+  }
+
+  /* Calque fantôme niveau inférieur (Onion Skinning) */
+  .ghost-wall {
+    stroke: rgba(148, 163, 184, 0.42);
+    stroke-width: 2;
+    stroke-dasharray: 5, 4;
+    fill: none;
+    pointer-events: none;
+  }
+
+  /* Animations Micro-domotique */
+  .fan-spin {
+    animation: spinFan 1.2s infinite linear;
+    transform-origin: center;
+    transform-box: fill-box;
+  }
+
+  @keyframes spinFan {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+
+  .soundwave-pulse {
+    fill: none;
+    stroke: #a855f7;
+    stroke-width: 1.8;
+    animation: soundWave 1.4s infinite ease-out;
+  }
+
+  @keyframes soundWave {
+    0% { r: 14px; opacity: 0.9; stroke: #38bdf8; }
+    100% { r: 34px; opacity: 0; stroke: #a855f7; }
   }
 
   /* Dimension badges */
@@ -1165,102 +1251,111 @@ const Ae = K`
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
   }
 `;
-class y {
+class v {
   /**
    * Snaps a world point (in meters) to grid, existing vertices, and angle guides.
    */
-  static snapPoint(t, s, i = [], o, r = 0.25) {
+  static snapPoint(t, i, s = [], o, r = 0.25) {
     let n = { ...t };
-    if (s.snapToElements && i.length > 0) {
-      let h = r, c = null;
-      for (const u of i)
-        for (const p of [u.start, u.end]) {
-          const g = this.distance(t, p);
-          g < h && (h = g, c = p);
+    if (i.snapToElements && s.length > 0) {
+      let c = r, p = null;
+      for (const g of s)
+        for (const h of [g.start, g.end]) {
+          const f = this.distance(t, h);
+          f < c && (c = f, p = h);
         }
-      if (c)
+      if (p)
         return {
-          point: { x: c.x, y: c.y },
+          point: { x: p.x, y: p.y },
           snappedTo: "vertex"
         };
     }
-    let a = !1, l;
-    if (s.snapToAngles && o) {
-      const h = t.x - o.x, c = t.y - o.y, u = Math.sqrt(h * h + c * c);
-      if (u > 0.05) {
-        let g = Math.atan2(c, h) * 180 / Math.PI;
-        g < 0 && (g += 360);
-        const d = 45, f = Math.round(g / d) * d;
-        if (Math.abs(g - f) <= 6) {
-          const x = f * Math.PI / 180;
+    let a, l;
+    if (i.snapToElements && s.length > 0)
+      for (const p of s)
+        for (const g of [p.start, p.end])
+          o && Math.abs(g.x - o.x) < 0.01 && Math.abs(g.y - o.y) < 0.01 || (a === void 0 && Math.abs(n.x - g.x) < 0.18 && (n.x = g.x, a = g.x), l === void 0 && Math.abs(n.y - g.y) < 0.18 && (n.y = g.y, l = g.y));
+    let u = !1, d;
+    if (i.snapToAngles && o && a === void 0 && l === void 0) {
+      const c = t.x - o.x, p = t.y - o.y, g = Math.sqrt(c * c + p * p);
+      if (g > 0.05) {
+        let f = Math.atan2(p, c) * 180 / Math.PI;
+        f < 0 && (f += 360);
+        const m = 45, M = Math.round(f / m) * m;
+        if (Math.abs(f - M) <= 6) {
+          const I = M * Math.PI / 180;
           n = {
-            x: o.x + u * Math.cos(x),
-            y: o.y + u * Math.sin(x)
-          }, a = !0, l = f;
+            x: o.x + g * Math.cos(I),
+            y: o.y + g * Math.sin(I)
+          }, u = !0, d = M;
         }
       }
     }
-    if (s.snapToGrid && !a) {
-      const h = s.size || 0.5;
+    if (i.snapToGrid && !u && a === void 0 && l === void 0) {
+      const c = i.size || 0.5;
       return n = {
-        x: Math.round(n.x / h) * h,
-        y: Math.round(n.y / h) * h
+        x: Math.round(n.x / c) * c,
+        y: Math.round(n.y / c) * c
       }, { point: n, snappedTo: "grid" };
-    } else if (a)
-      return { point: n, snappedTo: "angle", guideAngle: l };
+    } else {
+      if (a !== void 0 || l !== void 0)
+        return { point: n, snappedTo: "smart_guide", smartGuideX: a, smartGuideY: l };
+      if (u)
+        return { point: n, snappedTo: "angle", guideAngle: d };
+    }
     return { point: t, snappedTo: "none" };
   }
   /**
    * Snaps a point to the nearest wall centerline for placing doors and windows
    */
-  static snapPointToWall(t, s, i = 0.6) {
-    let o = null, r = i;
-    for (const n of s) {
-      const a = n.end.x - n.start.x, l = n.end.y - n.start.y, h = Math.sqrt(a * a + l * l);
-      if (h === 0) continue;
-      const c = Math.max(0, Math.min(
+  static snapPointToWall(t, i, s = 0.6) {
+    let o = null, r = s;
+    for (const n of i) {
+      const a = n.end.x - n.start.x, l = n.end.y - n.start.y, u = Math.sqrt(a * a + l * l);
+      if (u === 0) continue;
+      const d = Math.max(0, Math.min(
         1,
-        ((t.x - n.start.x) * a + (t.y - n.start.y) * l) / (h * h)
-      )), u = n.start.x + c * a, p = n.start.y + c * l, g = Math.sqrt((t.x - u) ** 2 + (t.y - p) ** 2);
+        ((t.x - n.start.x) * a + (t.y - n.start.y) * l) / (u * u)
+      )), c = n.start.x + d * a, p = n.start.y + d * l, g = Math.sqrt((t.x - c) ** 2 + (t.y - p) ** 2);
       g < r && (r = g, o = {
         wall: n,
-        projectionPoint: { x: u, y: p },
-        offset: c * h,
+        projectionPoint: { x: c, y: p },
+        offset: d * u,
         distance: g,
         angleRad: Math.atan2(l, a)
       });
     }
     return o;
   }
-  static distance(t, s) {
-    const i = t.x - s.x, o = t.y - s.y;
-    return Math.sqrt(i * i + o * o);
+  static distance(t, i) {
+    const s = t.x - i.x, o = t.y - i.y;
+    return Math.sqrt(s * s + o * o);
   }
-  static roundMeters(t, s = 2) {
-    const i = Math.pow(10, s);
-    return Math.round(t * i) / i;
+  static roundMeters(t, i = 2) {
+    const s = Math.pow(10, i);
+    return Math.round(t * s) / s;
   }
 }
-class Z {
+class Y {
   /**
    * Ray-casting algorithm to test if a 2D point is inside a polygon
    */
-  static isPointInPolygon(t, s) {
-    if (!s || s.length < 3) return !1;
-    let i = !1;
-    for (let o = 0, r = s.length - 1; o < s.length; r = o++) {
-      const n = s[o].x, a = s[o].y, l = s[r].x, h = s[r].y;
-      a > t.y != h > t.y && t.x < (l - n) * (t.y - a) / (h - a) + n && (i = !i);
+  static isPointInPolygon(t, i) {
+    if (!i || i.length < 3) return !1;
+    let s = !1;
+    for (let o = 0, r = i.length - 1; o < i.length; r = o++) {
+      const n = i[o].x, a = i[o].y, l = i[r].x, u = i[r].y;
+      a > t.y != u > t.y && t.x < (l - n) * (t.y - a) / (u - a) + n && (s = !s);
     }
-    return i;
+    return s;
   }
   /**
    * Finds the room containing the specified world point (if any)
    */
-  static findRoomContainingPoint(t, s) {
-    for (const i of s)
-      if (this.isPointInPolygon(t, i.polygon))
-        return i;
+  static findRoomContainingPoint(t, i) {
+    for (const s of i)
+      if (this.isPointInPolygon(t, s.polygon))
+        return s;
     return null;
   }
   /**
@@ -1268,12 +1363,12 @@ class Z {
    */
   static calculateCentroid(t) {
     if (!t || t.length === 0) return { x: 0, y: 0 };
-    let s = 0, i = 0;
+    let i = 0, s = 0;
     for (const o of t)
-      s += o.x, i += o.y;
+      i += o.x, s += o.y;
     return {
-      x: s / t.length,
-      y: i / t.length
+      x: i / t.length,
+      y: s / t.length
     };
   }
   /**
@@ -1281,20 +1376,385 @@ class Z {
    */
   static computeArea(t) {
     if (!t || t.length < 3) return 0;
-    let s = 0;
-    for (let i = 0; i < t.length; i++) {
-      const o = (i + 1) % t.length;
-      s += t[i].x * t[o].y, s -= t[o].x * t[i].y;
+    let i = 0;
+    for (let s = 0; s < t.length; s++) {
+      const o = (s + 1) % t.length;
+      i += t[s].x * t[o].y, i -= t[o].x * t[s].y;
     }
-    return Math.round(Math.abs(s / 2) * 100) / 100;
+    return Math.round(Math.abs(i / 2) * 100) / 100;
   }
 }
-var Oe = Object.defineProperty, Fe = Object.getOwnPropertyDescriptor, E = (e, t, s, i) => {
-  for (var o = i > 1 ? void 0 : i ? Fe(t, s) : t, r = e.length - 1, n; r >= 0; r--)
-    (n = e[r]) && (o = (i ? n(t, s, o) : n(o)) || o);
-  return i && o && Oe(t, s, o), o;
+const qt = [
+  // ==========================================
+  // SALON (SEATING)
+  // ==========================================
+  {
+    type: "sofa_3p",
+    name: "Canapé 3 places",
+    category: "seating",
+    width: 2.2,
+    length: 0.95,
+    icon: "🛋️",
+    renderSvg: (e, t, i) => {
+      const s = Math.max(8, e * 0.1), o = Math.max(10, t * 0.26), r = (e - s * 2) / 3;
+      return C`
+        <g class="furniture-symbol" stroke="${i ? "#38bdf8" : "#94a3b8"}" stroke-width="1.6" fill="${i ? "rgba(56, 189, 248, 0.25)" : "rgba(30, 41, 59, 0.85)"}">
+          <!-- Contour principal -->
+          <rect x="${-e / 2}" y="${-t / 2}" width="${e}" height="${t}" rx="6" />
+          <!-- Dossier arrière -->
+          <rect x="${-e / 2 + s}" y="${-t / 2}" width="${e - s * 2}" height="${o}" rx="3" fill="rgba(51, 65, 85, 0.9)" />
+          <!-- Accoudoirs gauche & droit -->
+          <rect x="${-e / 2}" y="${-t / 2}" width="${s}" height="${t}" rx="4" fill="rgba(51, 65, 85, 0.9)" />
+          <rect x="${e / 2 - s}" y="${-t / 2}" width="${s}" height="${t}" rx="4" fill="rgba(51, 65, 85, 0.9)" />
+          <!-- 3 Coussins d'assise -->
+          <rect x="${-e / 2 + s + 2}" y="${-t / 2 + o + 2}" width="${r - 4}" height="${t - o - 4}" rx="4" />
+          <rect x="${-e / 2 + s + r + 2}" y="${-t / 2 + o + 2}" width="${r - 4}" height="${t - o - 4}" rx="4" />
+          <rect x="${-e / 2 + s + r * 2 + 2}" y="${-t / 2 + o + 2}" width="${r - 4}" height="${t - o - 4}" rx="4" />
+        </g>
+      `;
+    }
+  },
+  {
+    type: "sofa_2p",
+    name: "Canapé 2 places",
+    category: "seating",
+    width: 1.6,
+    length: 0.9,
+    icon: "🛋️",
+    renderSvg: (e, t, i) => {
+      const s = Math.max(8, e * 0.12), o = Math.max(10, t * 0.26), r = (e - s * 2) / 2;
+      return C`
+        <g class="furniture-symbol" stroke="${i ? "#38bdf8" : "#94a3b8"}" stroke-width="1.6" fill="${i ? "rgba(56, 189, 248, 0.25)" : "rgba(30, 41, 59, 0.85)"}">
+          <rect x="${-e / 2}" y="${-t / 2}" width="${e}" height="${t}" rx="6" />
+          <rect x="${-e / 2 + s}" y="${-t / 2}" width="${e - s * 2}" height="${o}" rx="3" fill="rgba(51, 65, 85, 0.9)" />
+          <rect x="${-e / 2}" y="${-t / 2}" width="${s}" height="${t}" rx="4" fill="rgba(51, 65, 85, 0.9)" />
+          <rect x="${e / 2 - s}" y="${-t / 2}" width="${s}" height="${t}" rx="4" fill="rgba(51, 65, 85, 0.9)" />
+          <rect x="${-e / 2 + s + 2}" y="${-t / 2 + o + 2}" width="${r - 4}" height="${t - o - 4}" rx="4" />
+          <rect x="${-e / 2 + s + r + 2}" y="${-t / 2 + o + 2}" width="${r - 4}" height="${t - o - 4}" rx="4" />
+        </g>
+      `;
+    }
+  },
+  {
+    type: "armchair",
+    name: "Fauteuil club",
+    category: "seating",
+    width: 0.85,
+    length: 0.85,
+    icon: "🪑",
+    renderSvg: (e, t, i) => {
+      const s = Math.max(6, e * 0.18), o = Math.max(8, t * 0.28);
+      return C`
+        <g class="furniture-symbol" stroke="${i ? "#38bdf8" : "#94a3b8"}" stroke-width="1.5" fill="${i ? "rgba(56, 189, 248, 0.25)" : "rgba(30, 41, 59, 0.85)"}">
+          <rect x="${-e / 2}" y="${-t / 2}" width="${e}" height="${t}" rx="6" />
+          <rect x="${-e / 2 + s}" y="${-t / 2}" width="${e - s * 2}" height="${o}" rx="3" fill="rgba(51, 65, 85, 0.9)" />
+          <rect x="${-e / 2}" y="${-t / 2}" width="${s}" height="${t}" rx="4" fill="rgba(51, 65, 85, 0.9)" />
+          <rect x="${e / 2 - s}" y="${-t / 2}" width="${s}" height="${t}" rx="4" fill="rgba(51, 65, 85, 0.9)" />
+          <rect x="${-e / 2 + s + 2}" y="${-t / 2 + o + 2}" width="${e - s * 2 - 4}" height="${t - o - 4}" rx="4" />
+        </g>
+      `;
+    }
+  },
+  {
+    type: "coffee_table",
+    name: "Table basse",
+    category: "seating",
+    width: 1.1,
+    length: 0.6,
+    icon: "☕",
+    renderSvg: (e, t, i) => C`
+        <g class="furniture-symbol" stroke="${i ? "#38bdf8" : "#94a3b8"}" stroke-width="1.5" fill="${i ? "rgba(56, 189, 248, 0.25)" : "rgba(30, 41, 59, 0.85)"}">
+          <rect x="${-e / 2}" y="${-t / 2}" width="${e}" height="${t}" rx="8" />
+          <line x1="${-e / 2 + 8}" y1="${-t / 2 + 8}" x2="${e / 2 - 8}" y2="${t / 2 - 8}" stroke-dasharray="3,3" opacity="0.4" />
+          <line x1="${e / 2 - 8}" y1="${-t / 2 + 8}" x2="${-e / 2 + 8}" y2="${t / 2 - 8}" stroke-dasharray="3,3" opacity="0.4" />
+        </g>
+      `
+  },
+  // ==========================================
+  // CHAMBRE (BED)
+  // ==========================================
+  {
+    type: "bed_double",
+    name: "Lit double (Queen)",
+    category: "bed",
+    width: 1.6,
+    length: 2,
+    icon: "🛏️",
+    renderSvg: (e, t, i) => {
+      const s = (e - 16) / 2, o = t * 0.22, r = -t / 2 + o + 8;
+      return C`
+        <g class="furniture-symbol" stroke="${i ? "#38bdf8" : "#94a3b8"}" stroke-width="1.6" fill="${i ? "rgba(56, 189, 248, 0.25)" : "rgba(30, 41, 59, 0.85)"}">
+          <!-- Cadre du lit -->
+          <rect x="${-e / 2}" y="${-t / 2}" width="${e}" height="${t}" rx="6" />
+          <!-- Tête de lit -->
+          <line x1="${-e / 2}" y1="${-t / 2 + 4}" x2="${e / 2}" y2="${-t / 2 + 4}" stroke-width="3" stroke="${i ? "#38bdf8" : "#cbd5e1"}" />
+          <!-- 2 Oreillers -->
+          <rect x="${-e / 2 + 6}" y="${-t / 2 + 8}" width="${s}" height="${o}" rx="4" fill="rgba(241, 245, 249, 0.2)" />
+          <rect x="${e / 2 - s - 6}" y="${-t / 2 + 8}" width="${s}" height="${o}" rx="4" fill="rgba(241, 245, 249, 0.2)" />
+          <!-- Revers de couette -->
+          <path d="M ${-e / 2 + 4} ${r} Q 0 ${r + 8} ${e / 2 - 4} ${r}" fill="none" stroke-width="1.8" />
+        </g>
+      `;
+    }
+  },
+  {
+    type: "bed_single",
+    name: "Lit simple",
+    category: "bed",
+    width: 0.9,
+    length: 1.9,
+    icon: "🛏️",
+    renderSvg: (e, t, i) => {
+      const s = e - 16, o = t * 0.22, r = -t / 2 + o + 8;
+      return C`
+        <g class="furniture-symbol" stroke="${i ? "#38bdf8" : "#94a3b8"}" stroke-width="1.5" fill="${i ? "rgba(56, 189, 248, 0.25)" : "rgba(30, 41, 59, 0.85)"}">
+          <rect x="${-e / 2}" y="${-t / 2}" width="${e}" height="${t}" rx="6" />
+          <line x1="${-e / 2}" y1="${-t / 2 + 3}" x2="${e / 2}" y2="${-t / 2 + 3}" stroke-width="2.5" stroke="${i ? "#38bdf8" : "#cbd5e1"}" />
+          <rect x="${-e / 2 + 8}" y="${-t / 2 + 8}" width="${s}" height="${o}" rx="4" fill="rgba(241, 245, 249, 0.2)" />
+          <path d="M ${-e / 2 + 4} ${r} Q 0 ${r + 6} ${e / 2 - 4} ${r}" fill="none" stroke-width="1.8" />
+        </g>
+      `;
+    }
+  },
+  {
+    type: "nightstand",
+    name: "Table de chevet",
+    category: "bed",
+    width: 0.45,
+    length: 0.4,
+    icon: "🕰️",
+    renderSvg: (e, t, i) => C`
+        <g class="furniture-symbol" stroke="${i ? "#38bdf8" : "#94a3b8"}" stroke-width="1.4" fill="${i ? "rgba(56, 189, 248, 0.25)" : "rgba(30, 41, 59, 0.85)"}">
+          <rect x="${-e / 2}" y="${-t / 2}" width="${e}" height="${t}" rx="4" />
+          <line x1="${-e / 2 + 4}" y1="${0}" x2="${e / 2 - 4}" y2="${0}" stroke-width="1.2" />
+          <circle cx="0" cy="${-t / 4}" r="2" fill="${i ? "#38bdf8" : "#94a3b8"}" />
+          <circle cx="0" cy="${t / 4}" r="2" fill="${i ? "#38bdf8" : "#94a3b8"}" />
+        </g>
+      `
+  },
+  {
+    type: "wardrobe",
+    name: "Armoire dressing",
+    category: "storage",
+    width: 1.8,
+    length: 0.6,
+    icon: "🚪",
+    renderSvg: (e, t, i) => {
+      const s = e / 3;
+      return C`
+        <g class="furniture-symbol" stroke="${i ? "#38bdf8" : "#94a3b8"}" stroke-width="1.5" fill="${i ? "rgba(56, 189, 248, 0.25)" : "rgba(30, 41, 59, 0.85)"}">
+          <rect x="${-e / 2}" y="${-t / 2}" width="${e}" height="${t}" rx="3" />
+          <line x1="${-e / 2 + s}" y1="${-t / 2}" x2="${-e / 2 + s}" y2="${t / 2}" />
+          <line x1="${-e / 2 + s * 2}" y1="${-t / 2}" x2="${-e / 2 + s * 2}" y2="${t / 2}" />
+          <!-- Tringle à vêtements symbolique -->
+          <line x1="${-e / 2 + 6}" y1="0" x2="${e / 2 - 6}" y2="0" stroke-dasharray="4,3" stroke-width="1.2" opacity="0.6" />
+        </g>
+      `;
+    }
+  },
+  // ==========================================
+  // REPAS & BUREAU (TABLE)
+  // ==========================================
+  {
+    type: "dining_table_6",
+    name: "Table repas (6 chaises)",
+    category: "table",
+    width: 1.6,
+    length: 0.9,
+    icon: "🍽️",
+    renderSvg: (e, t, i) => {
+      const s = e * 0.24, o = 7;
+      return C`
+        <g class="furniture-symbol" stroke="${i ? "#38bdf8" : "#94a3b8"}" stroke-width="1.5" fill="${i ? "rgba(56, 189, 248, 0.25)" : "rgba(30, 41, 59, 0.85)"}">
+          <!-- Plateau principal -->
+          <rect x="${-e / 2}" y="${-t / 2}" width="${e}" height="${t}" rx="5" />
+          <!-- 3 Chaises du haut -->
+          <rect x="${-e / 2 + 6}" y="${-t / 2 - o}" width="${s}" height="${o}" rx="2" />
+          <rect x="${-s / 2}" y="${-t / 2 - o}" width="${s}" height="${o}" rx="2" />
+          <rect x="${e / 2 - s - 6}" y="${-t / 2 - o}" width="${s}" height="${o}" rx="2" />
+          <!-- 3 Chaises du bas -->
+          <rect x="${-e / 2 + 6}" y="${t / 2}" width="${s}" height="${o}" rx="2" />
+          <rect x="${-s / 2}" y="${t / 2}" width="${s}" height="${o}" rx="2" />
+          <rect x="${e / 2 - s - 6}" y="${t / 2}" width="${s}" height="${o}" rx="2" />
+        </g>
+      `;
+    }
+  },
+  {
+    type: "desk",
+    name: "Bureau avec fauteuil",
+    category: "table",
+    width: 1.4,
+    length: 0.7,
+    icon: "💻",
+    renderSvg: (e, t, i) => C`
+        <g class="furniture-symbol" stroke="${i ? "#38bdf8" : "#94a3b8"}" stroke-width="1.5" fill="${i ? "rgba(56, 189, 248, 0.25)" : "rgba(30, 41, 59, 0.85)"}">
+          <!-- Plateau de bureau -->
+          <rect x="${-e / 2}" y="${-t / 2}" width="${e}" height="${t}" rx="4" />
+          <!-- Écran d'ordinateur symbolique -->
+          <rect x="-14" y="${-t / 2 + 6}" width="28" height="4" rx="1" fill="${i ? "#38bdf8" : "#cbd5e1"}" />
+          <!-- Évidement chaise -->
+          <path d="M -16 ${t / 2} A 16 16 0 0 1 16 ${t / 2}" fill="none" stroke-dasharray="3,3" />
+        </g>
+      `
+  },
+  // ==========================================
+  // SANITAIRES (BATHROOM)
+  // ==========================================
+  {
+    type: "toilet",
+    name: "WC / Toilettes",
+    category: "bathroom",
+    width: 0.45,
+    length: 0.65,
+    icon: "🚽",
+    renderSvg: (e, t, i) => {
+      const s = t * 0.28;
+      return C`
+        <g class="furniture-symbol" stroke="${i ? "#38bdf8" : "#94a3b8"}" stroke-width="1.5" fill="${i ? "rgba(56, 189, 248, 0.25)" : "rgba(30, 41, 59, 0.85)"}">
+          <!-- Réservoir d'eau -->
+          <rect x="${-e / 2}" y="${-t / 2}" width="${e}" height="${s}" rx="3" fill="rgba(51, 65, 85, 0.9)" />
+          <!-- Cuvette de WC -->
+          <path d="M ${-e / 2 + 2} ${-t / 2 + s} 
+                   L ${e / 2 - 2} ${-t / 2 + s} 
+                   L ${e / 2 - 2} ${t / 2 - e / 2} 
+                   A ${e / 2 - 2} ${e / 2 - 2} 0 0 1 ${-e / 2 + 2} ${t / 2 - e / 2} 
+                   Z" />
+        </g>
+      `;
+    }
+  },
+  {
+    type: "shower",
+    name: "Douche italienne",
+    category: "bathroom",
+    width: 0.9,
+    length: 0.9,
+    icon: "🚿",
+    renderSvg: (e, t, i) => C`
+        <g class="furniture-symbol" stroke="${i ? "#38bdf8" : "#94a3b8"}" stroke-width="1.5" fill="${i ? "rgba(56, 189, 248, 0.25)" : "rgba(30, 41, 59, 0.85)"}">
+          <!-- Bac carré -->
+          <rect x="${-e / 2}" y="${-t / 2}" width="${e}" height="${t}" rx="2" />
+          <!-- Diagonales d'écoulement -->
+          <line x1="${-e / 2}" y1="${-t / 2}" x2="0" y2="0" stroke-width="1" stroke-dasharray="2,2" opacity="0.6" />
+          <line x1="${e / 2}" y1="${-t / 2}" x2="0" y2="0" stroke-width="1" stroke-dasharray="2,2" opacity="0.6" />
+          <line x1="${-e / 2}" y1="${t / 2}" x2="0" y2="0" stroke-width="1" stroke-dasharray="2,2" opacity="0.6" />
+          <line x1="${e / 2}" y1="${t / 2}" x2="0" y2="0" stroke-width="1" stroke-dasharray="2,2" opacity="0.6" />
+          <!-- Bonde centrale -->
+          <circle cx="0" cy="0" r="4" fill="${i ? "#38bdf8" : "#0284c7"}" />
+        </g>
+      `
+  },
+  {
+    type: "bathtub",
+    name: "Baignoire droite",
+    category: "bathroom",
+    width: 1.7,
+    length: 0.75,
+    icon: "🛁",
+    renderSvg: (e, t, i) => C`
+        <g class="furniture-symbol" stroke="${i ? "#38bdf8" : "#94a3b8"}" stroke-width="1.6" fill="${i ? "rgba(56, 189, 248, 0.25)" : "rgba(30, 41, 59, 0.85)"}">
+          <!-- Contour extérieur -->
+          <rect x="${-e / 2}" y="${-t / 2}" width="${e}" height="${t}" rx="5" />
+          <!-- Cuve arrondie intérieure -->
+          <rect x="${-e / 2 + 6}" y="${-t / 2 + 6}" width="${e - 12}" height="${t - 12}" rx="${(t - 12) / 2}" fill="rgba(2, 132, 199, 0.2)" />
+          <!-- Bonde -->
+          <circle cx="${-e / 2 + 18}" cy="0" r="3" fill="${i ? "#38bdf8" : "#94a3b8"}" />
+        </g>
+      `
+  },
+  {
+    type: "sink_vanity",
+    name: "Meuble vasque",
+    category: "bathroom",
+    width: 0.9,
+    length: 0.5,
+    icon: "🧼",
+    renderSvg: (e, t, i) => {
+      const s = e * 0.65, o = t * 0.65;
+      return C`
+        <g class="furniture-symbol" stroke="${i ? "#38bdf8" : "#94a3b8"}" stroke-width="1.5" fill="${i ? "rgba(56, 189, 248, 0.25)" : "rgba(30, 41, 59, 0.85)"}">
+          <rect x="${-e / 2}" y="${-t / 2}" width="${e}" height="${t}" rx="3" />
+          <!-- Vasque ovale -->
+          <ellipse cx="0" cy="0" rx="${s / 2}" ry="${o / 2}" fill="rgba(2, 132, 199, 0.25)" />
+          <!-- Robinet -->
+          <circle cx="0" cy="${-o / 2 + 2}" r="2" fill="${i ? "#38bdf8" : "#94a3b8"}" />
+        </g>
+      `;
+    }
+  },
+  // ==========================================
+  // CUISINE (KITCHEN)
+  // ==========================================
+  {
+    type: "kitchen_sink",
+    name: "Évier cuisine double",
+    category: "kitchen",
+    width: 1,
+    length: 0.6,
+    icon: "🚰",
+    renderSvg: (e, t, i) => {
+      const s = (e - 18) / 2, o = t - 16;
+      return C`
+        <g class="furniture-symbol" stroke="${i ? "#38bdf8" : "#94a3b8"}" stroke-width="1.5" fill="${i ? "rgba(56, 189, 248, 0.25)" : "rgba(30, 41, 59, 0.85)"}">
+          <rect x="${-e / 2}" y="${-t / 2}" width="${e}" height="${t}" rx="3" />
+          <!-- 2 Bacs -->
+          <rect x="${-e / 2 + 6}" y="${-t / 2 + 8}" width="${s}" height="${o}" rx="4" fill="rgba(2, 132, 199, 0.25)" />
+          <rect x="${6}" y="${-t / 2 + 8}" width="${s}" height="${o}" rx="4" fill="rgba(2, 132, 199, 0.25)" />
+          <!-- Mitigeur -->
+          <circle cx="0" cy="${-t / 2 + 5}" r="2.5" fill="${i ? "#38bdf8" : "#f59e0b"}" />
+        </g>
+      `;
+    }
+  },
+  {
+    type: "cooktop",
+    name: "Plaque de cuisson",
+    category: "kitchen",
+    width: 0.6,
+    length: 0.6,
+    icon: "🍳",
+    renderSvg: (e, t, i) => {
+      const s = Math.min(e, t) * 0.18, o = Math.min(e, t) * 0.13;
+      return C`
+        <g class="furniture-symbol" stroke="${i ? "#38bdf8" : "#94a3b8"}" stroke-width="1.5" fill="${i ? "rgba(56, 189, 248, 0.25)" : "rgba(30, 41, 59, 0.85)"}">
+          <rect x="${-e / 2}" y="${-t / 2}" width="${e}" height="${t}" rx="4" />
+          <!-- 4 Feux / Foyers induction -->
+          <circle cx="${-e / 4}" cy="${-t / 4}" r="${s}" fill="rgba(239, 68, 68, 0.2)" />
+          <circle cx="${e / 4}" cy="${-t / 4}" r="${o}" fill="rgba(239, 68, 68, 0.2)" />
+          <circle cx="${-e / 4}" cy="${t / 4}" r="${o}" fill="rgba(239, 68, 68, 0.2)" />
+          <circle cx="${e / 4}" cy="${t / 4}" r="${s}" fill="rgba(239, 68, 68, 0.2)" />
+        </g>
+      `;
+    }
+  },
+  {
+    type: "fridge",
+    name: "Réfrigérateur",
+    category: "kitchen",
+    width: 0.65,
+    length: 0.65,
+    icon: "🧊",
+    renderSvg: (e, t, i) => C`
+        <g class="furniture-symbol" stroke="${i ? "#38bdf8" : "#94a3b8"}" stroke-width="1.5" fill="${i ? "rgba(56, 189, 248, 0.25)" : "rgba(30, 41, 59, 0.85)"}">
+          <rect x="${-e / 2}" y="${-t / 2}" width="${e}" height="${t}" rx="3" />
+          <line x1="${-e / 2}" y1="${-t / 2 + 6}" x2="${e / 2}" y2="${-t / 2 + 6}" stroke-width="2" />
+          <line x1="${-e / 2 + 8}" y1="${-t / 2 + 3}" x2="${-e / 2 + 20}" y2="${-t / 2 + 3}" stroke-width="2" stroke="${"#38bdf8"}" />
+          <!-- Symbole Froid Flocon -->
+          <text x="0" y="3" text-anchor="middle" font-size="12" fill="${"#38bdf8"}" stroke="none">❄</text>
+        </g>
+      `
+  }
+];
+function le(e) {
+  return qt.find((t) => t.type === e);
+}
+var We = Object.defineProperty, Le = Object.getOwnPropertyDescriptor, j = (e, t, i, s) => {
+  for (var o = s > 1 ? void 0 : s ? Le(t, i) : t, r = e.length - 1, n; r >= 0; r--)
+    (n = e[r]) && (o = (s ? n(t, i, o) : n(o)) || o);
+  return s && o && We(t, i, o), o;
 };
-let T = class extends H {
+let T = class extends U {
   constructor() {
     super(...arguments), this.project = {
       id: "default",
@@ -1317,8 +1777,9 @@ let T = class extends H {
       wallIds: [],
       openingIds: [],
       roomIds: [],
-      bindingIds: []
-    }, this.isDashboardMode = !1, this.isMarqueeSelecting = !1, this.marqueeStart = null, this.marqueeCurrent = null, this.viewport = { x: 300, y: 300, zoom: 1 }, this.isPanning = !1, this.panStart = { x: 0, y: 0 }, this.drawingWallStart = null, this.previewPoint = null, this.snapInfo = { snappedTo: "none" }, this.cursorCoords = { x: 0, y: 0 }, this.wallSnap = null, this.openingFlipSide = !1, this.openingFlipDirection = !1, this.windowSashCount = 1, this.calibrateStart = null, this.calibrateCurrent = null, this.rescaleStart = null, this.rescaleCurrent = null, this._boundKeyDown = null, this.draggingBindingId = null, this.dragBindingMoved = !1, this.dragBindingStartPos = { x: 0, y: 0 }, this.orbitPitch = 55, this.orbitYaw = -35, this.isOrbiting = !1, this.orbitStart = { x: 0, y: 0 }, this.orbitStartPitch = 55, this.orbitStartYaw = -35;
+      bindingIds: [],
+      furnitureIds: []
+    }, this.isDashboardMode = !1, this.ghostProject = null, this.showDimensions = !0, this.showThermalHeatmap = !1, this.isMarqueeSelecting = !1, this.marqueeStart = null, this.marqueeCurrent = null, this.viewport = { x: 300, y: 300, zoom: 1 }, this.isPanning = !1, this.panStart = { x: 0, y: 0 }, this.drawingWallStart = null, this.previewPoint = null, this.snapInfo = { snappedTo: "none" }, this.cursorCoords = { x: 0, y: 0 }, this.draggingFurnitureId = null, this.dragFurnitureMoved = !1, this.dragFurnitureStartPos = { x: 0, y: 0 }, this.dragFurnitureItemStartPos = { x: 0, y: 0 }, this.draggingWallId = null, this.dragWallMoved = !1, this.dragWallStartPointer = { x: 0, y: 0 }, this.dragWallInitialStart = { x: 0, y: 0 }, this.dragWallInitialEnd = { x: 0, y: 0 }, this.wallSnap = null, this.openingFlipSide = !1, this.openingFlipDirection = !1, this.windowSashCount = 1, this.calibrateStart = null, this.calibrateCurrent = null, this.rescaleStart = null, this.rescaleCurrent = null, this._boundKeyDown = null, this.draggingBindingId = null, this.dragBindingMoved = !1, this.dragBindingStartPos = { x: 0, y: 0 }, this.orbitPitch = 55, this.orbitYaw = -35, this.isOrbiting = !1, this.orbitStart = { x: 0, y: 0 }, this.orbitStartPitch = 55, this.orbitStartYaw = -35;
   }
   setCameraPreset(e, t) {
     this.orbitPitch = e, this.orbitYaw = t, this.requestUpdate();
@@ -1327,9 +1788,9 @@ let T = class extends H {
   // CONVERSIONS DE COORDONNÉES
   // ==========================================
   screenToWorld(e, t) {
-    const s = this.getBoundingClientRect(), i = e - s.left, o = t - s.top, r = this.project.pixelsPerMeter * this.viewport.zoom;
+    const i = this.getBoundingClientRect(), s = e - i.left, o = t - i.top, r = this.project.pixelsPerMeter * this.viewport.zoom;
     return {
-      x: (i - this.viewport.x) / r,
+      x: (s - this.viewport.x) / r,
       y: (o - this.viewport.y) / r
     };
   }
@@ -1345,11 +1806,11 @@ let T = class extends H {
   // ==========================================
   handleWheel(e) {
     e.preventDefault();
-    const t = this.getBoundingClientRect(), s = e.clientX - t.left, i = e.clientY - t.top, o = e.deltaY < 0 ? 1.12 : 0.89, r = Math.min(Math.max(this.viewport.zoom * o, 0.15), 8), n = s - (s - this.viewport.x) * (r / this.viewport.zoom), a = i - (i - this.viewport.y) * (r / this.viewport.zoom);
+    const t = this.getBoundingClientRect(), i = e.clientX - t.left, s = e.clientY - t.top, o = e.deltaY < 0 ? 1.12 : 0.89, r = Math.min(Math.max(this.viewport.zoom * o, 0.15), 8), n = i - (i - this.viewport.x) * (r / this.viewport.zoom), a = s - (s - this.viewport.y) * (r / this.viewport.zoom);
     this.viewport = { x: n, y: a, zoom: r };
   }
   handlePointerDown(e) {
-    var o, r, n, a, l, h, c, u, p, g, d, f, m, x, k, M, w, S;
+    var o, r, n, a, l, u, d, c, p, g, h, f, m, M, P, I, x, k;
     if (this.is3DMode) {
       if (e.button === 1 || e.button === 0 && e.shiftKey) {
         this.isPanning = !0, this.panStart = { x: e.clientX - this.viewport.x, y: e.clientY - this.viewport.y }, (r = (o = e.target).setPointerCapture) == null || r.call(o, e.pointerId);
@@ -1359,8 +1820,8 @@ let T = class extends H {
         this.isOrbiting = !0, this.orbitStart = { x: e.clientX, y: e.clientY }, this.orbitStartPitch = this.orbitPitch, this.orbitStartYaw = this.orbitYaw, (a = (n = e.target).setPointerCapture) == null || a.call(n, e.pointerId);
         return;
       }
-      if (e.button === 0 && !((h = (l = e.target) == null ? void 0 : l.closest) == null ? void 0 : h.call(l, ".wall-element, .wall-element-3d, .room-group, .entity-pin, .opening-element"))) {
-        this.selectedElements = { wallIds: [], openingIds: [], roomIds: [], bindingIds: [] }, this.dispatchSelectionChanged(), this.isOrbiting = !0, this.orbitStart = { x: e.clientX, y: e.clientY }, this.orbitStartPitch = this.orbitPitch, this.orbitStartYaw = this.orbitYaw, (u = (c = e.target).setPointerCapture) == null || u.call(c, e.pointerId);
+      if (e.button === 0 && !((u = (l = e.target) == null ? void 0 : l.closest) == null ? void 0 : u.call(l, ".wall-element, .wall-element-3d, .room-group, .entity-pin, .opening-element, .furniture-group"))) {
+        this.selectedElements = { wallIds: [], openingIds: [], roomIds: [], bindingIds: [], furnitureIds: [] }, this.dispatchSelectionChanged(), this.isOrbiting = !0, this.orbitStart = { x: e.clientX, y: e.clientY }, this.orbitStartPitch = this.orbitPitch, this.orbitStartYaw = this.orbitYaw, (c = (d = e.target).setPointerCapture) == null || c.call(d, e.pointerId);
         return;
       }
       return;
@@ -1370,82 +1831,82 @@ let T = class extends H {
       return;
     }
     if (e.button !== 0) return;
-    const t = e.target, s = !!((d = t == null ? void 0 : t.closest) != null && d.call(
+    const t = e.target, i = !!((h = t == null ? void 0 : t.closest) != null && h.call(
       t,
-      ".wall-element, .wall-element-3d, .room-group, .entity-pin, .opening-element, .dimension-badge, .hud-btn"
+      ".wall-element, .wall-element-3d, .room-group, .entity-pin, .opening-element, .furniture-group, .dimension-badge, .wall-dim-badge, .hud-btn"
     ));
-    if ((f = t == null ? void 0 : t.closest) != null && f.call(t, ".entity-pin"))
+    if ((f = t == null ? void 0 : t.closest) != null && f.call(t, ".entity-pin, .furniture-group"))
       return;
     if (this.activeTool === "select") {
-      if (s)
+      if (i)
         return;
       if (e.shiftKey) {
-        const C = this.screenToWorld(e.clientX, e.clientY);
-        this.isMarqueeSelecting = !0, this.marqueeStart = C, this.marqueeCurrent = C, (x = (m = e.target).setPointerCapture) == null || x.call(m, e.pointerId);
+        const y = this.screenToWorld(e.clientX, e.clientY);
+        this.isMarqueeSelecting = !0, this.marqueeStart = y, this.marqueeCurrent = y, (M = (m = e.target).setPointerCapture) == null || M.call(m, e.pointerId);
         return;
       }
-      this.selectedElements = { wallIds: [], openingIds: [], roomIds: [], bindingIds: [] }, this.dispatchSelectionChanged(), this.isPanning = !0, this.panStart = { x: e.clientX - this.viewport.x, y: e.clientY - this.viewport.y }, (M = (k = e.target).setPointerCapture) == null || M.call(k, e.pointerId);
+      this.selectedElements = { wallIds: [], openingIds: [], roomIds: [], bindingIds: [], furnitureIds: [] }, this.dispatchSelectionChanged(), this.isPanning = !0, this.panStart = { x: e.clientX - this.viewport.x, y: e.clientY - this.viewport.y }, (I = (P = e.target).setPointerCapture) == null || I.call(P, e.pointerId);
       return;
     }
     if (e.shiftKey) {
-      this.isPanning = !0, this.panStart = { x: e.clientX - this.viewport.x, y: e.clientY - this.viewport.y }, (S = (w = e.target).setPointerCapture) == null || S.call(w, e.pointerId);
+      this.isPanning = !0, this.panStart = { x: e.clientX - this.viewport.x, y: e.clientY - this.viewport.y }, (k = (x = e.target).setPointerCapture) == null || k.call(x, e.pointerId);
       return;
     }
-    const i = this.screenToWorld(e.clientX, e.clientY);
+    const s = this.screenToWorld(e.clientX, e.clientY);
     if (this.activeTool === "wall") {
-      const C = y.snapPoint(
-        i,
+      const y = v.snapPoint(
+        s,
         this.project.grid,
         this.project.walls,
         this.drawingWallStart || void 0
       );
       if (!this.drawingWallStart)
-        this.drawingWallStart = C.point;
+        this.drawingWallStart = y.point;
       else {
-        const $ = this.drawingWallStart, _ = C.point;
-        if (y.distance($, _) >= 0.15) {
-          const I = {
+        const $ = this.drawingWallStart, S = y.point;
+        if (v.distance($, S) >= 0.15) {
+          const D = {
             id: `wall_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
             start: { ...$ },
-            end: { ..._ },
+            end: { ...S },
             thickness: this.currentWallThickness,
             type: "standard"
           };
           this.project = {
             ...this.project,
-            walls: [...this.project.walls, I]
-          }, this.dispatchProjectChanged(), this.drawingWallStart = _;
+            walls: [...this.project.walls, D]
+          }, this.dispatchProjectChanged(), this.drawingWallStart = S;
         }
       }
     } else if (this.activeTool === "door" || this.activeTool === "window" || this.activeTool === "french_window") {
       if (this.wallSnap) {
-        const C = this.activeTool === "window" ? "window" : this.activeTool === "french_window" ? "french_window" : "door", $ = C === "door" ? 0.9 : C === "french_window" ? 2 : this.windowSashCount === 2 ? 1.4 : 0.9, _ = {
+        const y = this.activeTool === "window" ? "window" : this.activeTool === "french_window" ? "french_window" : "door", $ = y === "door" ? 0.9 : y === "french_window" ? 2 : this.windowSashCount === 2 ? 1.4 : 0.9, S = {
           id: `op_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
           wallId: this.wallSnap.wall.id,
-          type: C,
-          offset: y.roundMeters(this.wallSnap.offset),
+          type: y,
+          offset: v.roundMeters(this.wallSnap.offset),
           width: this.currentOpeningWidth || $,
           flipSide: this.openingFlipSide,
           flipDirection: this.openingFlipDirection,
-          sashCount: C === "window" ? this.windowSashCount || 1 : C === "french_window" ? 2 : 1
+          sashCount: y === "window" ? this.windowSashCount || 1 : y === "french_window" ? 2 : 1
         };
         this.project = {
           ...this.project,
-          openings: [...this.project.openings, _]
+          openings: [...this.project.openings, S]
         }, this.dispatchProjectChanged();
       }
     } else if (this.activeTool === "calibrate") {
-      const C = this.getBoundingClientRect(), $ = { x: e.clientX - C.left, y: e.clientY - C.top };
+      const y = this.getBoundingClientRect(), $ = { x: e.clientX - y.left, y: e.clientY - y.top };
       if (!this.calibrateStart)
         this.calibrateStart = $, this.calibrateCurrent = $;
       else {
-        const _ = $.x - this.calibrateStart.x, D = $.y - this.calibrateStart.y, I = Math.sqrt(_ * _ + D * D);
-        if (I >= 10) {
-          const B = I / this.viewport.zoom;
+        const S = $.x - this.calibrateStart.x, E = $.y - this.calibrateStart.y, D = Math.sqrt(S * S + E * E);
+        if (D >= 10) {
+          const L = D / this.viewport.zoom;
           this.dispatchEvent(new CustomEvent("request-calibration", {
             detail: {
-              pixelDistance: B,
-              defaultMeters: y.roundMeters(B / this.project.pixelsPerMeter)
+              pixelDistance: L,
+              defaultMeters: v.roundMeters(L / this.project.pixelsPerMeter)
             },
             bubbles: !0,
             composed: !0
@@ -1453,24 +1914,24 @@ let T = class extends H {
         }
       }
     } else if (this.activeTool === "rescale") {
-      const C = this.screenToWorld(e.clientX, e.clientY);
-      let $ = y.snapPoint(
-        C,
+      const y = this.screenToWorld(e.clientX, e.clientY);
+      let $ = v.snapPoint(
+        y,
         this.project.grid,
         this.project.walls,
         this.rescaleStart || void 0
       );
       if ($.snappedTo === "none" && this.project.walls.length > 0) {
-        const _ = y.snapPointToWall(C, this.project.walls, 0.6);
-        _ && ($ = { point: _.projectionPoint, snappedTo: "vertex" });
+        const S = v.snapPointToWall(y, this.project.walls, 0.6);
+        S && ($ = { point: S.projectionPoint, snappedTo: "vertex" });
       }
       if (!this.rescaleStart)
         this.rescaleStart = $.point, this.rescaleCurrent = $.point;
       else {
-        const _ = this.rescaleStart, D = $.point, I = y.distance(_, D);
-        I >= 0.05 && (this.dispatchEvent(new CustomEvent("request-rescale", {
+        const S = this.rescaleStart, E = $.point, D = v.distance(S, E);
+        D >= 0.05 && (this.dispatchEvent(new CustomEvent("request-rescale", {
           detail: {
-            measuredMeters: y.roundMeters(I)
+            measuredMeters: v.roundMeters(D)
           },
           bubbles: !0,
           composed: !0
@@ -1480,18 +1941,63 @@ let T = class extends H {
   }
   handlePointerMove(e) {
     if (this.isOrbiting) {
-      const s = e.clientX - this.orbitStart.x, i = e.clientY - this.orbitStart.y;
-      this.orbitYaw = (this.orbitStartYaw + s * 0.55) % 360, this.orbitPitch = Math.max(15, Math.min(85, this.orbitStartPitch - i * 0.38)), this.requestUpdate();
+      const i = e.clientX - this.orbitStart.x, s = e.clientY - this.orbitStart.y;
+      this.orbitYaw = (this.orbitStartYaw + i * 0.55) % 360, this.orbitPitch = Math.max(15, Math.min(85, this.orbitStartPitch - s * 0.38)), this.requestUpdate();
+      return;
+    }
+    if (this.draggingFurnitureId) {
+      if (Math.hypot(e.clientX - this.dragFurnitureStartPos.x, e.clientY - this.dragFurnitureStartPos.y) > 3) {
+        this.dragFurnitureMoved = !0;
+        const s = this.project.pixelsPerMeter * this.viewport.zoom, o = (e.clientX - this.dragFurnitureStartPos.x) / s, r = (e.clientY - this.dragFurnitureStartPos.y) / s;
+        let n = this.dragFurnitureItemStartPos.x + o, a = this.dragFurnitureItemStartPos.y + r;
+        if (this.project.grid.snapToGrid) {
+          const c = this.project.grid.size || 0.5;
+          n = Math.round(n / c) * c, a = Math.round(a / c) * c;
+        }
+        const l = {
+          x: v.roundMeters(n),
+          y: v.roundMeters(a)
+        }, u = Y.findRoomContainingPoint(l, this.project.rooms), d = (this.project.furniture || []).map((c) => c.id === this.draggingFurnitureId ? {
+          ...c,
+          position: l,
+          roomId: u == null ? void 0 : u.id
+        } : c);
+        this.project = { ...this.project, furniture: d }, this.requestUpdate();
+      }
+      return;
+    }
+    if (this.draggingWallId) {
+      if (Math.hypot(e.clientX - this.dragWallStartPointer.x, e.clientY - this.dragWallStartPointer.y) > 3) {
+        this.dragWallMoved = !0;
+        const s = this.project.pixelsPerMeter * this.viewport.zoom;
+        let o = (e.clientX - this.dragWallStartPointer.x) / s, r = (e.clientY - this.dragWallStartPointer.y) / s;
+        if (this.project.grid.snapToGrid) {
+          const a = this.project.grid.size || 0.5;
+          o = Math.round(o / a) * a, r = Math.round(r / a) * a;
+        }
+        const n = this.project.walls.map((a) => a.id === this.draggingWallId ? {
+          ...a,
+          start: {
+            x: v.roundMeters(this.dragWallInitialStart.x + o),
+            y: v.roundMeters(this.dragWallInitialStart.y + r)
+          },
+          end: {
+            x: v.roundMeters(this.dragWallInitialEnd.x + o),
+            y: v.roundMeters(this.dragWallInitialEnd.y + r)
+          }
+        } : a);
+        this.project = { ...this.project, walls: n }, this.requestUpdate();
+      }
       return;
     }
     if (this.draggingBindingId) {
       if (Math.hypot(e.clientX - this.dragBindingStartPos.x, e.clientY - this.dragBindingStartPos.y) > 3) {
         this.dragBindingMoved = !0;
-        const i = this.screenToWorld(e.clientX, e.clientY), o = Z.findRoomContainingPoint(i, this.project.rooms), r = this.project.bindings.map((n) => n.id === this.draggingBindingId ? {
+        const s = this.screenToWorld(e.clientX, e.clientY), o = Y.findRoomContainingPoint(s, this.project.rooms), r = this.project.bindings.map((n) => n.id === this.draggingBindingId ? {
           ...n,
           position: {
-            x: y.roundMeters(i.x),
-            y: y.roundMeters(i.y)
+            x: v.roundMeters(s.x),
+            y: v.roundMeters(s.y)
           },
           roomId: o == null ? void 0 : o.id
         } : n);
@@ -1513,83 +2019,118 @@ let T = class extends H {
     }
     const t = this.screenToWorld(e.clientX, e.clientY);
     if (this.cursorCoords = {
-      x: y.roundMeters(t.x),
-      y: y.roundMeters(t.y)
+      x: v.roundMeters(t.x),
+      y: v.roundMeters(t.y)
     }, this.activeTool === "wall") {
-      const s = y.snapPoint(
+      const i = v.snapPoint(
         t,
         this.project.grid,
         this.project.walls,
         this.drawingWallStart || void 0
       );
-      this.previewPoint = s.point, this.snapInfo = { snappedTo: s.snappedTo, guideAngle: s.guideAngle }, this.wallSnap = null;
+      this.previewPoint = i.point, this.snapInfo = {
+        snappedTo: i.snappedTo,
+        guideAngle: i.guideAngle,
+        smartGuideX: i.smartGuideX,
+        smartGuideY: i.smartGuideY
+      }, this.wallSnap = null;
     } else if (this.activeTool === "door" || this.activeTool === "window" || this.activeTool === "french_window")
-      this.wallSnap = y.snapPointToWall(t, this.project.walls, 0.8), this.previewPoint = null;
+      this.wallSnap = v.snapPointToWall(t, this.project.walls, 0.8), this.previewPoint = null;
     else if (this.activeTool === "calibrate" && this.calibrateStart) {
-      const s = this.getBoundingClientRect();
-      this.calibrateCurrent = { x: e.clientX - s.left, y: e.clientY - s.top };
+      const i = this.getBoundingClientRect();
+      this.calibrateCurrent = { x: e.clientX - i.left, y: e.clientY - i.top };
     } else if (this.activeTool === "rescale") {
-      let s = y.snapPoint(
+      let i = v.snapPoint(
         t,
         this.project.grid,
         this.project.walls,
         this.rescaleStart || void 0
       );
-      if (s.snappedTo === "none" && this.project.walls.length > 0) {
-        const i = y.snapPointToWall(t, this.project.walls, 0.6);
-        i && (s = { point: i.projectionPoint, snappedTo: "vertex" });
+      if (i.snappedTo === "none" && this.project.walls.length > 0) {
+        const s = v.snapPointToWall(t, this.project.walls, 0.6);
+        s && (i = { point: s.projectionPoint, snappedTo: "vertex" });
       }
-      this.previewPoint = s.point, this.snapInfo = { snappedTo: s.snappedTo, guideAngle: s.guideAngle }, this.wallSnap = null, this.rescaleStart && (this.rescaleCurrent = s.point);
+      this.previewPoint = i.point, this.snapInfo = {
+        snappedTo: i.snappedTo,
+        guideAngle: i.guideAngle,
+        smartGuideX: i.smartGuideX,
+        smartGuideY: i.smartGuideY
+      }, this.wallSnap = null, this.rescaleStart && (this.rescaleCurrent = i.point);
     } else
       this.previewPoint = null, this.wallSnap = null;
   }
   handlePointerUp(e) {
-    var t, s, i, o, r, n, a, l;
-    if (this.draggingBindingId) {
-      const h = this.dragBindingMoved;
-      this.draggingBindingId = null, this.dragBindingMoved = !1;
+    var t, i, s, o, r, n, a, l, u, d, c, p;
+    if (this.draggingFurnitureId) {
+      const g = this.dragFurnitureMoved;
+      this.draggingFurnitureId = null, this.dragFurnitureMoved = !1;
       try {
-        (s = (t = e.target).releasePointerCapture) == null || s.call(t, e.pointerId);
+        (i = (t = e.target).releasePointerCapture) == null || i.call(t, e.pointerId);
       } catch {
       }
-      if (h) {
+      if (g) {
+        this.dispatchProjectChanged();
+        return;
+      }
+    }
+    if (this.draggingWallId) {
+      const g = this.dragWallMoved;
+      this.draggingWallId = null, this.dragWallMoved = !1;
+      try {
+        (o = (s = e.target).releasePointerCapture) == null || o.call(s, e.pointerId);
+      } catch {
+      }
+      if (g) {
+        this.dispatchProjectChanged();
+        return;
+      }
+    }
+    if (this.draggingBindingId) {
+      const g = this.dragBindingMoved;
+      this.draggingBindingId = null, this.dragBindingMoved = !1;
+      try {
+        (n = (r = e.target).releasePointerCapture) == null || n.call(r, e.pointerId);
+      } catch {
+      }
+      if (g) {
         this.dispatchProjectChanged();
         return;
       }
     }
     if (this.isOrbiting) {
-      this.isOrbiting = !1, (o = (i = e.target).releasePointerCapture) == null || o.call(i, e.pointerId);
+      this.isOrbiting = !1, (l = (a = e.target).releasePointerCapture) == null || l.call(a, e.pointerId);
       return;
     }
     if (this.isMarqueeSelecting && this.marqueeStart && this.marqueeCurrent) {
-      const h = Math.min(this.marqueeStart.x, this.marqueeCurrent.x), c = Math.max(this.marqueeStart.x, this.marqueeCurrent.x), u = Math.min(this.marqueeStart.y, this.marqueeCurrent.y), p = Math.max(this.marqueeStart.y, this.marqueeCurrent.y);
-      if (c - h > 0.05 || p - u > 0.05) {
-        const g = this.project.walls.filter((x) => {
-          const k = (x.start.x + x.end.x) / 2, M = (x.start.y + x.end.y) / 2;
-          return k >= h && k <= c && M >= u && M <= p;
-        }).map((x) => x.id), d = this.project.openings.filter((x) => {
-          const k = this.project.walls.find((_) => _.id === x.wallId);
-          if (!k) return !1;
-          const M = k.end.x - k.start.x, w = k.end.y - k.start.y, S = Math.sqrt(M * M + w * w);
-          if (S === 0) return !1;
-          const C = k.start.x + x.offset / S * M, $ = k.start.y + x.offset / S * w;
-          return C >= h && C <= c && $ >= u && $ <= p;
-        }).map((x) => x.id), f = this.project.rooms.filter((x) => {
-          if (!x.polygon || x.polygon.length < 3) return !1;
-          const k = Z.calculateCentroid(x.polygon);
-          return k.x >= h && k.x <= c && k.y >= u && k.y <= p;
-        }).map((x) => x.id), m = this.project.bindings.filter((x) => x.position.x >= h && x.position.x <= c && x.position.y >= u && x.position.y <= p).map((x) => x.id);
+      const g = Math.min(this.marqueeStart.x, this.marqueeCurrent.x), h = Math.max(this.marqueeStart.x, this.marqueeCurrent.x), f = Math.min(this.marqueeStart.y, this.marqueeCurrent.y), m = Math.max(this.marqueeStart.y, this.marqueeCurrent.y);
+      if (h - g > 0.05 || m - f > 0.05) {
+        const M = this.project.walls.filter((y) => {
+          const $ = (y.start.x + y.end.x) / 2, S = (y.start.y + y.end.y) / 2;
+          return $ >= g && $ <= h && S >= f && S <= m;
+        }).map((y) => y.id), P = this.project.openings.filter((y) => {
+          const $ = this.project.walls.find((dt) => dt.id === y.wallId);
+          if (!$) return !1;
+          const S = $.end.x - $.start.x, E = $.end.y - $.start.y, D = Math.sqrt(S * S + E * E);
+          if (D === 0) return !1;
+          const L = $.start.x + y.offset / D * S, Q = $.start.y + y.offset / D * E;
+          return L >= g && L <= h && Q >= f && Q <= m;
+        }).map((y) => y.id), I = this.project.rooms.filter((y) => {
+          if (!y.polygon || y.polygon.length < 3) return !1;
+          const $ = Y.calculateCentroid(y.polygon);
+          return $.x >= g && $.x <= h && $.y >= f && $.y <= m;
+        }).map((y) => y.id), x = this.project.bindings.filter((y) => y.position.x >= g && y.position.x <= h && y.position.y >= f && y.position.y <= m).map((y) => y.id), k = (this.project.furniture || []).filter((y) => y.position.x >= g && y.position.x <= h && y.position.y >= f && y.position.y <= m).map((y) => y.id);
         this.selectedElements = {
-          wallIds: Array.from(/* @__PURE__ */ new Set([...this.selectedElements.wallIds, ...g])),
-          openingIds: Array.from(/* @__PURE__ */ new Set([...this.selectedElements.openingIds, ...d])),
-          roomIds: Array.from(/* @__PURE__ */ new Set([...this.selectedElements.roomIds, ...f])),
-          bindingIds: Array.from(/* @__PURE__ */ new Set([...this.selectedElements.bindingIds, ...m]))
+          wallIds: Array.from(/* @__PURE__ */ new Set([...this.selectedElements.wallIds, ...M])),
+          openingIds: Array.from(/* @__PURE__ */ new Set([...this.selectedElements.openingIds, ...P])),
+          roomIds: Array.from(/* @__PURE__ */ new Set([...this.selectedElements.roomIds, ...I])),
+          bindingIds: Array.from(/* @__PURE__ */ new Set([...this.selectedElements.bindingIds, ...x])),
+          furnitureIds: Array.from(/* @__PURE__ */ new Set([...this.selectedElements.furnitureIds || [], ...k]))
         }, this.dispatchSelectionChanged();
       }
-      this.isMarqueeSelecting = !1, this.marqueeStart = null, this.marqueeCurrent = null, (n = (r = e.target).releasePointerCapture) == null || n.call(r, e.pointerId);
+      this.isMarqueeSelecting = !1, this.marqueeStart = null, this.marqueeCurrent = null, (d = (u = e.target).releasePointerCapture) == null || d.call(u, e.pointerId);
       return;
     }
-    this.isPanning && (this.isPanning = !1, (l = (a = e.target).releasePointerCapture) == null || l.call(a, e.pointerId));
+    this.isPanning && (this.isPanning = !1, (p = (c = e.target).releasePointerCapture) == null || p.call(c, e.pointerId));
   }
   // ==========================================
   // DRAG & DROP ENTITÉS HOME ASSISTANT
@@ -1598,8 +2139,8 @@ let T = class extends H {
     e.preventDefault(), e.dataTransfer && (e.dataTransfer.dropEffect = "copy");
   }
   handleDrop(e) {
-    var s, i;
-    if (e.preventDefault(), (s = e.dataTransfer) != null && s.files && e.dataTransfer.files.length > 0) {
+    var i, s;
+    if (e.preventDefault(), (i = e.dataTransfer) != null && i.files && e.dataTransfer.files.length > 0) {
       const o = e.dataTransfer.files[0];
       if (o.type.startsWith("image/") || o.name.toLowerCase().endsWith(".svg")) {
         const r = new FileReader();
@@ -1615,19 +2156,52 @@ let T = class extends H {
         return;
       }
     }
-    const t = (i = e.dataTransfer) == null ? void 0 : i.getData("application/json");
+    const t = (s = e.dataTransfer) == null ? void 0 : s.getData("application/json");
     if (t)
       try {
-        const { entityId: o, domain: r, name: n, icon: a } = JSON.parse(t), l = this.screenToWorld(e.clientX, e.clientY), h = Z.findRoomContainingPoint(l, this.project.rooms), c = {
+        const o = JSON.parse(t);
+        if (o.kind === "furniture") {
+          const p = le(o.furnitureType);
+          if (p) {
+            const g = this.screenToWorld(e.clientX, e.clientY), h = Y.findRoomContainingPoint(g, this.project.rooms), f = {
+              id: `furn_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+              type: p.type,
+              name: p.name,
+              category: p.category,
+              position: {
+                x: v.roundMeters(g.x),
+                y: v.roundMeters(g.y)
+              },
+              width: p.width,
+              length: p.length,
+              rotation: 0,
+              color: p.defaultColor,
+              icon: p.icon,
+              roomId: h == null ? void 0 : h.id
+            };
+            this.project = {
+              ...this.project,
+              furniture: [...this.project.furniture || [], f]
+            }, this.selectedElements = {
+              wallIds: [],
+              openingIds: [],
+              roomIds: [],
+              bindingIds: [],
+              furnitureIds: [f.id]
+            }, this.dispatchSelectionChanged(), this.dispatchProjectChanged();
+            return;
+          }
+        }
+        const { entityId: r, domain: n, name: a, icon: l } = o, u = this.screenToWorld(e.clientX, e.clientY), d = Y.findRoomContainingPoint(u, this.project.rooms), c = {
           id: `bind_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
-          entityId: o,
+          entityId: r,
           position: {
-            x: y.roundMeters(l.x),
-            y: y.roundMeters(l.y)
+            x: v.roundMeters(u.x),
+            y: v.roundMeters(u.y)
           },
-          roomId: h == null ? void 0 : h.id,
-          icon: a,
-          customName: n,
+          roomId: d == null ? void 0 : d.id,
+          icon: l,
+          customName: a,
           tapAction: "toggle"
         };
         this.project = {
@@ -1635,7 +2209,7 @@ let T = class extends H {
           bindings: [...this.project.bindings, c]
         }, this.dispatchProjectChanged();
       } catch (o) {
-        console.error("Erreur lors de la liaison entité HA:", o);
+        console.error("Erreur lors de la liaison entité/meuble:", o);
       }
   }
   dispatchSelectionChanged() {
@@ -1645,43 +2219,77 @@ let T = class extends H {
       composed: !0
     })), this.requestUpdate();
   }
+  handleWallPointerDown(e, t) {
+    var o, r;
+    if (this.isDashboardMode || t.button !== 0 || this.activeTool !== "select") return;
+    t.stopPropagation(), this.draggingWallId = e.id, this.dragWallMoved = !1, this.dragWallStartPointer = { x: t.clientX, y: t.clientY }, this.dragWallInitialStart = { ...e.start }, this.dragWallInitialEnd = { ...e.end };
+    const i = t.shiftKey || t.ctrlKey || t.metaKey, s = this.selectedElements.wallIds.includes(e.id);
+    if (i) {
+      const n = s ? this.selectedElements.wallIds.filter((a) => a !== e.id) : [...this.selectedElements.wallIds, e.id];
+      this.selectedElements = { ...this.selectedElements, wallIds: n };
+    } else s || (this.selectedElements = { wallIds: [e.id], openingIds: [], roomIds: [], bindingIds: [], furnitureIds: [] });
+    this.dispatchSelectionChanged(), (r = (o = t.currentTarget) == null ? void 0 : o.setPointerCapture) == null || r.call(o, t.pointerId);
+  }
   handleWallClick(e, t) {
-    if (this.activeTool !== "select") return;
+    if (this.activeTool !== "select" || this.dragWallMoved) return;
     e.stopPropagation();
-    const s = e.shiftKey || e.ctrlKey || e.metaKey, i = this.selectedElements.wallIds.includes(t.id);
-    if (s) {
-      const o = i ? this.selectedElements.wallIds.filter((r) => r !== t.id) : [...this.selectedElements.wallIds, t.id];
+    const i = e.shiftKey || e.ctrlKey || e.metaKey, s = this.selectedElements.wallIds.includes(t.id);
+    if (i) {
+      const o = s ? this.selectedElements.wallIds.filter((r) => r !== t.id) : [...this.selectedElements.wallIds, t.id];
       this.selectedElements = { ...this.selectedElements, wallIds: o };
     } else
-      this.selectedElements = { wallIds: [t.id], openingIds: [], roomIds: [], bindingIds: [] };
+      this.selectedElements = { wallIds: [t.id], openingIds: [], roomIds: [], bindingIds: [], furnitureIds: [] };
     this.dispatchSelectionChanged();
   }
   handleOpeningClick(e, t) {
     if (this.activeTool !== "select") return;
     e.stopPropagation();
-    const s = e.shiftKey || e.ctrlKey || e.metaKey, i = this.selectedElements.openingIds.includes(t.id);
-    if (s) {
-      const o = i ? this.selectedElements.openingIds.filter((r) => r !== t.id) : [...this.selectedElements.openingIds, t.id];
+    const i = e.shiftKey || e.ctrlKey || e.metaKey, s = this.selectedElements.openingIds.includes(t.id);
+    if (i) {
+      const o = s ? this.selectedElements.openingIds.filter((r) => r !== t.id) : [...this.selectedElements.openingIds, t.id];
       this.selectedElements = { ...this.selectedElements, openingIds: o };
     } else
-      this.selectedElements = { wallIds: [], openingIds: [t.id], roomIds: [], bindingIds: [] };
+      this.selectedElements = { wallIds: [], openingIds: [t.id], roomIds: [], bindingIds: [], furnitureIds: [] };
+    this.dispatchSelectionChanged();
+  }
+  handleFurniturePointerDown(e, t) {
+    var o, r, n;
+    if (this.isDashboardMode || t.button !== 0 || this.activeTool !== "select") return;
+    t.stopPropagation(), this.draggingFurnitureId = e.id, this.dragFurnitureMoved = !1, this.dragFurnitureStartPos = { x: t.clientX, y: t.clientY }, this.dragFurnitureItemStartPos = { ...e.position };
+    const i = t.shiftKey || t.ctrlKey || t.metaKey, s = ((o = this.selectedElements.furnitureIds) == null ? void 0 : o.includes(e.id)) || !1;
+    if (i) {
+      const a = s ? (this.selectedElements.furnitureIds || []).filter((l) => l !== e.id) : [...this.selectedElements.furnitureIds || [], e.id];
+      this.selectedElements = { ...this.selectedElements, furnitureIds: a };
+    } else s || (this.selectedElements = { wallIds: [], openingIds: [], roomIds: [], bindingIds: [], furnitureIds: [e.id] });
+    this.dispatchSelectionChanged(), (n = (r = t.currentTarget) == null ? void 0 : r.setPointerCapture) == null || n.call(r, t.pointerId);
+  }
+  handleFurnitureClick(e, t) {
+    var o;
+    if (this.activeTool !== "select" || this.dragFurnitureMoved) return;
+    e.stopPropagation();
+    const i = e.shiftKey || e.ctrlKey || e.metaKey, s = ((o = this.selectedElements.furnitureIds) == null ? void 0 : o.includes(t.id)) || !1;
+    if (i) {
+      const r = s ? (this.selectedElements.furnitureIds || []).filter((n) => n !== t.id) : [...this.selectedElements.furnitureIds || [], t.id];
+      this.selectedElements = { ...this.selectedElements, furnitureIds: r };
+    } else
+      this.selectedElements = { wallIds: [], openingIds: [], roomIds: [], bindingIds: [], furnitureIds: [t.id] };
     this.dispatchSelectionChanged();
   }
   renderMarqueeBox() {
     if (!this.isMarqueeSelecting || !this.marqueeStart || !this.marqueeCurrent) return null;
-    const e = this.worldToScreen(this.marqueeStart), t = this.worldToScreen(this.marqueeCurrent), s = Math.min(e.x, t.x), i = Math.min(e.y, t.y), o = Math.abs(e.x - t.x), r = Math.abs(e.y - t.y);
-    return O`
+    const e = this.worldToScreen(this.marqueeStart), t = this.worldToScreen(this.marqueeCurrent), i = Math.min(e.x, t.x), s = Math.min(e.y, t.y), o = Math.abs(e.x - t.x), r = Math.abs(e.y - t.y);
+    return C`
       <rect 
         class="marquee-selection-box"
-        x="${s}" 
-        y="${i}" 
+        x="${i}" 
+        y="${s}" 
         width="${o}" 
         height="${r}" 
       />
     `;
   }
   handleEntityPointerDown(e, t) {
-    var s, i;
+    var i, s;
     if (!this.isDashboardMode && t.button === 0) {
       if (t.stopPropagation(), this.draggingBindingId = e.id, this.dragBindingMoved = !1, this.dragBindingStartPos = { x: t.clientX, y: t.clientY }, this.activeTool === "select") {
         const o = t, r = o.shiftKey || o.ctrlKey || o.metaKey, n = this.selectedElements.bindingIds.includes(e.id);
@@ -1691,14 +2299,14 @@ let T = class extends H {
         } else n || (this.selectedElements = { wallIds: [], openingIds: [], roomIds: [], bindingIds: [e.id] });
         this.dispatchSelectionChanged();
       }
-      (i = (s = t.currentTarget) == null ? void 0 : s.setPointerCapture) == null || i.call(s, t.pointerId);
+      (s = (i = t.currentTarget) == null ? void 0 : i.setPointerCapture) == null || s.call(i, t.pointerId);
     }
   }
   handleEntityClick(e, t) {
     if (t.stopPropagation(), !this.dragBindingMoved) {
       if (this.isDashboardMode) {
-        const s = e.entityId.split(".")[0];
-        if (e.tapAction === "more-info" || s !== "light" && s !== "switch") {
+        const i = e.entityId.split(".")[0];
+        if (e.tapAction === "more-info" || i !== "light" && i !== "switch") {
           this.dispatchEvent(new CustomEvent("hass-more-info", {
             detail: { entityId: e.entityId },
             bubbles: !0,
@@ -1706,14 +2314,14 @@ let T = class extends H {
           }));
           return;
         }
-        this.hass && this.hass.callService && this.hass.callService(s, "toggle", { entity_id: e.entityId }).catch(() => {
+        this.hass && this.hass.callService && this.hass.callService(i, "toggle", { entity_id: e.entityId }).catch(() => {
           this.hass.callService("homeassistant", "toggle", { entity_id: e.entityId });
         });
         return;
       }
       if (this.activeTool === "select") {
-        const s = t, i = s.shiftKey || s.ctrlKey || s.metaKey, o = this.selectedElements.bindingIds.includes(e.id);
-        if (i) {
+        const i = t, s = i.shiftKey || i.ctrlKey || i.metaKey, o = this.selectedElements.bindingIds.includes(e.id);
+        if (s) {
           const r = o ? this.selectedElements.bindingIds.filter((n) => n !== e.id) : [...this.selectedElements.bindingIds, e.id];
           this.selectedElements = { ...this.selectedElements, bindingIds: r };
         } else
@@ -1722,8 +2330,8 @@ let T = class extends H {
         return;
       }
       if (this.hass && this.hass.callService) {
-        const s = e.entityId.split(".")[0];
-        this.hass.callService(s, "toggle", { entity_id: e.entityId }).catch(() => {
+        const i = e.entityId.split(".")[0];
+        this.hass.callService(i, "toggle", { entity_id: e.entityId }).catch(() => {
           this.hass.callService("homeassistant", "toggle", { entity_id: e.entityId });
         });
       } else
@@ -1737,8 +2345,16 @@ let T = class extends H {
       composed: !0
     }));
   }
+  rotateSelectedFurniture() {
+    if (!this.selectedElements.furnitureIds || this.selectedElements.furnitureIds.length === 0) return;
+    const e = this.selectedElements.furnitureIds, t = (this.project.furniture || []).map((i) => e.includes(i.id) ? {
+      ...i,
+      rotation: ((i.rotation || 0) + 90) % 360
+    } : i);
+    this.project = { ...this.project, furniture: t }, this.dispatchProjectChanged(), this.requestUpdate();
+  }
   handleKeyDown(e) {
-    e.key === "Escape" ? (this.drawingWallStart = null, this.previewPoint = null, this.calibrateStart = null, this.calibrateCurrent = null, this.rescaleStart = null, this.rescaleCurrent = null, this.wallSnap = null, this.selectedElements = { wallIds: [], openingIds: [], roomIds: [], bindingIds: [] }, this.dispatchSelectionChanged(), this.requestUpdate()) : e.key === " " || e.key === "Spacebar" ? this.wallSnap && (e.preventDefault(), this.openingFlipSide = !this.openingFlipSide, this.requestUpdate()) : e.key.toLowerCase() === "f" && this.wallSnap && (this.openingFlipDirection = !this.openingFlipDirection, this.requestUpdate());
+    e.key === "Escape" ? (this.drawingWallStart = null, this.previewPoint = null, this.calibrateStart = null, this.calibrateCurrent = null, this.rescaleStart = null, this.rescaleCurrent = null, this.wallSnap = null, this.selectedElements = { wallIds: [], openingIds: [], roomIds: [], bindingIds: [], furnitureIds: [] }, this.dispatchSelectionChanged(), this.requestUpdate()) : e.key === " " || e.key === "Spacebar" ? this.wallSnap && (e.preventDefault(), this.openingFlipSide = !this.openingFlipSide, this.requestUpdate()) : e.key.toLowerCase() === "f" ? this.wallSnap && (this.openingFlipDirection = !this.openingFlipDirection, this.requestUpdate()) : e.key.toLowerCase() === "r" && this.selectedElements.furnitureIds && this.selectedElements.furnitureIds.length > 0 && (e.preventDefault(), this.rotateSelectedFurniture());
   }
   connectedCallback() {
     super.connectedCallback(), this._boundKeyDown = this.handleKeyDown.bind(this), window.addEventListener("keydown", this._boundKeyDown);
@@ -1756,10 +2372,10 @@ let T = class extends H {
   // ==========================================
   // RENDU GÉOMÉTRIQUE & 3D
   // ==========================================
-  computeWallPolygon(e, t, s) {
-    const i = t.x - e.x, o = t.y - e.y, r = Math.sqrt(i * i + o * o);
+  computeWallPolygon(e, t, i) {
+    const s = t.x - e.x, o = t.y - e.y, r = Math.sqrt(s * s + o * o);
     if (r === 0) return [e, e, t, t];
-    const n = s / 2, a = -o / r * n, l = i / r * n;
+    const n = i / 2, a = -o / r * n, l = s / r * n;
     return [
       { x: e.x + a, y: e.y + l },
       { x: t.x + a, y: t.y + l },
@@ -1770,11 +2386,11 @@ let T = class extends H {
   renderBackgroundLayer() {
     const e = this.project.background;
     if (!e || !e.imageUrl || !e.visible) return null;
-    const t = this.worldToScreen(e.offset || { x: 0, y: 0 }), s = e.scale || 1;
-    return O`
+    const t = this.worldToScreen(e.offset || { x: 0, y: 0 }), i = e.scale || 1;
+    return C`
       <g 
         class="background-image-layer" 
-        transform="translate(${t.x}, ${t.y}) scale(${this.viewport.zoom * s})"
+        transform="translate(${t.x}, ${t.y}) scale(${this.viewport.zoom * i})"
         style="opacity: ${e.opacity};"
       >
         <image 
@@ -1787,30 +2403,30 @@ let T = class extends H {
       </g>
     `;
   }
-  pointToSegmentDistance(e, t, s) {
-    const i = s.x - t.x, o = s.y - t.y, r = i * i + o * o;
-    if (r === 0) return y.distance(e, t);
-    let n = ((e.x - t.x) * i + (e.y - t.y) * o) / r;
+  pointToSegmentDistance(e, t, i) {
+    const s = i.x - t.x, o = i.y - t.y, r = s * s + o * o;
+    if (r === 0) return v.distance(e, t);
+    let n = ((e.x - t.x) * s + (e.y - t.y) * o) / r;
     n = Math.max(0, Math.min(1, n));
-    const a = { x: t.x + n * i, y: t.y + n * o };
-    return y.distance(e, a);
+    const a = { x: t.x + n * s, y: t.y + n * o };
+    return v.distance(e, a);
   }
   getWallHeight(e) {
-    const t = this.project.defaultCeilingHeight || 2.5, s = {
+    const t = this.project.defaultCeilingHeight || 2.5, i = {
       x: (e.start.x + e.end.x) / 2,
       y: (e.start.y + e.end.y) / 2
-    }, i = (this.project.rooms || []).filter((o) => {
+    }, s = (this.project.rooms || []).filter((o) => {
       if (!o.polygon || o.polygon.length < 3) return !1;
-      if (Z.isPointInPolygon(s, o.polygon)) return !0;
+      if (Y.isPointInPolygon(i, o.polygon)) return !0;
       for (let r = 0; r < o.polygon.length; r++) {
         const n = o.polygon[r], a = o.polygon[(r + 1) % o.polygon.length];
-        if (this.pointToSegmentDistance(s, n, a) <= e.thickness / 2 + 0.35)
+        if (this.pointToSegmentDistance(i, n, a) <= e.thickness / 2 + 0.35)
           return !0;
       }
       return !1;
     });
-    if (i.length > 0) {
-      const o = i.map((r) => r.height || t);
+    if (s.length > 0) {
+      const o = s.map((r) => r.height || t);
       return Math.max(...o, e.height || 0);
     }
     return e.height || t;
@@ -1818,9 +2434,9 @@ let T = class extends H {
   handleRoomClick(e, t) {
     if (!(this.drawingWallStart || this.calibrateStart || this.rescaleStart)) {
       if (e.stopPropagation(), this.activeTool === "select") {
-        const s = e.shiftKey || e.ctrlKey || e.metaKey, i = this.selectedElements.roomIds.includes(t.id);
-        if (s) {
-          const o = i ? this.selectedElements.roomIds.filter((r) => r !== t.id) : [...this.selectedElements.roomIds, t.id];
+        const i = e.shiftKey || e.ctrlKey || e.metaKey, s = this.selectedElements.roomIds.includes(t.id);
+        if (i) {
+          const o = s ? this.selectedElements.roomIds.filter((r) => r !== t.id) : [...this.selectedElements.roomIds, t.id];
           this.selectedElements = { ...this.selectedElements, roomIds: o };
         } else
           this.selectedElements = { wallIds: [], openingIds: [], roomIds: [t.id], bindingIds: [] };
@@ -1841,29 +2457,53 @@ let T = class extends H {
       composed: !0
     }));
   }
-  // Rendu des Pièces avec détection d'illumination si lumière allumée
+  // Rendu des Pièces avec détection d'illumination (RGB & Brightness) et Carte Thermique
   renderRooms() {
     return this.project.rooms.map((e) => {
-      var l, h;
+      var g, h, f, m, M, P, I;
       if (!e.polygon || e.polygon.length < 3) return null;
-      const t = e.polygon.map((c) => this.worldToScreen(c)), s = t.map((c) => `${c.x},${c.y}`).join(" "), i = this.project.bindings.filter((c) => c.roomId === e.id && c.entityId.startsWith("light.")).some((c) => {
-        var p, g, d;
-        return ((d = (g = (p = this.hass) == null ? void 0 : p.states) == null ? void 0 : g[c.entityId]) == null ? void 0 : d.state) === "on";
-      }), o = Z.calculateCentroid(t), r = e.height || this.project.defaultCeilingHeight || 2.5, n = (e.areaM2 * r).toFixed(1), a = (h = (l = this.selectedElements) == null ? void 0 : l.roomIds) == null ? void 0 : h.includes(e.id);
-      return O`
+      const t = e.polygon.map((x) => this.worldToScreen(x)), i = t.map((x) => `${x.x},${x.y}`).join(" "), s = this.project.bindings.filter((x) => x.roomId === e.id && x.entityId.startsWith("light.")).map((x) => {
+        var k, y;
+        return (y = (k = this.hass) == null ? void 0 : k.states) == null ? void 0 : y[x.entityId];
+      }).filter((x) => x && x.state === "on"), o = s.length > 0;
+      let r = null;
+      if (o) {
+        const x = s[0], k = ((g = x.attributes) == null ? void 0 : g.rgb_color) || [255, 240, 180], $ = 0.12 + (((h = x.attributes) == null ? void 0 : h.brightness) !== void 0 ? x.attributes.brightness : 255) / 255 * 0.22;
+        r = `rgba(${k[0]}, ${k[1]}, ${k[2]}, ${$.toFixed(2)})`;
+      }
+      let n = null;
+      const a = this.project.bindings.find(
+        (x) => {
+          var k;
+          return x.roomId === e.id && (x.entityId.startsWith("climate.") || x.entityId.startsWith("sensor.") && (x.entityId.toLowerCase().includes("temp") || ((k = x.customName) == null ? void 0 : k.toLowerCase().includes("temp"))));
+        }
+      );
+      if (a) {
+        const x = (m = (f = this.hass) == null ? void 0 : f.states) == null ? void 0 : m[a.entityId];
+        if (x)
+          if (a.entityId.startsWith("climate.")) {
+            const k = ((M = x.attributes) == null ? void 0 : M.current_temperature) ?? x.state;
+            isNaN(parseFloat(k)) || (n = parseFloat(k));
+          } else
+            isNaN(parseFloat(x.state)) || (n = parseFloat(x.state));
+      }
+      let l = e.color || "rgba(56, 189, 248, 0.12)";
+      this.showThermalHeatmap && n !== null ? n < 18 ? l = "rgba(59, 130, 246, 0.38)" : n < 20 ? l = "rgba(14, 165, 233, 0.32)" : n < 22 ? l = "rgba(16, 185, 129, 0.30)" : n < 24 ? l = "rgba(245, 158, 11, 0.34)" : l = "rgba(239, 68, 68, 0.40)" : r && (l = r);
+      const u = Y.calculateCentroid(t), d = e.height || this.project.defaultCeilingHeight || 2.5, c = (e.areaM2 * d).toFixed(1), p = (I = (P = this.selectedElements) == null ? void 0 : P.roomIds) == null ? void 0 : I.includes(e.id);
+      return C`
         <g 
-          class="room-group ${a ? "selected" : ""}" 
+          class="room-group ${p ? "selected" : ""}" 
           data-room-id="${e.id}" 
-          @click=${(c) => this.handleRoomClick(c, e)}
-          @dblclick=${(c) => this.handleRoomDblClick(c, e)}
+          @click=${(x) => this.handleRoomClick(x, e)}
+          @dblclick=${(x) => this.handleRoomDblClick(x, e)}
         >
           <polygon 
-            points="${s}" 
-            class="room-polygon ${i ? "illuminated" : ""}"
-            style="fill: ${e.color || "rgba(56, 189, 248, 0.12)"}; cursor: pointer;"
+            points="${i}" 
+            class="room-polygon ${o ? "illuminated" : ""}"
+            style="fill: ${l}; cursor: pointer; transition: fill 0.3s ease;"
           />
-          ${this.is3DMode ? O`
-            <g class="room-3d-badge-group" transform="translate(${o.x}, ${o.y})">
+          ${this.is3DMode ? C`
+            <g class="room-3d-badge-group" transform="translate(${u.x}, ${u.y})">
               <rect 
                 x="-62" 
                 y="-30" 
@@ -1872,8 +2512,8 @@ let T = class extends H {
                 rx="10" 
                 ry="10" 
                 fill="rgba(15, 23, 42, 0.84)" 
-                stroke="${a ? "#38bdf8" : "rgba(56, 189, 248, 0.4)"}" 
-                stroke-width="${a ? 2 : 1}"
+                stroke="${p ? "#38bdf8" : "rgba(56, 189, 248, 0.4)"}" 
+                stroke-width="${p ? 2 : 1}"
                 filter="drop-shadow(0 6px 14px rgba(0, 0, 0, 0.6))"
               />
               <text class="room-label-name" y="-12" style="font-size: 12px; font-weight: 700; fill: #f8fafc; text-anchor: middle;">
@@ -1883,13 +2523,18 @@ let T = class extends H {
                 ${e.areaM2.toFixed(1)} m²
               </text>
               <text class="room-label-height" y="21" style="font-size: 9.5px; font-weight: 600; fill: #a5f3fc; text-anchor: middle; font-family: ui-monospace, SFMono-Regular, monospace;">
-                H: ${r.toFixed(2)}m · ${n} m³
+                H: ${d.toFixed(2)}m · ${c} m³
               </text>
             </g>
-          ` : O`
-            <g class="room-label-group" transform="translate(${o.x}, ${o.y})">
-              <text class="room-label-name" y="-6">${e.name}</text>
-              <text class="room-label-area" y="12">${e.areaM2.toFixed(1)} m²</text>
+          ` : C`
+            <g class="room-label-group" transform="translate(${u.x}, ${u.y})">
+              <text class="room-label-name" y="${n !== null ? -10 : -6}">${e.name}</text>
+              <text class="room-label-area" y="${n !== null ? 6 : 12}">${e.areaM2.toFixed(1)} m²</text>
+              ${n !== null ? C`
+                <text class="room-label-temp" y="21" style="font-size: 9.5px; font-weight: 700; fill: #facc15; text-anchor: middle; font-family: ui-monospace, SFMono-Regular, monospace;">
+                  🌡️ ${n.toFixed(1)}°C
+                </text>
+              ` : null}
             </g>
           `}
         </g>
@@ -1898,7 +2543,7 @@ let T = class extends H {
   }
   renderGrid() {
     if (this.is3DMode)
-      return O`
+      return C`
         <defs>
           <radialGradient id="ground-shadow" cx="50%" cy="50%" r="50%">
             <stop offset="0%" stop-color="rgba(0, 0, 0, 0.45)" />
@@ -1915,20 +2560,20 @@ let T = class extends H {
         <!-- Ombre portée architecturale sous le bâtiment -->
         <ellipse cx="${this.viewport.x + 300}" cy="${this.viewport.y + 200}" rx="900" ry="550" fill="url(#ground-shadow)" />
       `;
-    const e = this.project.pixelsPerMeter * this.viewport.zoom, s = (this.project.grid.size || 0.5) * e;
-    if (s < 12) return null;
-    const i = s * 2;
-    return O`
+    const e = this.project.pixelsPerMeter * this.viewport.zoom, i = (this.project.grid.size || 0.5) * e;
+    if (i < 12) return null;
+    const s = i * 2;
+    return C`
       <defs>
-        <pattern id="grid-sub" width="${s}" height="${s}" patternUnits="userSpaceOnUse"
-          patternTransform="translate(${this.viewport.x % s}, ${this.viewport.y % s})">
-          <line x1="0" y1="0" x2="${s}" y2="0" stroke="rgba(255,255,255,0.06)" stroke-width="0.5" />
-          <line x1="0" y1="0" x2="0" y2="${s}" stroke="rgba(255,255,255,0.06)" stroke-width="0.5" />
-        </pattern>
-        <pattern id="grid-major" width="${i}" height="${i}" patternUnits="userSpaceOnUse"
+        <pattern id="grid-sub" width="${i}" height="${i}" patternUnits="userSpaceOnUse"
           patternTransform="translate(${this.viewport.x % i}, ${this.viewport.y % i})">
-          <line x1="0" y1="0" x2="${i}" y2="0" stroke="rgba(255,255,255,0.14)" stroke-width="1" />
-          <line x1="0" y1="0" x2="0" y2="${i}" stroke="rgba(255,255,255,0.14)" stroke-width="1" />
+          <line x1="0" y1="0" x2="${i}" y2="0" stroke="rgba(255,255,255,0.06)" stroke-width="0.5" />
+          <line x1="0" y1="0" x2="0" y2="${i}" stroke="rgba(255,255,255,0.06)" stroke-width="0.5" />
+        </pattern>
+        <pattern id="grid-major" width="${s}" height="${s}" patternUnits="userSpaceOnUse"
+          patternTransform="translate(${this.viewport.x % s}, ${this.viewport.y % s})">
+          <line x1="0" y1="0" x2="${s}" y2="0" stroke="rgba(255,255,255,0.14)" stroke-width="1" />
+          <line x1="0" y1="0" x2="0" y2="${s}" stroke="rgba(255,255,255,0.14)" stroke-width="1" />
         </pattern>
       </defs>
       <rect width="100%" height="100%" fill="url(#grid-sub)" />
@@ -1938,49 +2583,51 @@ let T = class extends H {
   renderWalls() {
     const e = this.project.pixelsPerMeter * this.viewport.zoom;
     return this.project.walls.map((t) => {
-      var p, g;
-      const s = (g = (p = this.selectedElements) == null ? void 0 : p.wallIds) == null ? void 0 : g.includes(t.id), i = this.getWallHeight(t), o = this.is3DMode ? i * e * 0.55 : 0, n = this.computeWallPolygon(t.start, t.end, t.thickness).map((d) => this.worldToScreen(d)), a = this.worldToScreen(t.start), l = this.worldToScreen(t.end), h = n.map((d) => `${d.x},${d.y}`).join(" "), c = y.distance(t.start, t.end), u = {
+      var M, P;
+      const i = (P = (M = this.selectedElements) == null ? void 0 : M.wallIds) == null ? void 0 : P.includes(t.id), s = this.getWallHeight(t), o = this.is3DMode ? s * e * 0.55 : 0, n = this.computeWallPolygon(t.start, t.end, t.thickness).map((I) => this.worldToScreen(I)), a = this.worldToScreen(t.start), l = this.worldToScreen(t.end), u = n.map((I) => `${I.x},${I.y}`).join(" "), d = v.distance(t.start, t.end), c = {
         x: (a.x + l.x) / 2,
         y: (a.y + l.y) / 2
       };
       if (this.is3DMode) {
-        const d = n.map((M) => ({ x: M.x, y: M.y - o })), f = d.map((M) => `${M.x},${M.y}`).join(" "), m = [0, 1, 2, 3].map((M) => {
-          const w = (M + 1) % 4, S = n[M], C = n[w], $ = d[w], _ = d[M], D = C.x - S.x, I = C.y - S.y, B = Math.sqrt(D * D + I * I) || 1, gt = -I / B, It = D / B, R = Math.max(-1, Math.min(1, gt * -0.7 + It * -0.7)), W = Math.round(s ? 42 + R * 14 : 34 + R * 16), j = s ? `hsl(192, 85%, ${W}%)` : `hsl(215, 22%, ${W}%)`, z = s ? "#38bdf8" : `hsl(215, 22%, ${W + 6}%)`;
+        const I = n.map((S) => ({ x: S.x, y: S.y - o })), x = I.map((S) => `${S.x},${S.y}`).join(" "), k = [0, 1, 2, 3].map((S) => {
+          const E = (S + 1) % 4, D = n[S], L = n[E], Q = I[E], dt = I[S], R = L.x - D.x, W = L.y - D.y, F = Math.sqrt(R * R + W * W) || 1, O = -W / F, et = R / F, rt = Math.max(-1, Math.min(1, O * -0.7 + et * -0.7)), ct = Math.round(i ? 42 + rt * 14 : 34 + rt * 16), kt = i ? `hsl(192, 85%, ${ct}%)` : `hsl(215, 22%, ${ct}%)`, Kt = i ? "#38bdf8" : `hsl(215, 22%, ${ct + 6}%)`;
           return {
-            pts: `${S.x},${S.y} ${C.x},${C.y} ${$.x},${$.y} ${_.x},${_.y}`,
-            fill: j,
-            stroke: z
+            pts: `${D.x},${D.y} ${L.x},${L.y} ${Q.x},${Q.y} ${dt.x},${dt.y}`,
+            fill: kt,
+            stroke: Kt
           };
-        }), x = s ? "#06b6d4" : "#f1f5f9", k = s ? "#22d3ee" : "#94a3b8";
-        return O`
+        }), y = i ? "#06b6d4" : "#f1f5f9", $ = i ? "#22d3ee" : "#94a3b8";
+        return C`
           <g 
-            class="wall-element-3d ${s ? "selected" : ""}" 
+            class="wall-element-3d ${i ? "selected" : ""}" 
             data-wall-id="${t.id}"
-            @click=${(M) => this.handleWallClick(M, t)}
+            @click=${(S) => this.handleWallClick(S, t)}
             style="cursor: pointer;"
           >
             <!-- 4 parois verticales solides -->
-            ${m.map((M) => O`
-              <polygon points="${M.pts}" style="fill: ${M.fill}; stroke: ${M.stroke}; stroke-width: 0.8; stroke-linejoin: round;" />
+            ${k.map((S) => C`
+              <polygon points="${S.pts}" style="fill: ${S.fill}; stroke: ${S.stroke}; stroke-width: 0.8; stroke-linejoin: round;" />
             `)}
             <!-- Chapeau supérieur du mur -->
-            <polygon points="${f}" style="fill: ${x}; stroke: ${k}; stroke-width: 1.2; stroke-linejoin: round;" />
+            <polygon points="${x}" style="fill: ${y}; stroke: ${$}; stroke-width: 1.2; stroke-linejoin: round;" />
           </g>
         `;
       }
-      return O`
+      const p = l.x - a.x, g = l.y - a.y, h = Math.hypot(p, g) || 1, f = -g / h, m = p / h;
+      return C`
         <g 
-          class="wall-element ${s ? "selected" : ""}" 
+          class="wall-element ${i ? "selected" : ""}" 
           data-wall-id="${t.id}"
-          @click=${(d) => this.handleWallClick(d, t)}
+          @pointerdown=${(I) => this.handleWallPointerDown(t, I)}
+          @click=${(I) => this.handleWallClick(I, t)}
         >
-          <polygon points="${h}" class="wall-rect" />
+          <polygon points="${u}" class="wall-rect" />
           <line x1="${a.x}" y1="${a.y}" x2="${l.x}" y2="${l.y}" class="wall-centerline" />
           
-          ${c >= 0.6 ? O`
-            <g class="dimension-badge" transform="translate(${u.x}, ${u.y - 14})">
-              <rect x="-26" y="-10" width="52" height="20" />
-              <text>${y.roundMeters(c).toFixed(2)} m</text>
+          ${this.showDimensions && d >= 0.4 ? C`
+            <g class="wall-dim-badge" transform="translate(${c.x + f * 14}, ${c.y + m * 14})">
+              <rect x="-24" y="-9" width="48" height="18" />
+              <text>${v.roundMeters(d).toFixed(2)} m</text>
             </g>
           ` : null}
         </g>
@@ -1989,16 +2636,16 @@ let T = class extends H {
   }
   renderOpenings() {
     return this.project.openings.map((e) => {
-      var d, f;
-      const t = (f = (d = this.selectedElements) == null ? void 0 : d.openingIds) == null ? void 0 : f.includes(e.id), s = this.project.walls.find((m) => m.id === e.wallId);
-      if (!s) return null;
-      const i = s.end.x - s.start.x, o = s.end.y - s.start.y, r = Math.sqrt(i * i + o * o);
+      var h, f;
+      const t = (f = (h = this.selectedElements) == null ? void 0 : h.openingIds) == null ? void 0 : f.includes(e.id), i = this.project.walls.find((m) => m.id === e.wallId);
+      if (!i) return null;
+      const s = i.end.x - i.start.x, o = i.end.y - i.start.y, r = Math.sqrt(s * s + o * o);
       if (r === 0) return null;
-      const a = Math.atan2(o, i) * 180 / Math.PI, l = s.start.x + e.offset / r * i, h = s.start.y + e.offset / r * o, c = this.worldToScreen({ x: l, y: h }), u = this.project.pixelsPerMeter * this.viewport.zoom, p = e.width * u, g = s.thickness * u;
-      return O`
+      const a = Math.atan2(o, s) * 180 / Math.PI, l = i.start.x + e.offset / r * s, u = i.start.y + e.offset / r * o, d = this.worldToScreen({ x: l, y: u }), c = this.project.pixelsPerMeter * this.viewport.zoom, p = e.width * c, g = i.thickness * c;
+      return C`
         <g 
           class="opening-element ${t ? "selected" : ""}" 
-          transform="translate(${c.x}, ${c.y}) rotate(${a})"
+          transform="translate(${d.x}, ${d.y}) rotate(${a})"
           style="cursor: pointer;"
           @click=${(m) => this.handleOpeningClick(m, e)}
         >
@@ -2017,9 +2664,9 @@ let T = class extends H {
       `;
     });
   }
-  renderDoorSymbol(e, t, s, i) {
-    const o = e / 2, r = s ? -1 : 1, n = i ? o : -o, a = i ? -1 : 1;
-    return O`
+  renderDoorSymbol(e, t, i, s) {
+    const o = e / 2, r = i ? -1 : 1, n = s ? o : -o, a = s ? -1 : 1;
+    return C`
       <g>
         <rect x="${-o}" y="${-t / 2}" width="4" height="${t}" fill="#94a3b8" />
         <rect x="${o - 4}" y="${-t / 2}" width="4" height="${t}" fill="#94a3b8" />
@@ -2031,38 +2678,38 @@ let T = class extends H {
           class="opening-door-leaf" 
         />
         <path 
-          d="M ${n + a * e} 0 A ${e} ${e} 0 0 ${r > 0 ? i ? 0 : 1 : i ? 1 : 0} ${n} ${r * e}" 
+          d="M ${n + a * e} 0 A ${e} ${e} 0 0 ${r > 0 ? s ? 0 : 1 : s ? 1 : 0} ${n} ${r * e}" 
           class="opening-door-arc" 
         />
       </g>
     `;
   }
-  renderWindowSymbol(e, t, s = 1) {
-    const i = e / 2;
-    return s === 2 ? O`
+  renderWindowSymbol(e, t, i = 1) {
+    const s = e / 2;
+    return i === 2 ? C`
         <g>
-          <rect x="${-i}" y="${-t / 2}" width="${e}" height="${t}" fill="none" class="opening-window-frame" />
-          <line x1="${-i}" y1="0" x2="${i}" y2="0" class="opening-window-glass" />
+          <rect x="${-s}" y="${-t / 2}" width="${e}" height="${t}" fill="none" class="opening-window-frame" />
+          <line x1="${-s}" y1="0" x2="${s}" y2="0" class="opening-window-glass" />
           <line x1="0" y1="${-t / 2}" x2="0" y2="${t / 2}" stroke="#38bdf8" stroke-width="2.5" />
-          <line x1="${-i + 4}" y1="${-t / 4}" x2="-3" y2="${-t / 4}" stroke="rgba(56, 189, 248, 0.45)" stroke-width="1.2" />
-          <line x1="3" y1="${t / 4}" x2="${i - 4}" y2="${t / 4}" stroke="rgba(56, 189, 248, 0.45)" stroke-width="1.2" />
+          <line x1="${-s + 4}" y1="${-t / 4}" x2="-3" y2="${-t / 4}" stroke="rgba(56, 189, 248, 0.45)" stroke-width="1.2" />
+          <line x1="3" y1="${t / 4}" x2="${s - 4}" y2="${t / 4}" stroke="rgba(56, 189, 248, 0.45)" stroke-width="1.2" />
         </g>
-      ` : O`
+      ` : C`
       <g>
-        <rect x="${-i}" y="${-t / 2}" width="${e}" height="${t}" fill="none" class="opening-window-frame" />
-        <line x1="${-i}" y1="0" x2="${i}" y2="0" class="opening-window-glass" />
-        <line x1="${-i + 4}" y1="${-t / 4}" x2="${i - 4}" y2="${-t / 4}" stroke="rgba(56, 189, 248, 0.4)" stroke-width="1" />
-        <line x1="${-i + 4}" y1="${t / 4}" x2="${i - 4}" y2="${t / 4}" stroke="rgba(56, 189, 248, 0.4)" stroke-width="1" />
+        <rect x="${-s}" y="${-t / 2}" width="${e}" height="${t}" fill="none" class="opening-window-frame" />
+        <line x1="${-s}" y1="0" x2="${s}" y2="0" class="opening-window-glass" />
+        <line x1="${-s + 4}" y1="${-t / 4}" x2="${s - 4}" y2="${-t / 4}" stroke="rgba(56, 189, 248, 0.4)" stroke-width="1" />
+        <line x1="${-s + 4}" y1="${t / 4}" x2="${s - 4}" y2="${t / 4}" stroke="rgba(56, 189, 248, 0.4)" stroke-width="1" />
       </g>
     `;
   }
   renderFrenchWindowSymbol(e, t) {
-    const s = e / 2;
-    return O`
+    const i = e / 2;
+    return C`
       <g>
-        <rect x="${-s}" y="${-t / 2}" width="${e}" height="${t}" fill="none" class="opening-window-frame" />
-        <rect x="${-s}" y="${-t / 4}" width="${s}" height="3" fill="#38bdf8" />
-        <rect x="0" y="${t / 4}" width="${s}" height="3" fill="#38bdf8" />
+        <rect x="${-i}" y="${-t / 2}" width="${e}" height="${t}" fill="none" class="opening-window-frame" />
+        <rect x="${-i}" y="${-t / 4}" width="${i}" height="3" fill="#38bdf8" />
+        <rect x="0" y="${t / 4}" width="${i}" height="3" fill="#38bdf8" />
       </g>
     `;
   }
@@ -2071,26 +2718,29 @@ let T = class extends H {
   // ==========================================
   renderEntityBindings() {
     return this.project.bindings.map((e) => {
-      var h, c, u, p, g;
-      const t = this.worldToScreen(e.position), s = (c = (h = this.hass) == null ? void 0 : h.states) == null ? void 0 : c[e.entityId], i = (s == null ? void 0 : s.state) || "off", o = e.entityId.startsWith("light.") && i === "on", r = e.entityId.startsWith("binary_sensor.") && (i === "on" || i === "detected"), n = e.entityId.startsWith("sensor.") || e.entityId.startsWith("climate."), a = ((u = s == null ? void 0 : s.attributes) == null ? void 0 : u.unit_of_measurement) || (n ? "°" : ""), l = (g = (p = this.selectedElements) == null ? void 0 : p.bindingIds) == null ? void 0 : g.includes(e.id);
-      return O`
+      var f, m, M, P, I, x;
+      const t = this.worldToScreen(e.position), i = (m = (f = this.hass) == null ? void 0 : f.states) == null ? void 0 : m[e.entityId], s = (i == null ? void 0 : i.state) || "off", o = e.entityId.startsWith("light.") && s === "on", r = e.entityId.startsWith("binary_sensor.") && (s === "on" || s === "detected"), n = e.entityId.startsWith("sensor.") || e.entityId.startsWith("climate."), a = e.entityId.startsWith("fan."), l = a && s === "on", u = e.entityId.startsWith("media_player."), d = u && s === "playing", c = e.entityId.startsWith("cover."), p = (M = i == null ? void 0 : i.attributes) == null ? void 0 : M.current_position, g = ((P = i == null ? void 0 : i.attributes) == null ? void 0 : P.unit_of_measurement) || (n ? "°" : ""), h = (x = (I = this.selectedElements) == null ? void 0 : I.bindingIds) == null ? void 0 : x.includes(e.id);
+      return C`
         <g 
-          class="entity-pin ${l ? "selected" : ""} ${o ? "active-light" : ""} ${r ? "active-radar" : ""}"
+          class="entity-pin ${h ? "selected" : ""} ${o ? "active-light" : ""} ${r ? "active-radar" : ""}"
           transform="translate(${t.x}, ${t.y})"
-          @pointerdown=${(d) => this.handleEntityPointerDown(e, d)}
-          @click=${(d) => this.handleEntityClick(e, d)}
-          @dblclick=${(d) => this.handleEntityDblClick(e, d)}
-          title="${e.customName || e.entityId} : ${i} (Clic pour basculer)"
+          @pointerdown=${(k) => this.handleEntityPointerDown(e, k)}
+          @click=${(k) => this.handleEntityClick(e, k)}
+          @dblclick=${(k) => this.handleEntityDblClick(e, k)}
+          title="${e.customName || e.entityId} : ${s} (Clic pour basculer)"
         >
           <!-- Onde radar animée si mouvement détecté -->
-          ${r ? O`<circle cx="0" cy="0" r="16" class="radar-pulse-ring" />` : null}
+          ${r ? C`<circle cx="0" cy="0" r="16" class="radar-pulse-ring" />` : null}
+
+          <!-- Ondes sonores pour lecteur multimédia actif -->
+          ${d ? C`<circle cx="0" cy="0" r="16" class="soundwave-pulse" />` : null}
 
           <!-- Pastille de fond -->
           <circle cx="0" cy="0" r="16" class="entity-pin-bg" />
 
-          <!-- Pictogramme -->
-          <text x="0" y="0" class="entity-pin-icon">
-            ${e.icon || "⚡"}
+          <!-- Pictogramme avec micro-animation (rotation ventilateur) -->
+          <text x="0" y="0" class="entity-pin-icon ${l ? "fan-spin" : ""}">
+            ${e.icon || (a ? "💨" : c ? "🪟" : u ? "📺" : "⚡")}
           </text>
 
           <!-- Étiquette Nom -->
@@ -2098,11 +2748,19 @@ let T = class extends H {
             ${e.customName || e.entityId.split(".")[1]}
           </text>
 
-          <!-- Badge Valeur (Thermostat / Capteur) -->
-          ${n && i !== "unknown" ? O`
+          <!-- Badge Valeur (Thermostat / Capteur de température) -->
+          ${n && s !== "unknown" ? C`
             <g class="entity-pin-value-badge" transform="translate(14, -14)">
               <rect x="-14" y="-8" width="28" height="16" />
-              <text>${i}${a}</text>
+              <text>${s}${g}</text>
+            </g>
+          ` : null}
+
+          <!-- Badge Position Volet roulant -->
+          ${c && p !== void 0 ? C`
+            <g class="entity-pin-value-badge" transform="translate(14, -14)">
+              <rect x="-14" y="-8" width="28" height="16" />
+              <text>${p}%</text>
             </g>
           ` : null}
         </g>
@@ -2111,16 +2769,16 @@ let T = class extends H {
   }
   renderOpeningPreview() {
     if (!this.wallSnap) return null;
-    const e = this.project.pixelsPerMeter * this.viewport.zoom, t = (this.currentOpeningWidth || 0.9) * e, s = this.wallSnap.wall.thickness * e, i = this.worldToScreen(this.wallSnap.projectionPoint), o = this.wallSnap.angleRad * 180 / Math.PI;
-    return O`
+    const e = this.project.pixelsPerMeter * this.viewport.zoom, t = (this.currentOpeningWidth || 0.9) * e, i = this.wallSnap.wall.thickness * e, s = this.worldToScreen(this.wallSnap.projectionPoint), o = this.wallSnap.angleRad * 180 / Math.PI;
+    return C`
       <g 
         class="opening-preview" 
-        transform="translate(${i.x}, ${i.y}) rotate(${o})"
+        transform="translate(${s.x}, ${s.y}) rotate(${o})"
       >
-        <rect x="${-t / 2}" y="${-s / 2}" width="${t}" height="${s}" fill="rgba(56, 189, 248, 0.3)" stroke="#38bdf8" stroke-dasharray="4, 2" />
-        ${this.activeTool === "door" ? this.renderDoorSymbol(t, s, this.openingFlipSide, this.openingFlipDirection) : null}
-        ${this.activeTool === "window" ? this.renderWindowSymbol(t, s) : null}
-        ${this.activeTool === "french_window" ? this.renderFrenchWindowSymbol(t, s) : null}
+        <rect x="${-t / 2}" y="${-i / 2}" width="${t}" height="${i}" fill="rgba(56, 189, 248, 0.3)" stroke="#38bdf8" stroke-dasharray="4, 2" />
+        ${this.activeTool === "door" ? this.renderDoorSymbol(t, i, this.openingFlipSide, this.openingFlipDirection) : null}
+        ${this.activeTool === "window" ? this.renderWindowSymbol(t, i) : null}
+        ${this.activeTool === "french_window" ? this.renderFrenchWindowSymbol(t, i) : null}
       </g>
     `;
   }
@@ -2130,30 +2788,30 @@ let T = class extends H {
       this.drawingWallStart,
       this.previewPoint,
       this.currentWallThickness
-    ).map((a) => this.worldToScreen(a)), s = this.worldToScreen(this.drawingWallStart), i = this.worldToScreen(this.previewPoint), o = t.map((a) => `${a.x},${a.y}`).join(" "), r = y.distance(this.drawingWallStart, this.previewPoint), n = {
-      x: (s.x + i.x) / 2,
-      y: (s.y + i.y) / 2
+    ).map((a) => this.worldToScreen(a)), i = this.worldToScreen(this.drawingWallStart), s = this.worldToScreen(this.previewPoint), o = t.map((a) => `${a.x},${a.y}`).join(" "), r = v.distance(this.drawingWallStart, this.previewPoint), n = {
+      x: (i.x + s.x) / 2,
+      y: (i.y + s.y) / 2
     };
-    return O`
+    return C`
       <g class="preview-wall-group">
         <polygon points="${o}" class="preview-wall-rect" />
-        <line x1="${s.x}" y1="${s.y}" x2="${i.x}" y2="${i.y}" class="preview-wall-line" />
+        <line x1="${i.x}" y1="${i.y}" x2="${s.x}" y2="${s.y}" class="preview-wall-line" />
 
-        ${this.snapInfo.guideAngle !== void 0 ? O`
-          <line x1="${s.x}" y1="${s.y}" x2="${i.x}" y2="${i.y}" class="angle-guide-line" />
+        ${this.snapInfo.guideAngle !== void 0 ? C`
+          <line x1="${i.x}" y1="${i.y}" x2="${s.x}" y2="${s.y}" class="angle-guide-line" />
         ` : null}
 
         <g class="dimension-badge" transform="translate(${n.x}, ${n.y - 16})">
           <rect x="-30" y="-11" width="60" height="22" />
-          <text>${y.roundMeters(r).toFixed(2)} m</text>
+          <text>${v.roundMeters(r).toFixed(2)} m</text>
         </g>
       </g>
     `;
   }
   renderCalibrationLine() {
     if (!this.calibrateStart || !this.calibrateCurrent) return null;
-    const e = this.calibrateStart, t = this.calibrateCurrent, s = t.x - e.x, i = t.y - e.y, o = Math.sqrt(s * s + i * i), r = { x: (e.x + t.x) / 2, y: (e.y + t.y) / 2 };
-    return O`
+    const e = this.calibrateStart, t = this.calibrateCurrent, i = t.x - e.x, s = t.y - e.y, o = Math.sqrt(i * i + s * s), r = { x: (e.x + t.x) / 2, y: (e.y + t.y) / 2 };
+    return C`
       <g class="calibration-preview-group">
         <line x1="${e.x}" y1="${e.y}" x2="${t.x}" y2="${t.y}" class="calibration-line" />
         <circle cx="${e.x}" cy="${e.y}" r="6" class="calibration-endpoint" />
@@ -2168,11 +2826,11 @@ let T = class extends H {
   }
   renderRescaleLine() {
     if (!this.rescaleStart || !this.rescaleCurrent) return null;
-    const e = this.worldToScreen(this.rescaleStart), t = this.worldToScreen(this.rescaleCurrent), s = y.distance(this.rescaleStart, this.rescaleCurrent), i = {
+    const e = this.worldToScreen(this.rescaleStart), t = this.worldToScreen(this.rescaleCurrent), i = v.distance(this.rescaleStart, this.rescaleCurrent), s = {
       x: (e.x + t.x) / 2,
       y: (e.y + t.y) / 2
     };
-    return O`
+    return C`
       <g class="rescale-preview-group">
         <line 
           x1="${e.x}" y1="${e.y}" 
@@ -2184,22 +2842,91 @@ let T = class extends H {
         <circle cx="${e.x}" cy="${e.y}" r="6" fill="#38bdf8" stroke="#ffffff" stroke-width="2" />
         <circle cx="${t.x}" cy="${t.y}" r="6" fill="#0284c7" stroke="#38bdf8" stroke-width="2" />
 
-        <g class="dimension-badge" transform="translate(${i.x}, ${i.y - 18})">
+        <g class="dimension-badge" transform="translate(${s.x}, ${s.y - 18})">
           <rect x="-48" y="-13" width="96" height="26" rx="6" fill="#0f172a" stroke="#38bdf8" stroke-width="1.8" />
           <text fill="#38bdf8" font-size="12px" font-weight="800" text-anchor="middle" dy="5">
-            📐 ${y.roundMeters(s).toFixed(2)} m
+            📐 ${v.roundMeters(i).toFixed(2)} m
           </text>
         </g>
       </g>
     `;
   }
+  renderGhostLayer() {
+    if (!this.ghostProject || !this.ghostProject.walls || this.ghostProject.walls.length === 0) return null;
+    const e = this.project.pixelsPerMeter * this.viewport.zoom;
+    return C`
+      <g class="ghost-layer" opacity="0.45" pointer-events="none">
+        ${this.ghostProject.walls.map((t) => {
+      const i = this.worldToScreen(t.start), s = this.worldToScreen(t.end), o = (t.thickness || 0.2) * e;
+      return C`
+            <line 
+              x1="${i.x}" y1="${i.y}" 
+              x2="${s.x}" y2="${s.y}" 
+              class="ghost-wall" 
+              stroke-width="${o}" 
+            />
+          `;
+    })}
+      </g>
+    `;
+  }
+  renderSmartGuides() {
+    return this.snapInfo.smartGuideX === void 0 && this.snapInfo.smartGuideY === void 0 ? null : C`
+      <g class="smart-guides-group" pointer-events="none">
+        ${this.snapInfo.smartGuideX !== void 0 ? C`
+          <line 
+            x1="${this.worldToScreen({ x: this.snapInfo.smartGuideX, y: 0 }).x}" 
+            y1="-2000" 
+            x2="${this.worldToScreen({ x: this.snapInfo.smartGuideX, y: 0 }).x}" 
+            y2="6000" 
+            class="smart-guide-line" 
+          />
+        ` : null}
+        ${this.snapInfo.smartGuideY !== void 0 ? C`
+          <line 
+            x1="-2000" 
+            y1="${this.worldToScreen({ x: 0, y: this.snapInfo.smartGuideY }).y}" 
+            x2="6000" 
+            y2="${this.worldToScreen({ x: 0, y: this.snapInfo.smartGuideY }).y}" 
+            class="smart-guide-line" 
+          />
+        ` : null}
+      </g>
+    `;
+  }
+  renderFurniture() {
+    const e = this.project.pixelsPerMeter * this.viewport.zoom;
+    return (this.project.furniture || []).map((t) => {
+      var d;
+      const i = le(t.type), s = ((d = this.selectedElements.furnitureIds) == null ? void 0 : d.includes(t.id)) || !1, o = this.worldToScreen(t.position), r = t.width || (i == null ? void 0 : i.width) || 1, n = t.length || (i == null ? void 0 : i.length) || 1, a = r * e, l = n * e, u = t.rotation || 0;
+      return C`
+        <g
+          class="furniture-group ${s ? "selected" : ""}"
+          data-furniture-id="${t.id}"
+          transform="translate(${o.x}, ${o.y}) rotate(${u})"
+          @pointerdown=${(c) => this.handleFurniturePointerDown(t, c)}
+          @click=${(c) => this.handleFurnitureClick(c, t)}
+          title="${t.name} (${r.toFixed(2)} × ${n.toFixed(2)} m) - Touche R pour pivoter"
+        >
+          ${i ? i.renderSvg(a, l, s) : C`
+            <rect x="${-a / 2}" y="${-l / 2}" width="${a}" height="${l}" fill="rgba(30, 41, 59, 0.85)" stroke="${s ? "#38bdf8" : "#94a3b8"}" stroke-width="1.5" rx="4" />
+            <text x="0" y="4" text-anchor="middle" font-size="12" fill="#cbd5e1">${t.icon || "📦"}</text>
+          `}
+          ${s ? C`
+            <circle cx="0" cy="${-l / 2 - 12}" r="5" fill="#38bdf8" stroke="#ffffff" stroke-width="1.5" />
+            <line x1="0" y1="${-l / 2}" x2="0" y2="${-l / 2 - 12}" stroke="#38bdf8" stroke-width="1.2" stroke-dasharray="2,2" />
+          ` : null}
+        </g>
+      `;
+    });
+  }
   renderSnapIndicator() {
     if (!this.previewPoint || this.snapInfo.snappedTo === "none") return null;
     const e = this.worldToScreen(this.previewPoint), t = this.snapInfo.snappedTo === "vertex";
-    return O`
+    return C`
       <g transform="translate(${e.x}, ${e.y})">
         <circle r="${t ? 7 : 5}" class="snap-indicator" />
-        ${t ? O`<circle r="2" fill="#38bdf8" />` : null}
+        ${t ? C`<circle r="2" fill="#38bdf8" />` : null}
       </g>
     `;
   }
@@ -2224,7 +2951,7 @@ let T = class extends H {
   }
   render() {
     const e = this.getHelpMessage();
-    return v`
+    return w`
       <div 
         class="canvas-container ${this.isPanning ? "is-panning" : ""} ${this.isOrbiting ? "is-orbiting" : ""} ${this.isDashboardMode ? "dashboard-mode" : ""}"
         @wheel=${this.handleWheel}
@@ -2243,23 +2970,26 @@ let T = class extends H {
         >
           <svg class="main-viewport">
             ${this.renderBackgroundLayer()}
+            ${this.renderGhostLayer()}
             ${this.renderGrid()}
             ${this.renderRooms()}
+            ${this.renderFurniture()}
             ${this.renderWalls()}
             ${this.renderOpenings()}
             ${this.renderOpeningPreview()}
             ${this.renderPreviewWall()}
             ${this.renderCalibrationLine()}
             ${this.renderRescaleLine()}
+            ${this.renderSmartGuides()}
             ${this.renderSnapIndicator()}
             ${this.renderEntityBindings()}
             ${this.renderMarqueeBox()}
           </svg>
         </div>
 
-        ${!this.isDashboardMode && e ? v`<div class="help-hud">${e}</div>` : null}
+        ${!this.isDashboardMode && e ? w`<div class="help-hud">${e}</div>` : null}
 
-        ${this.isDashboardMode ? null : v`
+        ${this.isDashboardMode ? null : w`
           <div class="coords-hud">
             X: ${this.cursorCoords.x.toFixed(2)} m | Y: ${this.cursorCoords.y.toFixed(2)} m | Outil: ${this.activeTool.toUpperCase()}
           </div>
@@ -2275,7 +3005,7 @@ let T = class extends H {
             ${this.is3DMode ? "🧊" : "📐"}
           </button>
 
-          ${this.is3DMode ? v`
+          ${this.is3DMode ? w`
             <div class="hud-preset-group">
               <span class="hud-angle-badge">${Math.round(this.orbitYaw)}° / ${Math.round(this.orbitPitch)}°</span>
               <button class="hud-preset-btn" @click=${() => this.setCameraPreset(55, -35)} title="Vue Sud-Ouest (Défaut)">SO</button>
@@ -2295,103 +3025,118 @@ let T = class extends H {
     `;
   }
 };
-T.styles = Ae;
-E([
-  P({ type: Object })
+T.styles = Re;
+j([
+  _({ type: Object })
 ], T.prototype, "hass", 2);
-E([
-  P({ type: Object })
+j([
+  _({ type: Object })
 ], T.prototype, "project", 2);
-E([
-  P({ type: String })
+j([
+  _({ type: String })
 ], T.prototype, "activeTool", 2);
-E([
-  P({ type: Number })
+j([
+  _({ type: Number })
 ], T.prototype, "currentWallThickness", 2);
-E([
-  P({ type: Number })
+j([
+  _({ type: Number })
 ], T.prototype, "currentOpeningWidth", 2);
-E([
-  P({ type: Boolean })
+j([
+  _({ type: Boolean })
 ], T.prototype, "is3DMode", 2);
-E([
-  P({ type: Object })
+j([
+  _({ type: Object })
 ], T.prototype, "selectedElements", 2);
-E([
-  P({ type: Boolean })
+j([
+  _({ type: Boolean })
 ], T.prototype, "isDashboardMode", 2);
-E([
+j([
+  _({ type: Object })
+], T.prototype, "ghostProject", 2);
+j([
+  _({ type: Boolean })
+], T.prototype, "showDimensions", 2);
+j([
+  _({ type: Boolean })
+], T.prototype, "showThermalHeatmap", 2);
+j([
   b()
 ], T.prototype, "isMarqueeSelecting", 2);
-E([
+j([
   b()
 ], T.prototype, "marqueeStart", 2);
-E([
+j([
   b()
 ], T.prototype, "marqueeCurrent", 2);
-E([
+j([
   b()
 ], T.prototype, "viewport", 2);
-E([
+j([
   b()
 ], T.prototype, "isPanning", 2);
-E([
+j([
   b()
 ], T.prototype, "drawingWallStart", 2);
-E([
+j([
   b()
 ], T.prototype, "previewPoint", 2);
-E([
+j([
   b()
 ], T.prototype, "snapInfo", 2);
-E([
+j([
   b()
 ], T.prototype, "cursorCoords", 2);
-E([
+j([
+  b()
+], T.prototype, "draggingFurnitureId", 2);
+j([
+  b()
+], T.prototype, "draggingWallId", 2);
+j([
   b()
 ], T.prototype, "wallSnap", 2);
-E([
-  P({ type: Boolean })
+j([
+  _({ type: Boolean })
 ], T.prototype, "openingFlipSide", 2);
-E([
-  P({ type: Boolean })
+j([
+  _({ type: Boolean })
 ], T.prototype, "openingFlipDirection", 2);
-E([
-  P({ type: Number })
+j([
+  _({ type: Number })
 ], T.prototype, "windowSashCount", 2);
-E([
+j([
   b()
 ], T.prototype, "calibrateStart", 2);
-E([
+j([
   b()
 ], T.prototype, "calibrateCurrent", 2);
-E([
+j([
   b()
 ], T.prototype, "rescaleStart", 2);
-E([
+j([
   b()
 ], T.prototype, "rescaleCurrent", 2);
-E([
+j([
   b()
 ], T.prototype, "draggingBindingId", 2);
-E([
+j([
   b()
 ], T.prototype, "orbitPitch", 2);
-E([
+j([
   b()
 ], T.prototype, "orbitYaw", 2);
-E([
+j([
   b()
 ], T.prototype, "isOrbiting", 2);
-T = E([
-  J("home-architect-canvas")
+T = j([
+  Z("home-architect-canvas")
 ], T);
-var Re = Object.defineProperty, We = Object.getOwnPropertyDescriptor, V = (e, t, s, i) => {
-  for (var o = i > 1 ? void 0 : i ? We(t, s) : t, r = e.length - 1, n; r >= 0; r--)
-    (n = e[r]) && (o = (i ? n(t, s, o) : n(o)) || o);
-  return i && o && Re(t, s, o), o;
+var He = Object.defineProperty, Ne = Object.getOwnPropertyDescriptor, G = (e, t, i, s) => {
+  for (var o = s > 1 ? void 0 : s ? Ne(t, i) : t, r = e.length - 1, n; r >= 0; r--)
+    (n = e[r]) && (o = (s ? n(t, i, o) : n(o)) || o);
+  return s && o && He(t, i, o), o;
 };
-let q = class extends H {
+let q = class extends U {
   constructor() {
     super(...arguments), this.activeTool = "wall", this.canUndo = !1, this.canRedo = !1, this.currentThickness = 0.2, this.doorFlipSide = !1, this.doorFlipDirection = !0, this.windowSashCount = 1, this.position = { x: 20, y: 20 }, this.isDragging = !1, this.activeSubmenu = "none", this.submenuTop = 0, this.submenuOnLeft = !1, this.dragStartPointer = { x: 0, y: 0 }, this.dragStartPosition = { x: 20, y: 20 }, this.handleWindowPointerDown = (e) => {
       this.activeSubmenu !== "none" && (e.composedPath().includes(this) || (this.activeSubmenu = "none"));
@@ -2425,8 +3170,8 @@ let q = class extends H {
   handleDragMove(e) {
     if (!this.isDragging) return;
     e.preventDefault(), e.stopPropagation();
-    const t = e.clientX - this.dragStartPointer.x, s = e.clientY - this.dragStartPointer.y, o = (this.parentElement || document.body).getBoundingClientRect(), r = this.getBoundingClientRect(), n = 8, a = Math.max(n, o.width - r.width - 8), l = 8, h = Math.max(l, o.height - r.height - 8), c = Math.min(Math.max(this.dragStartPosition.x + t, n), a), u = Math.min(Math.max(this.dragStartPosition.y + s, l), h);
-    this.position = { x: Math.round(c), y: Math.round(u) }, this.updateHostPosition();
+    const t = e.clientX - this.dragStartPointer.x, i = e.clientY - this.dragStartPointer.y, o = (this.parentElement || document.body).getBoundingClientRect(), r = this.getBoundingClientRect(), n = 8, a = Math.max(n, o.width - r.width - 8), l = 8, u = Math.max(l, o.height - r.height - 8), d = Math.min(Math.max(this.dragStartPosition.x + t, n), a), c = Math.min(Math.max(this.dragStartPosition.y + i, l), u);
+    this.position = { x: Math.round(d), y: Math.round(c) }, this.updateHostPosition();
   }
   handleDragEnd(e) {
     if (this.isDragging) {
@@ -2453,8 +3198,8 @@ let q = class extends H {
       this.activeSubmenu = "none";
       return;
     }
-    const s = t.currentTarget, i = this.getBoundingClientRect(), o = s.getBoundingClientRect();
-    this.submenuTop = Math.max(0, o.top - i.top - 6), this.submenuOnLeft = i.right + 320 > window.innerWidth, this.activeSubmenu = e;
+    const i = t.currentTarget, s = this.getBoundingClientRect(), o = i.getBoundingClientRect();
+    this.submenuTop = Math.max(0, o.top - s.top - 6), this.submenuOnLeft = s.right + 320 > window.innerWidth, this.activeSubmenu = e;
   }
   selectDoorOption(e, t) {
     this.doorFlipSide = e, this.doorFlipDirection = t, this.dispatchEvent(new CustomEvent("door-config-changed", {
@@ -2463,9 +3208,9 @@ let q = class extends H {
       composed: !0
     })), this.selectTool("door"), this.activeSubmenu = "none";
   }
-  selectWindowOption(e, t, s) {
+  selectWindowOption(e, t, i) {
     this.windowSashCount = t, this.dispatchEvent(new CustomEvent("window-config-changed", {
-      detail: { type: e, sashCount: t, width: s },
+      detail: { type: e, sashCount: t, width: i },
       bubbles: !0,
       composed: !0
     })), this.selectTool(e), this.activeSubmenu = "none";
@@ -2490,7 +3235,7 @@ let q = class extends H {
     }));
   }
   render() {
-    return v`
+    return w`
       <!-- Poignée de déplacement de la boîte à outils -->
       <div 
         class="drag-handle ${this.isDragging ? "dragging" : ""}"
@@ -2634,7 +3379,7 @@ let q = class extends H {
       <!-- ============================================== -->
 
       <!-- Sous-menu Flyout Porte (4 sens d'ouverture) -->
-      ${this.activeSubmenu === "door" ? v`
+      ${this.activeSubmenu === "door" ? w`
         <div class="flyout-menu ${this.submenuOnLeft ? "on-left" : ""}" style="top: ${this.submenuTop}px;" @pointerdown=${(e) => e.stopPropagation()}>
           <div class="flyout-header">
             <span class="flyout-title">
@@ -2661,7 +3406,7 @@ let q = class extends H {
               <div class="flyout-item-label">Ouverture droite intérieure</div>
               <div class="flyout-item-sub">Poussant droit • Gonds à droite, s'ouvre vers l'intérieur</div>
             </div>
-            ${!this.doorFlipSide && this.doorFlipDirection ? v`<span class="flyout-item-badge">Actif</span>` : null}
+            ${!this.doorFlipSide && this.doorFlipDirection ? w`<span class="flyout-item-badge">Actif</span>` : null}
           </div>
 
           <!-- 2. Gauche Intérieure (Poussant Gauche) -->
@@ -2681,7 +3426,7 @@ let q = class extends H {
               <div class="flyout-item-label">Ouverture gauche intérieure</div>
               <div class="flyout-item-sub">Poussant gauche • Gonds à gauche, s'ouvre vers l'intérieur</div>
             </div>
-            ${!this.doorFlipSide && !this.doorFlipDirection ? v`<span class="flyout-item-badge">Actif</span>` : null}
+            ${!this.doorFlipSide && !this.doorFlipDirection ? w`<span class="flyout-item-badge">Actif</span>` : null}
           </div>
 
           <!-- 3. Gauche Extérieure (Tirant Gauche) -->
@@ -2701,7 +3446,7 @@ let q = class extends H {
               <div class="flyout-item-label">Ouverture gauche extérieure</div>
               <div class="flyout-item-sub">Tirant gauche • Gonds à gauche, s'ouvre vers l'extérieur</div>
             </div>
-            ${this.doorFlipSide && !this.doorFlipDirection ? v`<span class="flyout-item-badge">Actif</span>` : null}
+            ${this.doorFlipSide && !this.doorFlipDirection ? w`<span class="flyout-item-badge">Actif</span>` : null}
           </div>
 
           <!-- 4. Droite Extérieure (Tirant Droit) -->
@@ -2721,13 +3466,13 @@ let q = class extends H {
               <div class="flyout-item-label">Ouverture droite extérieure</div>
               <div class="flyout-item-sub">Tirant droit • Gonds à droite, s'ouvre vers l'extérieur</div>
             </div>
-            ${this.doorFlipSide && this.doorFlipDirection ? v`<span class="flyout-item-badge">Actif</span>` : null}
+            ${this.doorFlipSide && this.doorFlipDirection ? w`<span class="flyout-item-badge">Actif</span>` : null}
           </div>
         </div>
       ` : null}
 
       <!-- Sous-menu Flyout Fenêtre (1 ouvrant, 2 battants, baie vitrée) -->
-      ${this.activeSubmenu === "window" ? v`
+      ${this.activeSubmenu === "window" ? w`
         <div class="flyout-menu ${this.submenuOnLeft ? "on-left" : ""}" style="top: ${this.submenuTop}px;" @pointerdown=${(e) => e.stopPropagation()}>
           <div class="flyout-header">
             <span class="flyout-title">
@@ -2796,7 +3541,7 @@ let q = class extends H {
       ` : null}
 
       <!-- Sous-menu Flyout Mur (Fin, Moyen, Gros) -->
-      ${this.activeSubmenu === "wall" ? v`
+      ${this.activeSubmenu === "wall" ? w`
         <div class="flyout-menu ${this.submenuOnLeft ? "on-left" : ""}" style="top: ${this.submenuTop}px;" @pointerdown=${(e) => e.stopPropagation()}>
           <div class="flyout-header">
             <span class="flyout-title">
@@ -2861,7 +3606,7 @@ let q = class extends H {
     `;
   }
 };
-q.styles = K`
+q.styles = J`
     :host {
       position: absolute;
       left: 20px;
@@ -3114,51 +3859,51 @@ q.styles = K`
       flex-shrink: 0;
     }
   `;
-V([
-  P({ type: String })
+G([
+  _({ type: String })
 ], q.prototype, "activeTool", 2);
-V([
-  P({ type: Boolean })
+G([
+  _({ type: Boolean })
 ], q.prototype, "canUndo", 2);
-V([
-  P({ type: Boolean })
+G([
+  _({ type: Boolean })
 ], q.prototype, "canRedo", 2);
-V([
-  P({ type: Number })
+G([
+  _({ type: Number })
 ], q.prototype, "currentThickness", 2);
-V([
-  P({ type: Boolean })
+G([
+  _({ type: Boolean })
 ], q.prototype, "doorFlipSide", 2);
-V([
-  P({ type: Boolean })
+G([
+  _({ type: Boolean })
 ], q.prototype, "doorFlipDirection", 2);
-V([
-  P({ type: Number })
+G([
+  _({ type: Number })
 ], q.prototype, "windowSashCount", 2);
-V([
+G([
   b()
 ], q.prototype, "position", 2);
-V([
+G([
   b()
 ], q.prototype, "isDragging", 2);
-V([
+G([
   b()
 ], q.prototype, "activeSubmenu", 2);
-V([
+G([
   b()
 ], q.prototype, "submenuTop", 2);
-V([
+G([
   b()
 ], q.prototype, "submenuOnLeft", 2);
-q = V([
-  J("home-architect-toolbar")
+q = G([
+  Z("home-architect-toolbar")
 ], q);
-var Le = Object.defineProperty, Ne = Object.getOwnPropertyDescriptor, et = (e, t, s, i) => {
-  for (var o = i > 1 ? void 0 : i ? Ne(t, s) : t, r = e.length - 1, n; r >= 0; r--)
-    (n = e[r]) && (o = (i ? n(t, s, o) : n(o)) || o);
-  return i && o && Le(t, s, o), o;
+var Be = Object.defineProperty, Ue = Object.getOwnPropertyDescriptor, ot = (e, t, i, s) => {
+  for (var o = s > 1 ? void 0 : s ? Ue(t, i) : t, r = e.length - 1, n; r >= 0; r--)
+    (n = e[r]) && (o = (s ? n(t, i, o) : n(o)) || o);
+  return s && o && Be(t, i, o), o;
 };
-const st = [
+const nt = [
   {
     id: "living",
     name: "Salon / Séjour",
@@ -3226,9 +3971,9 @@ const st = [
     addWindow: !0
   }
 ];
-let X = class extends H {
+let K = class extends U {
   constructor() {
-    super(...arguments), this.selectedTemplate = st[0], this.width = st[0].widthMeters, this.length = st[0].lengthMeters, this.thickness = st[0].wallThickness, this.addDoor = st[0].addDoor, this.addWindow = st[0].addWindow, this.roomName = st[0].name, this.height = 2.5;
+    super(...arguments), this.selectedTemplate = nt[0], this.width = nt[0].widthMeters, this.length = nt[0].lengthMeters, this.thickness = nt[0].wallThickness, this.addDoor = nt[0].addDoor, this.addWindow = nt[0].addWindow, this.roomName = nt[0].name, this.height = 2.5;
   }
   selectTemplate(e) {
     this.selectedTemplate = e, this.width = e.widthMeters, this.length = e.lengthMeters, this.thickness = e.wallThickness, this.height = e.heightMeters || 2.5, this.addDoor = e.addDoor, this.addWindow = e.addWindow, this.roomName = e.name;
@@ -3258,7 +4003,7 @@ let X = class extends H {
   }
   render() {
     const e = (this.width * this.length).toFixed(1);
-    return v`
+    return w`
       <div class="modal-card">
         <div class="modal-header">
           <div class="modal-title">
@@ -3270,7 +4015,7 @@ let X = class extends H {
 
         <!-- Gabarits prédéfinis -->
         <div class="templates-grid">
-          ${st.map((t) => v`
+          ${nt.map((t) => w`
             <div 
               class="template-card ${this.selectedTemplate.id === t.id ? "selected" : ""}"
               @click=${() => this.selectTemplate(t)}
@@ -3382,7 +4127,7 @@ let X = class extends H {
     `;
   }
 };
-X.styles = K`
+K.styles = J`
     :host {
       position: fixed;
       inset: 0;
@@ -3595,39 +4340,39 @@ X.styles = K`
       transform: translateY(-1px);
     }
   `;
-et([
+ot([
   b()
-], X.prototype, "selectedTemplate", 2);
-et([
+], K.prototype, "selectedTemplate", 2);
+ot([
   b()
-], X.prototype, "width", 2);
-et([
+], K.prototype, "width", 2);
+ot([
   b()
-], X.prototype, "length", 2);
-et([
+], K.prototype, "length", 2);
+ot([
   b()
-], X.prototype, "thickness", 2);
-et([
+], K.prototype, "thickness", 2);
+ot([
   b()
-], X.prototype, "addDoor", 2);
-et([
+], K.prototype, "addDoor", 2);
+ot([
   b()
-], X.prototype, "addWindow", 2);
-et([
+], K.prototype, "addWindow", 2);
+ot([
   b()
-], X.prototype, "roomName", 2);
-et([
+], K.prototype, "roomName", 2);
+ot([
   b()
-], X.prototype, "height", 2);
-X = et([
-  J("home-architect-wizard-modal")
-], X);
-var Ue = Object.defineProperty, Be = Object.getOwnPropertyDescriptor, Ot = (e, t, s, i) => {
-  for (var o = i > 1 ? void 0 : i ? Be(t, s) : t, r = e.length - 1, n; r >= 0; r--)
-    (n = e[r]) && (o = (i ? n(t, s, o) : n(o)) || o);
-  return i && o && Ue(t, s, o), o;
+], K.prototype, "height", 2);
+K = ot([
+  Z("home-architect-wizard-modal")
+], K);
+var qe = Object.defineProperty, Ge = Object.getOwnPropertyDescriptor, Rt = (e, t, i, s) => {
+  for (var o = s > 1 ? void 0 : s ? Ge(t, i) : t, r = e.length - 1, n; r >= 0; r--)
+    (n = e[r]) && (o = (s ? n(t, i, o) : n(o)) || o);
+  return s && o && qe(t, i, o), o;
 };
-let xt = class extends H {
+let $t = class extends U {
   constructor() {
     super(...arguments), this.pixelDistance = 200, this.defaultMeters = 4, this.realMeters = 4;
   }
@@ -3655,7 +4400,7 @@ let xt = class extends H {
   }
   render() {
     const e = (this.pixelDistance / (this.realMeters || 1)).toFixed(1);
-    return v`
+    return w`
       <div class="modal-card">
         <div class="modal-header">
           <div class="modal-title">
@@ -3701,7 +4446,7 @@ let xt = class extends H {
     `;
   }
 };
-xt.styles = K`
+$t.styles = J`
     :host {
       position: fixed;
       inset: 0;
@@ -3843,24 +4588,24 @@ xt.styles = K`
       transform: translateY(-1px);
     }
   `;
-Ot([
-  P({ type: Number })
-], xt.prototype, "pixelDistance", 2);
-Ot([
-  P({ type: Number })
-], xt.prototype, "defaultMeters", 2);
-Ot([
+Rt([
+  _({ type: Number })
+], $t.prototype, "pixelDistance", 2);
+Rt([
+  _({ type: Number })
+], $t.prototype, "defaultMeters", 2);
+Rt([
   b()
-], xt.prototype, "realMeters", 2);
-xt = Ot([
-  J("home-architect-calibrate-modal")
-], xt);
-var He = Object.defineProperty, qe = Object.getOwnPropertyDescriptor, Pt = (e, t, s, i) => {
-  for (var o = i > 1 ? void 0 : i ? qe(t, s) : t, r = e.length - 1, n; r >= 0; r--)
-    (n = e[r]) && (o = (i ? n(t, s, o) : n(o)) || o);
-  return i && o && He(t, s, o), o;
+], $t.prototype, "realMeters", 2);
+$t = Rt([
+  Z("home-architect-calibrate-modal")
+], $t);
+var Ye = Object.defineProperty, Ve = Object.getOwnPropertyDescriptor, mt = (e, t, i, s) => {
+  for (var o = s > 1 ? void 0 : s ? Ve(t, i) : t, r = e.length - 1, n; r >= 0; r--)
+    (n = e[r]) && (o = (s ? n(t, i, o) : n(o)) || o);
+  return s && o && Ye(t, i, o), o;
 };
-const ne = {
+const de = {
   light: "💡",
   switch: "🔌",
   binary_sensor: "🚨",
@@ -3872,21 +4617,21 @@ const ne = {
   fan: "💨",
   default: "⚡"
 };
-let dt = class extends H {
+let it = class extends U {
   constructor() {
-    super(...arguments), this.collapsed = !1, this.searchQuery = "", this.activeCategory = "all";
+    super(...arguments), this.collapsed = !1, this.activeTab = "entities", this.furnitureCategory = "all", this.searchQuery = "", this.activeCategory = "all";
   }
   getEntities() {
     var e;
     return (e = this.hass) != null && e.states ? Object.values(this.hass.states).map((t) => {
       var o, r;
-      const s = t.entity_id.split(".")[0], i = ne[s] || ne.default;
+      const i = t.entity_id.split(".")[0], s = de[i] || de.default;
       return {
         entity_id: t.entity_id,
         name: ((o = t.attributes) == null ? void 0 : o.friendly_name) || t.entity_id,
         state: t.state,
-        domain: s,
-        icon: i,
+        domain: i,
+        icon: s,
         unit: (r = t.attributes) == null ? void 0 : r.unit_of_measurement
       };
     }) : [
@@ -3908,6 +4653,12 @@ let dt = class extends H {
       icon: t.icon
     })), e.dataTransfer.effectAllowed = "copy");
   }
+  handleFurnitureDragStart(e, t) {
+    e.dataTransfer && (e.dataTransfer.setData("application/json", JSON.stringify({
+      kind: "furniture",
+      furnitureType: t.type
+    })), e.dataTransfer.effectAllowed = "copy");
+  }
   toggleCollapse() {
     this.dispatchEvent(new CustomEvent("toggle-collapse", {
       bubbles: !0,
@@ -3917,76 +4668,148 @@ let dt = class extends H {
   render() {
     if (this.collapsed) return null;
     let t = this.getEntities();
-    if (this.activeCategory !== "all" && (t = t.filter((s) => s.domain === this.activeCategory)), this.searchQuery.trim()) {
+    if (this.activeCategory !== "all" && (t = t.filter((s) => s.domain === this.activeCategory)), this.searchQuery.trim() && this.activeTab === "entities") {
       const s = this.searchQuery.toLowerCase();
-      t = t.filter((i) => i.name.toLowerCase().includes(s) || i.entity_id.toLowerCase().includes(s));
+      t = t.filter((o) => o.name.toLowerCase().includes(s) || o.entity_id.toLowerCase().includes(s));
     }
-    return v`
+    let i = qt;
+    if (this.furnitureCategory !== "all" && (i = i.filter((s) => s.category === this.furnitureCategory)), this.searchQuery.trim() && this.activeTab === "furniture") {
+      const s = this.searchQuery.toLowerCase();
+      i = i.filter((o) => o.name.toLowerCase().includes(s));
+    }
+    return w`
       <div class="drawer-header">
         <div class="drawer-title">
-          <span>⚡</span>
-          <span>Entités HA</span>
-          <span class="count-badge">${t.length}</span>
+          <span>${this.activeTab === "entities" ? "⚡" : "🛋️"}</span>
+          <span>${this.activeTab === "entities" ? "Objets & Domotique" : "Meubles & Déco"}</span>
         </div>
         <button class="btn-toggle" @click=${this.toggleCollapse} title="Masquer / Réduire le volet">
           ⇤
         </button>
       </div>
 
-      <div class="search-section">
-        <div class="search-input-wrapper">
-          <input 
-            type="text" 
-            class="search-input" 
-            placeholder="Rechercher une entité..."
-            .value=${this.searchQuery}
-            @input=${(s) => this.searchQuery = s.target.value}
-          />
-        </div>
-
-        <div class="categories-bar">
-          <button class="cat-btn ${this.activeCategory === "all" ? "active" : ""}" @click=${() => this.activeCategory = "all"}>Tous</button>
-          <button class="cat-btn ${this.activeCategory === "light" ? "active" : ""}" @click=${() => this.activeCategory = "light"}>Lumières</button>
-          <button class="cat-btn ${this.activeCategory === "binary_sensor" ? "active" : ""}" @click=${() => this.activeCategory = "binary_sensor"}>Capteurs</button>
-          <button class="cat-btn ${this.activeCategory === "climate" ? "active" : ""}" @click=${() => this.activeCategory = "climate"}>Climat</button>
-          <button class="cat-btn ${this.activeCategory === "switch" ? "active" : ""}" @click=${() => this.activeCategory = "switch"}>Prises</button>
-          <button class="cat-btn ${this.activeCategory === "camera" ? "active" : ""}" @click=${() => this.activeCategory = "camera"}>Caméras</button>
-        </div>
+      <div class="drawer-tabs">
+        <button 
+          class="tab-btn ${this.activeTab === "entities" ? "active" : ""}" 
+          @click=${() => {
+      this.activeTab = "entities", this.searchQuery = "";
+    }}
+        >
+          <span>⚡</span>
+          <span>Entités HA</span>
+          <span class="count-badge">${t.length}</span>
+        </button>
+        <button 
+          class="tab-btn ${this.activeTab === "furniture" ? "active" : ""}" 
+          @click=${() => {
+      this.activeTab = "furniture", this.searchQuery = "";
+    }}
+        >
+          <span>🛋️</span>
+          <span>Meubles</span>
+          <span class="count-badge">${qt.length}</span>
+        </button>
       </div>
 
-      <div class="entities-list">
-        ${t.length === 0 ? v`
-          <div class="empty-message">Aucune entité trouvée</div>
-        ` : t.map((s) => v`
-          <div 
-            class="entity-card" 
-            draggable="true"
-            @dragstart=${(i) => this.handleDragStart(i, s)}
-            title="Glissez et déposez sur une pièce du plan"
-          >
-            <div class="entity-info">
-              <span class="entity-icon">${s.icon}</span>
-              <div class="entity-details">
-                <span class="entity-name">${s.name}</span>
-                <span class="entity-id">${s.entity_id}</span>
-              </div>
-            </div>
-
-            <span class="entity-state-badge ${s.state === "on" ? "state-on" : "state-off"}">
-              ${s.state}${s.unit ? " " + s.unit : ""}
-            </span>
+      ${this.activeTab === "entities" ? w`
+        <div class="search-section">
+          <div class="search-input-wrapper">
+            <input 
+              type="text" 
+              class="search-input" 
+              placeholder="Rechercher une entité..."
+              .value=${this.searchQuery}
+              @input=${(s) => this.searchQuery = s.target.value}
+            />
           </div>
-        `)}
-      </div>
 
-      <div class="drag-hint">
-        <span>👆</span>
-        <span>Glissez une entité sur une pièce du plan</span>
-      </div>
+          <div class="categories-bar">
+            <button class="cat-btn ${this.activeCategory === "all" ? "active" : ""}" @click=${() => this.activeCategory = "all"}>Tous</button>
+            <button class="cat-btn ${this.activeCategory === "light" ? "active" : ""}" @click=${() => this.activeCategory = "light"}>Lumières</button>
+            <button class="cat-btn ${this.activeCategory === "binary_sensor" ? "active" : ""}" @click=${() => this.activeCategory = "binary_sensor"}>Capteurs</button>
+            <button class="cat-btn ${this.activeCategory === "climate" ? "active" : ""}" @click=${() => this.activeCategory = "climate"}>Climat</button>
+            <button class="cat-btn ${this.activeCategory === "switch" ? "active" : ""}" @click=${() => this.activeCategory = "switch"}>Prises</button>
+            <button class="cat-btn ${this.activeCategory === "camera" ? "active" : ""}" @click=${() => this.activeCategory = "camera"}>Caméras</button>
+          </div>
+        </div>
+
+        <div class="entities-list">
+          ${t.length === 0 ? w`
+            <div class="empty-message">Aucune entité trouvée</div>
+          ` : t.map((s) => w`
+            <div 
+              class="entity-card" 
+              draggable="true"
+              @dragstart=${(o) => this.handleDragStart(o, s)}
+              title="Glissez et déposez sur une pièce du plan"
+            >
+              <div class="entity-info">
+                <span class="entity-icon">${s.icon}</span>
+                <div class="entity-details">
+                  <span class="entity-name">${s.name}</span>
+                  <span class="entity-id">${s.entity_id}</span>
+                </div>
+              </div>
+
+              <span class="entity-state-badge ${s.state === "on" ? "state-on" : "state-off"}">
+                ${s.state}${s.unit ? " " + s.unit : ""}
+              </span>
+            </div>
+          `)}
+        </div>
+
+        <div class="drag-hint">
+          <span>👆</span>
+          <span>Glissez une entité sur une pièce du plan</span>
+        </div>
+      ` : w`
+        <div class="search-section">
+          <div class="search-input-wrapper">
+            <input 
+              type="text" 
+              class="search-input" 
+              placeholder="Rechercher un meuble..."
+              .value=${this.searchQuery}
+              @input=${(s) => this.searchQuery = s.target.value}
+            />
+          </div>
+
+          <div class="categories-bar">
+            <button class="cat-btn ${this.furnitureCategory === "all" ? "active" : ""}" @click=${() => this.furnitureCategory = "all"}>Tous</button>
+            <button class="cat-btn ${this.furnitureCategory === "seating" ? "active" : ""}" @click=${() => this.furnitureCategory = "seating"}>Salon</button>
+            <button class="cat-btn ${this.furnitureCategory === "bed" ? "active" : ""}" @click=${() => this.furnitureCategory = "bed"}>Chambre</button>
+            <button class="cat-btn ${this.furnitureCategory === "table" ? "active" : ""}" @click=${() => this.furnitureCategory = "table"}>Tables</button>
+            <button class="cat-btn ${this.furnitureCategory === "bathroom" ? "active" : ""}" @click=${() => this.furnitureCategory = "bathroom"}>Bains</button>
+            <button class="cat-btn ${this.furnitureCategory === "kitchen" ? "active" : ""}" @click=${() => this.furnitureCategory = "kitchen"}>Cuisine</button>
+          </div>
+        </div>
+
+        <div class="furniture-grid">
+          ${i.length === 0 ? w`
+            <div class="empty-message" style="grid-column: 1 / -1;">Aucun meuble trouvé</div>
+          ` : i.map((s) => w`
+            <div 
+              class="furniture-card" 
+              draggable="true"
+              @dragstart=${(o) => this.handleFurnitureDragStart(o, s)}
+              title="Glissez et déposez sur le plan (${s.width.toFixed(2)} × ${s.length.toFixed(2)} m)"
+            >
+              <span class="furniture-card-icon">${s.icon}</span>
+              <span class="furniture-card-name">${s.name}</span>
+              <span class="furniture-card-dim">${s.width.toFixed(2)} × ${s.length.toFixed(2)} m</span>
+            </div>
+          `)}
+        </div>
+
+        <div class="drag-hint">
+          <span>👆</span>
+          <span>Glissez un meuble sur le plan (R pour pivoter)</span>
+        </div>
+      `}
     `;
   }
 };
-dt.styles = K`
+it.styles = J`
     :host {
       width: 320px;
       height: 100%;
@@ -4229,6 +5052,93 @@ dt.styles = K`
       gap: 6px;
     }
 
+    .drawer-tabs {
+      display: flex;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      background: rgba(15, 23, 42, 0.5);
+    }
+
+    .tab-btn {
+      flex: 1;
+      padding: 10px 8px;
+      background: transparent;
+      border: none;
+      border-bottom: 2px solid transparent;
+      color: #94a3b8;
+      font-size: 0.80rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: all 0.2s ease;
+    }
+
+    .tab-btn:hover {
+      color: #f1f5f9;
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    .tab-btn.active {
+      color: #38bdf8;
+      border-bottom-color: #38bdf8;
+      background: rgba(56, 189, 248, 0.08);
+    }
+
+    .furniture-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+      padding: 10px 14px;
+      overflow-y: auto;
+      flex: 1;
+    }
+
+    .furniture-card {
+      background: rgba(30, 41, 59, 0.65);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 9px;
+      padding: 10px 6px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      cursor: grab;
+      transition: all 0.18s ease;
+      user-select: none;
+      gap: 4px;
+    }
+
+    .furniture-card:hover {
+      background: rgba(51, 65, 85, 0.9);
+      border-color: #38bdf8;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    }
+
+    .furniture-card:active {
+      cursor: grabbing;
+    }
+
+    .furniture-card-icon {
+      font-size: 1.5rem;
+    }
+
+    .furniture-card-name {
+      font-size: 0.76rem;
+      font-weight: 600;
+      color: #f1f5f9;
+      line-height: 1.2;
+    }
+
+    .furniture-card-dim {
+      font-size: 0.68rem;
+      color: #38bdf8;
+      font-family: ui-monospace, SFMono-Regular, monospace;
+      font-weight: 600;
+    }
+
     .empty-message {
       padding: 30px 16px;
       text-align: center;
@@ -4236,27 +5146,33 @@ dt.styles = K`
       font-size: 0.83rem;
     }
   `;
-Pt([
-  P({ type: Object })
-], dt.prototype, "hass", 2);
-Pt([
-  P({ type: Boolean, reflect: !0 })
-], dt.prototype, "collapsed", 2);
-Pt([
+mt([
+  _({ type: Object })
+], it.prototype, "hass", 2);
+mt([
+  _({ type: Boolean, reflect: !0 })
+], it.prototype, "collapsed", 2);
+mt([
   b()
-], dt.prototype, "searchQuery", 2);
-Pt([
+], it.prototype, "activeTab", 2);
+mt([
   b()
-], dt.prototype, "activeCategory", 2);
-dt = Pt([
-  J("home-architect-entity-drawer")
-], dt);
-var Ve = Object.defineProperty, Ye = Object.getOwnPropertyDescriptor, Dt = (e, t, s, i) => {
-  for (var o = i > 1 ? void 0 : i ? Ye(t, s) : t, r = e.length - 1, n; r >= 0; r--)
-    (n = e[r]) && (o = (i ? n(t, s, o) : n(o)) || o);
-  return i && o && Ve(t, s, o), o;
+], it.prototype, "furnitureCategory", 2);
+mt([
+  b()
+], it.prototype, "searchQuery", 2);
+mt([
+  b()
+], it.prototype, "activeCategory", 2);
+it = mt([
+  Z("home-architect-entity-drawer")
+], it);
+var Xe = Object.defineProperty, Ke = Object.getOwnPropertyDescriptor, Et = (e, t, i, s) => {
+  for (var o = s > 1 ? void 0 : s ? Ke(t, i) : t, r = e.length - 1, n; r >= 0; r--)
+    (n = e[r]) && (o = (s ? n(t, i, o) : n(o)) || o);
+  return s && o && Xe(t, i, o), o;
 };
-const Ge = [
+const Je = [
   { name: "Bleu ciel", color: "rgba(56, 189, 248, 0.18)" },
   { name: "Violet moderne", color: "rgba(168, 85, 247, 0.18)" },
   { name: "Ambre chaleureux", color: "rgba(245, 158, 11, 0.18)" },
@@ -4264,7 +5180,7 @@ const Ge = [
   { name: "Indigo profond", color: "rgba(99, 102, 241, 0.18)" },
   { name: "Rose pastel", color: "rgba(244, 63, 94, 0.18)" },
   { name: "Gris ardoise", color: "rgba(148, 163, 184, 0.18)" }
-], Xe = [
+], Ze = [
   { label: "2.10 m (Sous-sol)", val: 2.1 },
   { label: "2.30 m (Combles)", val: 2.3 },
   { label: "2.50 m (Standard)", val: 2.5 },
@@ -4272,7 +5188,7 @@ const Ge = [
   { label: "3.00 m (Haussmann)", val: 3 },
   { label: "3.50 m (Cathédrale)", val: 3.5 }
 ];
-let pt = class extends H {
+let ft = class extends U {
   constructor() {
     super(...arguments), this.name = "", this.height = 2.5, this.color = "rgba(56, 189, 248, 0.18)";
   }
@@ -4304,7 +5220,7 @@ let pt = class extends H {
   render() {
     if (!this.room) return null;
     const e = (this.room.areaM2 * this.height).toFixed(1);
-    return v`
+    return w`
       <div class="modal-card">
         <div class="modal-header">
           <div class="modal-title-group">
@@ -4345,7 +5261,7 @@ let pt = class extends H {
 
             <!-- Préréglages rapides -->
             <div class="presets-row">
-              ${Xe.map((t) => v`
+              ${Ze.map((t) => w`
                 <button 
                   class="preset-pill ${Math.abs(this.height - t.val) < 0.02 ? "active" : ""}"
                   @click=${() => this.height = t.val}
@@ -4372,7 +5288,7 @@ let pt = class extends H {
           <div class="form-group">
             <label class="form-label">Couleur d'ambiance du sol :</label>
             <div class="colors-row">
-              ${Ge.map((t) => v`
+              ${Je.map((t) => w`
                 <div 
                   class="color-swatch ${this.color === t.color ? "active" : ""}" 
                   style="background: ${t.color};"
@@ -4399,7 +5315,7 @@ let pt = class extends H {
     `;
   }
 };
-pt.styles = K`
+ft.styles = J`
     :host {
       position: fixed;
       inset: 0;
@@ -4675,30 +5591,30 @@ pt.styles = K`
       background: #0369a1;
     }
   `;
-Dt([
-  P({ type: Object })
-], pt.prototype, "room", 2);
-Dt([
+Et([
+  _({ type: Object })
+], ft.prototype, "room", 2);
+Et([
   b()
-], pt.prototype, "name", 2);
-Dt([
+], ft.prototype, "name", 2);
+Et([
   b()
-], pt.prototype, "height", 2);
-Dt([
+], ft.prototype, "height", 2);
+Et([
   b()
-], pt.prototype, "color", 2);
-pt = Dt([
-  J("home-architect-room-modal")
-], pt);
-class G {
-  constructor(t = 1, s = 0, i = 0, o = 1, r = 0, n = 0) {
-    this.a = t, this.b = s, this.c = i, this.d = o, this.e = r, this.f = n;
+], ft.prototype, "color", 2);
+ft = Et([
+  Z("home-architect-room-modal")
+], ft);
+class X {
+  constructor(t = 1, i = 0, s = 0, o = 1, r = 0, n = 0) {
+    this.a = t, this.b = i, this.c = s, this.d = o, this.e = r, this.f = n;
   }
   static identity() {
-    return new G(1, 0, 0, 1, 0, 0);
+    return new X(1, 0, 0, 1, 0, 0);
   }
   multiply(t) {
-    return new G(
+    return new X(
       this.a * t.a + this.c * t.b,
       this.b * t.a + this.d * t.b,
       this.a * t.c + this.c * t.d,
@@ -4707,15 +5623,15 @@ class G {
       this.b * t.e + this.d * t.f + this.f
     );
   }
-  translate(t, s) {
-    return this.multiply(new G(1, 0, 0, 1, t, s));
+  translate(t, i) {
+    return this.multiply(new X(1, 0, 0, 1, t, i));
   }
-  scale(t, s = t) {
-    return this.multiply(new G(t, 0, 0, s, 0, 0));
+  scale(t, i = t) {
+    return this.multiply(new X(t, 0, 0, i, 0, 0));
   }
   rotate(t) {
-    const s = t * Math.PI / 180, i = Math.cos(s), o = Math.sin(s);
-    return this.multiply(new G(i, o, -o, i, 0, 0));
+    const i = t * Math.PI / 180, s = Math.cos(i), o = Math.sin(i);
+    return this.multiply(new X(s, o, -o, s, 0, 0));
   }
   transformPoint(t) {
     return {
@@ -4724,22 +5640,22 @@ class G {
     };
   }
   static parseTransform(t) {
-    if (!t) return G.identity();
-    let s = G.identity();
-    const i = /([a-zA-Z]+)\s*\(([^)]+)\)/g;
+    if (!t) return X.identity();
+    let i = X.identity();
+    const s = /([a-zA-Z]+)\s*\(([^)]+)\)/g;
     let o;
-    for (; (o = i.exec(t)) !== null; ) {
+    for (; (o = s.exec(t)) !== null; ) {
       const r = o[1].toLowerCase(), n = o[2].trim().split(/[\s,]+/).map(parseFloat).filter((a) => !isNaN(a));
-      r === "matrix" && n.length >= 6 ? s = s.multiply(new G(n[0], n[1], n[2], n[3], n[4], n[5])) : r === "translate" && n.length >= 1 ? s = s.translate(n[0], n[1] || 0) : r === "scale" && n.length >= 1 ? s = s.scale(n[0], n[1] !== void 0 ? n[1] : n[0]) : r === "rotate" && n.length >= 1 && (n.length >= 3 ? s = s.translate(n[1], n[2]).rotate(n[0]).translate(-n[1], -n[2]) : s = s.rotate(n[0]));
+      r === "matrix" && n.length >= 6 ? i = i.multiply(new X(n[0], n[1], n[2], n[3], n[4], n[5])) : r === "translate" && n.length >= 1 ? i = i.translate(n[0], n[1] || 0) : r === "scale" && n.length >= 1 ? i = i.scale(n[0], n[1] !== void 0 ? n[1] : n[0]) : r === "rotate" && n.length >= 1 && (n.length >= 3 ? i = i.translate(n[1], n[2]).rotate(n[0]).translate(-n[1], -n[2]) : i = i.rotate(n[0]));
     }
-    return s;
+    return i;
   }
 }
-class Ke {
+class Qe {
   /**
    * Main entry point to parse and interpret an architectural SVG floor plan
    */
-  static parseSvg(t, s = 12, i = 0.2, o = 2.5, r) {
+  static parseSvg(t, i = 12, s = 0.2, o = 2.5, r) {
     try {
       const n = {
         importWalls: !0,
@@ -4748,8 +5664,8 @@ class Ke {
         importRooms: !0,
         importLabels: !0,
         ...r
-      }, l = new DOMParser().parseFromString(t, "image/svg+xml"), h = l.querySelector("parsererror");
-      if (h)
+      }, l = new DOMParser().parseFromString(t, "image/svg+xml"), u = l.querySelector("parsererror");
+      if (u)
         return {
           success: !1,
           walls: [],
@@ -4758,10 +5674,10 @@ class Ke {
           viewBox: { x: 0, y: 0, width: 0, height: 0 },
           pixelsPerMeter: 50,
           stats: { wallCount: 0, doorCount: 0, windowCount: 0, roomCount: 0, textLabelCount: 0, ignoredMeasurementLinesCount: 0 },
-          error: "Le fichier SVG contient des erreurs XML : " + h.textContent
+          error: "Le fichier SVG contient des erreurs XML : " + u.textContent
         };
-      const c = l.querySelector("svg");
-      if (!c)
+      const d = l.querySelector("svg");
+      if (!d)
         return {
           success: !1,
           walls: [],
@@ -4772,49 +5688,49 @@ class Ke {
           stats: { wallCount: 0, doorCount: 0, windowCount: 0, roomCount: 0, textLabelCount: 0, ignoredMeasurementLinesCount: 0 },
           error: "Aucune balise <svg> trouvée dans le document."
         };
-      const u = this.extractViewBox(c), p = u.width > 0 ? u.width : 1e3, g = s / p, d = Math.round(p / s * 10) / 10, f = [], m = [], x = [], k = [];
-      this.traverseElement(c, G.identity(), {
+      const c = this.extractViewBox(d), p = c.width > 0 ? c.width : 1e3, g = i / p, h = Math.round(p / i * 10) / 10, f = [], m = [], M = [], P = [];
+      this.traverseElement(d, X.identity(), {
         segments: f,
         arcs: m,
-        textLabels: x,
-        polygons: k,
-        defaultThickness: i
+        textLabels: M,
+        polygons: P,
+        defaultThickness: s
       });
-      const M = f.filter((I) => I.isMeasurementLine).length, w = this.convertSegmentsToWalls(
+      const I = f.filter((D) => D.isMeasurementLine).length, x = this.convertSegmentsToWalls(
         f,
-        u,
+        c,
         g,
-        i,
+        s,
         o
-      ), S = this.detectOpenings(
+      ), k = this.detectOpenings(
         m,
         f,
-        w,
-        u,
-        g
-      ), C = this.detectRooms(
-        k,
-        w,
         x,
-        u,
+        c,
+        g
+      ), y = this.detectRooms(
+        P,
+        x,
+        M,
+        c,
         g,
         o,
         n.importLabels !== !1
-      ), $ = n.importWalls !== !1 ? w : [], _ = S.filter((I) => I.type === "door" ? n.importDoors !== !1 : n.importWindows !== !1), D = n.importRooms !== !1 ? C : [];
+      ), $ = n.importWalls !== !1 ? x : [], S = k.filter((D) => D.type === "door" ? n.importDoors !== !1 : n.importWindows !== !1), E = n.importRooms !== !1 ? y : [];
       return {
         success: !0,
         walls: $,
-        openings: _,
-        rooms: D,
-        viewBox: u,
-        pixelsPerMeter: d || 50,
+        openings: S,
+        rooms: E,
+        viewBox: c,
+        pixelsPerMeter: h || 50,
         stats: {
-          wallCount: w.length,
-          doorCount: S.filter((I) => I.type === "door").length,
-          windowCount: S.filter((I) => I.type === "window" || I.type === "french_window").length,
-          roomCount: C.length,
-          textLabelCount: x.length,
-          ignoredMeasurementLinesCount: M
+          wallCount: x.length,
+          doorCount: k.filter((D) => D.type === "door").length,
+          windowCount: k.filter((D) => D.type === "window" || D.type === "french_window").length,
+          roomCount: y.length,
+          textLabelCount: M.length,
+          ignoredMeasurementLinesCount: I
         }
       };
     } catch (n) {
@@ -4834,110 +5750,110 @@ class Ke {
    * Extrait la viewBox ou dimensions de l'élément SVG racine
    */
   static extractViewBox(t) {
-    const s = t.getAttribute("viewBox");
-    if (s) {
-      const n = s.trim().split(/[\s,]+/).map(parseFloat).filter((a) => !isNaN(a));
+    const i = t.getAttribute("viewBox");
+    if (i) {
+      const n = i.trim().split(/[\s,]+/).map(parseFloat).filter((a) => !isNaN(a));
       if (n.length >= 4 && n[2] > 0 && n[3] > 0)
         return { x: n[0], y: n[1], width: n[2], height: n[3] };
     }
-    const i = (n, a) => {
+    const s = (n, a) => {
       if (!n) return a;
       const l = parseFloat(n);
       return isNaN(l) ? a : n.includes("mm") ? l * 3.7795 : n.includes("cm") ? l * 37.795 : n.includes("in") ? l * 96 : n.includes("pt") ? l * 1.333 : l;
-    }, o = i(t.getAttribute("width"), 1e3), r = i(t.getAttribute("height"), 750);
+    }, o = s(t.getAttribute("width"), 1e3), r = s(t.getAttribute("height"), 750);
     return { x: 0, y: 0, width: o, height: r };
   }
   /**
    * Parcours récursif des nœuds de l'arbre SVG
    */
-  static traverseElement(t, s, i) {
-    var I, B, gt, It;
-    const o = t.getAttribute("transform"), r = o ? s.multiply(G.parseTransform(o)) : s, n = t.tagName.toLowerCase(), a = (t.getAttribute("id") || "").toLowerCase(), l = (t.getAttribute("class") || "").toLowerCase(), h = (t.getAttribute("inkscape:label") || "").toLowerCase(), c = (((I = t.closest("g[id]")) == null ? void 0 : I.getAttribute("id")) || "").toLowerCase(), u = (((B = t.parentElement) == null ? void 0 : B.getAttribute("class")) || "").toLowerCase(), p = `${a} ${l} ${h} ${c} ${u}`, g = t.getAttribute("stroke-dasharray") || "", d = (t.getAttribute("style") || "").toLowerCase(), f = ((gt = t.closest("[stroke-dasharray]")) == null ? void 0 : gt.getAttribute("stroke-dasharray")) || "", k = !!g && g !== "none" && g !== "0" || /stroke-dasharray\s*:\s*(?!none|0)[\d\s,.]+/i.test(d) || !!f && f !== "none" && f !== "0" || /dashed|dotted/.test(d) || /pointill|tirete|dashed|dotted/.test(p) || /dimension|cotation|mesure|cote|measure|guideline|guide|axis|axe|fleche|arrow|marker|tick/i.test(p) || t.hasAttribute("marker-start") || t.hasAttribute("marker-end") || t.closest('g[id*="dimension" i], g[id*="cotation" i], g[id*="cote" i], g[id*="measure" i], g[id*="guide" i]') !== null, M = /door|porte|portillon|swing|battant/.test(p), w = /window|fenetre|vitrage|chassis|baie/.test(p), S = !k && (/wall|mur|cloison|facade|envelope|structure|enveloppe/.test(p) || !M && !w), C = /room|piece|espace|zone|area|chambre|salon|cuisine|sdb|sejour/.test(p), $ = t.getAttribute("fill") || "", _ = t.getAttribute("display"), D = t.getAttribute("visibility");
-    if (!(_ === "none" || D === "hidden")) {
+  static traverseElement(t, i, s) {
+    var D, L, Q, dt;
+    const o = t.getAttribute("transform"), r = o ? i.multiply(X.parseTransform(o)) : i, n = t.tagName.toLowerCase(), a = (t.getAttribute("id") || "").toLowerCase(), l = (t.getAttribute("class") || "").toLowerCase(), u = (t.getAttribute("inkscape:label") || "").toLowerCase(), d = (((D = t.closest("g[id]")) == null ? void 0 : D.getAttribute("id")) || "").toLowerCase(), c = (((L = t.parentElement) == null ? void 0 : L.getAttribute("class")) || "").toLowerCase(), p = `${a} ${l} ${u} ${d} ${c}`, g = t.getAttribute("stroke-dasharray") || "", h = (t.getAttribute("style") || "").toLowerCase(), f = ((Q = t.closest("[stroke-dasharray]")) == null ? void 0 : Q.getAttribute("stroke-dasharray")) || "", P = !!g && g !== "none" && g !== "0" || /stroke-dasharray\s*:\s*(?!none|0)[\d\s,.]+/i.test(h) || !!f && f !== "none" && f !== "0" || /dashed|dotted/.test(h) || /pointill|tirete|dashed|dotted/.test(p) || /dimension|cotation|mesure|cote|measure|guideline|guide|axis|axe|fleche|arrow|marker|tick/i.test(p) || t.hasAttribute("marker-start") || t.hasAttribute("marker-end") || t.closest('g[id*="dimension" i], g[id*="cotation" i], g[id*="cote" i], g[id*="measure" i], g[id*="guide" i]') !== null, I = /door|porte|portillon|swing|battant/.test(p), x = /window|fenetre|vitrage|chassis|baie/.test(p), k = !P && (/wall|mur|cloison|facade|envelope|structure|enveloppe/.test(p) || !I && !x), y = /room|piece|espace|zone|area|chambre|salon|cuisine|sdb|sejour/.test(p), $ = t.getAttribute("fill") || "", S = t.getAttribute("display"), E = t.getAttribute("visibility");
+    if (!(S === "none" || E === "hidden")) {
       switch (n) {
         case "line": {
-          const R = parseFloat(t.getAttribute("x1") || "0"), W = parseFloat(t.getAttribute("y1") || "0"), j = parseFloat(t.getAttribute("x2") || "0"), z = parseFloat(t.getAttribute("y2") || "0"), rt = r.transformPoint({ x: R, y: W }), vt = r.transformPoint({ x: j, y: z });
-          i.segments.push({
-            start: rt,
-            end: vt,
-            thickness: i.defaultThickness,
-            isWallHint: S && !k,
-            isWindowHint: w,
-            isDoorHint: M,
-            isMeasurementLine: k
+          const R = parseFloat(t.getAttribute("x1") || "0"), W = parseFloat(t.getAttribute("y1") || "0"), F = parseFloat(t.getAttribute("x2") || "0"), O = parseFloat(t.getAttribute("y2") || "0"), et = r.transformPoint({ x: R, y: W }), rt = r.transformPoint({ x: F, y: O });
+          s.segments.push({
+            start: et,
+            end: rt,
+            thickness: s.defaultThickness,
+            isWallHint: k && !P,
+            isWindowHint: x,
+            isDoorHint: I,
+            isMeasurementLine: P
           });
           break;
         }
         case "polyline":
         case "polygon": {
-          const W = (t.getAttribute("points") || "").trim().split(/[\s,]+/).map(parseFloat).filter((z) => !isNaN(z)), j = [];
-          for (let z = 0; z < W.length; z += 2)
-            z + 1 < W.length && j.push(r.transformPoint({ x: W[z], y: W[z + 1] }));
-          if (j.length >= 2) {
-            for (let z = 0; z < j.length - 1; z++)
-              i.segments.push({
-                start: j[z],
-                end: j[z + 1],
-                thickness: i.defaultThickness,
-                isWallHint: S && !k,
-                isWindowHint: w,
-                isDoorHint: M,
-                isMeasurementLine: k
+          const W = (t.getAttribute("points") || "").trim().split(/[\s,]+/).map(parseFloat).filter((O) => !isNaN(O)), F = [];
+          for (let O = 0; O < W.length; O += 2)
+            O + 1 < W.length && F.push(r.transformPoint({ x: W[O], y: W[O + 1] }));
+          if (F.length >= 2) {
+            for (let O = 0; O < F.length - 1; O++)
+              s.segments.push({
+                start: F[O],
+                end: F[O + 1],
+                thickness: s.defaultThickness,
+                isWallHint: k && !P,
+                isWindowHint: x,
+                isDoorHint: I,
+                isMeasurementLine: P
               });
-            n === "polygon" && j.length >= 3 && (i.segments.push({
-              start: j[j.length - 1],
-              end: j[0],
-              thickness: i.defaultThickness,
-              isWallHint: S && !k,
-              isWindowHint: w,
-              isDoorHint: M,
-              isMeasurementLine: k
-            }), k || i.polygons.push({
-              points: j,
-              isRoomHint: C,
+            n === "polygon" && F.length >= 3 && (s.segments.push({
+              start: F[F.length - 1],
+              end: F[0],
+              thickness: s.defaultThickness,
+              isWallHint: k && !P,
+              isWindowHint: x,
+              isDoorHint: I,
+              isMeasurementLine: P
+            }), P || s.polygons.push({
+              points: F,
+              isRoomHint: y,
               fill: $
             }));
           }
           break;
         }
         case "rect": {
-          const R = parseFloat(t.getAttribute("x") || "0"), W = parseFloat(t.getAttribute("y") || "0"), j = parseFloat(t.getAttribute("width") || "0"), z = parseFloat(t.getAttribute("height") || "0");
-          if (j > 0 && z > 0) {
-            const rt = r.transformPoint({ x: R, y: W }), vt = r.transformPoint({ x: R + j, y: W }), Ft = r.transformPoint({ x: R + j, y: W + z }), Rt = r.transformPoint({ x: R, y: W + z });
-            if (Math.max(j / z, z / j) >= 3 && !k)
-              if (j > z) {
-                const Wt = r.transformPoint({ x: R, y: W + z / 2 }), Lt = r.transformPoint({ x: R + j, y: W + z / 2 });
-                i.segments.push({
+          const R = parseFloat(t.getAttribute("x") || "0"), W = parseFloat(t.getAttribute("y") || "0"), F = parseFloat(t.getAttribute("width") || "0"), O = parseFloat(t.getAttribute("height") || "0");
+          if (F > 0 && O > 0) {
+            const et = r.transformPoint({ x: R, y: W }), rt = r.transformPoint({ x: R + F, y: W }), ct = r.transformPoint({ x: R + F, y: W + O }), kt = r.transformPoint({ x: R, y: W + O });
+            if (Math.max(F / O, O / F) >= 3 && !P)
+              if (F > O) {
+                const Wt = r.transformPoint({ x: R, y: W + O / 2 }), Lt = r.transformPoint({ x: R + F, y: W + O / 2 });
+                s.segments.push({
                   start: Wt,
                   end: Lt,
-                  thickness: i.defaultThickness,
+                  thickness: s.defaultThickness,
                   isWallHint: !0,
-                  isWindowHint: w,
-                  isDoorHint: M,
+                  isWindowHint: x,
+                  isDoorHint: I,
                   isMeasurementLine: !1
                 });
               } else {
-                const Wt = r.transformPoint({ x: R + j / 2, y: W }), Lt = r.transformPoint({ x: R + j / 2, y: W + z });
-                i.segments.push({
+                const Wt = r.transformPoint({ x: R + F / 2, y: W }), Lt = r.transformPoint({ x: R + F / 2, y: W + O });
+                s.segments.push({
                   start: Wt,
                   end: Lt,
-                  thickness: i.defaultThickness,
+                  thickness: s.defaultThickness,
                   isWallHint: !0,
-                  isWindowHint: w,
-                  isDoorHint: M,
+                  isWindowHint: x,
+                  isDoorHint: I,
                   isMeasurementLine: !1
                 });
               }
             else
-              k || (i.polygons.push({
-                points: [rt, vt, Ft, Rt],
-                isRoomHint: C || $ !== "none" && $ !== "#000000" && $ !== "black",
+              P || (s.polygons.push({
+                points: [et, rt, ct, kt],
+                isRoomHint: y || $ !== "none" && $ !== "#000000" && $ !== "black",
                 fill: $
-              }), i.segments.push(
-                { start: rt, end: vt, thickness: i.defaultThickness, isWallHint: S, isWindowHint: w, isDoorHint: M, isMeasurementLine: !1 },
-                { start: vt, end: Ft, thickness: i.defaultThickness, isWallHint: S, isWindowHint: w, isDoorHint: M, isMeasurementLine: !1 },
-                { start: Ft, end: Rt, thickness: i.defaultThickness, isWallHint: S, isWindowHint: w, isDoorHint: M, isMeasurementLine: !1 },
-                { start: Rt, end: rt, thickness: i.defaultThickness, isWallHint: S, isWindowHint: w, isDoorHint: M, isMeasurementLine: !1 }
+              }), s.segments.push(
+                { start: et, end: rt, thickness: s.defaultThickness, isWallHint: k, isWindowHint: x, isDoorHint: I, isMeasurementLine: !1 },
+                { start: rt, end: ct, thickness: s.defaultThickness, isWallHint: k, isWindowHint: x, isDoorHint: I, isMeasurementLine: !1 },
+                { start: ct, end: kt, thickness: s.defaultThickness, isWallHint: k, isWindowHint: x, isDoorHint: I, isMeasurementLine: !1 },
+                { start: kt, end: et, thickness: s.defaultThickness, isWallHint: k, isWindowHint: x, isDoorHint: I, isMeasurementLine: !1 }
               ));
           }
           break;
@@ -4947,116 +5863,116 @@ class Ke {
           R && this.parsePathData(
             R,
             r,
-            i,
-            S && !k,
-            w,
-            M,
-            k,
+            s,
+            k && !P,
+            x,
+            I,
+            P,
             $
           );
           break;
         }
         case "text": {
-          const R = parseFloat(t.getAttribute("x") || "0"), W = parseFloat(t.getAttribute("y") || "0"), j = ((It = t.textContent) == null ? void 0 : It.trim()) || "", z = /^\d+([.,]\d+)?\s*(m|cm|mm)?$/i.test(j);
-          if (j.length > 0 && !z) {
-            const rt = r.transformPoint({ x: R, y: W });
-            i.textLabels.push({
-              text: j,
-              position: rt
+          const R = parseFloat(t.getAttribute("x") || "0"), W = parseFloat(t.getAttribute("y") || "0"), F = ((dt = t.textContent) == null ? void 0 : dt.trim()) || "", O = /^\d+([.,]\d+)?\s*(m|cm|mm)?$/i.test(F);
+          if (F.length > 0 && !O) {
+            const et = r.transformPoint({ x: R, y: W });
+            s.textLabels.push({
+              text: F,
+              position: et
             });
           }
           break;
         }
       }
       for (let R = 0; R < t.children.length; R++)
-        this.traverseElement(t.children[R], r, i);
+        this.traverseElement(t.children[R], r, s);
     }
   }
   /**
    * Parse une chaîne de commandes SVG path ('d')
    */
-  static parsePathData(t, s, i, o, r, n, a, l) {
-    const h = /([a-df-z])|([-+]?(?:\d*\.\d+|\d+)(?:[eE][-+]?\d+)?)/gi, c = [];
-    let u;
-    for (; (u = h.exec(t)) !== null; )
-      c.push(u[0]);
-    let p = { x: 0, y: 0 }, g = { x: 0, y: 0 }, d = [], f = 0, m = "";
-    for (; f < c.length; ) {
-      const x = c[f];
-      /^[a-df-z]$/i.test(x) && (m = x, f++);
-      const k = m === m.toLowerCase(), M = m.toUpperCase();
-      switch (M) {
+  static parsePathData(t, i, s, o, r, n, a, l) {
+    const u = /([a-df-z])|([-+]?(?:\d*\.\d+|\d+)(?:[eE][-+]?\d+)?)/gi, d = [];
+    let c;
+    for (; (c = u.exec(t)) !== null; )
+      d.push(c[0]);
+    let p = { x: 0, y: 0 }, g = { x: 0, y: 0 }, h = [], f = 0, m = "";
+    for (; f < d.length; ) {
+      const M = d[f];
+      /^[a-df-z]$/i.test(M) && (m = M, f++);
+      const P = m === m.toLowerCase(), I = m.toUpperCase();
+      switch (I) {
         case "M": {
-          const w = parseFloat(c[f++]), S = parseFloat(c[f++]);
-          !isNaN(w) && !isNaN(S) && (p = k ? { x: p.x + w, y: p.y + S } : { x: w, y: S }, g = { ...p }, d.length >= 3 && !a && i.polygons.push({
-            points: d.map((C) => s.transformPoint(C)),
+          const x = parseFloat(d[f++]), k = parseFloat(d[f++]);
+          !isNaN(x) && !isNaN(k) && (p = P ? { x: p.x + x, y: p.y + k } : { x, y: k }, g = { ...p }, h.length >= 3 && !a && s.polygons.push({
+            points: h.map((y) => i.transformPoint(y)),
             isRoomHint: o ? !1 : l !== "none" && l !== "",
             fill: l
-          }), d = [{ ...p }]);
+          }), h = [{ ...p }]);
           break;
         }
         case "L": {
-          const w = parseFloat(c[f++]), S = parseFloat(c[f++]);
-          if (!isNaN(w) && !isNaN(S)) {
-            const C = k ? { x: p.x + w, y: p.y + S } : { x: w, y: S }, $ = s.transformPoint(p), _ = s.transformPoint(C);
-            i.segments.push({
+          const x = parseFloat(d[f++]), k = parseFloat(d[f++]);
+          if (!isNaN(x) && !isNaN(k)) {
+            const y = P ? { x: p.x + x, y: p.y + k } : { x, y: k }, $ = i.transformPoint(p), S = i.transformPoint(y);
+            s.segments.push({
               start: $,
-              end: _,
-              thickness: i.defaultThickness,
+              end: S,
+              thickness: s.defaultThickness,
               isWallHint: o && !a,
               isWindowHint: r,
               isDoorHint: n,
               isMeasurementLine: a
-            }), p = C, d.push({ ...p });
+            }), p = y, h.push({ ...p });
           }
           break;
         }
         case "H": {
-          const w = parseFloat(c[f++]);
-          if (!isNaN(w)) {
-            const S = k ? { x: p.x + w, y: p.y } : { x: w, y: p.y }, C = s.transformPoint(p), $ = s.transformPoint(S);
-            i.segments.push({
-              start: C,
+          const x = parseFloat(d[f++]);
+          if (!isNaN(x)) {
+            const k = P ? { x: p.x + x, y: p.y } : { x, y: p.y }, y = i.transformPoint(p), $ = i.transformPoint(k);
+            s.segments.push({
+              start: y,
               end: $,
-              thickness: i.defaultThickness,
+              thickness: s.defaultThickness,
               isWallHint: o && !a,
               isWindowHint: r,
               isDoorHint: n,
               isMeasurementLine: a
-            }), p = S, d.push({ ...p });
+            }), p = k, h.push({ ...p });
           }
           break;
         }
         case "V": {
-          const w = parseFloat(c[f++]);
-          if (!isNaN(w)) {
-            const S = k ? { x: p.x, y: p.y + w } : { x: p.x, y: w }, C = s.transformPoint(p), $ = s.transformPoint(S);
-            i.segments.push({
-              start: C,
+          const x = parseFloat(d[f++]);
+          if (!isNaN(x)) {
+            const k = P ? { x: p.x, y: p.y + x } : { x: p.x, y: x }, y = i.transformPoint(p), $ = i.transformPoint(k);
+            s.segments.push({
+              start: y,
               end: $,
-              thickness: i.defaultThickness,
+              thickness: s.defaultThickness,
               isWallHint: o && !a,
               isWindowHint: r,
               isDoorHint: n,
               isMeasurementLine: a
-            }), p = S, d.push({ ...p });
+            }), p = k, h.push({ ...p });
           }
           break;
         }
         case "A": {
-          const w = parseFloat(c[f++]), S = parseFloat(c[f++]);
-          parseFloat(c[f++]), parseFloat(c[f++]);
-          const C = parseFloat(c[f++]), $ = parseFloat(c[f++]), _ = parseFloat(c[f++]);
-          if (!isNaN($) && !isNaN(_) && !isNaN(w) && !isNaN(S)) {
-            const D = k ? { x: p.x + $, y: p.y + _ } : { x: $, y: _ }, I = s.transformPoint(p), B = s.transformPoint(D);
-            i.arcs.push({
-              start: I,
-              end: B,
-              rx: w,
-              ry: S,
-              sweepFlag: C === 1,
+          const x = parseFloat(d[f++]), k = parseFloat(d[f++]);
+          parseFloat(d[f++]), parseFloat(d[f++]);
+          const y = parseFloat(d[f++]), $ = parseFloat(d[f++]), S = parseFloat(d[f++]);
+          if (!isNaN($) && !isNaN(S) && !isNaN(x) && !isNaN(k)) {
+            const E = P ? { x: p.x + $, y: p.y + S } : { x: $, y: S }, D = i.transformPoint(p), L = i.transformPoint(E);
+            s.arcs.push({
+              start: D,
+              end: L,
+              rx: x,
+              ry: k,
+              sweepFlag: y === 1,
               isDoorHint: !0
-            }), p = D, d.push({ ...p });
+            }), p = E, h.push({ ...p });
           }
           break;
         }
@@ -5064,30 +5980,30 @@ class Ke {
         case "S":
         case "Q":
         case "T": {
-          const w = M === "C" ? 6 : M === "S" || M === "Q" ? 4 : 2, S = [];
-          for (let _ = 0; _ < w; _++) S.push(parseFloat(c[f++]));
-          const C = S[S.length - 2], $ = S[S.length - 1];
-          !isNaN(C) && !isNaN($) && (p = k ? { x: p.x + C, y: p.y + $ } : { x: C, y: $ }, d.push({ ...p }));
+          const x = I === "C" ? 6 : I === "S" || I === "Q" ? 4 : 2, k = [];
+          for (let S = 0; S < x; S++) k.push(parseFloat(d[f++]));
+          const y = k[k.length - 2], $ = k[k.length - 1];
+          !isNaN(y) && !isNaN($) && (p = P ? { x: p.x + y, y: p.y + $ } : { x: y, y: $ }, h.push({ ...p }));
           break;
         }
         case "Z": {
-          if (d.length >= 2) {
-            const w = s.transformPoint(p), S = s.transformPoint(g);
-            i.segments.push({
-              start: w,
-              end: S,
-              thickness: i.defaultThickness,
+          if (h.length >= 2) {
+            const x = i.transformPoint(p), k = i.transformPoint(g);
+            s.segments.push({
+              start: x,
+              end: k,
+              thickness: s.defaultThickness,
               isWallHint: o && !a,
               isWindowHint: r,
               isDoorHint: n,
               isMeasurementLine: a
             });
           }
-          d.length >= 3 && !a && i.polygons.push({
-            points: d.map((w) => s.transformPoint(w)),
+          h.length >= 3 && !a && s.polygons.push({
+            points: h.map((x) => i.transformPoint(x)),
             isRoomHint: o ? !1 : l !== "none" && l !== "",
             fill: l
-          }), p = { ...g }, d = [];
+          }), p = { ...g }, h = [];
           break;
         }
         default:
@@ -5099,21 +6015,21 @@ class Ke {
   /**
    * Transforme et consolide les segments bruts en murs réels en mètres
    */
-  static convertSegmentsToWalls(t, s, i, o, r) {
+  static convertSegmentsToWalls(t, i, s, o, r) {
     const n = [];
     for (const a of t) {
       if (a.isMeasurementLine || a.isDoorHint || a.isWindowHint) continue;
       const l = {
-        x: (a.start.x - s.x) * i,
-        y: (a.start.y - s.y) * i
-      }, h = {
-        x: (a.end.x - s.x) * i,
-        y: (a.end.y - s.y) * i
+        x: (a.start.x - i.x) * s,
+        y: (a.start.y - i.y) * s
+      }, u = {
+        x: (a.end.x - i.x) * s,
+        y: (a.end.y - i.y) * s
       };
-      y.distance(l, h) < 0.2 || n.push({
+      v.distance(l, u) < 0.2 || n.push({
         id: `w_svg_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
-        start: { x: y.roundMeters(l.x), y: y.roundMeters(l.y) },
-        end: { x: y.roundMeters(h.x), y: y.roundMeters(h.y) },
+        start: { x: v.roundMeters(l.x), y: v.roundMeters(l.y) },
+        end: { x: v.roundMeters(u.x), y: v.roundMeters(u.y) },
         thickness: o,
         height: r,
         type: "standard"
@@ -5126,96 +6042,96 @@ class Ke {
    */
   static consolidateWalls(t) {
     if (t.length === 0) return [];
-    let s = [...t];
-    for (let r = 0; r < s.length; r++)
-      for (let n = r + 1; n < s.length; n++)
-        for (const a of [s[r].start, s[r].end])
-          for (const l of [s[n].start, s[n].end])
-            y.distance(a, l) < 0.12 && (l.x = a.x, l.y = a.y);
-    let i = !0, o = 0;
-    for (; i && o < 5; ) {
-      i = !1, o++;
-      for (let r = 0; r < s.length; r++) {
-        const n = s[r];
+    let i = [...t];
+    for (let r = 0; r < i.length; r++)
+      for (let n = r + 1; n < i.length; n++)
+        for (const a of [i[r].start, i[r].end])
+          for (const l of [i[n].start, i[n].end])
+            v.distance(a, l) < 0.12 && (l.x = a.x, l.y = a.y);
+    let s = !0, o = 0;
+    for (; s && o < 5; ) {
+      s = !1, o++;
+      for (let r = 0; r < i.length; r++) {
+        const n = i[r];
         if (n)
-          for (let a = r + 1; a < s.length; a++) {
-            const l = s[a];
+          for (let a = r + 1; a < i.length; a++) {
+            const l = i[a];
             if (!l) continue;
-            const h = n.end.x - n.start.x, c = n.end.y - n.start.y, u = Math.sqrt(h * h + c * c), p = l.end.x - l.start.x, g = l.end.y - l.start.y, d = Math.sqrt(p * p + g * g);
-            if (u === 0 || d === 0) continue;
-            const f = (h * p + c * g) / (u * d);
+            const u = n.end.x - n.start.x, d = n.end.y - n.start.y, c = Math.sqrt(u * u + d * d), p = l.end.x - l.start.x, g = l.end.y - l.start.y, h = Math.sqrt(p * p + g * g);
+            if (c === 0 || h === 0) continue;
+            const f = (u * p + d * g) / (c * h);
             if (Math.abs(f) > 0.995) {
-              if (y.distance(n.end, l.start) < 0.05) {
-                n.end = { ...l.end }, s.splice(a, 1), i = !0;
+              if (v.distance(n.end, l.start) < 0.05) {
+                n.end = { ...l.end }, i.splice(a, 1), s = !0;
                 break;
-              } else if (y.distance(n.end, l.end) < 0.05) {
-                n.end = { ...l.start }, s.splice(a, 1), i = !0;
+              } else if (v.distance(n.end, l.end) < 0.05) {
+                n.end = { ...l.start }, i.splice(a, 1), s = !0;
                 break;
-              } else if (y.distance(n.start, l.end) < 0.05) {
-                n.start = { ...l.start }, s.splice(a, 1), i = !0;
+              } else if (v.distance(n.start, l.end) < 0.05) {
+                n.start = { ...l.start }, i.splice(a, 1), s = !0;
                 break;
-              } else if (y.distance(n.start, l.start) < 0.05) {
-                n.start = { ...l.end }, s.splice(a, 1), i = !0;
+              } else if (v.distance(n.start, l.start) < 0.05) {
+                n.start = { ...l.end }, i.splice(a, 1), s = !0;
                 break;
               }
             }
           }
       }
     }
-    return s;
+    return i;
   }
   /**
    * Détecte les portes (depuis les arcs ou segments marqués) et les fenêtres
    */
-  static detectOpenings(t, s, i, o, r) {
+  static detectOpenings(t, i, s, o, r) {
     const n = [];
-    if (i.length === 0) return n;
+    if (s.length === 0) return n;
     for (const a of t) {
       const l = Math.max(a.rx, a.ry) * r;
       if (l < 0.5 || l > 1.4) continue;
-      const h = {
+      const u = {
         x: (a.start.x - o.x) * r,
         y: (a.start.y - o.y) * r
-      }, c = {
+      }, d = {
         x: (a.end.x - o.x) * r,
         y: (a.end.y - o.y) * r
-      }, u = y.snapPointToWall(h, i, 0.75), p = y.snapPointToWall(c, i, 0.75), g = u && (!p || u.distance < p.distance) ? u : p;
+      }, c = v.snapPointToWall(u, s, 0.75), p = v.snapPointToWall(d, s, 0.75), g = c && (!p || c.distance < p.distance) ? c : p;
       if (g && g.distance < 0.7) {
-        const d = y.roundMeters(Math.min(Math.max(l, 0.73), 1.1)), f = y.roundMeters(g.offset);
+        const h = v.roundMeters(Math.min(Math.max(l, 0.73), 1.1)), f = v.roundMeters(g.offset);
         n.some(
-          (x) => x.wallId === g.wall.id && Math.abs(x.offset - f) < 0.35
+          (M) => M.wallId === g.wall.id && Math.abs(M.offset - f) < 0.35
         ) || n.push({
           id: `op_door_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
           wallId: g.wall.id,
           type: "door",
           offset: f,
-          width: d,
+          width: h,
           flipSide: !1,
           flipDirection: !1
         });
       }
     }
-    for (const a of s) {
+    for (const a of i) {
       if (!a.isWindowHint && !a.isDoorHint || a.isMeasurementLine) continue;
       const l = {
         x: (a.start.x - o.x) * r,
         y: (a.start.y - o.y) * r
-      }, h = {
+      }, u = {
         x: (a.end.x - o.x) * r,
         y: (a.end.y - o.y) * r
-      }, c = { x: (l.x + h.x) / 2, y: (l.y + h.y) / 2 }, u = y.distance(l, h);
-      if (u < 0.4 || u > 3) continue;
-      const p = y.snapPointToWall(c, i, 0.6);
+      }, d = { x: (l.x + u.x) / 2, y: (l.y + u.y) / 2 }, c = v.distance(l, u);
+      if (c < 0.4 || c > 3) continue;
+      const p = v.snapPointToWall(d, s, 0.6);
       if (p && p.distance < 0.5) {
-        const g = a.isDoorHint ? "door" : u > 1.8 ? "french_window" : "window", d = y.roundMeters(p.offset);
+        const g = a.isDoorHint ? "door" : c > 1.8 ? "french_window" : "window", h = v.roundMeters(p.offset);
         n.some(
-          (m) => m.wallId === p.wall.id && Math.abs(m.offset - d) < 0.35
+          (m) => m.wallId === p.wall.id && Math.abs(m.offset - h) < 0.35
         ) || n.push({
           id: `op_${g}_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
           wallId: p.wall.id,
           type: g,
-          offset: d,
-          width: y.roundMeters(u),
+          offset: h,
+          width: v.roundMeters(c),
           flipSide: !1,
           flipDirection: !1
         });
@@ -5226,56 +6142,56 @@ class Ke {
   /**
    * Détecte les pièces (Rooms) et associe automatiquement les étiquettes de texte
    */
-  static detectRooms(t, s, i, o, r, n, a = !0) {
-    const l = [], h = i.map((c) => ({
-      text: c.text,
+  static detectRooms(t, i, s, o, r, n, a = !0) {
+    const l = [], u = s.map((d) => ({
+      text: d.text,
       position: {
-        x: (c.position.x - o.x) * r,
-        y: (c.position.y - o.y) * r
+        x: (d.position.x - o.x) * r,
+        y: (d.position.y - o.y) * r
       }
     }));
-    for (const c of t) {
-      if (c.points.length < 3) continue;
-      const u = c.points.map((m) => ({
-        x: y.roundMeters((m.x - o.x) * r),
-        y: y.roundMeters((m.y - o.y) * r)
-      })), p = Z.computeArea(u);
+    for (const d of t) {
+      if (d.points.length < 3) continue;
+      const c = d.points.map((m) => ({
+        x: v.roundMeters((m.x - o.x) * r),
+        y: v.roundMeters((m.y - o.y) * r)
+      })), p = Y.computeArea(c);
       if (p < 1.5 || p > 300) continue;
       let g = "";
       if (a) {
-        for (const m of h)
-          if (Z.isPointInPolygon(m.position, u)) {
+        for (const m of u)
+          if (Y.isPointInPolygon(m.position, c)) {
             g = m.text;
             break;
           }
       }
-      if (!g && !c.isRoomHint) continue;
-      const d = g || `Pièce ${l.length + 1}`, f = this.getRoomStyle(d);
+      if (!g && !d.isRoomHint) continue;
+      const h = g || `Pièce ${l.length + 1}`, f = this.getRoomStyle(h);
       l.push({
         id: `room_svg_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
-        name: d,
-        polygon: u,
+        name: h,
+        polygon: c,
         areaM2: p,
         color: f.color,
         icon: f.icon,
         height: n
       });
     }
-    if (l.length === 0 && h.length > 0 && s.length >= 4 && a)
-      for (const c of h) {
-        const u = c.text.toLowerCase();
-        if (/salon|sejour|chambre|cuisine|sdb|bain|wc|bureau|entree|garage|couloir/i.test(u)) {
-          const p = c.position.x, g = c.position.y, d = 1.8, f = [
-            { x: y.roundMeters(p - d), y: y.roundMeters(g - d) },
-            { x: y.roundMeters(p + d), y: y.roundMeters(g - d) },
-            { x: y.roundMeters(p + d), y: y.roundMeters(g + d) },
-            { x: y.roundMeters(p - d), y: y.roundMeters(g + d) }
-          ], m = this.getRoomStyle(c.text);
+    if (l.length === 0 && u.length > 0 && i.length >= 4 && a)
+      for (const d of u) {
+        const c = d.text.toLowerCase();
+        if (/salon|sejour|chambre|cuisine|sdb|bain|wc|bureau|entree|garage|couloir/i.test(c)) {
+          const p = d.position.x, g = d.position.y, h = 1.8, f = [
+            { x: v.roundMeters(p - h), y: v.roundMeters(g - h) },
+            { x: v.roundMeters(p + h), y: v.roundMeters(g - h) },
+            { x: v.roundMeters(p + h), y: v.roundMeters(g + h) },
+            { x: v.roundMeters(p - h), y: v.roundMeters(g + h) }
+          ], m = this.getRoomStyle(d.text);
           l.push({
             id: `room_svg_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
-            name: c.text,
+            name: d.text,
             polygon: f,
-            areaM2: Z.computeArea(f),
+            areaM2: Y.computeArea(f),
             color: m.color,
             icon: m.icon,
             height: n
@@ -5288,16 +6204,16 @@ class Ke {
    * Associe un nom de pièce à une couleur thématique et une icône MDI
    */
   static getRoomStyle(t) {
-    const s = t.toLowerCase();
-    return /salon|sejour|living|sam|salle à manger/i.test(s) ? { color: "rgba(59, 130, 246, 0.28)", icon: "mdi:sofa" } : /chambre|bed|suite|parentale/i.test(s) ? { color: "rgba(139, 92, 246, 0.28)", icon: "mdi:bed" } : /cuisine|kitchen/i.test(s) ? { color: "rgba(245, 158, 11, 0.28)", icon: "mdi:silverware-fork-knife" } : /sdb|bain|douche|bath|eau/i.test(s) ? { color: "rgba(6, 182, 212, 0.28)", icon: "mdi:shower" } : /wc|toilet/i.test(s) ? { color: "rgba(16, 185, 129, 0.28)", icon: "mdi:toilet" } : /bureau|office|travail/i.test(s) ? { color: "rgba(99, 102, 241, 0.28)", icon: "mdi:desk" } : /entree|entrée|hall|couloir|degagement|dégagement/i.test(s) ? { color: "rgba(100, 116, 139, 0.28)", icon: "mdi:door" } : /garage|atelier/i.test(s) ? { color: "rgba(120, 113, 108, 0.28)", icon: "mdi:garage" } : /terrasse|balcon|patio/i.test(s) ? { color: "rgba(20, 184, 166, 0.28)", icon: "mdi:balcony" } : { color: "rgba(56, 189, 248, 0.25)", icon: "mdi:home-outline" };
+    const i = t.toLowerCase();
+    return /salon|sejour|living|sam|salle à manger/i.test(i) ? { color: "rgba(59, 130, 246, 0.28)", icon: "mdi:sofa" } : /chambre|bed|suite|parentale/i.test(i) ? { color: "rgba(139, 92, 246, 0.28)", icon: "mdi:bed" } : /cuisine|kitchen/i.test(i) ? { color: "rgba(245, 158, 11, 0.28)", icon: "mdi:silverware-fork-knife" } : /sdb|bain|douche|bath|eau/i.test(i) ? { color: "rgba(6, 182, 212, 0.28)", icon: "mdi:shower" } : /wc|toilet/i.test(i) ? { color: "rgba(16, 185, 129, 0.28)", icon: "mdi:toilet" } : /bureau|office|travail/i.test(i) ? { color: "rgba(99, 102, 241, 0.28)", icon: "mdi:desk" } : /entree|entrée|hall|couloir|degagement|dégagement/i.test(i) ? { color: "rgba(100, 116, 139, 0.28)", icon: "mdi:door" } : /garage|atelier/i.test(i) ? { color: "rgba(120, 113, 108, 0.28)", icon: "mdi:garage" } : /terrasse|balcon|patio/i.test(i) ? { color: "rgba(20, 184, 166, 0.28)", icon: "mdi:balcony" } : { color: "rgba(56, 189, 248, 0.25)", icon: "mdi:home-outline" };
   }
 }
-var Je = Object.defineProperty, Ze = Object.getOwnPropertyDescriptor, U = (e, t, s, i) => {
-  for (var o = i > 1 ? void 0 : i ? Ze(t, s) : t, r = e.length - 1, n; r >= 0; r--)
-    (n = e[r]) && (o = (i ? n(t, s, o) : n(o)) || o);
-  return i && o && Je(t, s, o), o;
+var ti = Object.defineProperty, ei = Object.getOwnPropertyDescriptor, B = (e, t, i, s) => {
+  for (var o = s > 1 ? void 0 : s ? ei(t, i) : t, r = e.length - 1, n; r >= 0; r--)
+    (n = e[r]) && (o = (s ? n(t, i, o) : n(o)) || o);
+  return s && o && ti(t, i, o), o;
 };
-let N = class extends H {
+let N = class extends U {
   constructor() {
     super(...arguments), this.currentLevel = "rdc", this.imageDataUrl = null, this.imageWidth = 0, this.imageHeight = 0, this.imageName = "", this.isSvg = !1, this.svgRawText = null, this.svgInterpretResult = null, this.svgImportMode = "vectorize", this.keepSvgBackground = !0, this.importOptions = {
       importWalls: !0,
@@ -5314,7 +6230,7 @@ let N = class extends H {
     super.disconnectedCallback(), this._boundPasteListener && window.removeEventListener("paste", this._boundPasteListener);
   }
   handleModalPaste(e) {
-    var i;
+    var s;
     if (!e.clipboardData) return;
     const t = e.clipboardData.items;
     for (let o = 0; o < t.length; o++)
@@ -5325,9 +6241,9 @@ let N = class extends H {
           return;
         }
       }
-    const s = (i = e.clipboardData.getData("text/plain")) == null ? void 0 : i.trim();
-    if (s && (s.startsWith("<svg") || s.startsWith("<?xml") && s.includes("<svg"))) {
-      e.preventDefault(), this.processSvgText(s, "Plan SVG collé depuis le presse-papier");
+    const i = (s = e.clipboardData.getData("text/plain")) == null ? void 0 : s.trim();
+    if (i && (i.startsWith("<svg") || i.startsWith("<?xml") && i.includes("<svg"))) {
+      e.preventDefault(), this.processSvgText(i, "Plan SVG collé depuis le presse-papier");
       return;
     }
   }
@@ -5335,45 +6251,45 @@ let N = class extends H {
     if (!this.fileInputRef) {
       const e = document.createElement("input");
       e.type = "file", e.accept = "image/*,.svg", e.style.display = "none", e.addEventListener("change", (t) => {
-        var i;
-        const s = (i = t.target.files) == null ? void 0 : i[0];
-        s && this.processFile(s);
+        var s;
+        const i = (s = t.target.files) == null ? void 0 : s[0];
+        i && this.processFile(i);
       }), this.fileInputRef = e;
     }
     this.fileInputRef.click();
   }
   processFile(e) {
     if (this.imageName = e.name || "Plan importé", e.type === "image/svg+xml" || e.name.toLowerCase().endsWith(".svg")) {
-      const s = new FileReader();
-      s.onload = (i) => {
+      const i = new FileReader();
+      i.onload = (s) => {
         var r;
-        const o = (r = i.target) == null ? void 0 : r.result;
+        const o = (r = s.target) == null ? void 0 : r.result;
         this.processSvgText(o, e.name);
-      }, s.readAsText(e);
+      }, i.readAsText(e);
     } else {
       this.isSvg = !1, this.svgRawText = null, this.svgInterpretResult = null;
-      const s = new FileReader();
-      s.onload = (i) => {
+      const i = new FileReader();
+      i.onload = (s) => {
         var n;
-        const o = (n = i.target) == null ? void 0 : n.result, r = new Image();
+        const o = (n = s.target) == null ? void 0 : n.result, r = new Image();
         r.onload = () => {
           this.imageDataUrl = o, this.imageWidth = r.naturalWidth, this.imageHeight = r.naturalHeight;
         }, r.src = o;
-      }, s.readAsDataURL(e);
+      }, i.readAsDataURL(e);
     }
   }
   processSvgText(e, t = "Plan SVG importé") {
     this.imageName = t, this.isSvg = !0, this.svgRawText = e, this.computeSvgInterpretation();
-    const s = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(e);
-    this.imageDataUrl = s;
-    const i = new Image();
-    i.onload = () => {
+    const i = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(e);
+    this.imageDataUrl = i;
+    const s = new Image();
+    s.onload = () => {
       var o, r;
-      this.imageWidth = i.naturalWidth || ((o = this.svgInterpretResult) == null ? void 0 : o.viewBox.width) || 1e3, this.imageHeight = i.naturalHeight || ((r = this.svgInterpretResult) == null ? void 0 : r.viewBox.height) || 750;
-    }, i.src = s;
+      this.imageWidth = s.naturalWidth || ((o = this.svgInterpretResult) == null ? void 0 : o.viewBox.width) || 1e3, this.imageHeight = s.naturalHeight || ((r = this.svgInterpretResult) == null ? void 0 : r.viewBox.height) || 750;
+    }, s.src = i;
   }
   computeSvgInterpretation() {
-    this.svgRawText && (this.svgInterpretResult = Ke.parseSvg(
+    this.svgRawText && (this.svgInterpretResult = Qe.parseSvg(
       this.svgRawText,
       this.totalWidthMeters,
       0.2,
@@ -5393,8 +6309,8 @@ let N = class extends H {
   handleDrop(e) {
     var t;
     if (e.preventDefault(), this.isDragOver = !1, (t = e.dataTransfer) != null && t.files && e.dataTransfer.files.length > 0) {
-      const s = e.dataTransfer.files[0];
-      this.processFile(s);
+      const i = e.dataTransfer.files[0];
+      this.processFile(i);
     }
   }
   handleDragOver(e) {
@@ -5415,9 +6331,9 @@ let N = class extends H {
       if (navigator.clipboard && navigator.clipboard.read) {
         const e = await navigator.clipboard.read();
         for (const t of e) {
-          const s = t.types.find((i) => i.startsWith("image/"));
-          if (s) {
-            const i = await t.getType(s), o = new File([i], "clipboard_image.png", { type: s });
+          const i = t.types.find((s) => s.startsWith("image/"));
+          if (i) {
+            const s = await t.getType(i), o = new File([s], "clipboard_image.png", { type: i });
             this.processFile(o);
             return;
           }
@@ -5432,14 +6348,14 @@ let N = class extends H {
     this.dispatchEvent(new CustomEvent("close", { bubbles: !0, composed: !0 }));
   }
   confirmImport() {
-    var t, s, i;
+    var t, i, s;
     if (!this.imageDataUrl) return;
     const e = this.isSvg && this.svgImportMode === "vectorize" && !!((t = this.svgInterpretResult) != null && t.success);
     this.dispatchEvent(new CustomEvent("import-confirmed", {
       detail: {
         dataUrl: this.imageDataUrl,
-        widthPx: this.imageWidth || ((s = this.svgInterpretResult) == null ? void 0 : s.viewBox.width) || 1e3,
-        heightPx: this.imageHeight || ((i = this.svgInterpretResult) == null ? void 0 : i.viewBox.height) || 750,
+        widthPx: this.imageWidth || ((i = this.svgInterpretResult) == null ? void 0 : i.viewBox.width) || 1e3,
+        heightPx: this.imageHeight || ((s = this.svgInterpretResult) == null ? void 0 : s.viewBox.height) || 750,
         opacity: this.opacity,
         mode: this.calibrateMode,
         totalWidthMeters: this.totalWidthMeters,
@@ -5453,9 +6369,9 @@ let N = class extends H {
     }));
   }
   render() {
-    var s, i;
-    const e = this.isSvg && this.svgImportMode === "vectorize" && !!((s = this.svgInterpretResult) != null && s.success), t = (i = this.svgInterpretResult) == null ? void 0 : i.stats;
-    return v`
+    var i, s;
+    const e = this.isSvg && this.svgImportMode === "vectorize" && !!((i = this.svgInterpretResult) != null && i.success), t = (s = this.svgInterpretResult) == null ? void 0 : s.stats;
+    return w`
       <div class="modal-card">
         <div class="modal-header">
           <div class="modal-title-group">
@@ -5470,14 +6386,14 @@ let N = class extends H {
 
         <div class="modal-body">
           <!-- Zone de Dépôt ou Aperçu -->
-          ${this.imageDataUrl ? v`
+          ${this.imageDataUrl ? w`
             <div class="preview-card">
               <img class="preview-thumb" src="${this.imageDataUrl}" alt="Aperçu du plan" />
               <div class="preview-meta">
                 <div class="preview-title">
                   <span>✅</span>
                   <span>${this.imageName || "Plan sélectionné"}</span>
-                  ${this.isSvg ? v`<span class="preview-badge-svg">SVG Vectoriel</span>` : null}
+                  ${this.isSvg ? w`<span class="preview-badge-svg">SVG Vectoriel</span>` : null}
                 </div>
                 <div class="preview-dimensions">
                   Dimensions du plan : ${this.imageWidth} × ${this.imageHeight} px
@@ -5487,7 +6403,7 @@ let N = class extends H {
                 </button>
               </div>
             </div>
-          ` : v`
+          ` : w`
             <div 
               class="drop-zone ${this.isDragOver ? "dragover" : ""}"
               @dragover=${this.handleDragOver}
@@ -5511,7 +6427,7 @@ let N = class extends H {
           `}
 
           <!-- Encadré Vectorisation Intelligente SVG si un fichier SVG est chargé -->
-          ${this.isSvg ? v`
+          ${this.isSvg ? w`
             <div class="svg-interpret-box">
               <div class="svg-box-header">
                 <span class="svg-box-icon">✨</span>
@@ -5545,7 +6461,7 @@ let N = class extends H {
                       Génère instantanément les murs, baies, ouvertures et pièces prêts pour l'affichage 2D et 3D.
                     </div>
 
-                    ${t ? v`
+                    ${t ? w`
                       <!-- Sélection granulaire des éléments à importer -->
                       <div class="import-categories-box" @click=${(o) => o.stopPropagation()}>
                         <div class="categories-title">Éléments à importer :</div>
@@ -5601,7 +6517,7 @@ let N = class extends H {
                           </label>
                         </div>
 
-                        ${t.ignoredMeasurementLinesCount > 0 ? v`
+                        ${t.ignoredMeasurementLinesCount > 0 ? w`
                           <div class="ignored-note">
                             ℹ️ ${t.ignoredMeasurementLinesCount} ligne(s) de cotation / pointillés ont été automatiquement ignorées (non transformées en murs).
                           </div>
@@ -5677,7 +6593,7 @@ let N = class extends H {
                     Indiquez la largeur totale de la maison ou du bâtiment. Toutes les cotes métriques et les murs seront calculés précisément.
                   </div>
 
-                  ${this.calibrateMode === "auto_dimension" ? v`
+                  ${this.calibrateMode === "auto_dimension" ? w`
                     <div class="input-row" @click=${(o) => o.stopPropagation()}>
                       <label style="font-size: 0.82rem; color: #94a3b8;">Largeur totale estimée :</label>
                       <input 
@@ -5696,7 +6612,7 @@ let N = class extends H {
               </div>
 
               <!-- Option B : Tracé manuel assisté sur un mur (si pas vectorisé) -->
-              ${e ? null : v`
+              ${e ? null : w`
                 <div 
                   class="option-card ${this.calibrateMode === "interactive_calibrate" ? "selected" : ""}"
                   @click=${() => this.calibrateMode = "interactive_calibrate"}
@@ -5722,7 +6638,7 @@ let N = class extends H {
           </div>
 
           <!-- Réglage d'opacité du calque si conservé -->
-          ${!e || this.keepSvgBackground ? v`
+          ${!e || this.keepSvgBackground ? w`
             <div class="slider-row">
               <span class="slider-label">Opacité du fond :</span>
               <input 
@@ -5746,10 +6662,10 @@ let N = class extends H {
             ?disabled=${!this.imageDataUrl} 
             @click=${this.confirmImport}
           >
-            ${e ? v`
+            ${e ? w`
               <span>✨</span>
               <span>Convertir le plan SVG (${(t == null ? void 0 : t.wallCount) || 0} murs)</span>
-            ` : v`
+            ` : w`
               <span>🚀</span>
               <span>Charger le plan</span>
             `}
@@ -5759,7 +6675,7 @@ let N = class extends H {
     `;
   }
 };
-N.styles = K`
+N.styles = J`
     :host {
       position: fixed;
       inset: 0;
@@ -6425,60 +7341,60 @@ N.styles = K`
       box-shadow: none;
     }
   `;
-U([
-  P({ type: String })
+B([
+  _({ type: String })
 ], N.prototype, "currentLevel", 2);
-U([
+B([
   b()
 ], N.prototype, "imageDataUrl", 2);
-U([
+B([
   b()
 ], N.prototype, "imageWidth", 2);
-U([
+B([
   b()
 ], N.prototype, "imageHeight", 2);
-U([
+B([
   b()
 ], N.prototype, "imageName", 2);
-U([
+B([
   b()
 ], N.prototype, "isSvg", 2);
-U([
+B([
   b()
 ], N.prototype, "svgRawText", 2);
-U([
+B([
   b()
 ], N.prototype, "svgInterpretResult", 2);
-U([
+B([
   b()
 ], N.prototype, "svgImportMode", 2);
-U([
+B([
   b()
 ], N.prototype, "keepSvgBackground", 2);
-U([
+B([
   b()
 ], N.prototype, "importOptions", 2);
-U([
+B([
   b()
 ], N.prototype, "calibrateMode", 2);
-U([
+B([
   b()
 ], N.prototype, "totalWidthMeters", 2);
-U([
+B([
   b()
 ], N.prototype, "opacity", 2);
-U([
+B([
   b()
 ], N.prototype, "isDragOver", 2);
-N = U([
-  J("home-architect-import-modal")
+N = B([
+  Z("home-architect-import-modal")
 ], N);
-var Qe = Object.defineProperty, ts = Object.getOwnPropertyDescriptor, ut = (e, t, s, i) => {
-  for (var o = i > 1 ? void 0 : i ? ts(t, s) : t, r = e.length - 1, n; r >= 0; r--)
-    (n = e[r]) && (o = (i ? n(t, s, o) : n(o)) || o);
-  return i && o && Qe(t, s, o), o;
+var ii = Object.defineProperty, si = Object.getOwnPropertyDescriptor, xt = (e, t, i, s) => {
+  for (var o = s > 1 ? void 0 : s ? si(t, i) : t, r = e.length - 1, n; r >= 0; r--)
+    (n = e[r]) && (o = (s ? n(t, i, o) : n(o)) || o);
+  return s && o && ii(t, i, o), o;
 };
-let tt = class extends H {
+let st = class extends U {
   constructor() {
     super(...arguments), this.measuredMeters = 0, this.wallCount = 0, this.roomCount = 0, this.openingCount = 0, this.targetMeters = 0, this.adjustBackground = !0;
   }
@@ -6507,8 +7423,8 @@ let tt = class extends H {
     }));
   }
   render() {
-    const e = this.measuredMeters > 0 && this.targetMeters > 0 ? this.targetMeters / this.measuredMeters : 1, t = (e - 1) * 100, s = this.targetMeters > 0 && Math.abs(e - 1) > 1e-4;
-    return v`
+    const e = this.measuredMeters > 0 && this.targetMeters > 0 ? this.targetMeters / this.measuredMeters : 1, t = (e - 1) * 100, i = this.targetMeters > 0 && Math.abs(e - 1) > 1e-4;
+    return w`
       <div class="modal-card">
         <div class="modal-header">
           <div class="modal-title-group">
@@ -6562,13 +7478,13 @@ let tt = class extends H {
               <span class="impact-icon">🧱</span>
               <span><strong>${this.wallCount} murs</strong> : toutes les longueurs et cotes seront recalculées</span>
             </div>
-            ${this.openingCount > 0 ? v`
+            ${this.openingCount > 0 ? w`
               <div class="impact-item">
                 <span class="impact-icon">🚪</span>
                 <span><strong>${this.openingCount} ouvertures</strong> : positions ajustées proportionnellement</span>
               </div>
             ` : null}
-            ${this.roomCount > 0 ? v`
+            ${this.roomCount > 0 ? w`
               <div class="impact-item">
                 <span class="impact-icon">🏡</span>
                 <span><strong>${this.roomCount} pièces</strong> : toutes les surfaces en m² seront actualisées</span>
@@ -6585,7 +7501,7 @@ let tt = class extends H {
           <button class="btn-cancel" @click=${this.close}>Annuler</button>
           <button 
             class="btn-confirm" 
-            ?disabled=${!s} 
+            ?disabled=${!i} 
             @click=${this.confirm}
           >
             <span>📐</span>
@@ -6596,7 +7512,7 @@ let tt = class extends H {
     `;
   }
 };
-tt.styles = K`
+st.styles = J`
     :host {
       position: fixed;
       inset: 0;
@@ -6874,33 +7790,33 @@ tt.styles = K`
       box-shadow: none;
     }
   `;
-ut([
-  P({ type: Number })
-], tt.prototype, "measuredMeters", 2);
-ut([
-  P({ type: Number })
-], tt.prototype, "wallCount", 2);
-ut([
-  P({ type: Number })
-], tt.prototype, "roomCount", 2);
-ut([
-  P({ type: Number })
-], tt.prototype, "openingCount", 2);
-ut([
+xt([
+  _({ type: Number })
+], st.prototype, "measuredMeters", 2);
+xt([
+  _({ type: Number })
+], st.prototype, "wallCount", 2);
+xt([
+  _({ type: Number })
+], st.prototype, "roomCount", 2);
+xt([
+  _({ type: Number })
+], st.prototype, "openingCount", 2);
+xt([
   b()
-], tt.prototype, "targetMeters", 2);
-ut([
+], st.prototype, "targetMeters", 2);
+xt([
   b()
-], tt.prototype, "adjustBackground", 2);
-tt = ut([
-  J("home-architect-rescale-modal")
-], tt);
-class kt {
+], st.prototype, "adjustBackground", 2);
+st = xt([
+  Z("home-architect-rescale-modal")
+], st);
+class It {
   /**
    * Calcule la boîte englobante exacte du plan (murs, pièces, entités, image de fond)
    */
-  static calculateBoundingBox(t, s) {
-    const i = t.pixelsPerMeter || 50, o = [];
+  static calculateBoundingBox(t, i) {
+    const s = t.pixelsPerMeter || 50, o = [];
     for (const m of t.walls)
       o.push(m.start, m.end);
     for (const m of t.rooms)
@@ -6908,10 +7824,10 @@ class kt {
     for (const m of t.bindings)
       m.position && o.push(m.position);
     if (t.background && t.background.imageUrl && t.background.visible) {
-      const m = t.background, x = m.offset || { x: 0, y: 0 }, k = m.scale || 1, M = (m.widthPx || 1200) * k / i, w = (m.heightPx || 900) * k / i;
+      const m = t.background, M = m.offset || { x: 0, y: 0 }, P = m.scale || 1, I = (m.widthPx || 1200) * P / s, x = (m.heightPx || 900) * P / s;
       o.push(
-        { x: x.x, y: x.y },
-        { x: x.x + M, y: x.y + w }
+        { x: M.x, y: M.y },
+        { x: M.x + I, y: M.y + x }
       );
     }
     if (o.length === 0)
@@ -6920,35 +7836,35 @@ class kt {
         minY: -1,
         width: 12,
         height: 8,
-        ppm: i
+        ppm: s
       };
     let r = Math.min(...o.map((m) => m.x)), n = Math.max(...o.map((m) => m.x)), a = Math.min(...o.map((m) => m.y)), l = Math.max(...o.map((m) => m.y));
-    const h = n - r || 5, c = l - a || 5, u = s !== void 0 ? s : Math.max(0.6, Math.max(h, c) * 0.05), p = r - u, g = a - u, d = n - r + u * 2, f = l - a + u * 2;
+    const u = n - r || 5, d = l - a || 5, c = i !== void 0 ? i : Math.max(0.6, Math.max(u, d) * 0.05), p = r - c, g = a - c, h = n - r + c * 2, f = l - a + c * 2;
     return {
       minX: p,
       minY: g,
-      width: d,
+      width: h,
       height: f,
-      ppm: i
+      ppm: s
     };
   }
   /**
    * Convertit un point monde en coordonnées de pourcentage (0% à 100%)
    * strictement compatible avec la carte Lovelace picture-elements de Home Assistant
    */
-  static worldToPercentage(t, s) {
-    const i = (t.x - s.minX) / s.width * 100, o = (t.y - s.minY) / s.height * 100;
+  static worldToPercentage(t, i) {
+    const s = (t.x - i.minX) / i.width * 100, o = (t.y - i.minY) / i.height * 100;
     return {
-      left: Math.round(i * 10) / 10,
+      left: Math.round(s * 10) / 10,
       top: Math.round(o * 10) / 10
     };
   }
   /**
    * Génère un document SVG vectoriel autonome et complet représentant le plan
    */
-  static exportToSvg(t, s) {
-    var u, p, g;
-    const i = {
+  static exportToSvg(t, i) {
+    var c, p, g;
+    const s = {
       includeRooms: !0,
       includeWalls: !0,
       includeOpenings: !0,
@@ -6956,129 +7872,129 @@ class kt {
       includeEntityMarkers: !1,
       includeBackground: !0,
       backgroundColor: "#0f172a",
-      ...s
-    }, o = this.calculateBoundingBox(t, i.paddingMeters), r = o.ppm, n = (o.minX * r).toFixed(1), a = (o.minY * r).toFixed(1), l = Math.max(100, Math.round(o.width * r)), h = Math.max(100, Math.round(o.height * r));
-    let c = "";
-    if (i.backgroundColor && i.backgroundColor !== "transparent" && (c += `  <rect x="${n}" y="${a}" width="${l}" height="${h}" fill="${i.backgroundColor}" />
-`), i.includeBackground !== !1 && ((u = t.background) != null && u.imageUrl) && t.background.visible) {
-      const d = t.background, f = (((p = d.offset) == null ? void 0 : p.x) || 0) * r, m = (((g = d.offset) == null ? void 0 : g.y) || 0) * r, x = d.scale || 1, k = (d.widthPx || 1200) * x, M = (d.heightPx || 900) * x;
-      c += `  <!-- Image de fond du plan d'origine -->
-`, c += `  <image href="${d.imageUrl}" x="${f.toFixed(1)}" y="${m.toFixed(1)}" width="${k.toFixed(1)}" height="${M.toFixed(1)}" opacity="${d.opacity || 0.6}" />
+      ...i
+    }, o = this.calculateBoundingBox(t, s.paddingMeters), r = o.ppm, n = (o.minX * r).toFixed(1), a = (o.minY * r).toFixed(1), l = Math.max(100, Math.round(o.width * r)), u = Math.max(100, Math.round(o.height * r));
+    let d = "";
+    if (s.backgroundColor && s.backgroundColor !== "transparent" && (d += `  <rect x="${n}" y="${a}" width="${l}" height="${u}" fill="${s.backgroundColor}" />
+`), s.includeBackground !== !1 && ((c = t.background) != null && c.imageUrl) && t.background.visible) {
+      const h = t.background, f = (((p = h.offset) == null ? void 0 : p.x) || 0) * r, m = (((g = h.offset) == null ? void 0 : g.y) || 0) * r, M = h.scale || 1, P = (h.widthPx || 1200) * M, I = (h.heightPx || 900) * M;
+      d += `  <!-- Image de fond du plan d'origine -->
+`, d += `  <image href="${h.imageUrl}" x="${f.toFixed(1)}" y="${m.toFixed(1)}" width="${P.toFixed(1)}" height="${I.toFixed(1)}" opacity="${h.opacity || 0.6}" />
 `;
     }
-    if (i.includeRooms && t.rooms.length > 0) {
-      c += `  <!-- Pièces -->
+    if (s.includeRooms && t.rooms.length > 0) {
+      d += `  <!-- Pièces -->
   <g id="rooms">
 `;
-      for (const d of t.rooms) {
-        if (!d.polygon || d.polygon.length < 3) continue;
-        const f = d.polygon.map((x) => `${(x.x * r).toFixed(1)},${(x.y * r).toFixed(1)}`).join(" "), m = d.color || "rgba(56, 189, 248, 0.12)";
-        c += `    <polygon points="${f}" fill="${m}" stroke="rgba(56, 189, 248, 0.4)" stroke-width="1.5" />
+      for (const h of t.rooms) {
+        if (!h.polygon || h.polygon.length < 3) continue;
+        const f = h.polygon.map((M) => `${(M.x * r).toFixed(1)},${(M.y * r).toFixed(1)}`).join(" "), m = h.color || "rgba(56, 189, 248, 0.12)";
+        d += `    <polygon points="${f}" fill="${m}" stroke="rgba(56, 189, 248, 0.4)" stroke-width="1.5" />
 `;
       }
-      c += `  </g>
+      d += `  </g>
 `;
     }
-    if (i.includeWalls && t.walls.length > 0) {
-      c += `  <!-- Murs -->
+    if (s.includeWalls && t.walls.length > 0) {
+      d += `  <!-- Murs -->
   <g id="walls">
 `;
-      for (const d of t.walls) {
-        const m = this.computeWallPolygon(d.start, d.end, d.thickness).map((x) => `${(x.x * r).toFixed(1)},${(x.y * r).toFixed(1)}`).join(" ");
-        c += `    <polygon points="${m}" fill="#334155" stroke="#64748b" stroke-width="1" />
+      for (const h of t.walls) {
+        const m = this.computeWallPolygon(h.start, h.end, h.thickness).map((M) => `${(M.x * r).toFixed(1)},${(M.y * r).toFixed(1)}`).join(" ");
+        d += `    <polygon points="${m}" fill="#334155" stroke="#64748b" stroke-width="1" />
 `;
       }
-      c += `  </g>
+      d += `  </g>
 `;
     }
-    if (i.includeOpenings && t.openings.length > 0) {
-      c += `  <!-- Portes & Fenêtres -->
+    if (s.includeOpenings && t.openings.length > 0) {
+      d += `  <!-- Portes & Fenêtres -->
   <g id="openings">
 `;
-      for (const d of t.openings) {
-        const f = t.walls.find((D) => D.id === d.wallId);
+      for (const h of t.openings) {
+        const f = t.walls.find((E) => E.id === h.wallId);
         if (!f) continue;
-        const m = f.end.x - f.start.x, x = f.end.y - f.start.y, k = Math.sqrt(m * m + x * x);
-        if (k === 0) continue;
-        const w = (Math.atan2(x, m) * 180 / Math.PI).toFixed(1), S = (f.start.x + d.offset / k * m) * r, C = (f.start.y + d.offset / k * x) * r, $ = d.width * r, _ = f.thickness * r;
-        if (c += `    <g transform="translate(${S.toFixed(1)}, ${C.toFixed(1)}) rotate(${w})">
-`, c += `      <rect x="${(-$ / 2).toFixed(1)}" y="${(-_ / 2 - 1).toFixed(1)}" width="${$.toFixed(1)}" height="${(_ + 2).toFixed(1)}" fill="${i.backgroundColor || "#0f172a"}" />
-`, d.type === "door") {
-          const D = $ / 2, I = d.flipSide ? -1 : 1, B = d.flipDirection ? D : -D, gt = d.flipDirection ? -1 : 1;
-          c += `      <rect x="${-D}" y="${-_ / 2}" width="4" height="${_}" fill="#94a3b8" />
-`, c += `      <rect x="${D - 4}" y="${-_ / 2}" width="4" height="${_}" fill="#94a3b8" />
-`, c += `      <line x1="${B}" y1="0" x2="${B}" y2="${I * $}" stroke="#38bdf8" stroke-width="2" stroke-linecap="round" />
-`, c += `      <path d="M ${B + gt * $} 0 A ${$} ${$} 0 0 ${I > 0 ? d.flipDirection ? 0 : 1 : d.flipDirection ? 1 : 0} ${B} ${I * $}" fill="rgba(56, 189, 248, 0.08)" stroke="#38bdf8" stroke-width="1.2" stroke-dasharray="3, 3" />
+        const m = f.end.x - f.start.x, M = f.end.y - f.start.y, P = Math.sqrt(m * m + M * M);
+        if (P === 0) continue;
+        const x = (Math.atan2(M, m) * 180 / Math.PI).toFixed(1), k = (f.start.x + h.offset / P * m) * r, y = (f.start.y + h.offset / P * M) * r, $ = h.width * r, S = f.thickness * r;
+        if (d += `    <g transform="translate(${k.toFixed(1)}, ${y.toFixed(1)}) rotate(${x})">
+`, d += `      <rect x="${(-$ / 2).toFixed(1)}" y="${(-S / 2 - 1).toFixed(1)}" width="${$.toFixed(1)}" height="${(S + 2).toFixed(1)}" fill="${s.backgroundColor || "#0f172a"}" />
+`, h.type === "door") {
+          const E = $ / 2, D = h.flipSide ? -1 : 1, L = h.flipDirection ? E : -E, Q = h.flipDirection ? -1 : 1;
+          d += `      <rect x="${-E}" y="${-S / 2}" width="4" height="${S}" fill="#94a3b8" />
+`, d += `      <rect x="${E - 4}" y="${-S / 2}" width="4" height="${S}" fill="#94a3b8" />
+`, d += `      <line x1="${L}" y1="0" x2="${L}" y2="${D * $}" stroke="#38bdf8" stroke-width="2" stroke-linecap="round" />
+`, d += `      <path d="M ${L + Q * $} 0 A ${$} ${$} 0 0 ${D > 0 ? h.flipDirection ? 0 : 1 : h.flipDirection ? 1 : 0} ${L} ${D * $}" fill="rgba(56, 189, 248, 0.08)" stroke="#38bdf8" stroke-width="1.2" stroke-dasharray="3, 3" />
 `;
-        } else if (d.type === "french_window") {
-          const D = $ / 2;
-          c += `      <rect x="${(-D).toFixed(1)}" y="${(-_ / 2).toFixed(1)}" width="${$.toFixed(1)}" height="${_.toFixed(1)}" fill="none" stroke="#94a3b8" stroke-width="2" />
-`, c += `      <rect x="${(-D).toFixed(1)}" y="${(-_ / 4).toFixed(1)}" width="${D.toFixed(1)}" height="3" fill="#38bdf8" />
-`, c += `      <rect x="0" y="${(_ / 4).toFixed(1)}" width="${D.toFixed(1)}" height="3" fill="#38bdf8" />
+        } else if (h.type === "french_window") {
+          const E = $ / 2;
+          d += `      <rect x="${(-E).toFixed(1)}" y="${(-S / 2).toFixed(1)}" width="${$.toFixed(1)}" height="${S.toFixed(1)}" fill="none" stroke="#94a3b8" stroke-width="2" />
+`, d += `      <rect x="${(-E).toFixed(1)}" y="${(-S / 4).toFixed(1)}" width="${E.toFixed(1)}" height="3" fill="#38bdf8" />
+`, d += `      <rect x="0" y="${(S / 4).toFixed(1)}" width="${E.toFixed(1)}" height="3" fill="#38bdf8" />
 `;
         } else {
-          const D = $ / 2, I = d.sashCount === 2 || d.width >= 1.25;
-          c += `      <rect x="${(-D).toFixed(1)}" y="${(-_ / 2).toFixed(1)}" width="${$.toFixed(1)}" height="${_.toFixed(1)}" fill="none" stroke="#94a3b8" stroke-width="2" />
-`, c += `      <line x1="${(-D).toFixed(1)}" y1="0" x2="${D.toFixed(1)}" y2="0" stroke="#38bdf8" stroke-width="1.5" />
-`, I && (c += `      <line x1="0" y1="${(-_ / 2).toFixed(1)}" x2="0" y2="${(_ / 2).toFixed(1)}" stroke="#38bdf8" stroke-width="2" />
+          const E = $ / 2, D = h.sashCount === 2 || h.width >= 1.25;
+          d += `      <rect x="${(-E).toFixed(1)}" y="${(-S / 2).toFixed(1)}" width="${$.toFixed(1)}" height="${S.toFixed(1)}" fill="none" stroke="#94a3b8" stroke-width="2" />
+`, d += `      <line x1="${(-E).toFixed(1)}" y1="0" x2="${E.toFixed(1)}" y2="0" stroke="#38bdf8" stroke-width="1.5" />
+`, D && (d += `      <line x1="0" y1="${(-S / 2).toFixed(1)}" x2="0" y2="${(S / 2).toFixed(1)}" stroke="#38bdf8" stroke-width="2" />
 `);
         }
-        c += `    </g>
+        d += `    </g>
 `;
       }
-      c += `  </g>
+      d += `  </g>
 `;
     }
-    if (i.includeRoomLabels && t.rooms.length > 0) {
-      c += `  <!-- Étiquettes de Pièces -->
+    if (s.includeRoomLabels && t.rooms.length > 0) {
+      d += `  <!-- Étiquettes de Pièces -->
   <g id="room-labels">
 `;
-      for (const d of t.rooms) {
-        if (!d.polygon || d.polygon.length < 3) continue;
-        const f = Z.calculateCentroid(d.polygon), m = (f.x * r).toFixed(1), x = (f.y * r).toFixed(1);
-        c += `    <g transform="translate(${m}, ${x})">
-`, c += `      <text y="-6" fill="#f8fafc" font-size="13" font-weight="700" text-anchor="middle">${this.escapeXml(d.name)}</text>
-`, c += `      <text y="12" fill="#38bdf8" font-size="11" font-weight="600" text-anchor="middle" font-family="monospace">${d.areaM2.toFixed(1)} m²</text>
-`, c += `    </g>
+      for (const h of t.rooms) {
+        if (!h.polygon || h.polygon.length < 3) continue;
+        const f = Y.calculateCentroid(h.polygon), m = (f.x * r).toFixed(1), M = (f.y * r).toFixed(1);
+        d += `    <g transform="translate(${m}, ${M})">
+`, d += `      <text y="-6" fill="#f8fafc" font-size="13" font-weight="700" text-anchor="middle">${this.escapeXml(h.name)}</text>
+`, d += `      <text y="12" fill="#38bdf8" font-size="11" font-weight="600" text-anchor="middle" font-family="monospace">${h.areaM2.toFixed(1)} m²</text>
+`, d += `    </g>
 `;
       }
-      c += `  </g>
+      d += `  </g>
 `;
     }
-    if (i.includeEntityMarkers && t.bindings.length > 0) {
-      c += `  <!-- Emplacements des Entités -->
+    if (s.includeEntityMarkers && t.bindings.length > 0) {
+      d += `  <!-- Emplacements des Entités -->
   <g id="entity-markers">
 `;
-      for (const d of t.bindings) {
-        const f = (d.position.x * r).toFixed(1), m = (d.position.y * r).toFixed(1), x = d.icon || "⚡", k = d.customName || d.entityId.split(".")[1];
-        c += `    <g transform="translate(${f}, ${m})">
-`, c += `      <circle cx="0" cy="0" r="16" fill="rgba(30, 41, 59, 0.85)" stroke="#38bdf8" stroke-width="1.5" />
-`, c += `      <text x="0" y="5" font-size="12" text-anchor="middle">${this.escapeXml(x)}</text>
-`, c += `      <text x="0" y="26" fill="#f1f5f9" font-size="10" font-weight="600" text-anchor="middle">${this.escapeXml(k)}</text>
-`, c += `    </g>
+      for (const h of t.bindings) {
+        const f = (h.position.x * r).toFixed(1), m = (h.position.y * r).toFixed(1), M = h.icon || "⚡", P = h.customName || h.entityId.split(".")[1];
+        d += `    <g transform="translate(${f}, ${m})">
+`, d += `      <circle cx="0" cy="0" r="16" fill="rgba(30, 41, 59, 0.85)" stroke="#38bdf8" stroke-width="1.5" />
+`, d += `      <text x="0" y="5" font-size="12" text-anchor="middle">${this.escapeXml(M)}</text>
+`, d += `      <text x="0" y="26" fill="#f1f5f9" font-size="10" font-weight="600" text-anchor="middle">${this.escapeXml(P)}</text>
+`, d += `    </g>
 `;
       }
-      c += `  </g>
+      d += `  </g>
 `;
     }
     return `<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="${n} ${a} ${l} ${h}" width="${l}" height="${h}" style="background-color: ${i.backgroundColor || "#0f172a"}; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 100%; height: auto;">
-${c}</svg>`;
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="${n} ${a} ${l} ${u}" width="${l}" height="${u}" style="background-color: ${s.backgroundColor || "#0f172a"}; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 100%; height: auto;">
+${d}</svg>`;
   }
-  static computeWallPolygon(t, s, i) {
-    const o = s.x - t.x, r = s.y - t.y, n = Math.sqrt(o * o + r * r);
-    if (n === 0) return [t, t, s, s];
-    const a = i / 2, l = -r / n * a, h = o / n * a;
+  static computeWallPolygon(t, i, s) {
+    const o = i.x - t.x, r = i.y - t.y, n = Math.sqrt(o * o + r * r);
+    if (n === 0) return [t, t, i, i];
+    const a = s / 2, l = -r / n * a, u = o / n * a;
     return [
-      { x: t.x + l, y: t.y + h },
-      { x: s.x + l, y: s.y + h },
-      { x: s.x - l, y: s.y - h },
-      { x: t.x - l, y: t.y - h }
+      { x: t.x + l, y: t.y + u },
+      { x: i.x + l, y: i.y + u },
+      { x: i.x - l, y: i.y - u },
+      { x: t.x - l, y: t.y - u }
     ];
   }
   static escapeXml(t) {
-    return t.replace(/[<>&'"]/g, (s) => {
-      switch (s) {
+    return t.replace(/[<>&'"]/g, (i) => {
+      switch (i) {
         case "<":
           return "&lt;";
         case ">":
@@ -7090,28 +8006,28 @@ ${c}</svg>`;
         case '"':
           return "&quot;";
         default:
-          return s;
+          return i;
       }
     });
   }
 }
-class ae {
+class ce {
   /**
    * Génère la configuration YAML complète de la carte native 'picture-elements' de Home Assistant
    */
-  static generatePictureElementsYaml(t, s) {
-    let i = (s == null ? void 0 : s.imagePath) || `/local/plan_${t.id || "rdc"}.svg`;
-    if (s != null && s.embedDataUri && (s != null && s.svgContent))
+  static generatePictureElementsYaml(t, i) {
+    let s = (i == null ? void 0 : i.imagePath) || `/local/plan_${t.id || "rdc"}.svg`;
+    if (i != null && i.embedDataUri && (i != null && i.svgContent))
       try {
-        i = `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(s.svgContent)))}`;
+        s = `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(i.svgContent)))}`;
       } catch {
-        i = s.imagePath || `/local/plan_${t.id || "rdc"}.svg`;
+        s = i.imagePath || `/local/plan_${t.id || "rdc"}.svg`;
       }
     const o = {
       title: t.name || "Plan Interactif",
-      ...s,
-      imagePath: i
-    }, r = kt.calculateBoundingBox(t), n = t.bindings || [];
+      ...i,
+      imagePath: s
+    }, r = It.calculateBoundingBox(t), n = t.bindings || [];
     let a = `# ========================================================
 `;
     if (a += `# CARTE LOVELACE PICTURE-ELEMENTS (NATIVE HOME ASSISTANT)
@@ -7125,19 +8041,19 @@ class ae {
       return a += `  # Aucune entité liée pour le moment. Glissez-déposez des entités sur le plan !
 `, a;
     for (const l of n) {
-      const h = l.position || { x: 0, y: 0 }, { left: c, top: u } = kt.worldToPercentage(h, r), p = l.entityId, g = p.split(".")[0], d = l.customName || p.split(".")[1].replace(/_/g, " ");
+      const u = l.position || { x: 0, y: 0 }, { left: d, top: c } = It.worldToPercentage(u, r), p = l.entityId, g = p.split(".")[0], h = l.customName || p.split(".")[1].replace(/_/g, " ");
       if (g === "light")
-        a += `  # 💡 Lumière : ${d}
+        a += `  # 💡 Lumière : ${h}
 `, a += `  - type: state-icon
 `, a += `    entity: ${p}
-`, a += `    title: "${d}"
+`, a += `    title: "${h}"
 `, a += `    tap_action:
 `, a += `      action: toggle
 `, a += `    hold_action:
 `, a += `      action: more-info
 `, a += `    style:
-`, a += `      top: ${u}%
-`, a += `      left: ${c}%
+`, a += `      top: ${c}%
+`, a += `      left: ${d}%
 `, a += `      transform: translate(-50%, -50%)
 `, a += `      --paper-item-icon-active-color: "#facc15"
 `, a += `      --paper-item-icon-color: "#94a3b8"
@@ -7145,15 +8061,15 @@ class ae {
 `;
       else if (g === "binary_sensor") {
         const f = p.includes("presence") || p.includes("occupancy") || p.includes("radar") || p.includes("motion") || p.includes("mouvement");
-        a += `  # 📡 ${f ? "Radar de Présence" : "Capteur"} : ${d}
+        a += `  # 📡 ${f ? "Radar de Présence" : "Capteur"} : ${h}
 `, a += `  - type: state-icon
 `, a += `    entity: ${p}
-`, a += `    title: "${d}"
+`, a += `    title: "${h}"
 `, a += `    tap_action:
 `, a += `      action: more-info
 `, a += `    style:
-`, a += `      top: ${u}%
-`, a += `      left: ${c}%
+`, a += `      top: ${c}%
+`, a += `      left: ${d}%
 `, a += `      transform: translate(-50%, -50%)
 `, a += `      --paper-item-icon-active-color: "#ef4444"
 `, a += `      --paper-item-icon-color: "#10b981"
@@ -7161,15 +8077,15 @@ class ae {
 `;
       } else if (g === "sensor") {
         const f = p.includes("temp") || p.includes("temperature");
-        a += `  # ${f ? "🌡️ Température" : "📊 Capteur"} : ${d}
+        a += `  # ${f ? "🌡️ Température" : "📊 Capteur"} : ${h}
 `, a += `  - type: state-label
 `, a += `    entity: ${p}
-`, a += `    title: "${d}"
+`, a += `    title: "${h}"
 `, a += `    tap_action:
 `, a += `      action: more-info
 `, a += `    style:
-`, a += `      top: ${u}%
-`, a += `      left: ${c}%
+`, a += `      top: ${c}%
+`, a += `      left: ${d}%
 `, a += `      transform: translate(-50%, -50%)
 `, a += `      background: "rgba(15, 23, 42, 0.85)"
 `, a += `      border: "1px solid rgba(56, 189, 248, 0.5)"
@@ -7181,17 +8097,17 @@ class ae {
 `, a += `      backdrop-filter: "blur(6px)"
 
 `;
-      } else g === "climate" ? (a += `  # ❄️ Climatisation / Thermostat : ${d}
+      } else g === "climate" ? (a += `  # ❄️ Climatisation / Thermostat : ${h}
 `, a += `  - type: state-label
 `, a += `    entity: ${p}
 `, a += `    attribute: current_temperature
 `, a += `    suffix: "°C"
-`, a += `    title: "${d}"
+`, a += `    title: "${h}"
 `, a += `    tap_action:
 `, a += `      action: more-info
 `, a += `    style:
-`, a += `      top: ${u}%
-`, a += `      left: ${c}%
+`, a += `      top: ${c}%
+`, a += `      left: ${d}%
 `, a += `      transform: translate(-50%, -50%)
 `, a += `      background: "rgba(15, 23, 42, 0.85)"
 `, a += `      border: "1px solid rgba(245, 158, 11, 0.5)"
@@ -7202,30 +8118,30 @@ class ae {
 `, a += `      color: "#f59e0b"
 `, a += `      backdrop-filter: "blur(6px)"
 
-`) : g === "switch" ? (a += `  # 🔌 Interrupteur / Prise : ${d}
+`) : g === "switch" ? (a += `  # 🔌 Interrupteur / Prise : ${h}
 `, a += `  - type: state-icon
 `, a += `    entity: ${p}
-`, a += `    title: "${d}"
+`, a += `    title: "${h}"
 `, a += `    tap_action:
 `, a += `      action: toggle
 `, a += `    hold_action:
 `, a += `      action: more-info
 `, a += `    style:
-`, a += `      top: ${u}%
-`, a += `      left: ${c}%
+`, a += `      top: ${c}%
+`, a += `      left: ${d}%
 `, a += `      transform: translate(-50%, -50%)
 `, a += `      --paper-item-icon-active-color: "#38bdf8"
 `, a += `      --paper-item-icon-color: "#64748b"
 
-`) : (a += `  # ⚡ Entité : ${d}
+`) : (a += `  # ⚡ Entité : ${h}
 `, a += `  - type: state-icon
 `, a += `    entity: ${p}
-`, a += `    title: "${d}"
+`, a += `    title: "${h}"
 `, a += `    tap_action:
 `, a += `      action: more-info
 `, a += `    style:
-`, a += `      top: ${u}%
-`, a += `      left: ${c}%
+`, a += `      top: ${c}%
+`, a += `      left: ${d}%
 `, a += `      transform: translate(-50%, -50%)
 
 `);
@@ -7235,12 +8151,12 @@ class ae {
   /**
    * Génère la configuration YAML pour la carte Lovelace personnalisée intégrée 'home-architect-card'
    */
-  static generateHomeArchitectCardYaml(t, s) {
-    const i = {
+  static generateHomeArchitectCardYaml(t, i) {
+    const s = {
       viewMode: "2d",
       title: t.name || "Plan de Maison",
       height: "520px",
-      ...s
+      ...i
     };
     let o = `# ========================================================
 `;
@@ -7249,19 +8165,19 @@ class ae {
 `, o += `# ========================================================
 `, o += `type: custom:home-architect-card
 `, o += `project_id: "${t.id || "rdc"}"
-`, o += `title: "${i.title}"
-`, o += `view_mode: ${i.viewMode || "2d"} # '2d' ou '3d'
+`, o += `title: "${s.title}"
+`, o += `view_mode: ${s.viewMode || "2d"} # '2d' ou '3d'
 `, o += `show_header: true
-`, o += `height: "${i.height}"
+`, o += `height: "${s.height}"
 `, o;
   }
 }
-var es = Object.defineProperty, ss = Object.getOwnPropertyDescriptor, Q = (e, t, s, i) => {
-  for (var o = i > 1 ? void 0 : i ? ss(t, s) : t, r = e.length - 1, n; r >= 0; r--)
-    (n = e[r]) && (o = (i ? n(t, s, o) : n(o)) || o);
-  return i && o && es(t, s, o), o;
+var oi = Object.defineProperty, ri = Object.getOwnPropertyDescriptor, tt = (e, t, i, s) => {
+  for (var o = s > 1 ? void 0 : s ? ri(t, i) : t, r = e.length - 1, n; r >= 0; r--)
+    (n = e[r]) && (o = (s ? n(t, i, o) : n(o)) || o);
+  return s && o && oi(t, i, o), o;
 };
-let Y = class extends H {
+let V = class extends U {
   constructor() {
     super(...arguments), this.activeTab = "picture_elements", this.imagePath = "", this.customCardViewMode = "2d", this.copiedToast = !1, this.syncStatus = "idle", this.syncErrorMsg = "", this.embedDataUri = !1;
   }
@@ -7277,7 +8193,7 @@ let Y = class extends H {
     }
     this.syncStatus = "syncing";
     try {
-      const s = kt.exportToSvg(this.project, {
+      const i = It.exportToSvg(this.project, {
         includeRooms: !0,
         includeWalls: !0,
         includeOpenings: !0,
@@ -7285,14 +8201,14 @@ let Y = class extends H {
         includeEntityMarkers: !1,
         includeBackground: !0,
         backgroundColor: "#0f172a"
-      }), i = `plan_${((t = this.project) == null ? void 0 : t.id) || "rdc"}.svg`, o = await this.hass.callWS({
+      }), s = `plan_${((t = this.project) == null ? void 0 : t.id) || "rdc"}.svg`, o = await this.hass.callWS({
         type: "home_architect/save_svg_to_www",
-        filename: i,
-        svg_content: s
+        filename: s,
+        svg_content: i
       });
       o && o.success ? this.syncStatus = "success" : (this.syncStatus = "error", this.syncErrorMsg = "Erreur lors de la sauvegarde sur le serveur");
-    } catch (s) {
-      console.warn("Home Architect auto-sync to www failed:", s), this.syncStatus = "error", this.syncErrorMsg = (s == null ? void 0 : s.message) || String(s);
+    } catch (i) {
+      console.warn("Home Architect auto-sync to www failed:", i), this.syncStatus = "error", this.syncErrorMsg = (i == null ? void 0 : i.message) || String(i);
     }
   }
   handleClose() {
@@ -7304,22 +8220,22 @@ let Y = class extends H {
         this.copiedToast = !1;
       }, 2500);
     };
-    navigator.clipboard && typeof navigator.clipboard.writeText == "function" ? navigator.clipboard.writeText(e).then(t).catch((s) => {
-      console.warn("navigator.clipboard.writeText rejected, attempting fallback:", s), this.copyFallback(e, t);
+    navigator.clipboard && typeof navigator.clipboard.writeText == "function" ? navigator.clipboard.writeText(e).then(t).catch((i) => {
+      console.warn("navigator.clipboard.writeText rejected, attempting fallback:", i), this.copyFallback(e, t);
     }) : this.copyFallback(e, t);
   }
   copyFallback(e, t) {
     try {
-      const s = document.createElement("textarea");
-      s.value = e, s.style.position = "fixed", s.style.top = "0", s.style.left = "0", s.style.width = "2em", s.style.height = "2em", s.style.padding = "0", s.style.border = "none", s.style.outline = "none", s.style.boxShadow = "none", s.style.background = "transparent", s.style.opacity = "0", document.body.appendChild(s), s.focus(), s.select();
-      const i = document.execCommand("copy");
-      document.body.removeChild(s), i ? t() : prompt("Copiez le code YAML ci-dessous :", e);
-    } catch (s) {
-      console.error("Fallback copy failed:", s), prompt("Copiez le code YAML ci-dessous :", e);
+      const i = document.createElement("textarea");
+      i.value = e, i.style.position = "fixed", i.style.top = "0", i.style.left = "0", i.style.width = "2em", i.style.height = "2em", i.style.padding = "0", i.style.border = "none", i.style.outline = "none", i.style.boxShadow = "none", i.style.background = "transparent", i.style.opacity = "0", document.body.appendChild(i), i.focus(), i.select();
+      const s = document.execCommand("copy");
+      document.body.removeChild(i), s ? t() : prompt("Copiez le code YAML ci-dessous :", e);
+    } catch (i) {
+      console.error("Fallback copy failed:", i), prompt("Copiez le code YAML ci-dessous :", e);
     }
   }
   downloadSvg() {
-    const e = kt.exportToSvg(this.project, {
+    const e = It.exportToSvg(this.project, {
       includeRooms: !0,
       includeWalls: !0,
       includeOpenings: !0,
@@ -7327,21 +8243,21 @@ let Y = class extends H {
       includeEntityMarkers: !1,
       includeBackground: !0,
       backgroundColor: "#0f172a"
-    }), t = new Blob([e], { type: "image/svg+xml;charset=utf-8" }), s = URL.createObjectURL(t), i = document.createElement("a");
-    i.href = s, i.download = `plan_${this.project.id || "rdc"}.svg`, document.body.appendChild(i), i.click(), document.body.removeChild(i), URL.revokeObjectURL(s);
+    }), t = new Blob([e], { type: "image/svg+xml;charset=utf-8" }), i = URL.createObjectURL(t), s = document.createElement("a");
+    s.href = i, s.download = `plan_${this.project.id || "rdc"}.svg`, document.body.appendChild(s), s.click(), document.body.removeChild(s), URL.revokeObjectURL(i);
   }
   downloadJson() {
-    const e = JSON.stringify(this.project, null, 2), t = new Blob([e], { type: "application/json;charset=utf-8" }), s = URL.createObjectURL(t), i = document.createElement("a");
-    i.href = s, i.download = `projet_plan_${this.project.id || "rdc"}.json`, document.body.appendChild(i), i.click(), document.body.removeChild(i), URL.revokeObjectURL(s);
+    const e = JSON.stringify(this.project, null, 2), t = new Blob([e], { type: "application/json;charset=utf-8" }), i = URL.createObjectURL(t), s = document.createElement("a");
+    s.href = i, s.download = `projet_plan_${this.project.id || "rdc"}.json`, document.body.appendChild(s), s.click(), document.body.removeChild(s), URL.revokeObjectURL(i);
   }
   getEntitySummary() {
     var n, a, l;
-    const e = ((n = this.project) == null ? void 0 : n.bindings) || [], t = e.filter((h) => h.entityId.startsWith("light.")).length, s = e.filter((h) => h.entityId.startsWith("binary_sensor.")).length, i = e.filter((h) => h.entityId.startsWith("sensor.") || h.entityId.startsWith("climate.")).length, o = e.filter((h) => h.entityId.startsWith("switch.")).length, r = ((l = (a = this.project) == null ? void 0 : a.rooms) == null ? void 0 : l.length) || 0;
-    return { lights: t, radars: s, sensors: i, switches: o, rooms: r, total: e.length };
+    const e = ((n = this.project) == null ? void 0 : n.bindings) || [], t = e.filter((u) => u.entityId.startsWith("light.")).length, i = e.filter((u) => u.entityId.startsWith("binary_sensor.")).length, s = e.filter((u) => u.entityId.startsWith("sensor.") || u.entityId.startsWith("climate.")).length, o = e.filter((u) => u.entityId.startsWith("switch.")).length, r = ((l = (a = this.project) == null ? void 0 : a.rooms) == null ? void 0 : l.length) || 0;
+    return { lights: t, radars: i, sensors: s, switches: o, rooms: r, total: e.length };
   }
   render() {
     var o, r, n;
-    const e = this.getEntitySummary(), t = kt.exportToSvg(this.project, {
+    const e = this.getEntitySummary(), t = It.exportToSvg(this.project, {
       includeRooms: !0,
       includeWalls: !0,
       includeOpenings: !0,
@@ -7349,16 +8265,16 @@ let Y = class extends H {
       includeEntityMarkers: !1,
       includeBackground: !0,
       backgroundColor: "#0f172a"
-    }), s = ae.generatePictureElementsYaml(this.project, {
+    }), i = ce.generatePictureElementsYaml(this.project, {
       imagePath: this.imagePath,
       title: this.project.name || "Plan Interactif",
       embedDataUri: this.embedDataUri,
       svgContent: t
-    }), i = ae.generateHomeArchitectCardYaml(this.project, {
+    }), s = ce.generateHomeArchitectCardYaml(this.project, {
       viewMode: this.customCardViewMode,
       title: this.project.name || "Plan de Maison"
     });
-    return v`
+    return w`
       <div class="modal-card" @click=${(a) => a.stopPropagation()}>
         <!-- En-tête -->
         <div class="modal-header">
@@ -7426,9 +8342,9 @@ let Y = class extends H {
           </div>
 
           <!-- Onglet 1 : Carte Native picture-elements -->
-          ${this.activeTab === "picture_elements" ? v`
+          ${this.activeTab === "picture_elements" ? w`
             <!-- Bannière de synchronisation avec HA -->
-            ${this.syncStatus === "success" ? v`
+            ${this.syncStatus === "success" ? w`
               <div class="sync-banner success">
                 <span class="sync-icon">✅</span>
                 <div class="sync-text">
@@ -7442,7 +8358,7 @@ let Y = class extends H {
                   🔄 Re-synchroniser
                 </button>
               </div>
-            ` : this.syncStatus === "syncing" ? v`
+            ` : this.syncStatus === "syncing" ? w`
               <div class="sync-banner syncing">
                 <span class="sync-icon">⏳</span>
                 <div class="sync-text">
@@ -7450,7 +8366,7 @@ let Y = class extends H {
                   <div class="sync-desc">Enregistrement direct dans <code>/config/www/plan_${((r = this.project) == null ? void 0 : r.id) || "rdc"}.svg</code>.</div>
                 </div>
               </div>
-            ` : this.syncStatus === "error" ? v`
+            ` : this.syncStatus === "error" ? w`
               <div class="sync-banner error">
                 <span class="sync-icon">⚠️</span>
                 <div class="sync-text">
@@ -7463,7 +8379,7 @@ let Y = class extends H {
                   🔄 Réessayer
                 </button>
               </div>
-            ` : v`
+            ` : w`
               <div class="sync-banner syncing" style="background: rgba(30, 41, 59, 0.6); border-color: rgba(255, 255, 255, 0.1);">
                 <span class="sync-icon">💡</span>
                 <div class="sync-text">
@@ -7494,7 +8410,7 @@ let Y = class extends H {
               </label>
             </div>
 
-            ${this.embedDataUri ? null : v`
+            ${this.embedDataUri ? null : w`
               <div class="config-row">
                 <label class="config-label">Chemin d'image dans Lovelace :</label>
                 <input 
@@ -7520,7 +8436,7 @@ let Y = class extends H {
               <button 
                 class="btn-action ${this.copiedToast ? "emerald" : ""}" 
                 style="padding: 8px 18px; font-size: 0.88rem; font-weight: 700;"
-                @click=${() => this.copyCode(s)}
+                @click=${() => this.copyCode(i)}
               >
                 <span>${this.copiedToast ? "✅ Copié !" : "📋 Copier le YAML"}</span>
               </button>
@@ -7531,12 +8447,12 @@ let Y = class extends H {
                 <span>Code YAML Picture-Elements</span>
                 <button 
                   class="btn-copy ${this.copiedToast ? "copied" : ""}" 
-                  @click=${() => this.copyCode(s)}
+                  @click=${() => this.copyCode(i)}
                 >
                   <span>${this.copiedToast ? "✓ Copié !" : "📋 Copier le YAML"}</span>
                 </button>
               </div>
-              <pre class="code-box"><code>${s}</code></pre>
+              <pre class="code-box"><code>${i}</code></pre>
             </div>
 
             <!-- Guide Pas-à-Pas -->
@@ -7548,7 +8464,7 @@ let Y = class extends H {
               <div class="guide-step">
                 <span class="guide-num">1</span>
                 <div>
-                  ${this.syncStatus === "success" ? v`Le fichier SVG est <strong>déjà présent sur votre serveur Home Assistant</strong> (aucun transfert requis !).` : this.embedDataUri ? v`Le plan est <strong>100% intégré dans le YAML</strong> (aucun fichier externe n'est requis).` : v`Assurez-vous que le fichier <code>plan_${((n = this.project) == null ? void 0 : n.id) || "rdc"}.svg</code> est présent dans <code>/config/www/</code>.`}
+                  ${this.syncStatus === "success" ? w`Le fichier SVG est <strong>déjà présent sur votre serveur Home Assistant</strong> (aucun transfert requis !).` : this.embedDataUri ? w`Le plan est <strong>100% intégré dans le YAML</strong> (aucun fichier externe n'est requis).` : w`Assurez-vous que le fichier <code>plan_${((n = this.project) == null ? void 0 : n.id) || "rdc"}.svg</code> est présent dans <code>/config/www/</code>.`}
                 </div>
               </div>
               <div class="guide-step">
@@ -7573,7 +8489,7 @@ let Y = class extends H {
           ` : null}
 
           <!-- Onglet 2 : Carte Custom Card (home-architect-card) -->
-          ${this.activeTab === "custom_card" ? v`
+          ${this.activeTab === "custom_card" ? w`
             <div class="guide-box" style="background: rgba(168, 85, 247, 0.08); border-color: rgba(168, 85, 247, 0.3);">
               <div class="guide-title" style="color: #c084fc;">
                 <span>✨</span>
@@ -7612,7 +8528,7 @@ let Y = class extends H {
               <button 
                 class="btn-action ${this.copiedToast ? "emerald" : "purple"}" 
                 style="padding: 8px 18px; font-size: 0.88rem; font-weight: 700;"
-                @click=${() => this.copyCode(i)}
+                @click=${() => this.copyCode(s)}
               >
                 <span>${this.copiedToast ? "✅ Copié !" : "📋 Copier le YAML"}</span>
               </button>
@@ -7624,12 +8540,12 @@ let Y = class extends H {
                 <span>Code Lovelace YAML</span>
                 <button 
                   class="btn-copy ${this.copiedToast ? "copied" : ""}" 
-                  @click=${() => this.copyCode(i)}
+                  @click=${() => this.copyCode(s)}
                 >
                   <span>${this.copiedToast ? "✓ Copié !" : "📋 Copier le YAML"}</span>
                 </button>
               </div>
-              <pre class="code-box"><code>${i}</code></pre>
+              <pre class="code-box"><code>${s}</code></pre>
             </div>
 
             <div class="guide-box">
@@ -7647,7 +8563,7 @@ let Y = class extends H {
           ` : null}
 
           <!-- Onglet 3 : Téléchargement Fichiers Bruts -->
-          ${this.activeTab === "raw_files" ? v`
+          ${this.activeTab === "raw_files" ? w`
             <div class="config-row">
               <div>
                 <div class="config-label">Fichier Vectoriel SVG (Haute Définition)</div>
@@ -7677,7 +8593,7 @@ let Y = class extends H {
         </div>
 
         <!-- Notification Toast Flottante -->
-        ${this.copiedToast ? v`
+        ${this.copiedToast ? w`
           <div class="copy-floating-toast">
             <span>✅</span>
             <span>Code YAML copié dans le presse-papier !</span>
@@ -7687,11 +8603,11 @@ let Y = class extends H {
         <!-- Pied de page -->
         <div class="modal-footer">
           <button class="btn-secondary" @click=${this.handleClose}>Fermer</button>
-          ${this.activeTab !== "raw_files" ? v`
+          ${this.activeTab !== "raw_files" ? w`
             <button 
               class="btn-action ${this.copiedToast ? "emerald" : this.activeTab === "custom_card" ? "purple" : ""}" 
               style="padding: 10px 22px; font-size: 0.92rem; font-weight: 700; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 4px 15px rgba(2, 132, 199, 0.4);"
-              @click=${() => this.copyCode(this.activeTab === "picture_elements" ? s : i)}
+              @click=${() => this.copyCode(this.activeTab === "picture_elements" ? i : s)}
             >
               <span>📋</span>
               <span>${this.copiedToast ? "✅ Copié dans le presse-papier !" : "Copier le YAML dans le presse-papier"}</span>
@@ -7702,7 +8618,7 @@ let Y = class extends H {
     `;
   }
 };
-Y.styles = K`
+V.styles = J`
     :host {
       position: fixed;
       inset: 0;
@@ -8167,48 +9083,49 @@ Y.styles = K`
       to { transform: translate(-50%, 0); opacity: 1; }
     }
   `;
-Q([
-  P({ type: Object })
-], Y.prototype, "project", 2);
-Q([
-  P({ type: Object })
-], Y.prototype, "hass", 2);
-Q([
+tt([
+  _({ type: Object })
+], V.prototype, "project", 2);
+tt([
+  _({ type: Object })
+], V.prototype, "hass", 2);
+tt([
   b()
-], Y.prototype, "activeTab", 2);
-Q([
+], V.prototype, "activeTab", 2);
+tt([
   b()
-], Y.prototype, "imagePath", 2);
-Q([
+], V.prototype, "imagePath", 2);
+tt([
   b()
-], Y.prototype, "customCardViewMode", 2);
-Q([
+], V.prototype, "customCardViewMode", 2);
+tt([
   b()
-], Y.prototype, "copiedToast", 2);
-Q([
+], V.prototype, "copiedToast", 2);
+tt([
   b()
-], Y.prototype, "syncStatus", 2);
-Q([
+], V.prototype, "syncStatus", 2);
+tt([
   b()
-], Y.prototype, "syncErrorMsg", 2);
-Q([
+], V.prototype, "syncErrorMsg", 2);
+tt([
   b()
-], Y.prototype, "embedDataUri", 2);
-Y = Q([
-  J("home-architect-export-modal")
-], Y);
-var is = Object.defineProperty, os = Object.getOwnPropertyDescriptor, F = (e, t, s, i) => {
-  for (var o = i > 1 ? void 0 : i ? os(t, s) : t, r = e.length - 1, n; r >= 0; r--)
-    (n = e[r]) && (o = (i ? n(t, s, o) : n(o)) || o);
-  return i && o && is(t, s, o), o;
+], V.prototype, "embedDataUri", 2);
+V = tt([
+  Z("home-architect-export-modal")
+], V);
+var ni = Object.defineProperty, ai = Object.getOwnPropertyDescriptor, A = (e, t, i, s) => {
+  for (var o = s > 1 ? void 0 : s ? ai(t, i) : t, r = e.length - 1, n; r >= 0; r--)
+    (n = e[r]) && (o = (s ? n(t, i, o) : n(o)) || o);
+  return s && o && ni(t, i, o), o;
 };
-let A = class extends H {
+let z = class extends U {
   constructor() {
-    super(...arguments), this.narrow = !1, this.activeTool = "wall", this.currentThickness = 0.2, this.currentOpeningWidth = 0.9, this.doorFlipSide = !1, this.doorFlipDirection = !0, this.windowSashCount = 1, this.activeLevel = "rdc", this.is3DMode = !1, this.isDrawerCollapsed = !1, this.isWizardOpen = !1, this.isImportModalOpen = !1, this.isExportModalOpen = !1, this.isCalibrateModalOpen = !1, this.calibrationData = null, this.isRescaleModalOpen = !1, this.rescaleMeasuredMeters = 0, this.selectedRoomForEdit = null, this.selectedElements = {
+    super(...arguments), this.narrow = !1, this.activeTool = "wall", this.currentThickness = 0.2, this.currentOpeningWidth = 0.9, this.doorFlipSide = !1, this.doorFlipDirection = !0, this.windowSashCount = 1, this.activeLevel = "rdc", this.showDimensions = !0, this.showThermalHeatmap = !1, this.showGhostLevel = !1, this.levelProjects = {}, this.is3DMode = !1, this.isDrawerCollapsed = !1, this.isWizardOpen = !1, this.isImportModalOpen = !1, this.isExportModalOpen = !1, this.isCalibrateModalOpen = !1, this.calibrationData = null, this.isRescaleModalOpen = !1, this.rescaleMeasuredMeters = 0, this.selectedRoomForEdit = null, this.selectedElements = {
       wallIds: [],
       openingIds: [],
       roomIds: [],
-      bindingIds: []
+      bindingIds: [],
+      furnitureIds: []
     }, this.undoStack = [], this.redoStack = [], this.project = {
       id: "rdc",
       name: "Rez-de-Chaussée",
@@ -8235,43 +9152,43 @@ let A = class extends H {
     if (this.doorFlipSide = e.detail.flipSide, this.doorFlipDirection = e.detail.flipDirection, this.activeTool = "door", this.selectedElements.openingIds.length > 0) {
       this.pushUndoSnapshot();
       let t = 0;
-      const s = this.project.openings.map((i) => this.selectedElements.openingIds.includes(i.id) && i.type === "door" ? (t++, { ...i, flipSide: e.detail.flipSide, flipDirection: e.detail.flipDirection }) : i);
-      t > 0 && (this.project = { ...this.project, openings: s }, this.showToast(`🚪 ${t} porte(s) mise(s) à jour`));
+      const i = this.project.openings.map((s) => this.selectedElements.openingIds.includes(s.id) && s.type === "door" ? (t++, { ...s, flipSide: e.detail.flipSide, flipDirection: e.detail.flipDirection }) : s);
+      t > 0 && (this.project = { ...this.project, openings: i }, this.showToast(`🚪 ${t} porte(s) mise(s) à jour`));
     }
   }
   handleWindowConfigChanged(e) {
     if (this.activeTool = e.detail.type, this.currentOpeningWidth = e.detail.width, this.windowSashCount = e.detail.sashCount, this.selectedElements.openingIds.length > 0) {
       this.pushUndoSnapshot();
       let t = 0;
-      const s = this.project.openings.map((i) => this.selectedElements.openingIds.includes(i.id) && (i.type === "window" || i.type === "french_window") ? (t++, {
-        ...i,
+      const i = this.project.openings.map((s) => this.selectedElements.openingIds.includes(s.id) && (s.type === "window" || s.type === "french_window") ? (t++, {
+        ...s,
         type: e.detail.type,
         width: e.detail.width,
         sashCount: e.detail.sashCount
-      }) : i);
-      t > 0 && (this.project = { ...this.project, openings: s }, this.showToast(`🪟 ${t} fenêtre(s) mise(s) à jour`));
+      }) : s);
+      t > 0 && (this.project = { ...this.project, openings: i }, this.showToast(`🪟 ${t} fenêtre(s) mise(s) à jour`));
     }
   }
   handleWallThicknessChanged(e) {
     if (this.currentThickness = e.detail.thickness, this.activeTool = "wall", this.selectedElements.wallIds.length > 0) {
       this.pushUndoSnapshot();
-      const t = this.project.walls.map((s) => this.selectedElements.wallIds.includes(s.id) ? { ...s, thickness: e.detail.thickness } : s);
+      const t = this.project.walls.map((i) => this.selectedElements.wallIds.includes(i.id) ? { ...i, thickness: e.detail.thickness } : i);
       this.project = { ...this.project, walls: t }, this.showToast(`🧱 Épaisseur de ${this.selectedElements.wallIds.length} mur(s) mise à jour (${Math.round(e.detail.thickness * 100)} cm)`);
     }
   }
   updateSelectedDoorConfig(e, t) {
     this.pushUndoSnapshot(), this.doorFlipSide = e, this.doorFlipDirection = t;
-    const s = this.project.openings.map((i) => this.selectedElements.openingIds.includes(i.id) && i.type === "door" ? { ...i, flipSide: e, flipDirection: t } : i);
-    this.project = { ...this.project, openings: s }, this.showToast("🚪 Sens d'ouverture de porte mis à jour");
+    const i = this.project.openings.map((s) => this.selectedElements.openingIds.includes(s.id) && s.type === "door" ? { ...s, flipSide: e, flipDirection: t } : s);
+    this.project = { ...this.project, openings: i }, this.showToast("🚪 Sens d'ouverture de porte mis à jour");
   }
-  updateSelectedWindowConfig(e, t, s) {
-    this.pushUndoSnapshot(), this.windowSashCount = t, this.currentOpeningWidth = s;
-    const i = this.project.openings.map((o) => this.selectedElements.openingIds.includes(o.id) && (o.type === "window" || o.type === "french_window") ? { ...o, type: e, sashCount: t, width: s } : o);
-    this.project = { ...this.project, openings: i }, this.showToast("🪟 Format de fenêtre mis à jour");
+  updateSelectedWindowConfig(e, t, i) {
+    this.pushUndoSnapshot(), this.windowSashCount = t, this.currentOpeningWidth = i;
+    const s = this.project.openings.map((o) => this.selectedElements.openingIds.includes(o.id) && (o.type === "window" || o.type === "french_window") ? { ...o, type: e, sashCount: t, width: i } : o);
+    this.project = { ...this.project, openings: s }, this.showToast("🪟 Format de fenêtre mis à jour");
   }
   updateSelectedWallsThickness(e) {
     this.pushUndoSnapshot(), this.currentThickness = e;
-    const t = this.project.walls.map((s) => this.selectedElements.wallIds.includes(s.id) ? { ...s, thickness: e } : s);
+    const t = this.project.walls.map((i) => this.selectedElements.wallIds.includes(i.id) ? { ...i, thickness: e } : i);
     this.project = { ...this.project, walls: t }, this.showToast(`🧱 Épaisseur de mur mise à jour (${Math.round(e * 100)} cm)`);
   }
   handleProjectChanged(e) {
@@ -8285,66 +9202,66 @@ let A = class extends H {
   }
   handleCreateRoomFromWizard(e) {
     this.pushUndoSnapshot();
-    const { name: t, width: s, length: i, thickness: o, height: r, color: n, icon: a, addDoor: l, addWindow: h } = e.detail, c = r || 2.5, u = 2, p = 2, g = { x: u, y: p }, d = { x: u + s, y: p }, f = { x: u + s, y: p + i }, m = { x: u, y: p + i }, x = {
+    const { name: t, width: i, length: s, thickness: o, height: r, color: n, icon: a, addDoor: l, addWindow: u } = e.detail, d = r || 2.5, c = 2, p = 2, g = { x: c, y: p }, h = { x: c + i, y: p }, f = { x: c + i, y: p + s }, m = { x: c, y: p + s }, M = {
       id: `w_top_${Date.now()}`,
       start: g,
-      end: d,
+      end: h,
       thickness: o,
-      height: c,
+      height: d,
       type: "standard"
-    }, k = {
+    }, P = {
       id: `w_right_${Date.now()}`,
-      start: d,
+      start: h,
       end: f,
       thickness: o,
-      height: c,
+      height: d,
       type: "standard"
-    }, M = {
+    }, I = {
       id: `w_bottom_${Date.now()}`,
       start: f,
       end: m,
       thickness: o,
-      height: c,
+      height: d,
       type: "standard"
-    }, w = {
+    }, x = {
       id: `w_left_${Date.now()}`,
       start: m,
       end: g,
       thickness: o,
-      height: c,
+      height: d,
       type: "standard"
-    }, S = [];
-    l && S.push({
+    }, k = [];
+    l && k.push({
       id: `op_door_${Date.now()}`,
-      wallId: M.id,
+      wallId: I.id,
       type: "door",
-      offset: s / 2,
+      offset: i / 2,
       width: 0.9,
       flipSide: !1,
       flipDirection: !1
-    }), h && S.push({
+    }), u && k.push({
       id: `op_win_${Date.now()}`,
-      wallId: x.id,
+      wallId: M.id,
       type: "window",
-      offset: s / 2,
+      offset: i / 2,
       width: 1.2,
       flipSide: !1,
       flipDirection: !1
     });
-    const C = {
+    const y = {
       id: `room_${Date.now()}`,
       name: t,
-      polygon: [g, d, f, m],
-      areaM2: s * i,
+      polygon: [g, h, f, m],
+      areaM2: i * s,
       color: n,
       icon: a,
-      height: c
+      height: d
     };
     this.project = {
       ...this.project,
-      walls: [...this.project.walls, x, k, M, w],
-      openings: [...this.project.openings, ...S],
-      rooms: [...this.project.rooms, C]
+      walls: [...this.project.walls, M, P, I, x],
+      openings: [...this.project.openings, ...k],
+      rooms: [...this.project.rooms, y]
     }, this.isWizardOpen = !1, this.activeTool = "select";
   }
   connectedCallback() {
@@ -8359,8 +9276,8 @@ let A = class extends H {
     }, 4500);
   }
   loadBackgroundImage(e, t = "Plan chargé !") {
-    const s = new Image();
-    s.onload = () => {
+    const i = new Image();
+    i.onload = () => {
       this.pushUndoSnapshot(), this.project = {
         ...this.project,
         background: {
@@ -8370,42 +9287,42 @@ let A = class extends H {
           offset: { x: 0, y: 0 },
           scale: 1,
           rotation: 0,
-          widthPx: s.naturalWidth,
-          heightPx: s.naturalHeight
+          widthPx: i.naturalWidth,
+          heightPx: i.naturalHeight
         }
       }, this.activeTool = "calibrate", this.showToast(`${t} Tracez un segment sur un mur mesuré pour étalonner l'échelle (📏).`);
-    }, s.onerror = () => {
+    }, i.onerror = () => {
       this.showToast("❌ Erreur lors du chargement de l'image.");
-    }, s.src = e;
+    }, i.src = e;
   }
   handleImportConfirmed(e) {
     this.pushUndoSnapshot();
     const {
       dataUrl: t,
-      widthPx: s,
-      heightPx: i,
+      widthPx: i,
+      heightPx: s,
       opacity: o,
       mode: r,
       totalWidthMeters: n,
       isSvgVectorized: a,
       svgInterpretation: l,
-      keepSvgBackground: h
+      keepSvgBackground: u
     } = e.detail;
     if (this.isImportModalOpen = !1, a && l && l.success) {
-      const { walls: u, openings: p, rooms: g, pixelsPerMeter: d, stats: f } = l, m = h ? {
+      const { walls: c, openings: p, rooms: g, pixelsPerMeter: h, stats: f } = l, m = u ? {
         imageUrl: t,
         opacity: o !== void 0 ? o : 0.25,
         visible: !0,
         offset: { x: 0, y: 0 },
         scale: 1,
         rotation: 0,
-        widthPx: s,
-        heightPx: i
+        widthPx: i,
+        heightPx: s
       } : void 0;
       this.project = {
         ...this.project,
-        pixelsPerMeter: d || this.project.pixelsPerMeter,
-        walls: [...this.project.walls, ...u],
+        pixelsPerMeter: h || this.project.pixelsPerMeter,
+        walls: [...this.project.walls, ...c],
         openings: [...this.project.openings, ...p],
         rooms: [...this.project.rooms, ...g],
         background: m
@@ -8414,10 +9331,10 @@ let A = class extends H {
       );
       return;
     }
-    let c = this.project.pixelsPerMeter;
-    r === "auto_dimension" && n && n > 0 && (c = Math.round(s / n * 10) / 10), this.project = {
+    let d = this.project.pixelsPerMeter;
+    r === "auto_dimension" && n && n > 0 && (d = Math.round(i / n * 10) / 10), this.project = {
       ...this.project,
-      pixelsPerMeter: c,
+      pixelsPerMeter: d,
       background: {
         imageUrl: t,
         opacity: o !== void 0 ? o : 0.4,
@@ -8425,13 +9342,13 @@ let A = class extends H {
         offset: { x: 0, y: 0 },
         scale: 1,
         rotation: 0,
-        widthPx: s,
-        heightPx: i
+        widthPx: i,
+        heightPx: s
       }
-    }, r === "auto_dimension" ? (this.activeTool = "wall", this.showToast(`✅ Plan importé et étalonné automatiquement (1 m = ${c} px) ! Vous pouvez tracer vos murs (🧱).`)) : (this.activeTool = "calibrate", this.showToast("📏 Plan importé ! Tracez un segment sur un mur mesuré pour étalonner l'échelle."));
+    }, r === "auto_dimension" ? (this.activeTool = "wall", this.showToast(`✅ Plan importé et étalonné automatiquement (1 m = ${d} px) ! Vous pouvez tracer vos murs (🧱).`)) : (this.activeTool = "calibrate", this.showToast("📏 Plan importé ! Tracez un segment sur un mur mesuré pour étalonner l'échelle."));
   }
   handlePaste(e) {
-    var i;
+    var s;
     if (this.isImportModalOpen || !e.clipboardData) return;
     const t = e.clipboardData.items;
     for (let o = 0; o < t.length; o++)
@@ -8441,19 +9358,19 @@ let A = class extends H {
           e.preventDefault();
           const n = new FileReader();
           n.onload = (a) => {
-            var h;
-            const l = (h = a.target) == null ? void 0 : h.result;
+            var u;
+            const l = (u = a.target) == null ? void 0 : u.result;
             this.loadBackgroundImage(l, "📋 Image collée depuis le presse-papier !");
           }, n.readAsDataURL(r);
           return;
         }
       }
-    const s = (i = e.clipboardData.getData("text/plain")) == null ? void 0 : i.trim();
-    if (s && (s.startsWith("<svg") || s.startsWith("<?xml") && s.includes("<svg"))) {
+    const i = (s = e.clipboardData.getData("text/plain")) == null ? void 0 : s.trim();
+    if (i && (i.startsWith("<svg") || i.startsWith("<?xml") && i.includes("<svg"))) {
       e.preventDefault(), this.isImportModalOpen = !0, this.showToast("📥 Code SVG détecté ! Configurez la vectorisation automatique.");
       return;
     }
-    s && (s.startsWith("data:image/") || s.match(/\.(png|jpe?g|svg|webp)(\?.*)?$/i)) && (e.preventDefault(), this.loadBackgroundImage(s, "📋 Image chargée depuis l'URL collée !"));
+    i && (i.startsWith("data:image/") || i.match(/\.(png|jpe?g|svg|webp)(\?.*)?$/i)) && (e.preventDefault(), this.loadBackgroundImage(i, "📋 Image chargée depuis l'URL collée !"));
   }
   triggerFileInput() {
     if (!this.fileInputRef) {
@@ -8463,15 +9380,15 @@ let A = class extends H {
     this.fileInputRef.click();
   }
   handleFileSelected(e) {
-    var i;
-    const t = (i = e.target.files) == null ? void 0 : i[0];
+    var s;
+    const t = (s = e.target.files) == null ? void 0 : s[0];
     if (!t) return;
-    const s = new FileReader();
-    s.onload = (o) => {
+    const i = new FileReader();
+    i.onload = (o) => {
       var n;
       const r = (n = o.target) == null ? void 0 : n.result;
       this.loadBackgroundImage(r, "🖼️ Image importée depuis votre ordinateur !");
-    }, s.readAsDataURL(t);
+    }, i.readAsDataURL(t);
   }
   handleRequestCalibration(e) {
     this.calibrationData = e.detail, this.isCalibrateModalOpen = !0;
@@ -8489,56 +9406,56 @@ let A = class extends H {
   }
   handleRescaleConfirmed(e) {
     this.pushUndoSnapshot();
-    const { currentMeters: t, targetMeters: s, scaleFactor: i, adjustBackground: o } = e.detail;
-    if (this.isRescaleModalOpen = !1, i <= 0 || isNaN(i)) return;
-    const r = this.project.walls.map((u) => ({
-      ...u,
+    const { currentMeters: t, targetMeters: i, scaleFactor: s, adjustBackground: o } = e.detail;
+    if (this.isRescaleModalOpen = !1, s <= 0 || isNaN(s)) return;
+    const r = this.project.walls.map((c) => ({
+      ...c,
       start: {
-        x: y.roundMeters(u.start.x * i),
-        y: y.roundMeters(u.start.y * i)
+        x: v.roundMeters(c.start.x * s),
+        y: v.roundMeters(c.start.y * s)
       },
       end: {
-        x: y.roundMeters(u.end.x * i),
-        y: y.roundMeters(u.end.y * i)
+        x: v.roundMeters(c.end.x * s),
+        y: v.roundMeters(c.end.y * s)
       }
-    })), n = this.project.openings.map((u) => ({
-      ...u,
-      offset: y.roundMeters(u.offset * i),
-      width: y.roundMeters(u.width * i)
-    })), a = this.project.rooms.map((u) => {
-      const p = u.polygon.map((d) => ({
-        x: y.roundMeters(d.x * i),
-        y: y.roundMeters(d.y * i)
-      })), g = Z.computeArea(p);
+    })), n = this.project.openings.map((c) => ({
+      ...c,
+      offset: v.roundMeters(c.offset * s),
+      width: v.roundMeters(c.width * s)
+    })), a = this.project.rooms.map((c) => {
+      const p = c.polygon.map((h) => ({
+        x: v.roundMeters(h.x * s),
+        y: v.roundMeters(h.y * s)
+      })), g = Y.computeArea(p);
       return {
-        ...u,
+        ...c,
         polygon: p,
-        areaM2: g || y.roundMeters(u.areaM2 * i * i)
+        areaM2: g || v.roundMeters(c.areaM2 * s * s)
       };
-    }), l = this.project.bindings.map((u) => ({
-      ...u,
+    }), l = this.project.bindings.map((c) => ({
+      ...c,
       position: {
-        x: y.roundMeters(u.position.x * i),
-        y: y.roundMeters(u.position.y * i)
+        x: v.roundMeters(c.position.x * s),
+        y: v.roundMeters(c.position.y * s)
       }
     }));
-    let h = this.project.pixelsPerMeter, c = this.project.background ? { ...this.project.background } : void 0;
-    o && c && (h = Math.round(this.project.pixelsPerMeter / i * 10) / 10, c.offset && (c = {
-      ...c,
+    let u = this.project.pixelsPerMeter, d = this.project.background ? { ...this.project.background } : void 0;
+    o && d && (u = Math.round(this.project.pixelsPerMeter / s * 10) / 10, d.offset && (d = {
+      ...d,
       offset: {
-        x: y.roundMeters(c.offset.x * i),
-        y: y.roundMeters(c.offset.y * i)
+        x: v.roundMeters(d.offset.x * s),
+        y: v.roundMeters(d.offset.y * s)
       }
     })), this.project = {
       ...this.project,
-      pixelsPerMeter: h,
+      pixelsPerMeter: u,
       walls: r,
       openings: n,
       rooms: a,
       bindings: l,
-      background: c
+      background: d
     }, this.activeTool = "select", this.showToast(
-      `✅ Plan mis à l'échelle (×${i.toFixed(3)}) : ${r.length} murs et ${a.length} pièces recalculés !`
+      `✅ Plan mis à l'échelle (×${s.toFixed(3)}) : ${r.length} murs et ${a.length} pièces recalculés !`
     );
   }
   handleOpacityChange(e) {
@@ -8556,18 +9473,18 @@ let A = class extends H {
   }
   handleSaveRoom(e) {
     this.pushUndoSnapshot();
-    const { roomId: t, name: s, height: i, color: o } = e.detail, r = this.project.rooms.map((n) => n.id === t ? { ...n, name: s, height: i, color: o } : n);
+    const { roomId: t, name: i, height: s, color: o } = e.detail, r = this.project.rooms.map((n) => n.id === t ? { ...n, name: i, height: s, color: o } : n);
     this.project = {
       ...this.project,
       rooms: r
-    }, this.selectedRoomForEdit = null, this.showToast(`✨ Pièce "${s}" mise à jour (H: ${i.toFixed(2)} m) !`);
+    }, this.selectedRoomForEdit = null, this.showToast(`✨ Pièce "${i}" mise à jour (H: ${s.toFixed(2)} m) !`);
   }
   handleDeleteRoom(e) {
     this.pushUndoSnapshot();
     const { roomId: t } = e.detail;
     this.project = {
       ...this.project,
-      rooms: this.project.rooms.filter((s) => s.id !== t)
+      rooms: this.project.rooms.filter((i) => i.id !== t)
     }, this.selectedRoomForEdit = null, this.showToast("🗑️ Pièce supprimée");
   }
   pushUndoSnapshot(e) {
@@ -8576,40 +9493,89 @@ let A = class extends H {
   }
   handleUndo() {
     if (this.undoStack.length === 0) return;
-    const e = this.undoStack[this.undoStack.length - 1], t = this.undoStack.slice(0, -1), s = JSON.parse(JSON.stringify(this.project));
-    this.redoStack = [...this.redoStack.slice(-39), s], this.undoStack = t, this.project = e, this.selectedElements = { wallIds: [], openingIds: [], roomIds: [], bindingIds: [] }, this.showToast("↩️ Action annulée");
+    const e = this.undoStack[this.undoStack.length - 1], t = this.undoStack.slice(0, -1), i = JSON.parse(JSON.stringify(this.project));
+    this.redoStack = [...this.redoStack.slice(-39), i], this.undoStack = t, this.project = e, this.selectedElements = { wallIds: [], openingIds: [], roomIds: [], bindingIds: [] }, this.showToast("↩️ Action annulée");
   }
   handleRedo() {
     if (this.redoStack.length === 0) return;
-    const e = this.redoStack[this.redoStack.length - 1], t = this.redoStack.slice(0, -1), s = JSON.parse(JSON.stringify(this.project));
-    this.undoStack = [...this.undoStack.slice(-39), s], this.redoStack = t, this.project = e, this.selectedElements = { wallIds: [], openingIds: [], roomIds: [], bindingIds: [] }, this.showToast("↪️ Action rétablie");
+    const e = this.redoStack[this.redoStack.length - 1], t = this.redoStack.slice(0, -1), i = JSON.parse(JSON.stringify(this.project));
+    this.undoStack = [...this.undoStack.slice(-39), i], this.redoStack = t, this.project = e, this.selectedElements = { wallIds: [], openingIds: [], roomIds: [], bindingIds: [] }, this.showToast("↪️ Action rétablie");
+  }
+  getGhostProject() {
+    if (!this.showGhostLevel) return null;
+    let e = null;
+    return this.activeLevel === "etage1" ? e = "rdc" : this.activeLevel === "rdc" && (e = "sous-sol"), e && this.levelProjects[e] || null;
+  }
+  handleLevelSwitch(e) {
+    if (this.activeLevel !== e) {
+      if (this.levelProjects[this.activeLevel] = { ...this.project }, this.activeLevel = e, this.levelProjects[e])
+        this.project = { ...this.levelProjects[e] };
+      else {
+        const t = {
+          "sous-sol": "Sous-Sol",
+          rdc: "Rez-de-Chaussée",
+          etage1: "1er Étage",
+          jardin: "Jardin"
+        };
+        this.project = {
+          id: e,
+          name: t[e] || e,
+          created_at: (/* @__PURE__ */ new Date()).toISOString(),
+          updated_at: (/* @__PURE__ */ new Date()).toISOString(),
+          pixelsPerMeter: 50,
+          grid: {
+            size: 0.5,
+            subdivisions: 2,
+            snapToGrid: !0,
+            snapToAngles: !0,
+            snapToElements: !0
+          },
+          walls: [],
+          openings: [],
+          rooms: [],
+          bindings: [],
+          furniture: []
+        }, this.levelProjects[e] = { ...this.project };
+      }
+      this.undoStack = [], this.redoStack = [], this.clearSelection(), this.showToast(`Étage sélectionné : ${this.project.name}`);
+    }
+  }
+  rotateSelectedFurniture() {
+    if (!this.selectedElements.furnitureIds || this.selectedElements.furnitureIds.length === 0) return;
+    this.pushUndoSnapshot();
+    const e = this.selectedElements.furnitureIds, t = (this.project.furniture || []).map((i) => e.includes(i.id) ? {
+      ...i,
+      rotation: ((i.rotation || 0) + 90) % 360
+    } : i);
+    this.project = { ...this.project, furniture: t }, this.showToast("🔄 Meuble pivoté de 90°");
   }
   handleDeleteSelected() {
-    const { wallIds: e, openingIds: t, roomIds: s, bindingIds: i } = this.selectedElements, o = e.length + t.length + s.length + i.length;
-    if (o === 0) return;
+    const { wallIds: e, openingIds: t, roomIds: i, bindingIds: s, furnitureIds: o = [] } = this.selectedElements, r = e.length + t.length + i.length + s.length + o.length;
+    if (r === 0) return;
     this.pushUndoSnapshot();
-    const r = this.project.walls.filter((h) => !e.includes(h.id)), n = this.project.openings.filter(
-      (h) => !t.includes(h.id) && !e.includes(h.wallId)
-    ), a = this.project.rooms.filter((h) => !s.includes(h.id)), l = this.project.bindings.filter((h) => !i.includes(h.id));
+    const n = this.project.walls.filter((c) => !e.includes(c.id)), a = this.project.openings.filter(
+      (c) => !t.includes(c.id) && !e.includes(c.wallId)
+    ), l = this.project.rooms.filter((c) => !i.includes(c.id)), u = this.project.bindings.filter((c) => !s.includes(c.id)), d = (this.project.furniture || []).filter((c) => !o.includes(c.id));
     this.project = {
       ...this.project,
-      walls: r,
-      openings: n,
-      rooms: a,
-      bindings: l
-    }, this.selectedElements = { wallIds: [], openingIds: [], roomIds: [], bindingIds: [] }, this.showToast(`🗑️ ${o} élément${o > 1 ? "s" : ""} supprimé${o > 1 ? "s" : ""} !`);
+      walls: n,
+      openings: a,
+      rooms: l,
+      bindings: u,
+      furniture: d
+    }, this.selectedElements = { wallIds: [], openingIds: [], roomIds: [], bindingIds: [], furnitureIds: [] }, this.showToast(`🗑️ ${r} élément${r > 1 ? "s" : ""} supprimé${r > 1 ? "s" : ""} !`);
   }
   clearSelection() {
-    this.selectedElements = { wallIds: [], openingIds: [], roomIds: [], bindingIds: [] };
+    this.selectedElements = { wallIds: [], openingIds: [], roomIds: [], bindingIds: [], furnitureIds: [] };
   }
   getSelectedSummary() {
     const e = [];
-    return this.selectedElements.wallIds.length > 0 && e.push(`${this.selectedElements.wallIds.length} mur${this.selectedElements.wallIds.length > 1 ? "s" : ""}`), this.selectedElements.openingIds.length > 0 && e.push(`${this.selectedElements.openingIds.length} ouvrant${this.selectedElements.openingIds.length > 1 ? "s" : ""}`), this.selectedElements.roomIds.length > 0 && e.push(`${this.selectedElements.roomIds.length} pièce${this.selectedElements.roomIds.length > 1 ? "s" : ""}`), this.selectedElements.bindingIds.length > 0 && e.push(`${this.selectedElements.bindingIds.length} entité${this.selectedElements.bindingIds.length > 1 ? "s" : ""}`), e.join(", ");
+    return this.selectedElements.wallIds.length > 0 && e.push(`${this.selectedElements.wallIds.length} mur${this.selectedElements.wallIds.length > 1 ? "s" : ""}`), this.selectedElements.openingIds.length > 0 && e.push(`${this.selectedElements.openingIds.length} ouvrant${this.selectedElements.openingIds.length > 1 ? "s" : ""}`), this.selectedElements.roomIds.length > 0 && e.push(`${this.selectedElements.roomIds.length} pièce${this.selectedElements.roomIds.length > 1 ? "s" : ""}`), this.selectedElements.bindingIds.length > 0 && e.push(`${this.selectedElements.bindingIds.length} entité${this.selectedElements.bindingIds.length > 1 ? "s" : ""}`), this.selectedElements.furnitureIds && this.selectedElements.furnitureIds.length > 0 && e.push(`${this.selectedElements.furnitureIds.length} meuble${this.selectedElements.furnitureIds.length > 1 ? "s" : ""}`), e.join(", ");
   }
   handleKeyDown(e) {
-    var s, i, o;
-    const t = (i = (s = e.target) == null ? void 0 : s.tagName) == null ? void 0 : i.toLowerCase();
-    t === "input" || t === "textarea" || (o = e.target) != null && o.isContentEditable || ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z" && !e.shiftKey ? (e.preventDefault(), this.handleUndo()) : (e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === "y" || e.key.toLowerCase() === "z" && e.shiftKey) ? (e.preventDefault(), this.handleRedo()) : e.key === "Delete" || e.key === "Backspace" ? this.selectedElements.wallIds.length + this.selectedElements.openingIds.length + this.selectedElements.roomIds.length + this.selectedElements.bindingIds.length > 0 && (e.preventDefault(), this.handleDeleteSelected()) : e.key === "Escape" ? this.clearSelection() : e.key.toLowerCase() === "v" && (this.activeTool = "select"));
+    var i, s, o, r;
+    const t = (s = (i = e.target) == null ? void 0 : i.tagName) == null ? void 0 : s.toLowerCase();
+    t === "input" || t === "textarea" || (o = e.target) != null && o.isContentEditable || ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z" && !e.shiftKey ? (e.preventDefault(), this.handleUndo()) : (e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === "y" || e.key.toLowerCase() === "z" && e.shiftKey) ? (e.preventDefault(), this.handleRedo()) : e.key === "Delete" || e.key === "Backspace" ? this.selectedElements.wallIds.length + this.selectedElements.openingIds.length + this.selectedElements.roomIds.length + this.selectedElements.bindingIds.length + (((r = this.selectedElements.furnitureIds) == null ? void 0 : r.length) || 0) > 0 && (e.preventDefault(), this.handleDeleteSelected()) : e.key === "Escape" ? this.clearSelection() : e.key.toLowerCase() === "r" ? this.selectedElements.furnitureIds && this.selectedElements.furnitureIds.length > 0 && (e.preventDefault(), this.rotateSelectedFurniture()) : e.key.toLowerCase() === "v" && (this.activeTool = "select"));
   }
   saveProject() {
     this.hass && this.hass.callWS ? this.hass.callWS({
@@ -8622,9 +9588,9 @@ let A = class extends H {
     }) : (localStorage.setItem(`home_architect_${this.project.id}`, JSON.stringify(this.project)), this.showToast("💾 Plan sauvegardé localement !"));
   }
   render() {
-    var t, s;
+    var t, i, s, o;
     const e = !!((t = this.project.background) != null && t.imageUrl);
-    return v`
+    return w`
       <header class="top-bar">
         <div class="brand">
           <span class="brand-icon">📐</span>
@@ -8633,10 +9599,10 @@ let A = class extends H {
         </div>
 
         <div class="level-selector">
-          <button class="level-btn ${this.activeLevel === "sous-sol" ? "active" : ""}" @click=${() => this.activeLevel = "sous-sol"}>Sous-Sol</button>
-          <button class="level-btn ${this.activeLevel === "rdc" ? "active" : ""}" @click=${() => this.activeLevel = "rdc"}>RDC</button>
-          <button class="level-btn ${this.activeLevel === "etage1" ? "active" : ""}" @click=${() => this.activeLevel = "etage1"}>1er Étage</button>
-          <button class="level-btn ${this.activeLevel === "jardin" ? "active" : ""}" @click=${() => this.activeLevel = "jardin"}>Jardin</button>
+          <button class="level-btn ${this.activeLevel === "sous-sol" ? "active" : ""}" @click=${() => this.handleLevelSwitch("sous-sol")}>Sous-Sol</button>
+          <button class="level-btn ${this.activeLevel === "rdc" ? "active" : ""}" @click=${() => this.handleLevelSwitch("rdc")}>RDC</button>
+          <button class="level-btn ${this.activeLevel === "etage1" ? "active" : ""}" @click=${() => this.handleLevelSwitch("etage1")}>1er Étage</button>
+          <button class="level-btn ${this.activeLevel === "jardin" ? "active" : ""}" @click=${() => this.handleLevelSwitch("jardin")}>Jardin</button>
         </div>
 
         <div class="top-controls">
@@ -8659,6 +9625,34 @@ let A = class extends H {
               ↪️ Rétablir
             </button>
           </div>
+
+          <!-- Bascules Phase 1 & Phase 2 -->
+          <button 
+            class="btn-toggle-option ${this.showDimensions ? "active" : ""}" 
+            @click=${() => this.showDimensions = !this.showDimensions}
+            title="Afficher / Masquer les cotes dynamiques sur les murs"
+          >
+            <span>📏</span>
+            <span>Cotes</span>
+          </button>
+
+          <button 
+            class="btn-toggle-option ${this.showThermalHeatmap ? "active" : ""}" 
+            @click=${() => this.showThermalHeatmap = !this.showThermalHeatmap}
+            title="Afficher la carte thermique des températures des pièces"
+          >
+            <span>🌡️</span>
+            <span>Thermique</span>
+          </button>
+
+          <button 
+            class="btn-toggle-option ${this.showGhostLevel ? "active" : ""}" 
+            @click=${() => this.showGhostLevel = !this.showGhostLevel}
+            title="Afficher l'étage inférieur en filigrane (Onion Skinning) pour aligner les murs porteurs"
+          >
+            <span>👁️</span>
+            <span>Filigrane</span>
+          </button>
 
           <!-- Bouton Importer un plan (Automatisé) -->
           <button class="btn-import" @click=${() => this.isImportModalOpen = !0} title="Importer et calibrer un plan image (PNG, JPG, SVG)">
@@ -8709,7 +9703,7 @@ let A = class extends H {
           </button>
 
           <!-- Épaisseur mur -->
-          ${this.activeTool === "wall" ? v`
+          ${this.activeTool === "wall" ? w`
             <div class="control-group">
               <label>Épaisseur :</label>
               <select @change=${this.handleThicknessChange}>
@@ -8722,7 +9716,7 @@ let A = class extends H {
           ` : null}
 
           <!-- Largeur ouvrant -->
-          ${this.activeTool === "door" || this.activeTool === "window" || this.activeTool === "french_window" ? v`
+          ${this.activeTool === "door" || this.activeTool === "window" || this.activeTool === "french_window" ? w`
             <div class="control-group">
               <label>Largeur :</label>
               <select @change=${this.handleOpeningWidthChange}>
@@ -8738,10 +9732,10 @@ let A = class extends H {
           ` : null}
 
           <!-- Hauteur sous plafond globale en mode 3D -->
-          ${this.is3DMode ? v`
+          ${this.is3DMode ? w`
             <div class="control-group" title="Hauteur sous plafond par défaut (3D)">
               <label>Plafond 3D :</label>
-              <select @change=${(i) => this.handleDefaultCeilingChange(parseFloat(i.target.value))}>
+              <select @change=${(r) => this.handleDefaultCeilingChange(parseFloat(r.target.value))}>
                 <option value="2.10" ?selected=${(this.project.defaultCeilingHeight || 2.5) === 2.1}>2.10 m (Sous-sol)</option>
                 <option value="2.30" ?selected=${(this.project.defaultCeilingHeight || 2.5) === 2.3}>2.30 m (Combles)</option>
                 <option value="2.50" ?selected=${!this.project.defaultCeilingHeight || this.project.defaultCeilingHeight === 2.5}>2.50 m (Standard)</option>
@@ -8753,7 +9747,7 @@ let A = class extends H {
           ` : null}
 
           <!-- Opacité du fond -->
-          ${e ? v`
+          ${e ? w`
             <div class="control-group">
               <label>Fond :</label>
               <input 
@@ -8761,7 +9755,7 @@ let A = class extends H {
                 min="0.05" 
                 max="1.0" 
                 step="0.05" 
-                .value=${((s = this.project.background) == null ? void 0 : s.opacity) || 0.4}
+                .value=${((i = this.project.background) == null ? void 0 : i.opacity) || 0.4}
                 @input=${this.handleOpacityChange}
                 style="width: 70px;"
                 title="Opacité du plan de fond"
@@ -8812,25 +9806,28 @@ let A = class extends H {
             .windowSashCount=${this.windowSashCount}
             .is3DMode=${this.is3DMode}
             .selectedElements=${this.selectedElements}
-            @selection-changed=${(i) => this.selectedElements = i.detail.selectedElements}
+            .showDimensions=${this.showDimensions}
+            .showThermalHeatmap=${this.showThermalHeatmap}
+            .ghostProject=${this.getGhostProject()}
+            @selection-changed=${(r) => this.selectedElements = r.detail.selectedElements}
             @request-delete-selected=${this.handleDeleteSelected}
-            @toggle-3d=${(i) => this.is3DMode = i.detail.is3DMode}
-            @room-selected=${(i) => this.selectedRoomForEdit = i.detail.room}
+            @toggle-3d=${(r) => this.is3DMode = r.detail.is3DMode}
+            @room-selected=${(r) => this.selectedRoomForEdit = r.detail.room}
             @project-changed=${this.handleProjectChanged}
             @request-calibration=${this.handleRequestCalibration}
             @request-rescale=${this.handleRequestRescale}
-            @background-image-loaded=${(i) => this.loadBackgroundImage(i.detail.dataUrl, "🖼️ Image de plan glissée-déposée !")}
+            @background-image-loaded=${(r) => this.loadBackgroundImage(r.detail.dataUrl, "🖼️ Image de plan glissée-déposée !")}
           ></home-architect-canvas>
 
           <!-- Floating HUD de sélection multi-éléments -->
-          ${this.selectedElements.wallIds.length + this.selectedElements.openingIds.length + this.selectedElements.roomIds.length + this.selectedElements.bindingIds.length > 0 ? v`
+          ${this.selectedElements.wallIds.length + this.selectedElements.openingIds.length + this.selectedElements.roomIds.length + this.selectedElements.bindingIds.length + (((s = this.selectedElements.furnitureIds) == null ? void 0 : s.length) || 0) > 0 ? w`
             <div class="selection-hud">
               <span class="selection-info">
                 <span>🎯</span>
                 <span>${this.getSelectedSummary()} sélectionné(s)</span>
               </span>
 
-              ${this.selectedElements.wallIds.length > 0 ? v`
+              ${this.selectedElements.wallIds.length > 0 ? w`
                 <div class="hud-options-group">
                   <span class="hud-label">Épaisseur :</span>
                   <button class="hud-opt-btn ${this.currentThickness === 0.1 ? "active" : ""}" @click=${() => this.updateSelectedWallsThickness(0.1)} title="Cloison 10 cm">Fin 10cm</button>
@@ -8839,10 +9836,10 @@ let A = class extends H {
                 </div>
               ` : null}
 
-              ${this.selectedElements.openingIds.some((i) => {
-      var o;
-      return ((o = this.project.openings.find((r) => r.id === i)) == null ? void 0 : o.type) === "door";
-    }) ? v`
+              ${this.selectedElements.openingIds.some((r) => {
+      var n;
+      return ((n = this.project.openings.find((a) => a.id === r)) == null ? void 0 : n.type) === "door";
+    }) ? w`
                 <div class="hud-options-group">
                   <span class="hud-label">Porte :</span>
                   <button class="hud-opt-btn ${!this.doorFlipSide && this.doorFlipDirection ? "active" : ""}" @click=${() => this.updateSelectedDoorConfig(!1, !0)} title="Ouverture Droite Intérieure (Poussant Droit)">Droite Int.</button>
@@ -8852,15 +9849,22 @@ let A = class extends H {
                 </div>
               ` : null}
 
-              ${this.selectedElements.openingIds.some((i) => {
-      const o = this.project.openings.find((r) => r.id === i);
-      return o && (o.type === "window" || o.type === "french_window");
-    }) ? v`
+              ${this.selectedElements.openingIds.some((r) => {
+      const n = this.project.openings.find((a) => a.id === r);
+      return n && (n.type === "window" || n.type === "french_window");
+    }) ? w`
                 <div class="hud-options-group">
                   <span class="hud-label">Fenêtre :</span>
                   <button class="hud-opt-btn ${this.windowSashCount === 1 ? "active" : ""}" @click=${() => this.updateSelectedWindowConfig("window", 1, 0.9)} title="Fenêtre 1 ouvrant (90 cm)">1 Ouvrant</button>
                   <button class="hud-opt-btn ${this.windowSashCount === 2 ? "active" : ""}" @click=${() => this.updateSelectedWindowConfig("window", 2, 1.4)} title="Fenêtre 2 battants (1.40 m)">2 Battants</button>
                   <button class="hud-opt-btn" @click=${() => this.updateSelectedWindowConfig("french_window", 2, 2)} title="Baie vitrée coulissante (2.00 m)">Baie vitrée</button>
+                </div>
+              ` : null}
+
+              ${(((o = this.selectedElements.furnitureIds) == null ? void 0 : o.length) || 0) > 0 ? w`
+                <div class="hud-options-group">
+                  <span class="hud-label">Meuble :</span>
+                  <button class="hud-opt-btn active" @click=${this.rotateSelectedFurniture} title="Pivoter les meubles de 90° (Touche R)">🔄 Pivoter 90° (R)</button>
                 </div>
               ` : null}
 
@@ -8875,7 +9879,7 @@ let A = class extends H {
           ` : null}
 
           <!-- Notification Toast -->
-          ${this.toastMessage ? v`
+          ${this.toastMessage ? w`
             <div class="toast-notification">
               ${this.toastMessage}
             </div>
@@ -8891,7 +9895,7 @@ let A = class extends H {
       </div>
 
       <!-- Modal d'Import Automatisé -->
-      ${this.isImportModalOpen ? v`
+      ${this.isImportModalOpen ? w`
         <home-architect-import-modal
           .currentLevel=${this.activeLevel}
           @import-confirmed=${this.handleImportConfirmed}
@@ -8900,7 +9904,7 @@ let A = class extends H {
       ` : null}
 
       <!-- Modal Assistant Pièce Débutant -->
-      ${this.isWizardOpen ? v`
+      ${this.isWizardOpen ? w`
         <home-architect-wizard-modal
           @create-room=${this.handleCreateRoomFromWizard}
           @close=${() => this.isWizardOpen = !1}
@@ -8908,7 +9912,7 @@ let A = class extends H {
       ` : null}
 
       <!-- Modal Propriétés de la Pièce (Hauteur sous plafond 3D, etc.) -->
-      ${this.selectedRoomForEdit ? v`
+      ${this.selectedRoomForEdit ? w`
         <home-architect-room-modal
           .room=${this.selectedRoomForEdit}
           @save-room=${this.handleSaveRoom}
@@ -8918,7 +9922,7 @@ let A = class extends H {
       ` : null}
 
       <!-- Modal Étalonnage Mesure de Mur -->
-      ${this.isCalibrateModalOpen && this.calibrationData ? v`
+      ${this.isCalibrateModalOpen && this.calibrationData ? w`
         <home-architect-calibrate-modal
           .pixelDistance=${this.calibrationData.pixelDistance}
           .defaultMeters=${this.calibrationData.defaultMeters}
@@ -8928,7 +9932,7 @@ let A = class extends H {
       ` : null}
 
       <!-- Modal Mettre à l'échelle (Recalcul de toutes les cotes) -->
-      ${this.isRescaleModalOpen ? v`
+      ${this.isRescaleModalOpen ? w`
         <home-architect-rescale-modal
           .measuredMeters=${this.rescaleMeasuredMeters}
           .wallCount=${this.project.walls.length}
@@ -8940,7 +9944,7 @@ let A = class extends H {
       ` : null}
 
       <!-- Modal Exporter vers Lovelace -->
-      ${this.isExportModalOpen ? v`
+      ${this.isExportModalOpen ? w`
         <home-architect-export-modal
           .project=${this.project}
           .hass=${this.hass}
@@ -8950,7 +9954,7 @@ let A = class extends H {
     `;
   }
 };
-A.styles = K`
+z.styles = J`
     :host {
       display: flex;
       flex-direction: column;
@@ -9110,6 +10114,34 @@ A.styles = K`
       color: #ffffff;
       border-color: #38bdf8;
       box-shadow: 0 0 14px rgba(56, 189, 248, 0.45);
+    }
+
+    button.btn-toggle-option {
+      background: rgba(15, 23, 42, 0.6);
+      color: #94a3b8;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 8px;
+      padding: 6px 11px;
+      font-size: 0.83rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      transition: all 0.2s ease;
+    }
+
+    button.btn-toggle-option:hover {
+      background: rgba(51, 65, 85, 0.8);
+      color: #f1f5f9;
+      border-color: #38bdf8;
+    }
+
+    button.btn-toggle-option.active {
+      background: rgba(56, 189, 248, 0.18);
+      color: #38bdf8;
+      border-color: #38bdf8;
+      box-shadow: 0 0 10px rgba(56, 189, 248, 0.3);
     }
 
     button.btn-drawer {
@@ -9412,87 +10444,99 @@ A.styles = K`
       to { transform: translate(-50%, 0); opacity: 1; }
     }
   `;
-F([
-  P({ type: Object })
-], A.prototype, "hass", 2);
-F([
-  P({ type: Boolean })
-], A.prototype, "narrow", 2);
-F([
+A([
+  _({ type: Object })
+], z.prototype, "hass", 2);
+A([
+  _({ type: Boolean })
+], z.prototype, "narrow", 2);
+A([
   b()
-], A.prototype, "activeTool", 2);
-F([
+], z.prototype, "activeTool", 2);
+A([
   b()
-], A.prototype, "currentThickness", 2);
-F([
+], z.prototype, "currentThickness", 2);
+A([
   b()
-], A.prototype, "currentOpeningWidth", 2);
-F([
+], z.prototype, "currentOpeningWidth", 2);
+A([
   b()
-], A.prototype, "doorFlipSide", 2);
-F([
+], z.prototype, "doorFlipSide", 2);
+A([
   b()
-], A.prototype, "doorFlipDirection", 2);
-F([
+], z.prototype, "doorFlipDirection", 2);
+A([
   b()
-], A.prototype, "windowSashCount", 2);
-F([
+], z.prototype, "windowSashCount", 2);
+A([
   b()
-], A.prototype, "activeLevel", 2);
-F([
+], z.prototype, "activeLevel", 2);
+A([
   b()
-], A.prototype, "is3DMode", 2);
-F([
+], z.prototype, "showDimensions", 2);
+A([
   b()
-], A.prototype, "isDrawerCollapsed", 2);
-F([
+], z.prototype, "showThermalHeatmap", 2);
+A([
   b()
-], A.prototype, "isWizardOpen", 2);
-F([
+], z.prototype, "showGhostLevel", 2);
+A([
   b()
-], A.prototype, "isImportModalOpen", 2);
-F([
+], z.prototype, "levelProjects", 2);
+A([
   b()
-], A.prototype, "isExportModalOpen", 2);
-F([
+], z.prototype, "is3DMode", 2);
+A([
   b()
-], A.prototype, "isCalibrateModalOpen", 2);
-F([
+], z.prototype, "isDrawerCollapsed", 2);
+A([
   b()
-], A.prototype, "calibrationData", 2);
-F([
+], z.prototype, "isWizardOpen", 2);
+A([
   b()
-], A.prototype, "isRescaleModalOpen", 2);
-F([
+], z.prototype, "isImportModalOpen", 2);
+A([
   b()
-], A.prototype, "rescaleMeasuredMeters", 2);
-F([
+], z.prototype, "isExportModalOpen", 2);
+A([
   b()
-], A.prototype, "selectedRoomForEdit", 2);
-F([
+], z.prototype, "isCalibrateModalOpen", 2);
+A([
   b()
-], A.prototype, "selectedElements", 2);
-F([
+], z.prototype, "calibrationData", 2);
+A([
   b()
-], A.prototype, "undoStack", 2);
-F([
+], z.prototype, "isRescaleModalOpen", 2);
+A([
   b()
-], A.prototype, "redoStack", 2);
-F([
+], z.prototype, "rescaleMeasuredMeters", 2);
+A([
   b()
-], A.prototype, "project", 2);
-F([
+], z.prototype, "selectedRoomForEdit", 2);
+A([
   b()
-], A.prototype, "toastMessage", 2);
-A = F([
-  J("home-architect-panel")
-], A);
-var rs = Object.defineProperty, ns = Object.getOwnPropertyDescriptor, Tt = (e, t, s, i) => {
-  for (var o = i > 1 ? void 0 : i ? ns(t, s) : t, r = e.length - 1, n; r >= 0; r--)
-    (n = e[r]) && (o = (i ? n(t, s, o) : n(o)) || o);
-  return i && o && rs(t, s, o), o;
+], z.prototype, "selectedElements", 2);
+A([
+  b()
+], z.prototype, "undoStack", 2);
+A([
+  b()
+], z.prototype, "redoStack", 2);
+A([
+  b()
+], z.prototype, "project", 2);
+A([
+  b()
+], z.prototype, "toastMessage", 2);
+z = A([
+  Z("home-architect-panel")
+], z);
+var li = Object.defineProperty, di = Object.getOwnPropertyDescriptor, jt = (e, t, i, s) => {
+  for (var o = s > 1 ? void 0 : s ? di(t, i) : t, r = e.length - 1, n; r >= 0; r--)
+    (n = e[r]) && (o = (s ? n(t, i, o) : n(o)) || o);
+  return s && o && li(t, i, o), o;
 };
-let ht = class extends H {
+let bt = class extends U {
   constructor() {
     super(...arguments), this.project = {
       id: "rdc",
@@ -9521,11 +10565,11 @@ let ht = class extends H {
     super.updated(e), e.has("hass") && !this._projectLoaded && this.hass && (this._projectLoaded = !0, this.loadProject());
   }
   async loadProject() {
-    var s, i;
-    const e = ((s = this.config) == null ? void 0 : s.project_id) || "rdc";
+    var i, s;
+    const e = ((i = this.config) == null ? void 0 : i.project_id) || "rdc";
     if (this.hass && this.hass.callWS)
       try {
-        const o = await this.hass.callWS({ type: "home_architect/get_projects" }), r = (i = o == null ? void 0 : o.projects) == null ? void 0 : i.find((n) => n.id === e);
+        const o = await this.hass.callWS({ type: "home_architect/get_projects" }), r = (s = o == null ? void 0 : o.projects) == null ? void 0 : s.find((n) => n.id === e);
         if (r) {
           this.project = r;
           return;
@@ -9549,12 +10593,12 @@ let ht = class extends H {
     this.dispatchEvent(t);
   }
   render() {
-    var t, s;
+    var t, i;
     const e = ((t = this.config) == null ? void 0 : t.show_header) !== !1;
-    return v`
-      ${e ? v`
+    return w`
+      ${e ? w`
         <div class="card-header">
-          <div class="card-title">${((s = this.config) == null ? void 0 : s.title) || this.project.name || "Home Architect"}</div>
+          <div class="card-title">${((i = this.config) == null ? void 0 : i.title) || this.project.name || "Home Architect"}</div>
           <button class="view-toggle" @click=${() => this.is3DMode = !this.is3DMode}>
             ${this.is3DMode ? "🧊 3D" : "📐 2D"}
           </button>
@@ -9574,7 +10618,7 @@ let ht = class extends H {
     `;
   }
 };
-ht.styles = K`
+bt.styles = J`
     :host {
       display: block;
       height: var(--card-custom-height, 480px);
@@ -9636,21 +10680,21 @@ ht.styles = K`
       height: 100%;
     }
   `;
-Tt([
-  P({ type: Object })
-], ht.prototype, "hass", 2);
-Tt([
+jt([
+  _({ type: Object })
+], bt.prototype, "hass", 2);
+jt([
   b()
-], ht.prototype, "config", 2);
-Tt([
+], bt.prototype, "config", 2);
+jt([
   b()
-], ht.prototype, "project", 2);
-Tt([
+], bt.prototype, "project", 2);
+jt([
   b()
-], ht.prototype, "is3DMode", 2);
-ht = Tt([
-  J("home-architect-card")
-], ht);
+], bt.prototype, "is3DMode", 2);
+bt = jt([
+  Z("home-architect-card")
+], bt);
 window.customCards = window.customCards || [];
 window.customCards.push({
   type: "home-architect-card",

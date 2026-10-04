@@ -10,7 +10,13 @@ export class SnappingEngine {
     existingWalls: Wall[] = [],
     originPoint?: Point,
     snapRadiusMeters: number = 0.25
-  ): { point: Point; snappedTo: 'vertex' | 'angle' | 'grid' | 'none'; guideAngle?: number } {
+  ): { 
+    point: Point; 
+    snappedTo: 'vertex' | 'angle' | 'grid' | 'smart_guide' | 'none'; 
+    guideAngle?: number;
+    smartGuideX?: number;
+    smartGuideY?: number;
+  } {
     let bestPoint = { ...rawPoint };
 
     // 1. Priorité 1 : Accrochage aux sommets (Vertices) existants
@@ -36,11 +42,34 @@ export class SnappingEngine {
       }
     }
 
-    // 2. Priorité 2 : Accrochage Angulaire (0°, 45°, 90°, etc.) si un point d'origine est fourni
+    // 2. Priorité 2 : Smart Guides (Alignement orthogonal magnétique X et Y sur sommets voisins)
+    let smartGuideX: number | undefined;
+    let smartGuideY: number | undefined;
+
+    if (grid.snapToElements && existingWalls.length > 0) {
+      const guideTol = 0.18; // Tolérance d'accrochage d'alignement (18 cm)
+      for (const wall of existingWalls) {
+        for (const vertex of [wall.start, wall.end]) {
+          if (originPoint && Math.abs(vertex.x - originPoint.x) < 0.01 && Math.abs(vertex.y - originPoint.y) < 0.01) {
+            continue;
+          }
+          if (smartGuideX === undefined && Math.abs(bestPoint.x - vertex.x) < guideTol) {
+            bestPoint.x = vertex.x;
+            smartGuideX = vertex.x;
+          }
+          if (smartGuideY === undefined && Math.abs(bestPoint.y - vertex.y) < guideTol) {
+            bestPoint.y = vertex.y;
+            smartGuideY = vertex.y;
+          }
+        }
+      }
+    }
+
+    // 3. Priorité 3 : Accrochage Angulaire (0°, 45°, 90°, etc.) si un point d'origine est fourni
     let angleSnapped = false;
     let guideAngleDeg: number | undefined;
 
-    if (grid.snapToAngles && originPoint) {
+    if (grid.snapToAngles && originPoint && smartGuideX === undefined && smartGuideY === undefined) {
       const dx = rawPoint.x - originPoint.x;
       const dy = rawPoint.y - originPoint.y;
       const dist = Math.sqrt(dx * dx + dy * dy);
@@ -66,14 +95,16 @@ export class SnappingEngine {
       }
     }
 
-    // 3. Priorité 3 : Accrochage Grille
-    if (grid.snapToGrid && !angleSnapped) {
+    // 4. Priorité 4 : Accrochage Grille
+    if (grid.snapToGrid && !angleSnapped && smartGuideX === undefined && smartGuideY === undefined) {
       const size = grid.size || 0.5; // Par défaut 0.5m
       bestPoint = {
         x: Math.round(bestPoint.x / size) * size,
         y: Math.round(bestPoint.y / size) * size
       };
       return { point: bestPoint, snappedTo: 'grid' };
+    } else if (smartGuideX !== undefined || smartGuideY !== undefined) {
+      return { point: bestPoint, snappedTo: 'smart_guide', smartGuideX, smartGuideY };
     } else if (angleSnapped) {
       return { point: bestPoint, snappedTo: 'angle', guideAngle: guideAngleDeg };
     }
