@@ -3,10 +3,12 @@ import { customElement, property, state } from 'lit/decorators.js';
 import { canvasStyles } from '../styles/canvas.styles';
 import { 
   Point, Wall, Opening, OpeningType, Room, ActiveTool, GridConfig, 
-  ViewportTransform, HomeArchitectProject, WallSnapResult, EntityBinding, SelectedElements 
+  ViewportTransform, HomeArchitectProject, WallSnapResult, EntityBinding, SelectedElements,
+  FurnitureItem, SmartGuide 
 } from '../core/types';
 import { SnappingEngine } from '../core/snapping';
 import { PolygonUtils } from '../core/polygon';
+import { findFurnitureTemplate } from '../core/furniture-catalog';
 
 @customElement('home-architect-canvas')
 export class HomeArchitectCanvas extends LitElement {
@@ -52,11 +54,21 @@ export class HomeArchitectCanvas extends LitElement {
     wallIds: [],
     openingIds: [],
     roomIds: [],
-    bindingIds: []
+    bindingIds: [],
+    furnitureIds: []
   };
 
   @property({ type: Boolean })
   public isDashboardMode: boolean = false;
+
+  @property({ type: Object })
+  public ghostProject?: HomeArchitectProject | null = null;
+
+  @property({ type: Boolean })
+  public showDimensions: boolean = true;
+
+  @property({ type: Boolean })
+  public showThermalHeatmap: boolean = false;
 
   @state()
   private isMarqueeSelecting: boolean = false;
@@ -84,10 +96,30 @@ export class HomeArchitectCanvas extends LitElement {
   private previewPoint: Point | null = null;
 
   @state()
-  private snapInfo: { snappedTo: string; guideAngle?: number } = { snappedTo: 'none' };
+  private snapInfo: { 
+    snappedTo: string; 
+    guideAngle?: number; 
+    smartGuideX?: number; 
+    smartGuideY?: number 
+  } = { snappedTo: 'none' };
 
   @state()
   private cursorCoords: Point = { x: 0, y: 0 };
+
+  // État déplacement de meuble
+  @state()
+  private draggingFurnitureId: string | null = null;
+  private dragFurnitureMoved: boolean = false;
+  private dragFurnitureStartPos: Point = { x: 0, y: 0 };
+  private dragFurnitureItemStartPos: Point = { x: 0, y: 0 };
+
+  // État déplacement de mur
+  @state()
+  private draggingWallId: string | null = null;
+  private dragWallMoved: boolean = false;
+  private dragWallStartPointer: Point = { x: 0, y: 0 };
+  private dragWallInitialStart: Point = { x: 0, y: 0 };
+  private dragWallInitialEnd: Point = { x: 0, y: 0 };
 
   // État d'insertion d'ouvrants
   @state()
@@ -209,9 +241,9 @@ export class HomeArchitectCanvas extends LitElement {
 
       // 3. Clic gauche direct (button 0) : Orbite sur fond ou sélection sur élément
       if (e.button === 0) {
-        const isClickOnObject = (e.target as Element)?.closest?.('.wall-element, .wall-element-3d, .room-group, .entity-pin, .opening-element');
+        const isClickOnObject = (e.target as Element)?.closest?.('.wall-element, .wall-element-3d, .room-group, .entity-pin, .opening-element, .furniture-group');
         if (!isClickOnObject) {
-          this.selectedElements = { wallIds: [], openingIds: [], roomIds: [], bindingIds: [] };
+          this.selectedElements = { wallIds: [], openingIds: [], roomIds: [], bindingIds: [], furnitureIds: [] };
           this.dispatchSelectionChanged();
 
           this.isOrbiting = true;
@@ -236,11 +268,11 @@ export class HomeArchitectCanvas extends LitElement {
 
     const targetEl = e.target as Element;
     const isClickOnObject = !!targetEl?.closest?.(
-      '.wall-element, .wall-element-3d, .room-group, .entity-pin, .opening-element, .dimension-badge, .hud-btn'
+      '.wall-element, .wall-element-3d, .room-group, .entity-pin, .opening-element, .furniture-group, .dimension-badge, .wall-dim-badge, .hud-btn'
     );
 
-    // Clic direct sur une entité : laisser l'entité gérer son interaction et son glisser-déposer
-    if (targetEl?.closest?.('.entity-pin')) {
+    // Clic direct sur une entité ou un meuble : laisser l'élément gérer son interaction et son glisser-déposer
+    if (targetEl?.closest?.('.entity-pin, .furniture-group')) {
       return;
     }
 
@@ -261,7 +293,7 @@ export class HomeArchitectCanvas extends LitElement {
       }
 
       // Clic sur fond sans Shift : désélectionne et commence le Pan
-      this.selectedElements = { wallIds: [], openingIds: [], roomIds: [], bindingIds: [] };
+      this.selectedElements = { wallIds: [], openingIds: [], roomIds: [], bindingIds: [], furnitureIds: [] };
       this.dispatchSelectionChanged();
 
       this.isPanning = true;
@@ -430,6 +462,82 @@ export class HomeArchitectCanvas extends LitElement {
       return;
     }
 
+    if (this.draggingFurnitureId) {
+      const dist = Math.hypot(e.clientX - this.dragFurnitureStartPos.x, e.clientY - this.dragFurnitureStartPos.y);
+      if (dist > 3) {
+        this.dragFurnitureMoved = true;
+        const ppm = this.project.pixelsPerMeter * this.viewport.zoom;
+        const dx = (e.clientX - this.dragFurnitureStartPos.x) / ppm;
+        const dy = (e.clientY - this.dragFurnitureStartPos.y) / ppm;
+        let newX = this.dragFurnitureItemStartPos.x + dx;
+        let newY = this.dragFurnitureItemStartPos.y + dy;
+
+        if (this.project.grid.snapToGrid) {
+          const gSize = this.project.grid.size || 0.5;
+          newX = Math.round(newX / gSize) * gSize;
+          newY = Math.round(newY / gSize) * gSize;
+        }
+
+        const newPos = {
+          x: SnappingEngine.roundMeters(newX),
+          y: SnappingEngine.roundMeters(newY)
+        };
+        const matchingRoom = PolygonUtils.findRoomContainingPoint(newPos, this.project.rooms);
+
+        const newFurniture = (this.project.furniture || []).map(f => {
+          if (f.id === this.draggingFurnitureId) {
+            return {
+              ...f,
+              position: newPos,
+              roomId: matchingRoom?.id
+            };
+          }
+          return f;
+        });
+
+        this.project = { ...this.project, furniture: newFurniture };
+        this.requestUpdate();
+      }
+      return;
+    }
+
+    if (this.draggingWallId) {
+      const dist = Math.hypot(e.clientX - this.dragWallStartPointer.x, e.clientY - this.dragWallStartPointer.y);
+      if (dist > 3) {
+        this.dragWallMoved = true;
+        const ppm = this.project.pixelsPerMeter * this.viewport.zoom;
+        let dx = (e.clientX - this.dragWallStartPointer.x) / ppm;
+        let dy = (e.clientY - this.dragWallStartPointer.y) / ppm;
+
+        if (this.project.grid.snapToGrid) {
+          const gSize = this.project.grid.size || 0.5;
+          dx = Math.round(dx / gSize) * gSize;
+          dy = Math.round(dy / gSize) * gSize;
+        }
+
+        const newWalls = this.project.walls.map(w => {
+          if (w.id === this.draggingWallId) {
+            return {
+              ...w,
+              start: {
+                x: SnappingEngine.roundMeters(this.dragWallInitialStart.x + dx),
+                y: SnappingEngine.roundMeters(this.dragWallInitialStart.y + dy)
+              },
+              end: {
+                x: SnappingEngine.roundMeters(this.dragWallInitialEnd.x + dx),
+                y: SnappingEngine.roundMeters(this.dragWallInitialEnd.y + dy)
+              }
+            };
+          }
+          return w;
+        });
+
+        this.project = { ...this.project, walls: newWalls };
+        this.requestUpdate();
+      }
+      return;
+    }
+
     if (this.draggingBindingId) {
       const dist = Math.hypot(e.clientX - this.dragBindingStartPos.x, e.clientY - this.dragBindingStartPos.y);
       if (dist > 3) {
@@ -485,7 +593,12 @@ export class HomeArchitectCanvas extends LitElement {
       );
 
       this.previewPoint = snapped.point;
-      this.snapInfo = { snappedTo: snapped.snappedTo, guideAngle: snapped.guideAngle };
+      this.snapInfo = { 
+        snappedTo: snapped.snappedTo, 
+        guideAngle: snapped.guideAngle,
+        smartGuideX: snapped.smartGuideX,
+        smartGuideY: snapped.smartGuideY
+      };
       this.wallSnap = null;
     } 
     else if (this.activeTool === 'door' || this.activeTool === 'window' || this.activeTool === 'french_window') {
@@ -512,7 +625,12 @@ export class HomeArchitectCanvas extends LitElement {
       }
 
       this.previewPoint = snapped.point;
-      this.snapInfo = { snappedTo: snapped.snappedTo, guideAngle: snapped.guideAngle };
+      this.snapInfo = { 
+        snappedTo: snapped.snappedTo, 
+        guideAngle: snapped.guideAngle,
+        smartGuideX: snapped.smartGuideX,
+        smartGuideY: snapped.smartGuideY
+      };
       this.wallSnap = null;
 
       if (this.rescaleStart) {
@@ -526,6 +644,32 @@ export class HomeArchitectCanvas extends LitElement {
   }
 
   private handlePointerUp(e: PointerEvent): void {
+    if (this.draggingFurnitureId) {
+      const moved = this.dragFurnitureMoved;
+      this.draggingFurnitureId = null;
+      this.dragFurnitureMoved = false;
+      try {
+        (e.target as HTMLElement).releasePointerCapture?.(e.pointerId);
+      } catch (_) {}
+      if (moved) {
+        this.dispatchProjectChanged();
+        return;
+      }
+    }
+
+    if (this.draggingWallId) {
+      const moved = this.dragWallMoved;
+      this.draggingWallId = null;
+      this.dragWallMoved = false;
+      try {
+        (e.target as HTMLElement).releasePointerCapture?.(e.pointerId);
+      } catch (_) {}
+      if (moved) {
+        this.dispatchProjectChanged();
+        return;
+      }
+    }
+
     if (this.draggingBindingId) {
       const moved = this.dragBindingMoved;
       this.draggingBindingId = null;
@@ -580,11 +724,16 @@ export class HomeArchitectCanvas extends LitElement {
           return b.position.x >= minX && b.position.x <= maxX && b.position.y >= minY && b.position.y <= maxY;
         }).map(b => b.id);
 
+        const foundFurniture = (this.project.furniture || []).filter(f => {
+          return f.position.x >= minX && f.position.x <= maxX && f.position.y >= minY && f.position.y <= maxY;
+        }).map(f => f.id);
+
         this.selectedElements = {
           wallIds: Array.from(new Set([...this.selectedElements.wallIds, ...foundWalls])),
           openingIds: Array.from(new Set([...this.selectedElements.openingIds, ...foundOpenings])),
           roomIds: Array.from(new Set([...this.selectedElements.roomIds, ...foundRooms])),
-          bindingIds: Array.from(new Set([...this.selectedElements.bindingIds, ...foundBindings]))
+          bindingIds: Array.from(new Set([...this.selectedElements.bindingIds, ...foundBindings])),
+          furnitureIds: Array.from(new Set([...(this.selectedElements.furnitureIds || []), ...foundFurniture]))
         };
         this.dispatchSelectionChanged();
       }
@@ -634,12 +783,56 @@ export class HomeArchitectCanvas extends LitElement {
       }
     }
 
-    // 2. Dépose d'une entité Home Assistant depuis le tiroir
+    // 2. Dépose d'une entité Home Assistant ou d'un meuble depuis le tiroir
     const rawData = e.dataTransfer?.getData('application/json');
     if (!rawData) return;
 
     try {
-      const { entityId, domain, name, icon } = JSON.parse(rawData);
+      const data = JSON.parse(rawData);
+
+      // 2a. Dépose d'un meuble architectural
+      if (data.kind === 'furniture') {
+        const template = findFurnitureTemplate(data.furnitureType);
+        if (template) {
+          const worldPoint = this.screenToWorld(e.clientX, e.clientY);
+          const matchingRoom = PolygonUtils.findRoomContainingPoint(worldPoint, this.project.rooms);
+          const newFurniture: FurnitureItem = {
+            id: `furn_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+            type: template.type,
+            name: template.name,
+            category: template.category,
+            position: {
+              x: SnappingEngine.roundMeters(worldPoint.x),
+              y: SnappingEngine.roundMeters(worldPoint.y)
+            },
+            width: template.width,
+            length: template.length,
+            rotation: 0,
+            color: template.defaultColor,
+            icon: template.icon,
+            roomId: matchingRoom?.id
+          };
+
+          this.project = {
+            ...this.project,
+            furniture: [...(this.project.furniture || []), newFurniture]
+          };
+
+          this.selectedElements = { 
+            wallIds: [], 
+            openingIds: [], 
+            roomIds: [], 
+            bindingIds: [], 
+            furnitureIds: [newFurniture.id] 
+          };
+          this.dispatchSelectionChanged();
+          this.dispatchProjectChanged();
+          return;
+        }
+      }
+
+      // 2b. Dépose d'une entité Home Assistant
+      const { entityId, domain, name, icon } = data;
       const worldPoint = this.screenToWorld(e.clientX, e.clientY);
 
       // Détection automatique de la pièce contenant le point de dépose
@@ -665,7 +858,7 @@ export class HomeArchitectCanvas extends LitElement {
 
       this.dispatchProjectChanged();
     } catch (err) {
-      console.error('Erreur lors de la liaison entité HA:', err);
+      console.error('Erreur lors de la liaison entité/meuble:', err);
     }
   }
 
@@ -678,8 +871,35 @@ export class HomeArchitectCanvas extends LitElement {
     this.requestUpdate();
   }
 
+  private handleWallPointerDown(wall: Wall, e: PointerEvent): void {
+    if (this.isDashboardMode) return;
+    if (e.button !== 0) return;
+    if (this.activeTool !== 'select') return;
+    e.stopPropagation();
+
+    this.draggingWallId = wall.id;
+    this.dragWallMoved = false;
+    this.dragWallStartPointer = { x: e.clientX, y: e.clientY };
+    this.dragWallInitialStart = { ...wall.start };
+    this.dragWallInitialEnd = { ...wall.end };
+
+    const isMulti = e.shiftKey || e.ctrlKey || e.metaKey;
+    const exists = this.selectedElements.wallIds.includes(wall.id);
+    if (isMulti) {
+      const newWallIds = exists
+        ? this.selectedElements.wallIds.filter(id => id !== wall.id)
+        : [...this.selectedElements.wallIds, wall.id];
+      this.selectedElements = { ...this.selectedElements, wallIds: newWallIds };
+    } else if (!exists) {
+      this.selectedElements = { wallIds: [wall.id], openingIds: [], roomIds: [], bindingIds: [], furnitureIds: [] };
+    }
+    this.dispatchSelectionChanged();
+    (e.currentTarget as HTMLElement)?.setPointerCapture?.(e.pointerId);
+  }
+
   private handleWallClick(e: MouseEvent, wall: Wall) {
     if (this.activeTool !== 'select') return;
+    if (this.dragWallMoved) return;
     e.stopPropagation();
     const isMulti = e.shiftKey || e.ctrlKey || e.metaKey;
     const exists = this.selectedElements.wallIds.includes(wall.id);
@@ -690,7 +910,7 @@ export class HomeArchitectCanvas extends LitElement {
         : [...this.selectedElements.wallIds, wall.id];
       this.selectedElements = { ...this.selectedElements, wallIds: newWallIds };
     } else {
-      this.selectedElements = { wallIds: [wall.id], openingIds: [], roomIds: [], bindingIds: [] };
+      this.selectedElements = { wallIds: [wall.id], openingIds: [], roomIds: [], bindingIds: [], furnitureIds: [] };
     }
     this.dispatchSelectionChanged();
   }
@@ -707,7 +927,50 @@ export class HomeArchitectCanvas extends LitElement {
         : [...this.selectedElements.openingIds, op.id];
       this.selectedElements = { ...this.selectedElements, openingIds: newOpIds };
     } else {
-      this.selectedElements = { wallIds: [], openingIds: [op.id], roomIds: [], bindingIds: [] };
+      this.selectedElements = { wallIds: [], openingIds: [op.id], roomIds: [], bindingIds: [], furnitureIds: [] };
+    }
+    this.dispatchSelectionChanged();
+  }
+
+  private handleFurniturePointerDown(item: FurnitureItem, e: PointerEvent): void {
+    if (this.isDashboardMode) return;
+    if (e.button !== 0) return;
+    if (this.activeTool !== 'select') return;
+    e.stopPropagation();
+
+    this.draggingFurnitureId = item.id;
+    this.dragFurnitureMoved = false;
+    this.dragFurnitureStartPos = { x: e.clientX, y: e.clientY };
+    this.dragFurnitureItemStartPos = { ...item.position };
+
+    const isMulti = e.shiftKey || e.ctrlKey || e.metaKey;
+    const exists = this.selectedElements.furnitureIds?.includes(item.id) || false;
+    if (isMulti) {
+      const newFurnIds = exists
+        ? (this.selectedElements.furnitureIds || []).filter(id => id !== item.id)
+        : [...(this.selectedElements.furnitureIds || []), item.id];
+      this.selectedElements = { ...this.selectedElements, furnitureIds: newFurnIds };
+    } else if (!exists) {
+      this.selectedElements = { wallIds: [], openingIds: [], roomIds: [], bindingIds: [], furnitureIds: [item.id] };
+    }
+    this.dispatchSelectionChanged();
+    (e.currentTarget as HTMLElement)?.setPointerCapture?.(e.pointerId);
+  }
+
+  private handleFurnitureClick(e: MouseEvent, item: FurnitureItem): void {
+    if (this.activeTool !== 'select') return;
+    if (this.dragFurnitureMoved) return;
+    e.stopPropagation();
+
+    const isMulti = e.shiftKey || e.ctrlKey || e.metaKey;
+    const exists = this.selectedElements.furnitureIds?.includes(item.id) || false;
+    if (isMulti) {
+      const newFurnIds = exists
+        ? (this.selectedElements.furnitureIds || []).filter(id => id !== item.id)
+        : [...(this.selectedElements.furnitureIds || []), item.id];
+      this.selectedElements = { ...this.selectedElements, furnitureIds: newFurnIds };
+    } else {
+      this.selectedElements = { wallIds: [], openingIds: [], roomIds: [], bindingIds: [], furnitureIds: [item.id] };
     }
     this.dispatchSelectionChanged();
   }
@@ -826,6 +1089,23 @@ export class HomeArchitectCanvas extends LitElement {
     }));
   }
 
+  public rotateSelectedFurniture(): void {
+    if (!this.selectedElements.furnitureIds || this.selectedElements.furnitureIds.length === 0) return;
+    const furnIds = this.selectedElements.furnitureIds;
+    const newFurniture = (this.project.furniture || []).map(f => {
+      if (furnIds.includes(f.id)) {
+        return {
+          ...f,
+          rotation: ((f.rotation || 0) + 90) % 360
+        };
+      }
+      return f;
+    });
+    this.project = { ...this.project, furniture: newFurniture };
+    this.dispatchProjectChanged();
+    this.requestUpdate();
+  }
+
   private handleKeyDown(e: KeyboardEvent): void {
     if (e.key === 'Escape') {
       this.drawingWallStart = null;
@@ -835,7 +1115,7 @@ export class HomeArchitectCanvas extends LitElement {
       this.rescaleStart = null;
       this.rescaleCurrent = null;
       this.wallSnap = null;
-      this.selectedElements = { wallIds: [], openingIds: [], roomIds: [], bindingIds: [] };
+      this.selectedElements = { wallIds: [], openingIds: [], roomIds: [], bindingIds: [], furnitureIds: [] };
       this.dispatchSelectionChanged();
       this.requestUpdate();
     } else if (e.key === ' ' || e.key === 'Spacebar') {
@@ -848,6 +1128,11 @@ export class HomeArchitectCanvas extends LitElement {
       if (this.wallSnap) {
         this.openingFlipDirection = !this.openingFlipDirection;
         this.requestUpdate();
+      }
+    } else if (e.key.toLowerCase() === 'r') {
+      if (this.selectedElements.furnitureIds && this.selectedElements.furnitureIds.length > 0) {
+        e.preventDefault();
+        this.rotateSelectedFurniture();
       }
     }
   }
@@ -995,7 +1280,7 @@ export class HomeArchitectCanvas extends LitElement {
     }));
   }
 
-  // Rendu des Pièces avec détection d'illumination si lumière allumée
+  // Rendu des Pièces avec détection d'illumination (RGB & Brightness) et Carte Thermique
   private renderRooms() {
     return this.project.rooms.map((room) => {
       if (!room.polygon || room.polygon.length < 3) return null;
@@ -1003,13 +1288,54 @@ export class HomeArchitectCanvas extends LitElement {
       const screenPts = room.polygon.map(p => this.worldToScreen(p));
       const pointsAttr = screenPts.map(p => `${p.x},${p.y}`).join(' ');
 
-      // Vérifie si une lumière liée à cette pièce est allumée
-      const isRoomIlluminated = this.project.bindings
+      // 1. Détection des lumières allumées dans cette pièce avec RGB et Luminosité
+      const activeLights = this.project.bindings
         .filter(b => b.roomId === room.id && b.entityId.startsWith('light.'))
-        .some(b => {
-          const state = this.hass?.states?.[b.entityId]?.state;
-          return state === 'on';
-        });
+        .map(b => this.hass?.states?.[b.entityId])
+        .filter(s => s && s.state === 'on');
+
+      const isRoomIlluminated = activeLights.length > 0;
+      let lightBleedFill: string | null = null;
+      if (isRoomIlluminated) {
+        const firstLight = activeLights[0];
+        const rgb = firstLight.attributes?.rgb_color || [255, 240, 180];
+        const brightness = firstLight.attributes?.brightness !== undefined ? firstLight.attributes.brightness : 255;
+        const alpha = 0.12 + (brightness / 255) * 0.22;
+        lightBleedFill = `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, ${alpha.toFixed(2)})`;
+      }
+
+      // 2. Détection de la température pour la Carte Thermique (Heatmap)
+      let roomTemp: number | null = null;
+      const tempBinding = this.project.bindings.find(b => 
+        b.roomId === room.id && (
+          b.entityId.startsWith('climate.') ||
+          (b.entityId.startsWith('sensor.') && (b.entityId.toLowerCase().includes('temp') || b.customName?.toLowerCase().includes('temp')))
+        )
+      );
+
+      if (tempBinding) {
+        const st = this.hass?.states?.[tempBinding.entityId];
+        if (st) {
+          if (tempBinding.entityId.startsWith('climate.')) {
+            const val = st.attributes?.current_temperature ?? st.state;
+            if (!isNaN(parseFloat(val))) roomTemp = parseFloat(val);
+          } else {
+            if (!isNaN(parseFloat(st.state))) roomTemp = parseFloat(st.state);
+          }
+        }
+      }
+
+      // Couleur de remplissage : priorité à la heatmap si activée, sinon éclairage simulant, sinon couleur de pièce
+      let roomFillColor = room.color || 'rgba(56, 189, 248, 0.12)';
+      if (this.showThermalHeatmap && roomTemp !== null) {
+        if (roomTemp < 18) roomFillColor = 'rgba(59, 130, 246, 0.38)';      // Bleu frais
+        else if (roomTemp < 20) roomFillColor = 'rgba(14, 165, 233, 0.32)'; // Cyan doux
+        else if (roomTemp < 22) roomFillColor = 'rgba(16, 185, 129, 0.30)'; // Vert confort
+        else if (roomTemp < 24) roomFillColor = 'rgba(245, 158, 11, 0.34)'; // Orange chaleureux
+        else roomFillColor = 'rgba(239, 68, 68, 0.40)';                     // Rouge chaud
+      } else if (lightBleedFill) {
+        roomFillColor = lightBleedFill;
+      }
 
       const centroid = PolygonUtils.calculateCentroid(screenPts);
       const roomH = room.height || this.project.defaultCeilingHeight || 2.50;
@@ -1026,7 +1352,7 @@ export class HomeArchitectCanvas extends LitElement {
           <polygon 
             points="${pointsAttr}" 
             class="room-polygon ${isRoomIlluminated ? 'illuminated' : ''}"
-            style="fill: ${room.color || 'rgba(56, 189, 248, 0.12)'}; cursor: pointer;"
+            style="fill: ${roomFillColor}; cursor: pointer; transition: fill 0.3s ease;"
           />
           ${this.is3DMode ? svg`
             <g class="room-3d-badge-group" transform="translate(${centroid.x}, ${centroid.y})">
@@ -1054,8 +1380,13 @@ export class HomeArchitectCanvas extends LitElement {
             </g>
           ` : svg`
             <g class="room-label-group" transform="translate(${centroid.x}, ${centroid.y})">
-              <text class="room-label-name" y="-6">${room.name}</text>
-              <text class="room-label-area" y="12">${room.areaM2.toFixed(1)} m²</text>
+              <text class="room-label-name" y="${roomTemp !== null ? -10 : -6}">${room.name}</text>
+              <text class="room-label-area" y="${roomTemp !== null ? 6 : 12}">${room.areaM2.toFixed(1)} m²</text>
+              ${roomTemp !== null ? svg`
+                <text class="room-label-temp" y="21" style="font-size: 9.5px; font-weight: 700; fill: #facc15; text-anchor: middle; font-family: ui-monospace, SFMono-Regular, monospace;">
+                  🌡️ ${roomTemp.toFixed(1)}°C
+                </text>
+              ` : null}
             </g>
           `}
         </g>
@@ -1187,18 +1518,25 @@ export class HomeArchitectCanvas extends LitElement {
       }
 
       // Rendu 2D classique
+      const dxWall = sEnd.x - sStart.x;
+      const dyWall = sEnd.y - sStart.y;
+      const distPx = Math.hypot(dxWall, dyWall) || 1;
+      const nx = -dyWall / distPx;
+      const ny = dxWall / distPx;
+
       return svg`
         <g 
           class="wall-element ${isWallSelected ? 'selected' : ''}" 
           data-wall-id="${wall.id}"
+          @pointerdown=${(e: PointerEvent) => this.handleWallPointerDown(wall, e)}
           @click=${(e: MouseEvent) => this.handleWallClick(e, wall)}
         >
           <polygon points="${pointsAttr}" class="wall-rect" />
           <line x1="${sStart.x}" y1="${sStart.y}" x2="${sEnd.x}" y2="${sEnd.y}" class="wall-centerline" />
           
-          ${lenMeters >= 0.6 ? svg`
-            <g class="dimension-badge" transform="translate(${mid.x}, ${mid.y - 14})">
-              <rect x="-26" y="-10" width="52" height="20" />
+          ${this.showDimensions && lenMeters >= 0.4 ? svg`
+            <g class="wall-dim-badge" transform="translate(${mid.x + nx * 14}, ${mid.y + ny * 14})">
+              <rect x="-24" y="-9" width="48" height="18" />
               <text>${SnappingEngine.roundMeters(lenMeters).toFixed(2)} m</text>
             </g>
           ` : null}
@@ -1324,6 +1662,12 @@ export class HomeArchitectCanvas extends LitElement {
       const isLightOn = binding.entityId.startsWith('light.') && stateStr === 'on';
       const isRadarActive = binding.entityId.startsWith('binary_sensor.') && (stateStr === 'on' || stateStr === 'detected');
       const isTempSensor = binding.entityId.startsWith('sensor.') || binding.entityId.startsWith('climate.');
+      const isFan = binding.entityId.startsWith('fan.');
+      const isFanOn = isFan && stateStr === 'on';
+      const isMediaPlayer = binding.entityId.startsWith('media_player.');
+      const isPlaying = isMediaPlayer && stateStr === 'playing';
+      const isCover = binding.entityId.startsWith('cover.');
+      const coverPos = entityState?.attributes?.current_position;
       const unit = entityState?.attributes?.unit_of_measurement || (isTempSensor ? '°' : '');
       const isBindingSelected = this.selectedElements?.bindingIds?.includes(binding.id);
 
@@ -1339,12 +1683,15 @@ export class HomeArchitectCanvas extends LitElement {
           <!-- Onde radar animée si mouvement détecté -->
           ${isRadarActive ? svg`<circle cx="0" cy="0" r="16" class="radar-pulse-ring" />` : null}
 
+          <!-- Ondes sonores pour lecteur multimédia actif -->
+          ${isPlaying ? svg`<circle cx="0" cy="0" r="16" class="soundwave-pulse" />` : null}
+
           <!-- Pastille de fond -->
           <circle cx="0" cy="0" r="16" class="entity-pin-bg" />
 
-          <!-- Pictogramme -->
-          <text x="0" y="0" class="entity-pin-icon">
-            ${binding.icon || '⚡'}
+          <!-- Pictogramme avec micro-animation (rotation ventilateur) -->
+          <text x="0" y="0" class="entity-pin-icon ${isFanOn ? 'fan-spin' : ''}">
+            ${binding.icon || (isFan ? '💨' : (isCover ? '🪟' : (isMediaPlayer ? '📺' : '⚡')))}
           </text>
 
           <!-- Étiquette Nom -->
@@ -1352,11 +1699,19 @@ export class HomeArchitectCanvas extends LitElement {
             ${binding.customName || binding.entityId.split('.')[1]}
           </text>
 
-          <!-- Badge Valeur (Thermostat / Capteur) -->
+          <!-- Badge Valeur (Thermostat / Capteur de température) -->
           ${isTempSensor && stateStr !== 'unknown' ? svg`
             <g class="entity-pin-value-badge" transform="translate(14, -14)">
               <rect x="-14" y="-8" width="28" height="16" />
               <text>${stateStr}${unit}</text>
+            </g>
+          ` : null}
+
+          <!-- Badge Position Volet roulant -->
+          ${isCover && coverPos !== undefined ? svg`
+            <g class="entity-pin-value-badge" transform="translate(14, -14)">
+              <rect x="-14" y="-8" width="28" height="16" />
+              <text>${coverPos}%</text>
             </g>
           ` : null}
         </g>
@@ -1479,6 +1834,90 @@ export class HomeArchitectCanvas extends LitElement {
     `;
   }
 
+  private renderGhostLayer() {
+    if (!this.ghostProject || !this.ghostProject.walls || this.ghostProject.walls.length === 0) return null;
+    const ppm = this.project.pixelsPerMeter * this.viewport.zoom;
+
+    return svg`
+      <g class="ghost-layer" opacity="0.45" pointer-events="none">
+        ${this.ghostProject.walls.map(w => {
+          const sStart = this.worldToScreen(w.start);
+          const sEnd = this.worldToScreen(w.end);
+          const thickPx = (w.thickness || 0.2) * ppm;
+          return svg`
+            <line 
+              x1="${sStart.x}" y1="${sStart.y}" 
+              x2="${sEnd.x}" y2="${sEnd.y}" 
+              class="ghost-wall" 
+              stroke-width="${thickPx}" 
+            />
+          `;
+        })}
+      </g>
+    `;
+  }
+
+  private renderSmartGuides() {
+    if (this.snapInfo.smartGuideX === undefined && this.snapInfo.smartGuideY === undefined) return null;
+
+    return svg`
+      <g class="smart-guides-group" pointer-events="none">
+        ${this.snapInfo.smartGuideX !== undefined ? svg`
+          <line 
+            x1="${this.worldToScreen({ x: this.snapInfo.smartGuideX, y: 0 }).x}" 
+            y1="-2000" 
+            x2="${this.worldToScreen({ x: this.snapInfo.smartGuideX, y: 0 }).x}" 
+            y2="6000" 
+            class="smart-guide-line" 
+          />
+        ` : null}
+        ${this.snapInfo.smartGuideY !== undefined ? svg`
+          <line 
+            x1="-2000" 
+            y1="${this.worldToScreen({ x: 0, y: this.snapInfo.smartGuideY }).y}" 
+            x2="6000" 
+            y2="${this.worldToScreen({ x: 0, y: this.snapInfo.smartGuideY }).y}" 
+            class="smart-guide-line" 
+          />
+        ` : null}
+      </g>
+    `;
+  }
+
+  private renderFurniture() {
+    const ppm = this.project.pixelsPerMeter * this.viewport.zoom;
+    return (this.project.furniture || []).map(item => {
+      const tmpl = findFurnitureTemplate(item.type);
+      const isSelected = this.selectedElements.furnitureIds?.includes(item.id) || false;
+      const sPos = this.worldToScreen(item.position);
+      const wMeters = item.width || tmpl?.width || 1;
+      const lMeters = item.length || tmpl?.length || 1;
+      const wPx = wMeters * ppm;
+      const lPx = lMeters * ppm;
+      const rot = item.rotation || 0;
+
+      return svg`
+        <g
+          class="furniture-group ${isSelected ? 'selected' : ''}"
+          data-furniture-id="${item.id}"
+          transform="translate(${sPos.x}, ${sPos.y}) rotate(${rot})"
+          @pointerdown=${(e: PointerEvent) => this.handleFurniturePointerDown(item, e)}
+          @click=${(e: MouseEvent) => this.handleFurnitureClick(e, item)}
+          title="${item.name} (${wMeters.toFixed(2)} × ${lMeters.toFixed(2)} m) - Touche R pour pivoter"
+        >
+          ${tmpl ? tmpl.renderSvg(wPx, lPx, isSelected) : svg`
+            <rect x="${-wPx/2}" y="${-lPx/2}" width="${wPx}" height="${lPx}" fill="rgba(30, 41, 59, 0.85)" stroke="${isSelected ? '#38bdf8' : '#94a3b8'}" stroke-width="1.5" rx="4" />
+            <text x="0" y="4" text-anchor="middle" font-size="12" fill="#cbd5e1">${item.icon || '📦'}</text>
+          `}
+          ${isSelected ? svg`
+            <circle cx="0" cy="${-lPx/2 - 12}" r="5" fill="#38bdf8" stroke="#ffffff" stroke-width="1.5" />
+            <line x1="0" y1="${-lPx/2}" x2="0" y2="${-lPx/2 - 12}" stroke="#38bdf8" stroke-width="1.2" stroke-dasharray="2,2" />
+          ` : null}
+        </g>
+      `;
+    });
+  }
+
   private renderSnapIndicator() {
     if (!this.previewPoint || this.snapInfo.snappedTo === 'none') return null;
 
@@ -1562,14 +2001,17 @@ export class HomeArchitectCanvas extends LitElement {
         >
           <svg class="main-viewport">
             ${this.renderBackgroundLayer()}
+            ${this.renderGhostLayer()}
             ${this.renderGrid()}
             ${this.renderRooms()}
+            ${this.renderFurniture()}
             ${this.renderWalls()}
             ${this.renderOpenings()}
             ${this.renderOpeningPreview()}
             ${this.renderPreviewWall()}
             ${this.renderCalibrationLine()}
             ${this.renderRescaleLine()}
+            ${this.renderSmartGuides()}
             ${this.renderSnapIndicator()}
             ${this.renderEntityBindings()}
             ${this.renderMarqueeBox()}

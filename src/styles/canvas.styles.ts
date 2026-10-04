@@ -252,6 +252,92 @@ export const canvasStyles = css`
     opacity: 0.8;
   }
 
+  /* Smart Guides orthogonaux */
+  .smart-guide-line {
+    stroke: #d946ef;
+    stroke-width: 1.5;
+    stroke-dasharray: 4, 3;
+    opacity: 0.85;
+    pointer-events: none;
+    filter: drop-shadow(0 0 4px rgba(217, 70, 239, 0.6));
+  }
+
+  /* Cotation dynamique automatique des murs */
+  .wall-dim-badge {
+    pointer-events: none;
+    user-select: none;
+  }
+
+  .wall-dim-badge rect {
+    fill: rgba(15, 23, 42, 0.82);
+    stroke: rgba(148, 163, 184, 0.35);
+    stroke-width: 0.8;
+    rx: 3;
+  }
+
+  .wall-dim-badge text {
+    fill: #cbd5e1;
+    font-size: 9.5px;
+    font-weight: 700;
+    text-anchor: middle;
+    dominant-baseline: central;
+    font-family: ui-monospace, SFMono-Regular, monospace;
+  }
+
+  /* Meubles & Sanitaires architecturaux */
+  .furniture-group {
+    cursor: grab;
+    transition: filter 0.15s ease;
+  }
+
+  .furniture-group:active {
+    cursor: grabbing;
+  }
+
+  .furniture-group:hover .furniture-symbol {
+    stroke: #38bdf8;
+    filter: drop-shadow(0 0 8px rgba(56, 189, 248, 0.5));
+  }
+
+  .furniture-group.selected .furniture-symbol {
+    stroke: #06b6d4 !important;
+    stroke-width: 2.2 !important;
+    filter: drop-shadow(0 0 12px rgba(6, 182, 212, 0.8)) !important;
+  }
+
+  /* Calque fantôme niveau inférieur (Onion Skinning) */
+  .ghost-wall {
+    stroke: rgba(148, 163, 184, 0.42);
+    stroke-width: 2;
+    stroke-dasharray: 5, 4;
+    fill: none;
+    pointer-events: none;
+  }
+
+  /* Animations Micro-domotique */
+  .fan-spin {
+    animation: spinFan 1.2s infinite linear;
+    transform-origin: center;
+    transform-box: fill-box;
+  }
+
+  @keyframes spinFan {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+
+  .soundwave-pulse {
+    fill: none;
+    stroke: #a855f7;
+    stroke-width: 1.8;
+    animation: soundWave 1.4s infinite ease-out;
+  }
+
+  @keyframes soundWave {
+    0% { r: 14px; opacity: 0.9; stroke: #38bdf8; }
+    100% { r: 34px; opacity: 0; stroke: #a855f7; }
+  }
+
   /* Dimension badges */
   .dimension-badge {
     pointer-events: none;

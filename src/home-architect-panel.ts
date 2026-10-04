@@ -181,6 +181,34 @@ export class HomeArchitectPanel extends LitElement {
       box-shadow: 0 0 14px rgba(56, 189, 248, 0.45);
     }
 
+    button.btn-toggle-option {
+      background: rgba(15, 23, 42, 0.6);
+      color: #94a3b8;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 8px;
+      padding: 6px 11px;
+      font-size: 0.83rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      transition: all 0.2s ease;
+    }
+
+    button.btn-toggle-option:hover {
+      background: rgba(51, 65, 85, 0.8);
+      color: #f1f5f9;
+      border-color: #38bdf8;
+    }
+
+    button.btn-toggle-option.active {
+      background: rgba(56, 189, 248, 0.18);
+      color: #38bdf8;
+      border-color: #38bdf8;
+      box-shadow: 0 0 10px rgba(56, 189, 248, 0.3);
+    }
+
     button.btn-drawer {
       background: rgba(56, 189, 248, 0.15);
       color: #38bdf8;
@@ -510,6 +538,18 @@ export class HomeArchitectPanel extends LitElement {
   private activeLevel: string = 'rdc';
 
   @state()
+  private showDimensions: boolean = true;
+
+  @state()
+  private showThermalHeatmap: boolean = false;
+
+  @state()
+  private showGhostLevel: boolean = false;
+
+  @state()
+  private levelProjects: Record<string, HomeArchitectProject> = {};
+
+  @state()
   private is3DMode: boolean = false;
 
   @state()
@@ -544,7 +584,8 @@ export class HomeArchitectPanel extends LitElement {
     wallIds: [],
     openingIds: [],
     roomIds: [],
-    bindingIds: []
+    bindingIds: [],
+    furnitureIds: []
   };
 
   @state()
@@ -1178,9 +1219,77 @@ export class HomeArchitectPanel extends LitElement {
     this.showToast('↪️ Action rétablie');
   }
 
+  private getGhostProject(): HomeArchitectProject | null {
+    if (!this.showGhostLevel) return null;
+    let ghostId: string | null = null;
+    if (this.activeLevel === 'etage1') ghostId = 'rdc';
+    else if (this.activeLevel === 'rdc') ghostId = 'sous-sol';
+    if (!ghostId) return null;
+    return this.levelProjects[ghostId] || null;
+  }
+
+  private handleLevelSwitch(newLevel: string) {
+    if (this.activeLevel === newLevel) return;
+    this.levelProjects[this.activeLevel] = { ...this.project };
+    this.activeLevel = newLevel;
+
+    if (this.levelProjects[newLevel]) {
+      this.project = { ...this.levelProjects[newLevel] };
+    } else {
+      const levelNames: Record<string, string> = {
+        'sous-sol': 'Sous-Sol',
+        'rdc': 'Rez-de-Chaussée',
+        'etage1': '1er Étage',
+        'jardin': 'Jardin'
+      };
+      this.project = {
+        id: newLevel,
+        name: levelNames[newLevel] || newLevel,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        pixelsPerMeter: 50,
+        grid: {
+          size: 0.5,
+          subdivisions: 2,
+          snapToGrid: true,
+          snapToAngles: true,
+          snapToElements: true
+        },
+        walls: [],
+        openings: [],
+        rooms: [],
+        bindings: [],
+        furniture: []
+      };
+      this.levelProjects[newLevel] = { ...this.project };
+    }
+
+    this.undoStack = [];
+    this.redoStack = [];
+    this.clearSelection();
+    this.showToast(`Étage sélectionné : ${this.project.name}`);
+  }
+
+  private rotateSelectedFurniture() {
+    if (!this.selectedElements.furnitureIds || this.selectedElements.furnitureIds.length === 0) return;
+    this.pushUndoSnapshot();
+    const furnIds = this.selectedElements.furnitureIds;
+    const newFurniture = (this.project.furniture || []).map(f => {
+      if (furnIds.includes(f.id)) {
+        return {
+          ...f,
+          rotation: ((f.rotation || 0) + 90) % 360
+        };
+      }
+      return f;
+    });
+    this.project = { ...this.project, furniture: newFurniture };
+    this.showToast('🔄 Meuble pivoté de 90°');
+  }
+
   private handleDeleteSelected() {
-    const { wallIds, openingIds, roomIds, bindingIds } = this.selectedElements;
-    const total = wallIds.length + openingIds.length + roomIds.length + bindingIds.length;
+    const { wallIds, openingIds, roomIds, bindingIds, furnitureIds = [] } = this.selectedElements;
+    const total = wallIds.length + openingIds.length + roomIds.length + bindingIds.length + furnitureIds.length;
     if (total === 0) return;
 
     this.pushUndoSnapshot();
@@ -1191,21 +1300,23 @@ export class HomeArchitectPanel extends LitElement {
     );
     const remainingRooms = this.project.rooms.filter(r => !roomIds.includes(r.id));
     const remainingBindings = this.project.bindings.filter(b => !bindingIds.includes(b.id));
+    const remainingFurniture = (this.project.furniture || []).filter(f => !furnitureIds.includes(f.id));
 
     this.project = {
       ...this.project,
       walls: remainingWalls,
       openings: remainingOpenings,
       rooms: remainingRooms,
-      bindings: remainingBindings
+      bindings: remainingBindings,
+      furniture: remainingFurniture
     };
 
-    this.selectedElements = { wallIds: [], openingIds: [], roomIds: [], bindingIds: [] };
+    this.selectedElements = { wallIds: [], openingIds: [], roomIds: [], bindingIds: [], furnitureIds: [] };
     this.showToast(`🗑️ ${total} élément${total > 1 ? 's' : ''} supprimé${total > 1 ? 's' : ''} !`);
   }
 
   private clearSelection() {
-    this.selectedElements = { wallIds: [], openingIds: [], roomIds: [], bindingIds: [] };
+    this.selectedElements = { wallIds: [], openingIds: [], roomIds: [], bindingIds: [], furnitureIds: [] };
   }
 
   private getSelectedSummary(): string {
@@ -1221,6 +1332,9 @@ export class HomeArchitectPanel extends LitElement {
     }
     if (this.selectedElements.bindingIds.length > 0) {
       parts.push(`${this.selectedElements.bindingIds.length} entité${this.selectedElements.bindingIds.length > 1 ? 's' : ''}`);
+    }
+    if (this.selectedElements.furnitureIds && this.selectedElements.furnitureIds.length > 0) {
+      parts.push(`${this.selectedElements.furnitureIds.length} meuble${this.selectedElements.furnitureIds.length > 1 ? 's' : ''}`);
     }
     return parts.join(', ');
   }
@@ -1241,13 +1355,19 @@ export class HomeArchitectPanel extends LitElement {
       const total = this.selectedElements.wallIds.length + 
                     this.selectedElements.openingIds.length + 
                     this.selectedElements.roomIds.length + 
-                    this.selectedElements.bindingIds.length;
+                    this.selectedElements.bindingIds.length +
+                    (this.selectedElements.furnitureIds?.length || 0);
       if (total > 0) {
         e.preventDefault();
         this.handleDeleteSelected();
       }
     } else if (e.key === 'Escape') {
       this.clearSelection();
+    } else if (e.key.toLowerCase() === 'r') {
+      if (this.selectedElements.furnitureIds && this.selectedElements.furnitureIds.length > 0) {
+        e.preventDefault();
+        this.rotateSelectedFurniture();
+      }
     } else if (e.key.toLowerCase() === 'v') {
       this.activeTool = 'select';
     }
@@ -1283,10 +1403,10 @@ export class HomeArchitectPanel extends LitElement {
         </div>
 
         <div class="level-selector">
-          <button class="level-btn ${this.activeLevel === 'sous-sol' ? 'active' : ''}" @click=${() => this.activeLevel = 'sous-sol'}>Sous-Sol</button>
-          <button class="level-btn ${this.activeLevel === 'rdc' ? 'active' : ''}" @click=${() => this.activeLevel = 'rdc'}>RDC</button>
-          <button class="level-btn ${this.activeLevel === 'etage1' ? 'active' : ''}" @click=${() => this.activeLevel = 'etage1'}>1er Étage</button>
-          <button class="level-btn ${this.activeLevel === 'jardin' ? 'active' : ''}" @click=${() => this.activeLevel = 'jardin'}>Jardin</button>
+          <button class="level-btn ${this.activeLevel === 'sous-sol' ? 'active' : ''}" @click=${() => this.handleLevelSwitch('sous-sol')}>Sous-Sol</button>
+          <button class="level-btn ${this.activeLevel === 'rdc' ? 'active' : ''}" @click=${() => this.handleLevelSwitch('rdc')}>RDC</button>
+          <button class="level-btn ${this.activeLevel === 'etage1' ? 'active' : ''}" @click=${() => this.handleLevelSwitch('etage1')}>1er Étage</button>
+          <button class="level-btn ${this.activeLevel === 'jardin' ? 'active' : ''}" @click=${() => this.handleLevelSwitch('jardin')}>Jardin</button>
         </div>
 
         <div class="top-controls">
@@ -1309,6 +1429,34 @@ export class HomeArchitectPanel extends LitElement {
               ↪️ Rétablir
             </button>
           </div>
+
+          <!-- Bascules Phase 1 & Phase 2 -->
+          <button 
+            class="btn-toggle-option ${this.showDimensions ? 'active' : ''}" 
+            @click=${() => this.showDimensions = !this.showDimensions}
+            title="Afficher / Masquer les cotes dynamiques sur les murs"
+          >
+            <span>📏</span>
+            <span>Cotes</span>
+          </button>
+
+          <button 
+            class="btn-toggle-option ${this.showThermalHeatmap ? 'active' : ''}" 
+            @click=${() => this.showThermalHeatmap = !this.showThermalHeatmap}
+            title="Afficher la carte thermique des températures des pièces"
+          >
+            <span>🌡️</span>
+            <span>Thermique</span>
+          </button>
+
+          <button 
+            class="btn-toggle-option ${this.showGhostLevel ? 'active' : ''}" 
+            @click=${() => this.showGhostLevel = !this.showGhostLevel}
+            title="Afficher l'étage inférieur en filigrane (Onion Skinning) pour aligner les murs porteurs"
+          >
+            <span>👁️</span>
+            <span>Filigrane</span>
+          </button>
 
           <!-- Bouton Importer un plan (Automatisé) -->
           <button class="btn-import" @click=${() => this.isImportModalOpen = true} title="Importer et calibrer un plan image (PNG, JPG, SVG)">
@@ -1462,6 +1610,9 @@ export class HomeArchitectPanel extends LitElement {
             .windowSashCount=${this.windowSashCount}
             .is3DMode=${this.is3DMode}
             .selectedElements=${this.selectedElements}
+            .showDimensions=${this.showDimensions}
+            .showThermalHeatmap=${this.showThermalHeatmap}
+            .ghostProject=${this.getGhostProject()}
             @selection-changed=${(e: any) => this.selectedElements = e.detail.selectedElements}
             @request-delete-selected=${this.handleDeleteSelected}
             @toggle-3d=${(e: any) => this.is3DMode = e.detail.is3DMode}
@@ -1476,7 +1627,8 @@ export class HomeArchitectPanel extends LitElement {
           ${(this.selectedElements.wallIds.length + 
              this.selectedElements.openingIds.length + 
              this.selectedElements.roomIds.length + 
-             this.selectedElements.bindingIds.length) > 0 ? html`
+             this.selectedElements.bindingIds.length + 
+             (this.selectedElements.furnitureIds?.length || 0)) > 0 ? html`
             <div class="selection-hud">
               <span class="selection-info">
                 <span>🎯</span>
@@ -1511,6 +1663,13 @@ export class HomeArchitectPanel extends LitElement {
                   <button class="hud-opt-btn ${this.windowSashCount === 1 ? 'active' : ''}" @click=${() => this.updateSelectedWindowConfig('window', 1, 0.90)} title="Fenêtre 1 ouvrant (90 cm)">1 Ouvrant</button>
                   <button class="hud-opt-btn ${this.windowSashCount === 2 ? 'active' : ''}" @click=${() => this.updateSelectedWindowConfig('window', 2, 1.40)} title="Fenêtre 2 battants (1.40 m)">2 Battants</button>
                   <button class="hud-opt-btn" @click=${() => this.updateSelectedWindowConfig('french_window', 2, 2.00)} title="Baie vitrée coulissante (2.00 m)">Baie vitrée</button>
+                </div>
+              ` : null}
+
+              ${(this.selectedElements.furnitureIds?.length || 0) > 0 ? html`
+                <div class="hud-options-group">
+                  <span class="hud-label">Meuble :</span>
+                  <button class="hud-opt-btn active" @click=${this.rotateSelectedFurniture} title="Pivoter les meubles de 90° (Touche R)">🔄 Pivoter 90° (R)</button>
                 </div>
               ` : null}
 

@@ -83,6 +83,11 @@ export interface HomeArchitectProject {
   openings: Opening[];
   rooms: Room[];
   bindings: EntityBinding[];
+  furniture?: FurnitureItem[];
+  showDimensions?: boolean;
+  showThermalHeatmap?: boolean;
+  showGhostLevel?: boolean;
+  ghostLevelId?: string;
 }
 
 export type ActiveTool = 
@@ -128,4 +133,28 @@ export interface SelectedElements {
   openingIds: string[];
   roomIds: string[];
   bindingIds: string[];
+  furnitureIds?: string[];
+}
+
+export type FurnitureCategory = 'seating' | 'bed' | 'table' | 'kitchen' | 'bathroom' | 'storage' | 'other';
+
+export interface FurnitureItem {
+  id: string;
+  type: string;
+  name: string;
+  category: FurnitureCategory;
+  position: Point; // in meters
+  width: number;   // in meters
+  length: number;  // in meters
+  rotation: number; // 0, 90, 180, 270 degrees
+  roomId?: string;
+  color?: string;
+  icon?: string;
+}
+
+export interface SmartGuide {
+  type: 'x' | 'y';
+  position: number; // In meters
+  start: number;    // In meters
+  end: number;      // In meters
 }
