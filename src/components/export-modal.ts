@@ -517,6 +517,7 @@ export class HomeArchitectExportModal extends LitElement {
         includeRooms: true,
         includeWalls: true,
         includeOpenings: true,
+        includeFurniture: true,
         includeRoomLabels: true,
         includeEntityMarkers: false,
         includeBackground: true,
@@ -603,6 +604,7 @@ export class HomeArchitectExportModal extends LitElement {
       includeRooms: true,
       includeWalls: true,
       includeOpenings: true,
+      includeFurniture: true,
       includeRoomLabels: true,
       includeEntityMarkers: false,
       includeBackground: true,
@@ -640,8 +642,9 @@ export class HomeArchitectExportModal extends LitElement {
     const sensors = bindings.filter(b => b.entityId.startsWith('sensor.') || b.entityId.startsWith('climate.')).length;
     const switches = bindings.filter(b => b.entityId.startsWith('switch.')).length;
     const rooms = this.project?.rooms?.length || 0;
+    const furniture = this.project?.furniture?.length || 0;
 
-    return { lights, radars, sensors, switches, rooms, total: bindings.length };
+    return { lights, radars, sensors, switches, rooms, furniture, total: bindings.length };
   }
 
   render() {
@@ -650,6 +653,7 @@ export class HomeArchitectExportModal extends LitElement {
       includeRooms: true,
       includeWalls: true,
       includeOpenings: true,
+      includeFurniture: true,
       includeRoomLabels: true,
       includeEntityMarkers: false,
       includeBackground: true,
@@ -733,6 +737,12 @@ export class HomeArchitectExportModal extends LitElement {
               <span>🔌</span>
               <span><strong>${summary.switches}</strong> prise(s) / switch</span>
             </div>
+            ${summary.furniture > 0 ? html`
+              <div class="stat-badge">
+                <span>🛋️</span>
+                <span><strong>${summary.furniture}</strong> meuble(s)</span>
+              </div>
+            ` : ''}
           </div>
 
           <!-- Onglet 1 : Carte Native picture-elements -->

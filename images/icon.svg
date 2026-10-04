@@ -1,0 +1,125 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <!-- Background Gradient -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0b1329" />
+      <stop offset="50%" stop-color="#0f172a" />
+      <stop offset="100%" stop-color="#1e293b" />
+    </linearGradient>
+
+    <!-- Cyan Glow Filter -->
+    <filter id="neonGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="6" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+
+    <!-- Wall Linear Gradient -->
+    <linearGradient id="wallGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8" />
+      <stop offset="100%" stop-color="#0284c7" />
+    </linearGradient>
+
+    <!-- Floor Gradient -->
+    <linearGradient id="floorGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="rgba(56, 189, 248, 0.12)" />
+      <stop offset="100%" stop-color="rgba(2, 132, 199, 0.04)" />
+    </linearGradient>
+
+    <!-- Compass Gradient -->
+    <linearGradient id="compassGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#e2e8f0" />
+      <stop offset="100%" stop-color="#94a3b8" />
+    </linearGradient>
+  </defs>
+
+  <!-- Squircle App Icon Container -->
+  <rect x="16" y="16" width="480" height="480" rx="108" fill="url(#bgGrad)" stroke="rgba(56, 189, 248, 0.35)" stroke-width="4" />
+
+  <!-- Blueprint Grid Pattern -->
+  <g stroke="rgba(56, 189, 248, 0.08)" stroke-width="1.5">
+    <!-- Horizontal & Vertical lines -->
+    <line x1="16" y1="110" x2="496" y2="110" />
+    <line x1="16" y1="180" x2="496" y2="180" />
+    <line x1="16" y1="256" x2="496" y2="256" />
+    <line x1="16" y1="332" x2="496" y2="332" />
+    <line x1="16" y1="402" x2="496" y2="402" />
+    
+    <line x1="110" y1="16" x2="110" y2="496" />
+    <line x1="180" y1="16" x2="180" y2="496" />
+    <line x1="256" y1="16" x2="256" y2="496" />
+    <line x1="332" y1="16" x2="332" y2="496" />
+    <line x1="402" y1="16" x2="402" y2="496" />
+  </g>
+
+  <!-- Isometric Blueprint Plan Group -->
+  <g transform="translate(10, 20)">
+    <!-- Floor Polygons -->
+    <polygon points="120,310 256,230 392,310 256,390" fill="url(#floorGrad)" stroke="rgba(56, 189, 248, 0.25)" stroke-width="1.5" stroke-dasharray="4,4" />
+
+    <!-- Exterior Isometric Walls -->
+    <!-- Base Bottom-Left Wall -->
+    <polygon points="120,310 120,250 256,170 256,230" fill="rgba(15, 23, 42, 0.85)" stroke="#38bdf8" stroke-width="4" stroke-linejoin="round" filter="url(#neonGlow)" />
+    <!-- Base Bottom-Right Wall -->
+    <polygon points="256,230 256,170 392,250 392,310" fill="rgba(30, 41, 59, 0.85)" stroke="#0284c7" stroke-width="4" stroke-linejoin="round" filter="url(#neonGlow)" />
+
+    <!-- Front Left Wall -->
+    <polygon points="120,310 120,250 200,298 200,358" fill="rgba(30, 41, 59, 0.9)" stroke="#38bdf8" stroke-width="3.5" stroke-linejoin="round" />
+    <!-- Front Right Wall -->
+    <polygon points="200,358 200,298 256,330 256,390" fill="rgba(15, 23, 42, 0.9)" stroke="#38bdf8" stroke-width="3.5" stroke-linejoin="round" />
+
+    <!-- Interior Room Partitions -->
+    <line x1="180" y1="215" x2="256" y2="260" stroke="#38bdf8" stroke-width="3" stroke-linecap="round" />
+    <line x1="256" y1="260" x2="330" y2="215" stroke="#38bdf8" stroke-width="3" stroke-linecap="round" />
+    <line x1="256" y1="260" x2="256" y2="330" stroke="#0284c7" stroke-width="3" stroke-linecap="round" />
+
+    <!-- Architectural Openings (Door & Windows) -->
+    <!-- Door Cutout -->
+    <rect x="220" y="325" width="22" height="38" transform="skewY(30)" fill="rgba(56, 189, 248, 0.15)" stroke="#38bdf8" stroke-width="2" />
+    <!-- Window Left -->
+    <polygon points="145,280 145,260 175,242 175,262" fill="rgba(56, 189, 248, 0.2)" stroke="#38bdf8" stroke-width="2" />
+    <!-- Window Right -->
+    <polygon points="335,262 335,242 365,260 365,280" fill="rgba(56, 189, 248, 0.2)" stroke="#38bdf8" stroke-width="2" />
+
+    <!-- Smart Home Nodes (IoT Connectivity) -->
+    <g>
+      <!-- Living room node -->
+      <line x1="195" y1="255" x2="235" y2="280" stroke="#f59e0b" stroke-width="2" stroke-dasharray="3,3" />
+      <circle cx="195" cy="255" r="7" fill="#f59e0b" stroke="#ffffff" stroke-width="2" filter="url(#neonGlow)" />
+      
+      <!-- Central Hub node -->
+      <line x1="235" y1="280" x2="295" y2="245" stroke="#38bdf8" stroke-width="2" stroke-dasharray="3,3" />
+      <circle cx="235" cy="280" r="9" fill="#06b6d4" stroke="#ffffff" stroke-width="2.5" filter="url(#neonGlow)" />
+      
+      <!-- Bedroom node -->
+      <circle cx="295" cy="245" r="7" fill="#38bdf8" stroke="#ffffff" stroke-width="2" filter="url(#neonGlow)" />
+    </g>
+  </g>
+
+  <!-- Architect Drafting Compass (Top Right Overhang) -->
+  <g transform="translate(345, 80) scale(1.15)">
+    <!-- Compass Top Ring & Joint -->
+    <circle cx="0" cy="25" r="14" fill="#0f172a" stroke="#38bdf8" stroke-width="4" />
+    <circle cx="0" cy="25" r="6" fill="#38bdf8" />
+    <rect x="-3" y="2" width="6" height="12" rx="3" fill="#38bdf8" />
+
+    <!-- Left Leg -->
+    <line x1="-5" y1="36" x2="-35" y2="135" stroke="url(#compassGrad)" stroke-width="6" stroke-linecap="round" />
+    <!-- Right Leg with Pointer -->
+    <line x1="5" y1="36" x2="35" y2="135" stroke="url(#compassGrad)" stroke-width="6" stroke-linecap="round" />
+    
+    <!-- Adjustment Arch / Crossbar -->
+    <path d="M -22 85 Q 0 95 22 85" fill="none" stroke="#38bdf8" stroke-width="2.5" stroke-dasharray="2,2" />
+    <circle cx="0" cy="91" r="4" fill="#38bdf8" stroke="#ffffff" stroke-width="1.5" />
+
+    <!-- Steel Point Tips -->
+    <polygon points="-35,135 -38,150 -32,137" fill="#e2e8f0" />
+    <polygon points="35,135 32,137 38,150" fill="#38bdf8" filter="url(#neonGlow)" />
+  </g>
+
+  <!-- Glowing Accent Sparkle -->
+  <circle cx="388" cy="252" r="3" fill="#ffffff" filter="url(#neonGlow)" />
+  <circle cx="120" cy="220" r="2.5" fill="#38bdf8" filter="url(#neonGlow)" />
+</svg>

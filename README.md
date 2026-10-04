@@ -1,8 +1,18 @@
-# 📐 Home Architect (DomoLink Plan)
+<p align="center">
+  <img src="images/logo.png" alt="Home Architect Logo" width="720" />
+</p>
 
-**Home Architect** est une intégration Home Assistant clé en main (compatible HACS) permettant de concevoir, vectoriser, et animer des plans de maison 2D/3D interactifs directement dans le navigateur, sans dépendre d'un logiciel tiers (comme Inkscape ou Sweet Home 3D).
+<p align="center">
+  <strong>Le studio de CAO et de plans d'étage interactifs pour Home Assistant & Lovelace</strong><br/>
+  <em>Concevez, meublez, cotez et animez vos plans en 2D/3D directement dans votre navigateur.</em>
+</p>
 
-Inspiré de la brique *Plan Interactif* de **DomoLink**, cette intégration offre une ergonomie "UX First" pour les débutants tout en proposant des outils de CAO vectoriels puissants pour les utilisateurs avancés.
+<p align="center">
+  <img src="https://img.shields.io/badge/version-1.0.18-blue.svg?style=flat-square" alt="Version 1.0.18" />
+  <img src="https://img.shields.io/badge/HACS-Custom_Integration-orange.svg?style=flat-square" alt="HACS" />
+  <img src="https://img.shields.io/badge/Home_Assistant-2024.1+-blueviolet.svg?style=flat-square" alt="Home Assistant" />
+  <img src="https://img.shields.io/badge/license-MIT-green.svg?style=flat-square" alt="License" />
+</p>
 
 ---
 
