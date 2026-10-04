@@ -443,6 +443,33 @@ export class HomeArchitectExportModal extends LitElement {
     .btn-refresh-sync:hover {
       background: rgba(255, 255, 255, 0.2);
     }
+
+    /* Notification flottante de copie */
+    .copy-floating-toast {
+      position: absolute;
+      top: 18px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #059669;
+      border: 1px solid #10b981;
+      color: #ffffff;
+      padding: 10px 22px;
+      border-radius: 12px;
+      font-size: 0.9rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7), 0 0 20px rgba(16, 185, 129, 0.5);
+      z-index: 200;
+      animation: popToast 0.25s ease-out;
+      pointer-events: none;
+    }
+
+    @keyframes popToast {
+      from { transform: translate(-50%, -10px); opacity: 0; }
+      to { transform: translate(-50%, 0); opacity: 1; }
+    }
   `;
 
   @property({ type: Object })
@@ -521,12 +548,54 @@ export class HomeArchitectExportModal extends LitElement {
   }
 
   private copyCode(text: string): void {
-    navigator.clipboard.writeText(text).then(() => {
+    const onSuccess = () => {
       this.copiedToast = true;
       setTimeout(() => {
         this.copiedToast = false;
       }, 2500);
-    });
+    };
+
+    if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+      navigator.clipboard.writeText(text)
+        .then(onSuccess)
+        .catch((err) => {
+          console.warn('navigator.clipboard.writeText rejected, attempting fallback:', err);
+          this.copyFallback(text, onSuccess);
+        });
+    } else {
+      this.copyFallback(text, onSuccess);
+    }
+  }
+
+  private copyFallback(text: string, onSuccess: () => void): void {
+    try {
+      const textArea = document.createElement('textarea');
+      textArea.value = text;
+      textArea.style.position = 'fixed';
+      textArea.style.top = '0';
+      textArea.style.left = '0';
+      textArea.style.width = '2em';
+      textArea.style.height = '2em';
+      textArea.style.padding = '0';
+      textArea.style.border = 'none';
+      textArea.style.outline = 'none';
+      textArea.style.boxShadow = 'none';
+      textArea.style.background = 'transparent';
+      textArea.style.opacity = '0';
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      const successful = document.execCommand('copy');
+      document.body.removeChild(textArea);
+      if (successful) {
+        onSuccess();
+      } else {
+        prompt('Copiez le code YAML ci-dessous :', text);
+      }
+    } catch (err) {
+      console.error('Fallback copy failed:', err);
+      prompt('Copiez le code YAML ci-dessous :', text);
+    }
   }
 
   private downloadSvg(): void {
@@ -753,9 +822,23 @@ export class HomeArchitectExportModal extends LitElement {
             ` : null}
 
             <!-- Bloc de code YAML -->
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 6px;">
+              <span style="font-size: 0.9rem; font-weight: 700; color: #38bdf8; display: flex; align-items: center; gap: 6px;">
+                <span>📋</span>
+                <span>Code Lovelace prêt à coller :</span>
+              </span>
+              <button 
+                class="btn-action ${this.copiedToast ? 'emerald' : ''}" 
+                style="padding: 8px 18px; font-size: 0.88rem; font-weight: 700;"
+                @click=${() => this.copyCode(picElemYaml)}
+              >
+                <span>${this.copiedToast ? '✅ Copié !' : '📋 Copier le YAML'}</span>
+              </button>
+            </div>
+
             <div class="code-container">
               <div class="code-header">
-                <span>Code YAML prêt à copier</span>
+                <span>Code YAML Picture-Elements</span>
                 <button 
                   class="btn-copy ${this.copiedToast ? 'copied' : ''}" 
                   @click=${() => this.copyCode(picElemYaml)}
@@ -785,7 +868,7 @@ export class HomeArchitectExportModal extends LitElement {
               <div class="guide-step">
                 <span class="guide-num">2</span>
                 <div>
-                  Cliquez sur <strong>Copier le YAML</strong> ci-dessus.
+                  Cliquez sur <strong>Copier le YAML dans le presse-papier</strong>.
                 </div>
               </div>
               <div class="guide-step">
@@ -833,6 +916,20 @@ export class HomeArchitectExportModal extends LitElement {
                   🧊 Vue 3D Isométrique
                 </button>
               </div>
+            </div>
+
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 6px;">
+              <span style="font-size: 0.9rem; font-weight: 700; color: #c084fc; display: flex; align-items: center; gap: 6px;">
+                <span>📋</span>
+                <span>Code Lovelace prêt à coller :</span>
+              </span>
+              <button 
+                class="btn-action ${this.copiedToast ? 'emerald' : 'purple'}" 
+                style="padding: 8px 18px; font-size: 0.88rem; font-weight: 700;"
+                @click=${() => this.copyCode(customCardYaml)}
+              >
+                <span>${this.copiedToast ? '✅ Copié !' : '📋 Copier le YAML'}</span>
+              </button>
             </div>
 
             <!-- Bloc de code YAML -->
@@ -893,9 +990,27 @@ export class HomeArchitectExportModal extends LitElement {
           ` : null}
         </div>
 
+        <!-- Notification Toast Flottante -->
+        ${this.copiedToast ? html`
+          <div class="copy-floating-toast">
+            <span>✅</span>
+            <span>Code YAML copié dans le presse-papier !</span>
+          </div>
+        ` : null}
+
         <!-- Pied de page -->
         <div class="modal-footer">
           <button class="btn-secondary" @click=${this.handleClose}>Fermer</button>
+          ${this.activeTab !== 'raw_files' ? html`
+            <button 
+              class="btn-action ${this.copiedToast ? 'emerald' : (this.activeTab === 'custom_card' ? 'purple' : '')}" 
+              style="padding: 10px 22px; font-size: 0.92rem; font-weight: 700; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 4px 15px rgba(2, 132, 199, 0.4);"
+              @click=${() => this.copyCode(this.activeTab === 'picture_elements' ? picElemYaml : customCardYaml)}
+            >
+              <span>📋</span>
+              <span>${this.copiedToast ? '✅ Copié dans le presse-papier !' : 'Copier le YAML dans le presse-papier'}</span>
+            </button>
+          ` : null}
         </div>
       </div>
     `;
