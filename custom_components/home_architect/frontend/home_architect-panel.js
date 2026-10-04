@@ -45,10 +45,10 @@ const Ct = (t) => new vt(typeof t == "string" ? t : t + "", void 0, et), ie = (t
  * Copyright 2017 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
  */
-const { is: Pt, defineProperty: It, getOwnPropertyDescriptor: _t, getOwnPropertyNames: Tt, getOwnPropertySymbols: Et, getPrototypeOf: jt } = Object, be = globalThis, rt = be.trustedTypes, Dt = rt ? rt.emptyScript : "", Ge = be.reactiveElementPolyfillSupport, ze = (t, e) => t, Ue = { toAttribute(t, e) {
+const { is: Pt, defineProperty: It, getOwnPropertyDescriptor: _t, getOwnPropertyNames: Tt, getOwnPropertySymbols: Et, getPrototypeOf: Dt } = Object, be = globalThis, rt = be.trustedTypes, jt = rt ? rt.emptyScript : "", Ve = be.reactiveElementPolyfillSupport, ze = (t, e) => t, Ue = { toAttribute(t, e) {
   switch (e) {
     case Boolean:
-      t = t ? Dt : null;
+      t = t ? jt : null;
       break;
     case Object:
     case Array:
@@ -104,7 +104,7 @@ let Me = class extends HTMLElement {
   }
   static _$Ei() {
     if (this.hasOwnProperty(ze("elementProperties"))) return;
-    const e = jt(this);
+    const e = Dt(this);
     e.finalize(), e.l !== void 0 && (this.l = [...e.l]), this.elementProperties = new Map(e.elementProperties);
   }
   static finalize() {
@@ -278,28 +278,28 @@ let Me = class extends HTMLElement {
   firstUpdated(e) {
   }
 };
-Me.elementStyles = [], Me.shadowRootOptions = { mode: "open" }, Me[ze("elementProperties")] = /* @__PURE__ */ new Map(), Me[ze("finalized")] = /* @__PURE__ */ new Map(), Ge == null || Ge({ ReactiveElement: Me }), (be.reactiveElementVersions ?? (be.reactiveElementVersions = [])).push("2.1.2");
+Me.elementStyles = [], Me.shadowRootOptions = { mode: "open" }, Me[ze("elementProperties")] = /* @__PURE__ */ new Map(), Me[ze("finalized")] = /* @__PURE__ */ new Map(), Ve == null || Ve({ ReactiveElement: Me }), (be.reactiveElementVersions ?? (be.reactiveElementVersions = [])).push("2.1.2");
 /**
  * @license
  * Copyright 2017 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
  */
 const Fe = globalThis, at = (t) => t, Be = Fe.trustedTypes, lt = Be ? Be.createPolicy("lit-html", { createHTML: (t) => t }) : void 0, yt = "$lit$", fe = `lit$${Math.random().toFixed(9).slice(2)}$`, wt = "?" + fe, zt = `<${wt}>`, ye = document, Oe = () => ye.createComment(""), Ae = (t) => t === null || typeof t != "object" && typeof t != "function", it = Array.isArray, Ft = (t) => it(t) || typeof (t == null ? void 0 : t[Symbol.iterator]) == "function", Xe = `[ 	
-\f\r]`, je = /<(?:(!--|\/[^a-zA-Z])|(\/?[a-zA-Z][^>\s]*)|(\/?$))/g, dt = /-->/g, ct = />/g, me = RegExp(`>|${Xe}(?:([^\\s"'>=/]+)(${Xe}*=${Xe}*(?:[^ 	
-\f\r"'\`<>=]|("|')|))|$)`, "g"), pt = /'/g, ht = /"/g, $t = /^(?:script|style|textarea|title)$/i, kt = (t) => (e, ...i) => ({ _$litType$: t, strings: e, values: i }), m = kt(1), E = kt(2), Ie = Symbol.for("lit-noChange"), B = Symbol.for("lit-nothing"), ut = /* @__PURE__ */ new WeakMap(), xe = ye.createTreeWalker(ye, 129);
+\f\r]`, De = /<(?:(!--|\/[^a-zA-Z])|(\/?[a-zA-Z][^>\s]*)|(\/?$))/g, dt = /-->/g, ct = />/g, me = RegExp(`>|${Xe}(?:([^\\s"'>=/]+)(${Xe}*=${Xe}*(?:[^ 	
+\f\r"'\`<>=]|("|')|))|$)`, "g"), pt = /'/g, ht = /"/g, $t = /^(?:script|style|textarea|title)$/i, kt = (t) => (e, ...i) => ({ _$litType$: t, strings: e, values: i }), m = kt(1), T = kt(2), Ie = Symbol.for("lit-noChange"), B = Symbol.for("lit-nothing"), ut = /* @__PURE__ */ new WeakMap(), xe = ye.createTreeWalker(ye, 129);
 function St(t, e) {
   if (!it(t) || !t.hasOwnProperty("raw")) throw Error("invalid template strings array");
   return lt !== void 0 ? lt.createHTML(e) : e;
 }
 const Ot = (t, e) => {
   const i = t.length - 1, s = [];
-  let o, r = e === 2 ? "<svg>" : e === 3 ? "<math>" : "", n = je;
+  let o, r = e === 2 ? "<svg>" : e === 3 ? "<math>" : "", n = De;
   for (let a = 0; a < i; a++) {
     const l = t[a];
-    let h, c, p = -1, d = 0;
-    for (; d < l.length && (n.lastIndex = d, c = n.exec(l), c !== null); ) d = n.lastIndex, n === je ? c[1] === "!--" ? n = dt : c[1] !== void 0 ? n = ct : c[2] !== void 0 ? ($t.test(c[2]) && (o = RegExp("</" + c[2], "g")), n = me) : c[3] !== void 0 && (n = me) : n === me ? c[0] === ">" ? (n = o ?? je, p = -1) : c[1] === void 0 ? p = -2 : (p = n.lastIndex - c[2].length, h = c[1], n = c[3] === void 0 ? me : c[3] === '"' ? ht : pt) : n === ht || n === pt ? n = me : n === dt || n === ct ? n = je : (n = me, o = void 0);
-    const g = n === me && t[a + 1].startsWith("/>") ? " " : "";
-    r += n === je ? l + zt : p >= 0 ? (s.push(h), l.slice(0, p) + yt + l.slice(p) + fe + g) : l + fe + (p === -2 ? a : g);
+    let h, d, p = -1, c = 0;
+    for (; c < l.length && (n.lastIndex = c, d = n.exec(l), d !== null); ) c = n.lastIndex, n === De ? d[1] === "!--" ? n = dt : d[1] !== void 0 ? n = ct : d[2] !== void 0 ? ($t.test(d[2]) && (o = RegExp("</" + d[2], "g")), n = me) : d[3] !== void 0 && (n = me) : n === me ? d[0] === ">" ? (n = o ?? De, p = -1) : d[1] === void 0 ? p = -2 : (p = n.lastIndex - d[2].length, h = d[1], n = d[3] === void 0 ? me : d[3] === '"' ? ht : pt) : n === ht || n === pt ? n = me : n === dt || n === ct ? n = De : (n = me, o = void 0);
+    const f = n === me && t[a + 1].startsWith("/>") ? " " : "";
+    r += n === De ? l + zt : p >= 0 ? (s.push(h), l.slice(0, p) + yt + l.slice(p) + fe + f) : l + fe + (p === -2 ? a : f);
   }
   return [St(t, r + (t[i] || "<?>") + (e === 2 ? "</svg>" : e === 3 ? "</math>" : "")), s];
 };
@@ -308,7 +308,7 @@ class Re {
     let o;
     this.parts = [];
     let r = 0, n = 0;
-    const a = e.length - 1, l = this.parts, [h, c] = Ot(e, i);
+    const a = e.length - 1, l = this.parts, [h, d] = Ot(e, i);
     if (this.el = Re.createElement(h, s), xe.currentNode = this.el.content, i === 2 || i === 3) {
       const p = this.el.content.firstChild;
       p.replaceWith(...p.childNodes);
@@ -316,15 +316,15 @@ class Re {
     for (; (o = xe.nextNode()) !== null && l.length < a; ) {
       if (o.nodeType === 1) {
         if (o.hasAttributes()) for (const p of o.getAttributeNames()) if (p.endsWith(yt)) {
-          const d = c[n++], g = o.getAttribute(p).split(fe), v = /([.?@])?(.*)/.exec(d);
-          l.push({ type: 1, index: r, name: v[2], strings: g, ctor: v[1] === "." ? Rt : v[1] === "?" ? Lt : v[1] === "@" ? Wt : Ye }), o.removeAttribute(p);
+          const c = d[n++], f = o.getAttribute(p).split(fe), v = /([.?@])?(.*)/.exec(c);
+          l.push({ type: 1, index: r, name: v[2], strings: f, ctor: v[1] === "." ? Rt : v[1] === "?" ? Lt : v[1] === "@" ? Wt : Ye }), o.removeAttribute(p);
         } else p.startsWith(fe) && (l.push({ type: 6, index: r }), o.removeAttribute(p));
         if ($t.test(o.tagName)) {
-          const p = o.textContent.split(fe), d = p.length - 1;
-          if (d > 0) {
+          const p = o.textContent.split(fe), c = p.length - 1;
+          if (c > 0) {
             o.textContent = Be ? Be.emptyScript : "";
-            for (let g = 0; g < d; g++) o.append(p[g], Oe()), xe.nextNode(), l.push({ type: 2, index: ++r });
-            o.append(p[d], Oe());
+            for (let f = 0; f < c; f++) o.append(p[f], Oe()), xe.nextNode(), l.push({ type: 2, index: ++r });
+            o.append(p[c], Oe());
           }
         }
       } else if (o.nodeType === 8) if (o.data === wt) l.push({ type: 2, index: r });
@@ -521,7 +521,7 @@ const qt = (t, e, i) => {
  * SPDX-License-Identifier: BSD-3-Clause
  */
 const ve = globalThis;
-class V extends Me {
+class G extends Me {
   constructor() {
     super(...arguments), this.renderOptions = { host: this }, this._$Do = void 0;
   }
@@ -547,9 +547,9 @@ class V extends Me {
   }
 }
 var xt;
-V._$litElement$ = !0, V.finalized = !0, (xt = ve.litElementHydrateSupport) == null || xt.call(ve, { LitElement: V });
+G._$litElement$ = !0, G.finalized = !0, (xt = ve.litElementHydrateSupport) == null || xt.call(ve, { LitElement: G });
 const Je = ve.litElementPolyfillSupport;
-Je == null || Je({ LitElement: V });
+Je == null || Je({ LitElement: G });
 (ve.litElementVersions ?? (ve.litElementVersions = [])).push("4.2.2");
 /**
  * @license
@@ -1307,43 +1307,43 @@ const Bt = ie`
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
   }
 `;
-class S {
+class C {
   /**
    * Snaps a world point (in meters) to grid, existing vertices, and angle guides.
    */
   static snapPoint(e, i, s = [], o, r = 0.25) {
     let n = { ...e };
     if (i.snapToElements && s.length > 0) {
-      let p = r, d = null;
-      for (const g of s)
-        for (const v of [g.start, g.end]) {
+      let p = r, c = null;
+      for (const f of s)
+        for (const v of [f.start, f.end]) {
           const u = this.distance(e, v);
-          u < p && (p = u, d = v);
+          u < p && (p = u, c = v);
         }
-      if (d)
+      if (c)
         return {
-          point: { x: d.x, y: d.y },
+          point: { x: c.x, y: c.y },
           snappedTo: "vertex"
         };
     }
     let a, l;
     if (i.snapToElements && s.length > 0)
-      for (const d of s)
-        for (const g of [d.start, d.end])
-          o && Math.abs(g.x - o.x) < 0.01 && Math.abs(g.y - o.y) < 0.01 || (a === void 0 && Math.abs(n.x - g.x) < 0.18 && (n.x = g.x, a = g.x), l === void 0 && Math.abs(n.y - g.y) < 0.18 && (n.y = g.y, l = g.y));
-    let h = !1, c;
+      for (const c of s)
+        for (const f of [c.start, c.end])
+          o && Math.abs(f.x - o.x) < 0.01 && Math.abs(f.y - o.y) < 0.01 || (a === void 0 && Math.abs(n.x - f.x) < 0.18 && (n.x = f.x, a = f.x), l === void 0 && Math.abs(n.y - f.y) < 0.18 && (n.y = f.y, l = f.y));
+    let h = !1, d;
     if (i.snapToAngles && o && a === void 0 && l === void 0) {
-      const p = e.x - o.x, d = e.y - o.y, g = Math.sqrt(p * p + d * d);
-      if (g > 0.05) {
-        let u = Math.atan2(d, p) * 180 / Math.PI;
+      const p = e.x - o.x, c = e.y - o.y, f = Math.sqrt(p * p + c * c);
+      if (f > 0.05) {
+        let u = Math.atan2(c, p) * 180 / Math.PI;
         u < 0 && (u += 360);
-        const f = 45, w = Math.round(u / f) * f;
+        const g = 45, w = Math.round(u / g) * g;
         if (Math.abs(u - w) <= 6) {
-          const C = w * Math.PI / 180;
+          const S = w * Math.PI / 180;
           n = {
-            x: o.x + g * Math.cos(C),
-            y: o.y + g * Math.sin(C)
-          }, h = !0, c = w;
+            x: o.x + f * Math.cos(S),
+            y: o.y + f * Math.sin(S)
+          }, h = !0, d = w;
         }
       }
     }
@@ -1357,7 +1357,7 @@ class S {
       if (a !== void 0 || l !== void 0)
         return { point: n, snappedTo: "smart_guide", smartGuideX: a, smartGuideY: l };
       if (h)
-        return { point: n, snappedTo: "angle", guideAngle: c };
+        return { point: n, snappedTo: "angle", guideAngle: d };
     }
     return { point: e, snappedTo: "none" };
   }
@@ -1369,15 +1369,15 @@ class S {
     for (const n of i) {
       const a = n.end.x - n.start.x, l = n.end.y - n.start.y, h = Math.sqrt(a * a + l * l);
       if (h === 0) continue;
-      const c = Math.max(0, Math.min(
+      const d = Math.max(0, Math.min(
         1,
         ((e.x - n.start.x) * a + (e.y - n.start.y) * l) / (h * h)
-      )), p = n.start.x + c * a, d = n.start.y + c * l, g = Math.sqrt((e.x - p) ** 2 + (e.y - d) ** 2);
-      g < r && (r = g, o = {
+      )), p = n.start.x + d * a, c = n.start.y + d * l, f = Math.sqrt((e.x - p) ** 2 + (e.y - c) ** 2);
+      f < r && (r = f, o = {
         wall: n,
-        projectionPoint: { x: p, y: d },
-        offset: c * h,
-        distance: g,
+        projectionPoint: { x: p, y: c },
+        offset: d * h,
+        distance: f,
         angleRad: Math.atan2(l, a)
       });
     }
@@ -1453,7 +1453,7 @@ const Qe = [
     icon: "🛋️",
     renderSvg: (t, e, i) => {
       const s = Math.max(8, t * 0.1), o = Math.max(10, e * 0.26), r = (t - s * 2) / 3;
-      return E`
+      return T`
         <g class="furniture-symbol" stroke="${i ? "#38bdf8" : "#94a3b8"}" stroke-width="1.6" fill="${i ? "rgba(56, 189, 248, 0.25)" : "rgba(30, 41, 59, 0.85)"}">
           <!-- Contour principal -->
           <rect x="${-t / 2}" y="${-e / 2}" width="${t}" height="${e}" rx="6" />
@@ -1479,7 +1479,7 @@ const Qe = [
     icon: "🛋️",
     renderSvg: (t, e, i) => {
       const s = Math.max(8, t * 0.12), o = Math.max(10, e * 0.26), r = (t - s * 2) / 2;
-      return E`
+      return T`
         <g class="furniture-symbol" stroke="${i ? "#38bdf8" : "#94a3b8"}" stroke-width="1.6" fill="${i ? "rgba(56, 189, 248, 0.25)" : "rgba(30, 41, 59, 0.85)"}">
           <rect x="${-t / 2}" y="${-e / 2}" width="${t}" height="${e}" rx="6" />
           <rect x="${-t / 2 + s}" y="${-e / 2}" width="${t - s * 2}" height="${o}" rx="3" fill="rgba(51, 65, 85, 0.9)" />
@@ -1493,14 +1493,14 @@ const Qe = [
   },
   {
     type: "divan",
-    name: "Divan / Méridienne",
+    name: "Divan / Méridienne (Tête Gauche)",
     category: "seating",
     width: 1.8,
     length: 0.85,
     icon: "🛋️",
     renderSvg: (t, e, i) => {
       const s = Math.max(12, t * 0.22), o = Math.max(10, e * 0.24);
-      return E`
+      return T`
         <g class="furniture-symbol" stroke="${i ? "#38bdf8" : "#94a3b8"}" stroke-width="1.6" fill="${i ? "rgba(56, 189, 248, 0.25)" : "rgba(30, 41, 59, 0.85)"}">
           <!-- Matelas / assise longue -->
           <rect x="${-t / 2}" y="${-e / 2}" width="${t}" height="${e}" rx="8" />
@@ -1518,6 +1518,32 @@ const Qe = [
     }
   },
   {
+    type: "divan_right",
+    name: "Divan / Méridienne (Tête Droite)",
+    category: "seating",
+    width: 1.8,
+    length: 0.85,
+    icon: "🛋️",
+    renderSvg: (t, e, i) => {
+      const s = Math.max(12, t * 0.22), o = Math.max(10, e * 0.24);
+      return T`
+        <g class="furniture-symbol" stroke="${i ? "#38bdf8" : "#94a3b8"}" stroke-width="1.6" fill="${i ? "rgba(56, 189, 248, 0.25)" : "rgba(30, 41, 59, 0.85)"}">
+          <!-- Matelas / assise longue -->
+          <rect x="${-t / 2}" y="${-e / 2}" width="${t}" height="${e}" rx="8" />
+          <!-- Dossier asymétrique (méridienne côté droit) -->
+          <rect x="${t / 2 - t * 0.65}" y="${-e / 2}" width="${t * 0.65}" height="${o}" rx="4" fill="rgba(51, 65, 85, 0.9)" />
+          <!-- Tête de divan / repose-tête surélevé droit -->
+          <rect x="${t / 2 - s}" y="${-e / 2}" width="${s}" height="${e}" rx="6" fill="rgba(51, 65, 85, 0.9)" />
+          <!-- Coussin capitonné -->
+          <rect x="${-t / 2 + 3}" y="${-e / 2 + o + 3}" width="${t - s - 6}" height="${e - o - 6}" rx="5" />
+          <!-- Lignes décoratives capitonnage -->
+          <line x1="${-t / 2 + (t - s) * 0.33}" y1="${-e / 2 + o + 4}" x2="${-t / 2 + (t - s) * 0.33}" y2="${e / 2 - 4}" stroke-dasharray="3,3" opacity="0.5" />
+          <line x1="${-t / 2 + (t - s) * 0.66}" y1="${-e / 2 + o + 4}" x2="${-t / 2 + (t - s) * 0.66}" y2="${e / 2 - 4}" stroke-dasharray="3,3" opacity="0.5" />
+        </g>
+      `;
+    }
+  },
+  {
     type: "armchair",
     name: "Fauteuil club",
     category: "seating",
@@ -1526,7 +1552,7 @@ const Qe = [
     icon: "🪑",
     renderSvg: (t, e, i) => {
       const s = Math.max(6, t * 0.18), o = Math.max(8, e * 0.28);
-      return E`
+      return T`
         <g class="furniture-symbol" stroke="${i ? "#38bdf8" : "#94a3b8"}" stroke-width="1.5" fill="${i ? "rgba(56, 189, 248, 0.25)" : "rgba(30, 41, 59, 0.85)"}">
           <rect x="${-t / 2}" y="${-e / 2}" width="${t}" height="${e}" rx="6" />
           <rect x="${-t / 2 + s}" y="${-e / 2}" width="${t - s * 2}" height="${o}" rx="3" fill="rgba(51, 65, 85, 0.9)" />
@@ -1544,7 +1570,7 @@ const Qe = [
     width: 1.1,
     length: 0.6,
     icon: "☕",
-    renderSvg: (t, e, i) => E`
+    renderSvg: (t, e, i) => T`
         <g class="furniture-symbol" stroke="${i ? "#38bdf8" : "#94a3b8"}" stroke-width="1.5" fill="${i ? "rgba(56, 189, 248, 0.25)" : "rgba(30, 41, 59, 0.85)"}">
           <rect x="${-t / 2}" y="${-e / 2}" width="${t}" height="${e}" rx="8" />
           <line x1="${-t / 2 + 8}" y1="${-e / 2 + 8}" x2="${t / 2 - 8}" y2="${e / 2 - 8}" stroke-dasharray="3,3" opacity="0.4" />
@@ -1564,7 +1590,7 @@ const Qe = [
     icon: "🛏️",
     renderSvg: (t, e, i) => {
       const s = (t - 16) / 2, o = e * 0.22, r = -e / 2 + o + 8;
-      return E`
+      return T`
         <g class="furniture-symbol" stroke="${i ? "#38bdf8" : "#94a3b8"}" stroke-width="1.6" fill="${i ? "rgba(56, 189, 248, 0.25)" : "rgba(30, 41, 59, 0.85)"}">
           <!-- Cadre du lit -->
           <rect x="${-t / 2}" y="${-e / 2}" width="${t}" height="${e}" rx="6" />
@@ -1588,7 +1614,7 @@ const Qe = [
     icon: "🛏️",
     renderSvg: (t, e, i) => {
       const s = t - 16, o = e * 0.22, r = -e / 2 + o + 8;
-      return E`
+      return T`
         <g class="furniture-symbol" stroke="${i ? "#38bdf8" : "#94a3b8"}" stroke-width="1.5" fill="${i ? "rgba(56, 189, 248, 0.25)" : "rgba(30, 41, 59, 0.85)"}">
           <rect x="${-t / 2}" y="${-e / 2}" width="${t}" height="${e}" rx="6" />
           <line x1="${-t / 2}" y1="${-e / 2 + 3}" x2="${t / 2}" y2="${-e / 2 + 3}" stroke-width="2.5" stroke="${i ? "#38bdf8" : "#cbd5e1"}" />
@@ -1605,7 +1631,7 @@ const Qe = [
     width: 0.45,
     length: 0.4,
     icon: "🕰️",
-    renderSvg: (t, e, i) => E`
+    renderSvg: (t, e, i) => T`
         <g class="furniture-symbol" stroke="${i ? "#38bdf8" : "#94a3b8"}" stroke-width="1.4" fill="${i ? "rgba(56, 189, 248, 0.25)" : "rgba(30, 41, 59, 0.85)"}">
           <rect x="${-t / 2}" y="${-e / 2}" width="${t}" height="${e}" rx="4" />
           <line x1="${-t / 2 + 4}" y1="${0}" x2="${t / 2 - 4}" y2="${0}" stroke-width="1.2" />
@@ -1623,7 +1649,7 @@ const Qe = [
     icon: "🚪",
     renderSvg: (t, e, i) => {
       const s = t / 3;
-      return E`
+      return T`
         <g class="furniture-symbol" stroke="${i ? "#38bdf8" : "#94a3b8"}" stroke-width="1.5" fill="${i ? "rgba(56, 189, 248, 0.25)" : "rgba(30, 41, 59, 0.85)"}">
           <rect x="${-t / 2}" y="${-e / 2}" width="${t}" height="${e}" rx="3" />
           <line x1="${-t / 2 + s}" y1="${-e / 2}" x2="${-t / 2 + s}" y2="${e / 2}" />
@@ -1646,7 +1672,7 @@ const Qe = [
     icon: "🍽️",
     renderSvg: (t, e, i) => {
       const s = t * 0.24, o = 7;
-      return E`
+      return T`
         <g class="furniture-symbol" stroke="${i ? "#38bdf8" : "#94a3b8"}" stroke-width="1.5" fill="${i ? "rgba(56, 189, 248, 0.25)" : "rgba(30, 41, 59, 0.85)"}">
           <!-- Plateau principal -->
           <rect x="${-t / 2}" y="${-e / 2}" width="${t}" height="${e}" rx="5" />
@@ -1669,7 +1695,7 @@ const Qe = [
     width: 1.4,
     length: 0.7,
     icon: "💻",
-    renderSvg: (t, e, i) => E`
+    renderSvg: (t, e, i) => T`
         <g class="furniture-symbol" stroke="${i ? "#38bdf8" : "#94a3b8"}" stroke-width="1.5" fill="${i ? "rgba(56, 189, 248, 0.25)" : "rgba(30, 41, 59, 0.85)"}">
           <!-- Plateau de bureau -->
           <rect x="${-t / 2}" y="${-e / 2}" width="${t}" height="${e}" rx="4" />
@@ -1679,6 +1705,53 @@ const Qe = [
           <path d="M -16 ${e / 2} A 16 16 0 0 1 16 ${e / 2}" fill="none" stroke-dasharray="3,3" />
         </g>
       `
+  },
+  {
+    type: "chair_starck",
+    name: "Chaise Starck (Ghost)",
+    category: "table",
+    width: 0.54,
+    length: 0.55,
+    icon: "🪑",
+    renderSvg: (t, e, i) => {
+      const s = Math.min(t, e) * 0.38, o = Math.min(t, e) * 0.32;
+      return T`
+        <g class="furniture-symbol" stroke="${i ? "#38bdf8" : "#94a3b8"}" stroke-width="1.5" fill="${i ? "rgba(56, 189, 248, 0.25)" : "rgba(30, 41, 59, 0.85)"}">
+          <!-- Assise carrée aux coins adoucis -->
+          <rect x="${-t / 2 + 2}" y="${-e / 2 + 6}" width="${t - 4}" height="${e - 10}" rx="6" />
+          <!-- Dossier médaillon emblématique de type Starck / Louis Ghost -->
+          <ellipse cx="0" cy="${-e / 2 + 6}" rx="${o}" ry="${e * 0.16}" fill="rgba(56, 189, 248, 0.15)" stroke-width="1.6" />
+          <!-- Accoudoirs fluides galbés -->
+          <path d="M ${-t / 2 + 4} ${-e / 2 + 10} Q ${-t / 2 + 1} 0 ${-t / 2 + 6} ${e / 2 - 6}" fill="none" stroke-width="1.4" opacity="0.8" />
+          <path d="M ${t / 2 - 4} ${-e / 2 + 10} Q ${t / 2 - 1} 0 ${t / 2 - 6} ${e / 2 - 6}" fill="none" stroke-width="1.4" opacity="0.8" />
+          <!-- Galbe assise transparente -->
+          <circle cx="0" cy="${e * 0.08}" r="${s * 0.55}" fill="none" stroke-dasharray="2,2" opacity="0.4" />
+        </g>
+      `;
+    }
+  },
+  {
+    type: "console",
+    name: "Console murale",
+    category: "table",
+    width: 1.2,
+    length: 0.35,
+    icon: "🗄️",
+    renderSvg: (t, e, i) => {
+      const s = (t - 8) / 2;
+      return T`
+        <g class="furniture-symbol" stroke="${i ? "#38bdf8" : "#94a3b8"}" stroke-width="1.5" fill="${i ? "rgba(56, 189, 248, 0.25)" : "rgba(30, 41, 59, 0.85)"}">
+          <!-- Plateau fin élancé -->
+          <rect x="${-t / 2}" y="${-e / 2}" width="${t}" height="${e}" rx="3" />
+          <!-- 2 Tiroirs ou compartiments de rangement -->
+          <rect x="${-t / 2 + 3}" y="${-e / 2 + 3}" width="${s}" height="${e - 6}" rx="2" fill="rgba(51, 65, 85, 0.9)" />
+          <rect x="${1}" y="${-e / 2 + 3}" width="${s}" height="${e - 6}" rx="2" fill="rgba(51, 65, 85, 0.9)" />
+          <!-- Poignées discrètes en laiton -->
+          <circle cx="${-t / 4}" cy="0" r="1.8" fill="${i ? "#38bdf8" : "#f59e0b"}" />
+          <circle cx="${t / 4}" cy="0" r="1.8" fill="${i ? "#38bdf8" : "#f59e0b"}" />
+        </g>
+      `;
+    }
   },
   // ==========================================
   // SANITAIRES (BATHROOM)
@@ -1692,7 +1765,7 @@ const Qe = [
     icon: "🚽",
     renderSvg: (t, e, i) => {
       const s = e * 0.28;
-      return E`
+      return T`
         <g class="furniture-symbol" stroke="${i ? "#38bdf8" : "#94a3b8"}" stroke-width="1.5" fill="${i ? "rgba(56, 189, 248, 0.25)" : "rgba(30, 41, 59, 0.85)"}">
           <!-- Réservoir d'eau -->
           <rect x="${-t / 2}" y="${-e / 2}" width="${t}" height="${s}" rx="3" fill="rgba(51, 65, 85, 0.9)" />
@@ -1713,7 +1786,7 @@ const Qe = [
     width: 0.9,
     length: 0.9,
     icon: "🚿",
-    renderSvg: (t, e, i) => E`
+    renderSvg: (t, e, i) => T`
         <g class="furniture-symbol" stroke="${i ? "#38bdf8" : "#94a3b8"}" stroke-width="1.5" fill="${i ? "rgba(56, 189, 248, 0.25)" : "rgba(30, 41, 59, 0.85)"}">
           <!-- Bac carré -->
           <rect x="${-t / 2}" y="${-e / 2}" width="${t}" height="${e}" rx="2" />
@@ -1734,7 +1807,7 @@ const Qe = [
     width: 1.7,
     length: 0.75,
     icon: "🛁",
-    renderSvg: (t, e, i) => E`
+    renderSvg: (t, e, i) => T`
         <g class="furniture-symbol" stroke="${i ? "#38bdf8" : "#94a3b8"}" stroke-width="1.6" fill="${i ? "rgba(56, 189, 248, 0.25)" : "rgba(30, 41, 59, 0.85)"}">
           <!-- Contour extérieur -->
           <rect x="${-t / 2}" y="${-e / 2}" width="${t}" height="${e}" rx="5" />
@@ -1754,7 +1827,7 @@ const Qe = [
     icon: "🧼",
     renderSvg: (t, e, i) => {
       const s = t * 0.65, o = e * 0.65;
-      return E`
+      return T`
         <g class="furniture-symbol" stroke="${i ? "#38bdf8" : "#94a3b8"}" stroke-width="1.5" fill="${i ? "rgba(56, 189, 248, 0.25)" : "rgba(30, 41, 59, 0.85)"}">
           <rect x="${-t / 2}" y="${-e / 2}" width="${t}" height="${e}" rx="3" />
           <!-- Vasque ovale -->
@@ -1777,7 +1850,7 @@ const Qe = [
     icon: "🚰",
     renderSvg: (t, e, i) => {
       const s = (t - 18) / 2, o = e - 16;
-      return E`
+      return T`
         <g class="furniture-symbol" stroke="${i ? "#38bdf8" : "#94a3b8"}" stroke-width="1.5" fill="${i ? "rgba(56, 189, 248, 0.25)" : "rgba(30, 41, 59, 0.85)"}">
           <rect x="${-t / 2}" y="${-e / 2}" width="${t}" height="${e}" rx="3" />
           <!-- 2 Bacs -->
@@ -1798,7 +1871,7 @@ const Qe = [
     icon: "🍳",
     renderSvg: (t, e, i) => {
       const s = Math.min(t, e) * 0.18, o = Math.min(t, e) * 0.13;
-      return E`
+      return T`
         <g class="furniture-symbol" stroke="${i ? "#38bdf8" : "#94a3b8"}" stroke-width="1.5" fill="${i ? "rgba(56, 189, 248, 0.25)" : "rgba(30, 41, 59, 0.85)"}">
           <rect x="${-t / 2}" y="${-e / 2}" width="${t}" height="${e}" rx="4" />
           <!-- 4 Feux / Foyers induction -->
@@ -1817,7 +1890,7 @@ const Qe = [
     width: 0.65,
     length: 0.65,
     icon: "🧊",
-    renderSvg: (t, e, i) => E`
+    renderSvg: (t, e, i) => T`
         <g class="furniture-symbol" stroke="${i ? "#38bdf8" : "#94a3b8"}" stroke-width="1.5" fill="${i ? "rgba(56, 189, 248, 0.25)" : "rgba(30, 41, 59, 0.85)"}">
           <rect x="${-t / 2}" y="${-e / 2}" width="${t}" height="${e}" rx="3" />
           <line x1="${-t / 2}" y1="${-e / 2 + 6}" x2="${t / 2}" y2="${-e / 2 + 6}" stroke-width="2" />
@@ -1837,27 +1910,27 @@ class Pe {
    */
   static calculateBoundingBox(e, i) {
     const s = e.pixelsPerMeter || 50, o = [];
-    for (const f of e.walls)
-      o.push(f.start, f.end);
-    for (const f of e.rooms)
-      f.polygon && f.polygon.length > 0 && o.push(...f.polygon);
-    for (const f of e.bindings)
-      f.position && o.push(f.position);
+    for (const g of e.walls)
+      o.push(g.start, g.end);
+    for (const g of e.rooms)
+      g.polygon && g.polygon.length > 0 && o.push(...g.polygon);
+    for (const g of e.bindings)
+      g.position && o.push(g.position);
     if (e.furniture) {
-      for (const f of e.furniture)
-        if (f.position) {
-          const w = (f.width || 1) / 2, y = (f.length || 1) / 2;
+      for (const g of e.furniture)
+        if (g.position) {
+          const w = (g.width || 1) / 2, y = (g.length || 1) / 2;
           o.push(
-            { x: f.position.x - w, y: f.position.y - y },
-            { x: f.position.x + w, y: f.position.y + y }
+            { x: g.position.x - w, y: g.position.y - y },
+            { x: g.position.x + w, y: g.position.y + y }
           );
         }
     }
     if (e.background && e.background.imageUrl && e.background.visible) {
-      const f = e.background, w = f.offset || { x: 0, y: 0 }, y = f.scale || 1, C = (f.widthPx || 1200) * y / s, x = (f.heightPx || 900) * y / s;
+      const g = e.background, w = g.offset || { x: 0, y: 0 }, y = g.scale || 1, S = (g.widthPx || 1200) * y / s, x = (g.heightPx || 900) * y / s;
       o.push(
         { x: w.x, y: w.y },
-        { x: w.x + C, y: w.y + x }
+        { x: w.x + S, y: w.y + x }
       );
     }
     if (o.length === 0)
@@ -1868,11 +1941,11 @@ class Pe {
         height: 8,
         ppm: s
       };
-    let r = Math.min(...o.map((f) => f.x)), n = Math.max(...o.map((f) => f.x)), a = Math.min(...o.map((f) => f.y)), l = Math.max(...o.map((f) => f.y));
-    const h = n - r || 5, c = l - a || 5, p = i !== void 0 ? i : Math.max(0.6, Math.max(h, c) * 0.05), d = r - p, g = a - p, v = n - r + p * 2, u = l - a + p * 2;
+    let r = Math.min(...o.map((g) => g.x)), n = Math.max(...o.map((g) => g.x)), a = Math.min(...o.map((g) => g.y)), l = Math.max(...o.map((g) => g.y));
+    const h = n - r || 5, d = l - a || 5, p = i !== void 0 ? i : Math.max(0.6, Math.max(h, d) * 0.05), c = r - p, f = a - p, v = n - r + p * 2, u = l - a + p * 2;
     return {
-      minX: d,
-      minY: g,
+      minX: c,
+      minY: f,
       width: v,
       height: u,
       ppm: s
@@ -1893,7 +1966,7 @@ class Pe {
    * Génère un document SVG vectoriel autonome et complet représentant le plan
    */
   static exportToSvg(e, i) {
-    var d, g, v;
+    var c, f, v;
     const s = {
       includeRooms: !0,
       includeWalls: !0,
@@ -1905,127 +1978,127 @@ class Pe {
       backgroundColor: "#0f172a",
       ...i
     }, o = this.calculateBoundingBox(e, s.paddingMeters), r = o.ppm, n = (o.minX * r).toFixed(1), a = (o.minY * r).toFixed(1), l = Math.max(100, Math.round(o.width * r)), h = Math.max(100, Math.round(o.height * r));
-    let c = "";
-    if (s.backgroundColor && s.backgroundColor !== "transparent" && (c += `  <rect x="${n}" y="${a}" width="${l}" height="${h}" fill="${s.backgroundColor}" />
-`), s.includeBackground !== !1 && ((d = e.background) != null && d.imageUrl) && e.background.visible) {
-      const u = e.background, f = (((g = u.offset) == null ? void 0 : g.x) || 0) * r, w = (((v = u.offset) == null ? void 0 : v.y) || 0) * r, y = u.scale || 1, C = (u.widthPx || 1200) * y, x = (u.heightPx || 900) * y;
-      c += `  <!-- Image de fond du plan d'origine -->
-`, c += `  <image href="${u.imageUrl}" x="${f.toFixed(1)}" y="${w.toFixed(1)}" width="${C.toFixed(1)}" height="${x.toFixed(1)}" opacity="${u.opacity || 0.6}" />
+    let d = "";
+    if (s.backgroundColor && s.backgroundColor !== "transparent" && (d += `  <rect x="${n}" y="${a}" width="${l}" height="${h}" fill="${s.backgroundColor}" />
+`), s.includeBackground !== !1 && ((c = e.background) != null && c.imageUrl) && e.background.visible) {
+      const u = e.background, g = (((f = u.offset) == null ? void 0 : f.x) || 0) * r, w = (((v = u.offset) == null ? void 0 : v.y) || 0) * r, y = u.scale || 1, S = (u.widthPx || 1200) * y, x = (u.heightPx || 900) * y;
+      d += `  <!-- Image de fond du plan d'origine -->
+`, d += `  <image href="${u.imageUrl}" x="${g.toFixed(1)}" y="${w.toFixed(1)}" width="${S.toFixed(1)}" height="${x.toFixed(1)}" opacity="${u.opacity || 0.6}" />
 `;
     }
     if (s.includeRooms && e.rooms.length > 0) {
-      c += `  <!-- Pièces -->
+      d += `  <!-- Pièces -->
   <g id="rooms">
 `;
       for (const u of e.rooms) {
         if (!u.polygon || u.polygon.length < 3) continue;
-        const f = u.polygon.map((y) => `${(y.x * r).toFixed(1)},${(y.y * r).toFixed(1)}`).join(" "), w = u.color || "rgba(56, 189, 248, 0.12)";
-        c += `    <polygon points="${f}" fill="${w}" stroke="rgba(56, 189, 248, 0.4)" stroke-width="1.5" />
+        const g = u.polygon.map((y) => `${(y.x * r).toFixed(1)},${(y.y * r).toFixed(1)}`).join(" "), w = u.color || "rgba(56, 189, 248, 0.12)";
+        d += `    <polygon points="${g}" fill="${w}" stroke="rgba(56, 189, 248, 0.4)" stroke-width="1.5" />
 `;
       }
-      c += `  </g>
+      d += `  </g>
 `;
     }
     if (s.includeWalls && e.walls.length > 0) {
-      c += `  <!-- Murs -->
+      d += `  <!-- Murs -->
   <g id="walls">
 `;
       for (const u of e.walls) {
         const w = this.computeWallPolygon(u.start, u.end, u.thickness).map((y) => `${(y.x * r).toFixed(1)},${(y.y * r).toFixed(1)}`).join(" ");
-        c += `    <polygon points="${w}" fill="#334155" stroke="#64748b" stroke-width="1" />
+        d += `    <polygon points="${w}" fill="#334155" stroke="#64748b" stroke-width="1" />
 `;
       }
-      c += `  </g>
+      d += `  </g>
 `;
     }
     if (s.includeOpenings && e.openings.length > 0) {
-      c += `  <!-- Portes & Fenêtres -->
+      d += `  <!-- Portes & Fenêtres -->
   <g id="openings">
 `;
       for (const u of e.openings) {
-        const f = e.walls.find(($) => $.id === u.wallId);
-        if (!f) continue;
-        const w = f.end.x - f.start.x, y = f.end.y - f.start.y, C = Math.sqrt(w * w + y * y);
-        if (C === 0) continue;
-        const M = (Math.atan2(y, w) * 180 / Math.PI).toFixed(1), P = (f.start.x + u.offset / C * w) * r, j = (f.start.y + u.offset / C * y) * r, _ = u.width * r, A = f.thickness * r;
-        if (c += `    <g transform="translate(${P.toFixed(1)}, ${j.toFixed(1)}) rotate(${M})">
-`, c += `      <rect x="${(-_ / 2).toFixed(1)}" y="${(-A / 2 - 1).toFixed(1)}" width="${_.toFixed(1)}" height="${(A + 2).toFixed(1)}" fill="${s.backgroundColor || "#0f172a"}" />
+        const g = e.walls.find(($) => $.id === u.wallId);
+        if (!g) continue;
+        const w = g.end.x - g.start.x, y = g.end.y - g.start.y, S = Math.sqrt(w * w + y * y);
+        if (S === 0) continue;
+        const M = (Math.atan2(y, w) * 180 / Math.PI).toFixed(1), P = (g.start.x + u.offset / S * w) * r, D = (g.start.y + u.offset / S * y) * r, _ = u.width * r, R = g.thickness * r;
+        if (d += `    <g transform="translate(${P.toFixed(1)}, ${D.toFixed(1)}) rotate(${M})">
+`, d += `      <rect x="${(-_ / 2).toFixed(1)}" y="${(-R / 2 - 1).toFixed(1)}" width="${_.toFixed(1)}" height="${(R + 2).toFixed(1)}" fill="${s.backgroundColor || "#0f172a"}" />
 `, u.type === "door") {
-          const $ = _ / 2, R = u.flipSide ? -1 : 1, U = u.flipDirection ? $ : -$, K = u.flipDirection ? -1 : 1;
-          c += `      <rect x="${-$}" y="${-A / 2}" width="4" height="${A}" fill="#94a3b8" />
-`, c += `      <rect x="${$ - 4}" y="${-A / 2}" width="4" height="${A}" fill="#94a3b8" />
-`, c += `      <line x1="${U}" y1="0" x2="${U}" y2="${R * _}" stroke="#38bdf8" stroke-width="2" stroke-linecap="round" />
-`, c += `      <path d="M ${U + K * _} 0 A ${_} ${_} 0 0 ${R > 0 ? u.flipDirection ? 0 : 1 : u.flipDirection ? 1 : 0} ${U} ${R * _}" fill="rgba(56, 189, 248, 0.08)" stroke="#38bdf8" stroke-width="1.2" stroke-dasharray="3, 3" />
+          const $ = _ / 2, L = u.flipSide ? -1 : 1, U = u.flipDirection ? $ : -$, K = u.flipDirection ? -1 : 1;
+          d += `      <rect x="${-$}" y="${-R / 2}" width="4" height="${R}" fill="#94a3b8" />
+`, d += `      <rect x="${$ - 4}" y="${-R / 2}" width="4" height="${R}" fill="#94a3b8" />
+`, d += `      <line x1="${U}" y1="0" x2="${U}" y2="${L * _}" stroke="#38bdf8" stroke-width="2" stroke-linecap="round" />
+`, d += `      <path d="M ${U + K * _} 0 A ${_} ${_} 0 0 ${L > 0 ? u.flipDirection ? 0 : 1 : u.flipDirection ? 1 : 0} ${U} ${L * _}" fill="rgba(56, 189, 248, 0.08)" stroke="#38bdf8" stroke-width="1.2" stroke-dasharray="3, 3" />
 `;
         } else if (u.type === "french_window") {
           const $ = _ / 2;
-          c += `      <rect x="${(-$).toFixed(1)}" y="${(-A / 2).toFixed(1)}" width="${_.toFixed(1)}" height="${A.toFixed(1)}" fill="none" stroke="#94a3b8" stroke-width="2" />
-`, c += `      <rect x="${(-$).toFixed(1)}" y="${(-A / 4).toFixed(1)}" width="${$.toFixed(1)}" height="3" fill="#38bdf8" />
-`, c += `      <rect x="0" y="${(A / 4).toFixed(1)}" width="${$.toFixed(1)}" height="3" fill="#38bdf8" />
+          d += `      <rect x="${(-$).toFixed(1)}" y="${(-R / 2).toFixed(1)}" width="${_.toFixed(1)}" height="${R.toFixed(1)}" fill="none" stroke="#94a3b8" stroke-width="2" />
+`, d += `      <rect x="${(-$).toFixed(1)}" y="${(-R / 4).toFixed(1)}" width="${$.toFixed(1)}" height="3" fill="#38bdf8" />
+`, d += `      <rect x="0" y="${(R / 4).toFixed(1)}" width="${$.toFixed(1)}" height="3" fill="#38bdf8" />
 `;
         } else {
-          const $ = _ / 2, R = u.sashCount === 2 || u.width >= 1.25;
-          c += `      <rect x="${(-$).toFixed(1)}" y="${(-A / 2).toFixed(1)}" width="${_.toFixed(1)}" height="${A.toFixed(1)}" fill="none" stroke="#94a3b8" stroke-width="2" />
-`, c += `      <line x1="${(-$).toFixed(1)}" y1="0" x2="${$.toFixed(1)}" y2="0" stroke="#38bdf8" stroke-width="1.5" />
-`, R && (c += `      <line x1="0" y1="${(-A / 2).toFixed(1)}" x2="0" y2="${(A / 2).toFixed(1)}" stroke="#38bdf8" stroke-width="2" />
+          const $ = _ / 2, L = u.sashCount === 2 || u.width >= 1.25;
+          d += `      <rect x="${(-$).toFixed(1)}" y="${(-R / 2).toFixed(1)}" width="${_.toFixed(1)}" height="${R.toFixed(1)}" fill="none" stroke="#94a3b8" stroke-width="2" />
+`, d += `      <line x1="${(-$).toFixed(1)}" y1="0" x2="${$.toFixed(1)}" y2="0" stroke="#38bdf8" stroke-width="1.5" />
+`, L && (d += `      <line x1="0" y1="${(-R / 2).toFixed(1)}" x2="0" y2="${(R / 2).toFixed(1)}" stroke="#38bdf8" stroke-width="2" />
 `);
         }
-        c += `    </g>
+        d += `    </g>
 `;
       }
-      c += `  </g>
+      d += `  </g>
 `;
     }
     if (s.includeRoomLabels && e.rooms.length > 0) {
-      c += `  <!-- Étiquettes de Pièces -->
+      d += `  <!-- Étiquettes de Pièces -->
   <g id="room-labels">
 `;
       for (const u of e.rooms) {
         if (!u.polygon || u.polygon.length < 3) continue;
-        const f = ee.calculateCentroid(u.polygon), w = (f.x * r).toFixed(1), y = (f.y * r).toFixed(1);
-        c += `    <g transform="translate(${w}, ${y})">
-`, c += `      <text y="-6" fill="#f8fafc" font-size="13" font-weight="700" text-anchor="middle">${this.escapeXml(u.name)}</text>
-`, c += `      <text y="12" fill="#38bdf8" font-size="11" font-weight="600" text-anchor="middle" font-family="monospace">${u.areaM2.toFixed(1)} m²</text>
-`, c += `    </g>
+        const g = ee.calculateCentroid(u.polygon), w = (g.x * r).toFixed(1), y = (g.y * r).toFixed(1);
+        d += `    <g transform="translate(${w}, ${y})">
+`, d += `      <text y="-6" fill="#f8fafc" font-size="13" font-weight="700" text-anchor="middle">${this.escapeXml(u.name)}</text>
+`, d += `      <text y="12" fill="#38bdf8" font-size="11" font-weight="600" text-anchor="middle" font-family="monospace">${u.areaM2.toFixed(1)} m²</text>
+`, d += `    </g>
 `;
       }
-      c += `  </g>
+      d += `  </g>
 `;
     }
     if (s.includeFurniture !== !1 && e.furniture && e.furniture.length > 0) {
-      c += `  <!-- Meubles et Équipements -->
+      d += `  <!-- Meubles et Équipements -->
   <g id="furniture-layer">
 `;
       for (const u of e.furniture) {
-        const f = (u.position.x * r).toFixed(1), w = (u.position.y * r).toFixed(1), y = ((u.width || 1) * r).toFixed(1), C = ((u.length || 1) * r).toFixed(1), x = u.rotation || 0, M = u.color || "#38bdf8", P = ((u.width || 1) * r / 2).toFixed(1), j = ((u.length || 1) * r / 2).toFixed(1);
-        c += `    <g transform="translate(${f}, ${w}) rotate(${x})">
-`, c += `      <rect x="-${P}" y="-${j}" width="${y}" height="${C}" rx="4" fill="rgba(30, 41, 59, 0.75)" stroke="${M}" stroke-width="1.5" />
-`, u.icon && (c += `      <text x="0" y="4" font-size="12" text-anchor="middle" fill="#f8fafc">${this.escapeXml(u.icon)}</text>
-`), c += `    </g>
+        const g = (u.position.x * r).toFixed(1), w = (u.position.y * r).toFixed(1), y = ((u.width || 1) * r).toFixed(1), S = ((u.length || 1) * r).toFixed(1), x = u.rotation || 0, M = u.color || "#38bdf8", P = ((u.width || 1) * r / 2).toFixed(1), D = ((u.length || 1) * r / 2).toFixed(1);
+        d += `    <g transform="translate(${g}, ${w}) rotate(${x})">
+`, d += `      <rect x="-${P}" y="-${D}" width="${y}" height="${S}" rx="4" fill="rgba(30, 41, 59, 0.75)" stroke="${M}" stroke-width="1.5" />
+`, u.icon && (d += `      <text x="0" y="4" font-size="12" text-anchor="middle" fill="#f8fafc">${this.escapeXml(u.icon)}</text>
+`), d += `    </g>
 `;
       }
-      c += `  </g>
+      d += `  </g>
 `;
     }
     if (s.includeEntityMarkers && e.bindings.length > 0) {
-      c += `  <!-- Emplacements des Entités -->
+      d += `  <!-- Emplacements des Entités -->
   <g id="entity-markers">
 `;
       for (const u of e.bindings) {
-        const f = (u.position.x * r).toFixed(1), w = (u.position.y * r).toFixed(1), y = u.icon || "⚡", C = u.customName || u.entityId.split(".")[1];
-        c += `    <g transform="translate(${f}, ${w})">
-`, c += `      <circle cx="0" cy="0" r="16" fill="rgba(30, 41, 59, 0.85)" stroke="#38bdf8" stroke-width="1.5" />
-`, c += `      <text x="0" y="5" font-size="12" text-anchor="middle">${this.escapeXml(y)}</text>
-`, c += `      <text x="0" y="26" fill="#f1f5f9" font-size="10" font-weight="600" text-anchor="middle">${this.escapeXml(C)}</text>
-`, c += `    </g>
+        const g = (u.position.x * r).toFixed(1), w = (u.position.y * r).toFixed(1), y = u.icon || "⚡", S = u.customName || u.entityId.split(".")[1];
+        d += `    <g transform="translate(${g}, ${w})">
+`, d += `      <circle cx="0" cy="0" r="16" fill="rgba(30, 41, 59, 0.85)" stroke="#38bdf8" stroke-width="1.5" />
+`, d += `      <text x="0" y="5" font-size="12" text-anchor="middle">${this.escapeXml(y)}</text>
+`, d += `      <text x="0" y="26" fill="#f1f5f9" font-size="10" font-weight="600" text-anchor="middle">${this.escapeXml(S)}</text>
+`, d += `    </g>
 `;
       }
-      c += `  </g>
+      d += `  </g>
 `;
     }
     return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="${n} ${a} ${l} ${h}" width="${l}" height="${h}" style="background-color: ${s.backgroundColor || "#0f172a"}; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 100%; height: auto;">
-${c}</svg>`;
+${d}</svg>`;
   }
   static computeWallPolygon(e, i, s) {
     const o = i.x - e.x, r = i.y - e.y, n = Math.sqrt(o * o + r * r);
@@ -2057,12 +2130,12 @@ ${c}</svg>`;
     });
   }
 }
-var Yt = Object.defineProperty, Vt = Object.getOwnPropertyDescriptor, W = (t, e, i, s) => {
-  for (var o = s > 1 ? void 0 : s ? Vt(e, i) : e, r = t.length - 1, n; r >= 0; r--)
+var Yt = Object.defineProperty, Gt = Object.getOwnPropertyDescriptor, W = (t, e, i, s) => {
+  for (var o = s > 1 ? void 0 : s ? Gt(e, i) : e, r = t.length - 1, n; r >= 0; r--)
     (n = t[r]) && (o = (s ? n(e, i, o) : n(o)) || o);
   return s && o && Yt(e, i, o), o;
 };
-let L = class extends V {
+let A = class extends G {
   constructor() {
     super(...arguments), this.project = {
       id: "default",
@@ -2087,7 +2160,7 @@ let L = class extends V {
       roomIds: [],
       bindingIds: [],
       furnitureIds: []
-    }, this.isDashboardMode = !1, this.ghostProject = null, this.showDimensions = !0, this.showThermalHeatmap = !1, this.isMarqueeSelecting = !1, this.marqueeStart = null, this.marqueeCurrent = null, this.viewport = { x: 300, y: 300, zoom: 1 }, this.isPanning = !1, this.panStart = { x: 0, y: 0 }, this.drawingWallStart = null, this.previewPoint = null, this.snapInfo = { snappedTo: "none" }, this.cursorCoords = { x: 0, y: 0 }, this.draggingFurnitureId = null, this.dragFurnitureMoved = !1, this.dragFurnitureStartPos = { x: 0, y: 0 }, this.dragFurnitureItemStartPos = { x: 0, y: 0 }, this.rotatingFurnitureId = null, this.rotateFurnitureMoved = !1, this.rotateFurnitureStartAngle = 0, this.rotateFurnitureInitialAngle = 0, this.draggingWallId = null, this.dragWallMoved = !1, this.dragWallStartPointer = { x: 0, y: 0 }, this.dragWallInitialStart = { x: 0, y: 0 }, this.dragWallInitialEnd = { x: 0, y: 0 }, this.wallSnap = null, this.openingFlipSide = !1, this.openingFlipDirection = !1, this.windowSashCount = 1, this.calibrateStart = null, this.calibrateCurrent = null, this.rescaleStart = null, this.rescaleCurrent = null, this._boundKeyDown = null, this.draggingBindingId = null, this.dragBindingMoved = !1, this.dragBindingStartPos = { x: 0, y: 0 }, this.orbitPitch = 55, this.orbitYaw = -35, this.isOrbiting = !1, this.orbitStart = { x: 0, y: 0 }, this.orbitStartPitch = 55, this.orbitStartYaw = -35, this._canvasResizeObserver = null;
+    }, this.isDashboardMode = !1, this.ghostProject = null, this.showDimensions = !0, this.showThermalHeatmap = !1, this.isMarqueeSelecting = !1, this.marqueeStart = null, this.marqueeCurrent = null, this.viewport = { x: 300, y: 300, zoom: 1 }, this.isPanning = !1, this.panStart = { x: 0, y: 0 }, this.drawingWallStart = null, this.previewPoint = null, this.snapInfo = { snappedTo: "none" }, this.cursorCoords = { x: 0, y: 0 }, this.draggingFurnitureId = null, this.dragFurnitureMoved = !1, this.dragFurnitureStartPos = { x: 0, y: 0 }, this.dragFurnitureItemStartPos = { x: 0, y: 0 }, this.rotatingFurnitureId = null, this.rotateFurnitureMoved = !1, this.rotateFurnitureStartAngle = 0, this.rotateFurnitureInitialAngle = 0, this.draggingWallId = null, this.dragWallMoved = !1, this.dragWallStartPointer = { x: 0, y: 0 }, this.dragWallInitialStart = { x: 0, y: 0 }, this.dragWallInitialEnd = { x: 0, y: 0 }, this.wallSnap = null, this.openingFlipSide = !1, this.openingFlipDirection = !1, this.windowSashCount = 1, this.calibrateStart = null, this.calibrateCurrent = null, this.rescaleStart = null, this.rescaleCurrent = null, this._boundKeyDown = null, this.draggingBindingId = null, this.dragBindingMoved = !1, this.dragBindingStartPos = { x: 0, y: 0 }, this.viewRotation = 0, this.orbitPitch = 55, this.orbitYaw = -35, this.isOrbiting = !1, this.orbitStart = { x: 0, y: 0 }, this.orbitStartPitch = 55, this.orbitStartYaw = -35, this._canvasResizeObserver = null;
   }
   setCameraPreset(t, e) {
     this.orbitPitch = t, this.orbitYaw = e, this.requestUpdate();
@@ -2096,7 +2169,13 @@ let L = class extends V {
   // CONVERSIONS DE COORDONNÉES
   // ==========================================
   screenToWorld(t, e) {
-    const i = this.getBoundingClientRect(), s = t - i.left, o = e - i.top, r = this.project.pixelsPerMeter * this.viewport.zoom;
+    const i = this.getBoundingClientRect();
+    let s = t - i.left, o = e - i.top;
+    if (!this.is3DMode && this.viewRotation !== 0) {
+      const n = (i.width || 800) / 2, a = (i.height || 600) / 2, l = s - n, h = o - a, d = -this.viewRotation * Math.PI / 180;
+      s = n + (l * Math.cos(d) - h * Math.sin(d)), o = a + (l * Math.sin(d) + h * Math.cos(d));
+    }
+    const r = this.project.pixelsPerMeter * this.viewport.zoom;
     return {
       x: (s - this.viewport.x) / r,
       y: (o - this.viewport.y) / r
@@ -2104,9 +2183,14 @@ let L = class extends V {
   }
   worldToScreen(t) {
     const e = this.project.pixelsPerMeter * this.viewport.zoom;
+    let i = t.x * e + this.viewport.x, s = t.y * e + this.viewport.y;
+    if (!this.is3DMode && this.viewRotation !== 0) {
+      const o = this.getBoundingClientRect(), r = (o.width || 800) / 2, n = (o.height || 600) / 2, a = i - r, l = s - n, h = this.viewRotation * Math.PI / 180;
+      i = r + (a * Math.cos(h) - l * Math.sin(h)), s = n + (a * Math.sin(h) + l * Math.cos(h));
+    }
     return {
-      x: t.x * e + this.viewport.x,
-      y: t.y * e + this.viewport.y
+      x: i,
+      y: s
     };
   }
   // ==========================================
@@ -2118,7 +2202,7 @@ let L = class extends V {
     this.viewport = { x: n, y: a, zoom: r };
   }
   handlePointerDown(t) {
-    var o, r, n, a, l, h, c, p, d, g, v, u, f, w, y, C, x, M;
+    var o, r, n, a, l, h, d, p, c, f, v, u, g, w, y, S, x, M;
     if (this.is3DMode) {
       if (t.button === 1 || t.button === 0 && t.shiftKey) {
         this.isPanning = !0, this.panStart = { x: t.clientX - this.viewport.x, y: t.clientY - this.viewport.y }, (r = (o = t.target).setPointerCapture) == null || r.call(o, t.pointerId);
@@ -2129,13 +2213,13 @@ let L = class extends V {
         return;
       }
       if (t.button === 0 && !((h = (l = t.target) == null ? void 0 : l.closest) == null ? void 0 : h.call(l, ".wall-element, .wall-element-3d, .room-group, .entity-pin, .opening-element, .furniture-group"))) {
-        this.selectedElements = { wallIds: [], openingIds: [], roomIds: [], bindingIds: [], furnitureIds: [] }, this.dispatchSelectionChanged(), this.isOrbiting = !0, this.orbitStart = { x: t.clientX, y: t.clientY }, this.orbitStartPitch = this.orbitPitch, this.orbitStartYaw = this.orbitYaw, (p = (c = t.target).setPointerCapture) == null || p.call(c, t.pointerId);
+        this.selectedElements = { wallIds: [], openingIds: [], roomIds: [], bindingIds: [], furnitureIds: [] }, this.dispatchSelectionChanged(), this.isOrbiting = !0, this.orbitStart = { x: t.clientX, y: t.clientY }, this.orbitStartPitch = this.orbitPitch, this.orbitStartYaw = this.orbitYaw, (p = (d = t.target).setPointerCapture) == null || p.call(d, t.pointerId);
         return;
       }
       return;
     }
     if (t.button === 1) {
-      this.isPanning = !0, this.panStart = { x: t.clientX - this.viewport.x, y: t.clientY - this.viewport.y }, (g = (d = t.target).setPointerCapture) == null || g.call(d, t.pointerId);
+      this.isPanning = !0, this.panStart = { x: t.clientX - this.viewport.x, y: t.clientY - this.viewport.y }, (f = (c = t.target).setPointerCapture) == null || f.call(c, t.pointerId);
       return;
     }
     if (t.button !== 0) return;
@@ -2150,10 +2234,10 @@ let L = class extends V {
         return;
       if (t.shiftKey) {
         const P = this.screenToWorld(t.clientX, t.clientY);
-        this.isMarqueeSelecting = !0, this.marqueeStart = P, this.marqueeCurrent = P, (w = (f = t.target).setPointerCapture) == null || w.call(f, t.pointerId);
+        this.isMarqueeSelecting = !0, this.marqueeStart = P, this.marqueeCurrent = P, (w = (g = t.target).setPointerCapture) == null || w.call(g, t.pointerId);
         return;
       }
-      this.selectedElements = { wallIds: [], openingIds: [], roomIds: [], bindingIds: [], furnitureIds: [] }, this.dispatchSelectionChanged(), this.isPanning = !0, this.panStart = { x: t.clientX - this.viewport.x, y: t.clientY - this.viewport.y }, (C = (y = t.target).setPointerCapture) == null || C.call(y, t.pointerId);
+      this.selectedElements = { wallIds: [], openingIds: [], roomIds: [], bindingIds: [], furnitureIds: [] }, this.dispatchSelectionChanged(), this.isPanning = !0, this.panStart = { x: t.clientX - this.viewport.x, y: t.clientY - this.viewport.y }, (S = (y = t.target).setPointerCapture) == null || S.call(y, t.pointerId);
       return;
     }
     if (t.shiftKey) {
@@ -2162,7 +2246,7 @@ let L = class extends V {
     }
     const s = this.screenToWorld(t.clientX, t.clientY);
     if (this.activeTool === "wall") {
-      const P = S.snapPoint(
+      const P = C.snapPoint(
         s,
         this.project.grid,
         this.project.walls,
@@ -2171,11 +2255,11 @@ let L = class extends V {
       if (!this.drawingWallStart)
         this.drawingWallStart = P.point;
       else {
-        const j = this.drawingWallStart, _ = P.point;
-        if (S.distance(j, _) >= 0.15) {
+        const D = this.drawingWallStart, _ = P.point;
+        if (C.distance(D, _) >= 0.15) {
           const $ = {
             id: `wall_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
-            start: { ...j },
+            start: { ...D },
             end: { ..._ },
             thickness: this.currentWallThickness,
             type: "standard"
@@ -2188,12 +2272,12 @@ let L = class extends V {
       }
     } else if (this.activeTool === "door" || this.activeTool === "window" || this.activeTool === "french_window") {
       if (this.wallSnap) {
-        const P = this.activeTool === "window" ? "window" : this.activeTool === "french_window" ? "french_window" : "door", j = P === "door" ? 0.9 : P === "french_window" ? 2 : this.windowSashCount === 2 ? 1.4 : 0.9, _ = {
+        const P = this.activeTool === "window" ? "window" : this.activeTool === "french_window" ? "french_window" : "door", D = P === "door" ? 0.9 : P === "french_window" ? 2 : this.windowSashCount === 2 ? 1.4 : 0.9, _ = {
           id: `op_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
           wallId: this.wallSnap.wall.id,
           type: P,
-          offset: S.roundMeters(this.wallSnap.offset),
-          width: this.currentOpeningWidth || j,
+          offset: C.roundMeters(this.wallSnap.offset),
+          width: this.currentOpeningWidth || D,
           flipSide: this.openingFlipSide,
           flipDirection: this.openingFlipDirection,
           sashCount: P === "window" ? this.windowSashCount || 1 : P === "french_window" ? 2 : 1
@@ -2204,17 +2288,17 @@ let L = class extends V {
         }, this.dispatchProjectChanged();
       }
     } else if (this.activeTool === "calibrate") {
-      const P = this.getBoundingClientRect(), j = { x: t.clientX - P.left, y: t.clientY - P.top };
+      const P = this.getBoundingClientRect(), D = { x: t.clientX - P.left, y: t.clientY - P.top };
       if (!this.calibrateStart)
-        this.calibrateStart = j, this.calibrateCurrent = j;
+        this.calibrateStart = D, this.calibrateCurrent = D;
       else {
-        const _ = j.x - this.calibrateStart.x, A = j.y - this.calibrateStart.y, $ = Math.sqrt(_ * _ + A * A);
+        const _ = D.x - this.calibrateStart.x, R = D.y - this.calibrateStart.y, $ = Math.sqrt(_ * _ + R * R);
         if ($ >= 10) {
-          const R = $ / this.viewport.zoom;
+          const L = $ / this.viewport.zoom;
           this.dispatchEvent(new CustomEvent("request-calibration", {
             detail: {
-              pixelDistance: R,
-              defaultMeters: S.roundMeters(R / this.project.pixelsPerMeter)
+              pixelDistance: L,
+              defaultMeters: C.roundMeters(L / this.project.pixelsPerMeter)
             },
             bubbles: !0,
             composed: !0
@@ -2223,23 +2307,23 @@ let L = class extends V {
       }
     } else if (this.activeTool === "rescale") {
       const P = this.screenToWorld(t.clientX, t.clientY);
-      let j = S.snapPoint(
+      let D = C.snapPoint(
         P,
         this.project.grid,
         this.project.walls,
         this.rescaleStart || void 0
       );
-      if (j.snappedTo === "none" && this.project.walls.length > 0) {
-        const _ = S.snapPointToWall(P, this.project.walls, 0.6);
-        _ && (j = { point: _.projectionPoint, snappedTo: "vertex" });
+      if (D.snappedTo === "none" && this.project.walls.length > 0) {
+        const _ = C.snapPointToWall(P, this.project.walls, 0.6);
+        _ && (D = { point: _.projectionPoint, snappedTo: "vertex" });
       }
       if (!this.rescaleStart)
-        this.rescaleStart = j.point, this.rescaleCurrent = j.point;
+        this.rescaleStart = D.point, this.rescaleCurrent = D.point;
       else {
-        const _ = this.rescaleStart, A = j.point, $ = S.distance(_, A);
+        const _ = this.rescaleStart, R = D.point, $ = C.distance(_, R);
         $ >= 0.05 && (this.dispatchEvent(new CustomEvent("request-rescale", {
           detail: {
-            measuredMeters: S.roundMeters($)
+            measuredMeters: C.roundMeters($)
           },
           bubbles: !0,
           composed: !0
@@ -2270,19 +2354,19 @@ let L = class extends V {
         this.dragFurnitureMoved = !0;
         const s = this.project.pixelsPerMeter * this.viewport.zoom, o = (t.clientX - this.dragFurnitureStartPos.x) / s, r = (t.clientY - this.dragFurnitureStartPos.y) / s;
         let n = this.dragFurnitureItemStartPos.x + o, a = this.dragFurnitureItemStartPos.y + r;
-        if (this.project.grid.snapToGrid) {
+        if (this.project.grid.snapToGrid && t.altKey) {
           const p = this.project.grid.size || 0.5;
           n = Math.round(n / p) * p, a = Math.round(a / p) * p;
         }
         const l = {
-          x: S.roundMeters(n),
-          y: S.roundMeters(a)
-        }, h = ee.findRoomContainingPoint(l, this.project.rooms), c = (this.project.furniture || []).map((p) => p.id === this.draggingFurnitureId ? {
+          x: Math.round(n * 1e3) / 1e3,
+          y: Math.round(a * 1e3) / 1e3
+        }, h = ee.findRoomContainingPoint(l, this.project.rooms), d = (this.project.furniture || []).map((p) => p.id === this.draggingFurnitureId ? {
           ...p,
           position: l,
           roomId: h == null ? void 0 : h.id
         } : p);
-        this.project = { ...this.project, furniture: c }, this.requestUpdate();
+        this.project = { ...this.project, furniture: d }, this.requestUpdate();
       }
       return;
     }
@@ -2298,12 +2382,12 @@ let L = class extends V {
         const n = this.project.walls.map((a) => a.id === this.draggingWallId ? {
           ...a,
           start: {
-            x: S.roundMeters(this.dragWallInitialStart.x + o),
-            y: S.roundMeters(this.dragWallInitialStart.y + r)
+            x: C.roundMeters(this.dragWallInitialStart.x + o),
+            y: C.roundMeters(this.dragWallInitialStart.y + r)
           },
           end: {
-            x: S.roundMeters(this.dragWallInitialEnd.x + o),
-            y: S.roundMeters(this.dragWallInitialEnd.y + r)
+            x: C.roundMeters(this.dragWallInitialEnd.x + o),
+            y: C.roundMeters(this.dragWallInitialEnd.y + r)
           }
         } : a);
         this.project = { ...this.project, walls: n }, this.requestUpdate();
@@ -2316,8 +2400,8 @@ let L = class extends V {
         const s = this.screenToWorld(t.clientX, t.clientY), o = ee.findRoomContainingPoint(s, this.project.rooms), r = this.project.bindings.map((n) => n.id === this.draggingBindingId ? {
           ...n,
           position: {
-            x: S.roundMeters(s.x),
-            y: S.roundMeters(s.y)
+            x: C.roundMeters(s.x),
+            y: C.roundMeters(s.y)
           },
           roomId: o == null ? void 0 : o.id
         } : n);
@@ -2339,10 +2423,10 @@ let L = class extends V {
     }
     const e = this.screenToWorld(t.clientX, t.clientY);
     if (this.cursorCoords = {
-      x: S.roundMeters(e.x),
-      y: S.roundMeters(e.y)
+      x: C.roundMeters(e.x),
+      y: C.roundMeters(e.y)
     }, this.activeTool === "wall") {
-      const i = S.snapPoint(
+      const i = C.snapPoint(
         e,
         this.project.grid,
         this.project.walls,
@@ -2355,19 +2439,19 @@ let L = class extends V {
         smartGuideY: i.smartGuideY
       }, this.wallSnap = null;
     } else if (this.activeTool === "door" || this.activeTool === "window" || this.activeTool === "french_window")
-      this.wallSnap = S.snapPointToWall(e, this.project.walls, 0.8), this.previewPoint = null;
+      this.wallSnap = C.snapPointToWall(e, this.project.walls, 0.8), this.previewPoint = null;
     else if (this.activeTool === "calibrate" && this.calibrateStart) {
       const i = this.getBoundingClientRect();
       this.calibrateCurrent = { x: t.clientX - i.left, y: t.clientY - i.top };
     } else if (this.activeTool === "rescale") {
-      let i = S.snapPoint(
+      let i = C.snapPoint(
         e,
         this.project.grid,
         this.project.walls,
         this.rescaleStart || void 0
       );
       if (i.snappedTo === "none" && this.project.walls.length > 0) {
-        const s = S.snapPointToWall(e, this.project.walls, 0.6);
+        const s = C.snapPointToWall(e, this.project.walls, 0.6);
         s && (i = { point: s.projectionPoint, snappedTo: "vertex" });
       }
       this.previewPoint = i.point, this.snapInfo = {
@@ -2380,7 +2464,7 @@ let L = class extends V {
       this.previewPoint = null, this.wallSnap = null;
   }
   handlePointerUp(t) {
-    var e, i, s, o, r, n, a, l, h, c, p, d, g, v, u, f;
+    var e, i, s, o, r, n, a, l, h, d, p, c, f, v, u, g;
     if (this.rotatingFurnitureId) {
       const w = this.rotateFurnitureMoved;
       this.rotatingFurnitureId = null, this.rotateFurnitureMoved = !1;
@@ -2426,7 +2510,7 @@ let L = class extends V {
       } catch {
       }
       try {
-        (c = (h = t.target) == null ? void 0 : h.releasePointerCapture) == null || c.call(h, t.pointerId);
+        (d = (h = t.target) == null ? void 0 : h.releasePointerCapture) == null || d.call(h, t.pointerId);
       } catch {
       }
       if (w) {
@@ -2438,39 +2522,39 @@ let L = class extends V {
         this.dragBindingMoved = !1;
     }
     if (this.isOrbiting) {
-      this.isOrbiting = !1, (d = (p = t.target).releasePointerCapture) == null || d.call(p, t.pointerId);
+      this.isOrbiting = !1, (c = (p = t.target).releasePointerCapture) == null || c.call(p, t.pointerId);
       return;
     }
     if (this.isMarqueeSelecting && this.marqueeStart && this.marqueeCurrent) {
-      const w = Math.min(this.marqueeStart.x, this.marqueeCurrent.x), y = Math.max(this.marqueeStart.x, this.marqueeCurrent.x), C = Math.min(this.marqueeStart.y, this.marqueeCurrent.y), x = Math.max(this.marqueeStart.y, this.marqueeCurrent.y);
-      if (y - w > 0.05 || x - C > 0.05) {
+      const w = Math.min(this.marqueeStart.x, this.marqueeCurrent.x), y = Math.max(this.marqueeStart.x, this.marqueeCurrent.x), S = Math.min(this.marqueeStart.y, this.marqueeCurrent.y), x = Math.max(this.marqueeStart.y, this.marqueeCurrent.y);
+      if (y - w > 0.05 || x - S > 0.05) {
         const M = this.project.walls.filter(($) => {
-          const R = ($.start.x + $.end.x) / 2, U = ($.start.y + $.end.y) / 2;
-          return R >= w && R <= y && U >= C && U <= x;
+          const L = ($.start.x + $.end.x) / 2, U = ($.start.y + $.end.y) / 2;
+          return L >= w && L <= y && U >= S && U <= x;
         }).map(($) => $.id), P = this.project.openings.filter(($) => {
-          const R = this.project.walls.find((T) => T.id === $.wallId);
-          if (!R) return !1;
-          const U = R.end.x - R.start.x, K = R.end.y - R.start.y, N = Math.sqrt(U * U + K * K);
+          const L = this.project.walls.find((E) => E.id === $.wallId);
+          if (!L) return !1;
+          const U = L.end.x - L.start.x, K = L.end.y - L.start.y, N = Math.sqrt(U * U + K * K);
           if (N === 0) return !1;
-          const k = R.start.x + $.offset / N * U, I = R.start.y + $.offset / N * K;
-          return k >= w && k <= y && I >= C && I <= x;
-        }).map(($) => $.id), j = this.project.rooms.filter(($) => {
+          const k = L.start.x + $.offset / N * U, I = L.start.y + $.offset / N * K;
+          return k >= w && k <= y && I >= S && I <= x;
+        }).map(($) => $.id), D = this.project.rooms.filter(($) => {
           if (!$.polygon || $.polygon.length < 3) return !1;
-          const R = ee.calculateCentroid($.polygon);
-          return R.x >= w && R.x <= y && R.y >= C && R.y <= x;
-        }).map(($) => $.id), _ = this.project.bindings.filter(($) => $.position.x >= w && $.position.x <= y && $.position.y >= C && $.position.y <= x).map(($) => $.id), A = (this.project.furniture || []).filter(($) => $.position.x >= w && $.position.x <= y && $.position.y >= C && $.position.y <= x).map(($) => $.id);
+          const L = ee.calculateCentroid($.polygon);
+          return L.x >= w && L.x <= y && L.y >= S && L.y <= x;
+        }).map(($) => $.id), _ = this.project.bindings.filter(($) => $.position.x >= w && $.position.x <= y && $.position.y >= S && $.position.y <= x).map(($) => $.id), R = (this.project.furniture || []).filter(($) => $.position.x >= w && $.position.x <= y && $.position.y >= S && $.position.y <= x).map(($) => $.id);
         this.selectedElements = {
           wallIds: Array.from(/* @__PURE__ */ new Set([...this.selectedElements.wallIds, ...M])),
           openingIds: Array.from(/* @__PURE__ */ new Set([...this.selectedElements.openingIds, ...P])),
-          roomIds: Array.from(/* @__PURE__ */ new Set([...this.selectedElements.roomIds, ...j])),
+          roomIds: Array.from(/* @__PURE__ */ new Set([...this.selectedElements.roomIds, ...D])),
           bindingIds: Array.from(/* @__PURE__ */ new Set([...this.selectedElements.bindingIds, ..._])),
-          furnitureIds: Array.from(/* @__PURE__ */ new Set([...this.selectedElements.furnitureIds || [], ...A]))
+          furnitureIds: Array.from(/* @__PURE__ */ new Set([...this.selectedElements.furnitureIds || [], ...R]))
         }, this.dispatchSelectionChanged();
       }
-      this.isMarqueeSelecting = !1, this.marqueeStart = null, this.marqueeCurrent = null, (v = (g = t.target).releasePointerCapture) == null || v.call(g, t.pointerId);
+      this.isMarqueeSelecting = !1, this.marqueeStart = null, this.marqueeCurrent = null, (v = (f = t.target).releasePointerCapture) == null || v.call(f, t.pointerId);
       return;
     }
-    this.isPanning && (this.isPanning = !1, (f = (u = t.target).releasePointerCapture) == null || f.call(u, t.pointerId));
+    this.isPanning && (this.isPanning = !1, (g = (u = t.target).releasePointerCapture) == null || g.call(u, t.pointerId));
   }
   // ==========================================
   // DRAG & DROP ENTITÉS HOME ASSISTANT
@@ -2501,22 +2585,22 @@ let L = class extends V {
       try {
         const o = JSON.parse(e);
         if (o.kind === "furniture") {
-          const d = gt(o.furnitureType);
-          if (d) {
-            const g = this.screenToWorld(t.clientX, t.clientY), v = ee.findRoomContainingPoint(g, this.project.rooms), u = {
+          const c = gt(o.furnitureType);
+          if (c) {
+            const f = this.screenToWorld(t.clientX, t.clientY), v = ee.findRoomContainingPoint(f, this.project.rooms), u = {
               id: `furn_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
-              type: d.type,
-              name: d.name,
-              category: d.category,
+              type: c.type,
+              name: c.name,
+              category: c.category,
               position: {
-                x: S.roundMeters(g.x),
-                y: S.roundMeters(g.y)
+                x: C.roundMeters(f.x),
+                y: C.roundMeters(f.y)
               },
-              width: d.width,
-              length: d.length,
+              width: c.width,
+              length: c.length,
               rotation: 0,
-              color: d.defaultColor,
-              icon: d.icon,
+              color: c.defaultColor,
+              icon: c.icon,
               roomId: v == null ? void 0 : v.id
             };
             this.project = {
@@ -2532,14 +2616,14 @@ let L = class extends V {
             return;
           }
         }
-        const { entityId: r, domain: n, name: a, icon: l } = o, h = this.screenToWorld(t.clientX, t.clientY), c = ee.findRoomContainingPoint(h, this.project.rooms), p = {
+        const { entityId: r, domain: n, name: a, icon: l } = o, h = this.screenToWorld(t.clientX, t.clientY), d = ee.findRoomContainingPoint(h, this.project.rooms), p = {
           id: `bind_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
           entityId: r,
           position: {
-            x: S.roundMeters(h.x),
-            y: S.roundMeters(h.y)
+            x: C.roundMeters(h.x),
+            y: C.roundMeters(h.y)
           },
-          roomId: c == null ? void 0 : c.id,
+          roomId: d == null ? void 0 : d.id,
           icon: l,
           customName: a,
           tapAction: "toggle"
@@ -2629,7 +2713,7 @@ let L = class extends V {
   renderMarqueeBox() {
     if (!this.isMarqueeSelecting || !this.marqueeStart || !this.marqueeCurrent) return null;
     const t = this.worldToScreen(this.marqueeStart), e = this.worldToScreen(this.marqueeCurrent), i = Math.min(t.x, e.x), s = Math.min(t.y, e.y), o = Math.abs(t.x - e.x), r = Math.abs(t.y - e.y);
-    return E`
+    return T`
       <rect 
         class="marquee-selection-box"
         x="${i}" 
@@ -2758,7 +2842,7 @@ let L = class extends V {
     const t = this.project.background;
     if (!t || !t.imageUrl || !t.visible) return null;
     const e = this.worldToScreen(t.offset || { x: 0, y: 0 }), i = t.scale || 1;
-    return E`
+    return T`
       <g 
         class="background-image-layer" 
         transform="translate(${e.x}, ${e.y}) scale(${this.viewport.zoom * i})"
@@ -2776,11 +2860,11 @@ let L = class extends V {
   }
   pointToSegmentDistance(t, e, i) {
     const s = i.x - e.x, o = i.y - e.y, r = s * s + o * o;
-    if (r === 0) return S.distance(t, e);
+    if (r === 0) return C.distance(t, e);
     let n = ((t.x - e.x) * s + (t.y - e.y) * o) / r;
     n = Math.max(0, Math.min(1, n));
     const a = { x: e.x + n * s, y: e.y + n * o };
-    return S.distance(t, a);
+    return C.distance(t, a);
   }
   getWallHeight(t) {
     const e = this.project.defaultCeilingHeight || 2.5, i = {
@@ -2831,7 +2915,7 @@ let L = class extends V {
   // Rendu des Pièces avec détection d'illumination (RGB & Brightness) et Carte Thermique
   renderRooms() {
     return this.project.rooms.map((t) => {
-      var g, v, u, f, w, y, C;
+      var f, v, u, g, w, y, S;
       if (!t.polygon || t.polygon.length < 3) return null;
       const e = t.polygon.map((x) => this.worldToScreen(x)), i = e.map((x) => `${x.x},${x.y}`).join(" "), s = this.project.bindings.filter((x) => x.roomId === t.id && x.entityId.startsWith("light.")).map((x) => {
         var M, P;
@@ -2839,8 +2923,8 @@ let L = class extends V {
       }).filter((x) => x && x.state === "on"), o = s.length > 0;
       let r = null;
       if (o) {
-        const x = s[0], M = ((g = x.attributes) == null ? void 0 : g.rgb_color) || [255, 240, 180], j = 0.12 + (((v = x.attributes) == null ? void 0 : v.brightness) !== void 0 ? x.attributes.brightness : 255) / 255 * 0.22;
-        r = `rgba(${M[0]}, ${M[1]}, ${M[2]}, ${j.toFixed(2)})`;
+        const x = s[0], M = ((f = x.attributes) == null ? void 0 : f.rgb_color) || [255, 240, 180], D = 0.12 + (((v = x.attributes) == null ? void 0 : v.brightness) !== void 0 ? x.attributes.brightness : 255) / 255 * 0.22;
+        r = `rgba(${M[0]}, ${M[1]}, ${M[2]}, ${D.toFixed(2)})`;
       }
       let n = null;
       const a = this.project.bindings.find(
@@ -2850,7 +2934,7 @@ let L = class extends V {
         }
       );
       if (a) {
-        const x = (f = (u = this.hass) == null ? void 0 : u.states) == null ? void 0 : f[a.entityId];
+        const x = (g = (u = this.hass) == null ? void 0 : u.states) == null ? void 0 : g[a.entityId];
         if (x)
           if (a.entityId.startsWith("climate.")) {
             const M = ((w = x.attributes) == null ? void 0 : w.current_temperature) ?? x.state;
@@ -2860,10 +2944,10 @@ let L = class extends V {
       }
       let l = t.color || "rgba(56, 189, 248, 0.12)";
       this.showThermalHeatmap && n !== null ? n < 18 ? l = "rgba(59, 130, 246, 0.38)" : n < 20 ? l = "rgba(14, 165, 233, 0.32)" : n < 22 ? l = "rgba(16, 185, 129, 0.30)" : n < 24 ? l = "rgba(245, 158, 11, 0.34)" : l = "rgba(239, 68, 68, 0.40)" : r && (l = r);
-      const h = ee.calculateCentroid(e), c = t.height || this.project.defaultCeilingHeight || 2.5, p = (t.areaM2 * c).toFixed(1), d = (C = (y = this.selectedElements) == null ? void 0 : y.roomIds) == null ? void 0 : C.includes(t.id);
-      return E`
+      const h = ee.calculateCentroid(e), d = t.height || this.project.defaultCeilingHeight || 2.5, p = (t.areaM2 * d).toFixed(1), c = (S = (y = this.selectedElements) == null ? void 0 : y.roomIds) == null ? void 0 : S.includes(t.id);
+      return T`
         <g 
-          class="room-group ${d ? "selected" : ""}" 
+          class="room-group ${c ? "selected" : ""}" 
           data-room-id="${t.id}" 
           @click=${(x) => this.handleRoomClick(x, t)}
           @dblclick=${(x) => this.handleRoomDblClick(x, t)}
@@ -2873,7 +2957,7 @@ let L = class extends V {
             class="room-polygon ${o ? "illuminated" : ""}"
             style="fill: ${l}; cursor: pointer; transition: fill 0.3s ease;"
           />
-          ${this.is3DMode ? E`
+          ${this.is3DMode ? T`
             <g class="room-3d-badge-group" transform="translate(${h.x}, ${h.y})">
               <rect 
                 x="-62" 
@@ -2883,8 +2967,8 @@ let L = class extends V {
                 rx="10" 
                 ry="10" 
                 fill="rgba(15, 23, 42, 0.84)" 
-                stroke="${d ? "#38bdf8" : "rgba(56, 189, 248, 0.4)"}" 
-                stroke-width="${d ? 2 : 1}"
+                stroke="${c ? "#38bdf8" : "rgba(56, 189, 248, 0.4)"}" 
+                stroke-width="${c ? 2 : 1}"
                 filter="drop-shadow(0 6px 14px rgba(0, 0, 0, 0.6))"
               />
               <text class="room-label-name" y="-12" style="font-size: 12px; font-weight: 700; fill: #f8fafc; text-anchor: middle;">
@@ -2894,14 +2978,14 @@ let L = class extends V {
                 ${t.areaM2.toFixed(1)} m²
               </text>
               <text class="room-label-height" y="21" style="font-size: 9.5px; font-weight: 600; fill: #a5f3fc; text-anchor: middle; font-family: ui-monospace, SFMono-Regular, monospace;">
-                H: ${c.toFixed(2)}m · ${p} m³
+                H: ${d.toFixed(2)}m · ${p} m³
               </text>
             </g>
-          ` : E`
+          ` : T`
             <g class="room-label-group" transform="translate(${h.x}, ${h.y})">
               <text class="room-label-name" y="${n !== null ? -10 : -6}">${t.name}</text>
               <text class="room-label-area" y="${n !== null ? 6 : 12}">${t.areaM2.toFixed(1)} m²</text>
-              ${n !== null ? E`
+              ${n !== null ? T`
                 <text class="room-label-temp" y="21" style="font-size: 9.5px; font-weight: 700; fill: #facc15; text-anchor: middle; font-family: ui-monospace, SFMono-Regular, monospace;">
                   🌡️ ${n.toFixed(1)}°C
                 </text>
@@ -2914,7 +2998,7 @@ let L = class extends V {
   }
   renderGrid() {
     if (this.is3DMode)
-      return E`
+      return T`
         <defs>
           <radialGradient id="ground-shadow" cx="50%" cy="50%" r="50%">
             <stop offset="0%" stop-color="rgba(0, 0, 0, 0.45)" />
@@ -2934,7 +3018,7 @@ let L = class extends V {
     const t = this.project.pixelsPerMeter * this.viewport.zoom, i = (this.project.grid.size || 0.5) * t;
     if (i < 12) return null;
     const s = i * 2;
-    return E`
+    return T`
       <defs>
         <pattern id="grid-sub" width="${i}" height="${i}" patternUnits="userSpaceOnUse"
           patternTransform="translate(${this.viewport.x % i}, ${this.viewport.y % i})">
@@ -2955,20 +3039,20 @@ let L = class extends V {
     const t = this.project.pixelsPerMeter * this.viewport.zoom;
     return this.project.walls.map((e) => {
       var w, y;
-      const i = (y = (w = this.selectedElements) == null ? void 0 : w.wallIds) == null ? void 0 : y.includes(e.id), s = this.getWallHeight(e), o = this.is3DMode ? s * t * 0.55 : 0, n = this.computeWallPolygon(e.start, e.end, e.thickness).map((C) => this.worldToScreen(C)), a = this.worldToScreen(e.start), l = this.worldToScreen(e.end), h = n.map((C) => `${C.x},${C.y}`).join(" "), c = S.distance(e.start, e.end), p = {
+      const i = (y = (w = this.selectedElements) == null ? void 0 : w.wallIds) == null ? void 0 : y.includes(e.id), s = this.getWallHeight(e), o = this.is3DMode ? s * t * 0.55 : 0, n = this.computeWallPolygon(e.start, e.end, e.thickness).map((S) => this.worldToScreen(S)), a = this.worldToScreen(e.start), l = this.worldToScreen(e.end), h = n.map((S) => `${S.x},${S.y}`).join(" "), d = C.distance(e.start, e.end), p = {
         x: (a.x + l.x) / 2,
         y: (a.y + l.y) / 2
       };
       if (this.is3DMode) {
-        const C = n.map((_) => ({ x: _.x, y: _.y - o })), x = C.map((_) => `${_.x},${_.y}`).join(" "), M = [0, 1, 2, 3].map((_) => {
-          const A = (_ + 1) % 4, $ = n[_], R = n[A], U = C[A], K = C[_], N = R.x - $.x, k = R.y - $.y, I = Math.sqrt(N * N + k * k) || 1, T = -k / I, z = N / I, H = Math.max(-1, Math.min(1, T * -0.7 + z * -0.7)), q = Math.round(i ? 42 + H * 14 : 34 + H * 16), J = i ? `hsl(192, 85%, ${q}%)` : `hsl(215, 22%, ${q}%)`, he = i ? "#38bdf8" : `hsl(215, 22%, ${q + 6}%)`;
+        const S = n.map((_) => ({ x: _.x, y: _.y - o })), x = S.map((_) => `${_.x},${_.y}`).join(" "), M = [0, 1, 2, 3].map((_) => {
+          const R = (_ + 1) % 4, $ = n[_], L = n[R], U = S[R], K = S[_], N = L.x - $.x, k = L.y - $.y, I = Math.sqrt(N * N + k * k) || 1, E = -k / I, z = N / I, H = Math.max(-1, Math.min(1, E * -0.7 + z * -0.7)), q = Math.round(i ? 42 + H * 14 : 34 + H * 16), J = i ? `hsl(192, 85%, ${q}%)` : `hsl(215, 22%, ${q}%)`, he = i ? "#38bdf8" : `hsl(215, 22%, ${q + 6}%)`;
           return {
-            pts: `${$.x},${$.y} ${R.x},${R.y} ${U.x},${U.y} ${K.x},${K.y}`,
+            pts: `${$.x},${$.y} ${L.x},${L.y} ${U.x},${U.y} ${K.x},${K.y}`,
             fill: J,
             stroke: he
           };
-        }), P = i ? "#06b6d4" : "#f1f5f9", j = i ? "#22d3ee" : "#94a3b8";
-        return E`
+        }), P = i ? "#06b6d4" : "#f1f5f9", D = i ? "#22d3ee" : "#94a3b8";
+        return T`
           <g 
             class="wall-element-3d ${i ? "selected" : ""}" 
             data-wall-id="${e.id}"
@@ -2976,29 +3060,29 @@ let L = class extends V {
             style="cursor: pointer;"
           >
             <!-- 4 parois verticales solides -->
-            ${M.map((_) => E`
+            ${M.map((_) => T`
               <polygon points="${_.pts}" style="fill: ${_.fill}; stroke: ${_.stroke}; stroke-width: 0.8; stroke-linejoin: round;" />
             `)}
             <!-- Chapeau supérieur du mur -->
-            <polygon points="${x}" style="fill: ${P}; stroke: ${j}; stroke-width: 1.2; stroke-linejoin: round;" />
+            <polygon points="${x}" style="fill: ${P}; stroke: ${D}; stroke-width: 1.2; stroke-linejoin: round;" />
           </g>
         `;
       }
-      const d = l.x - a.x, g = l.y - a.y, v = Math.hypot(d, g) || 1, u = -g / v, f = d / v;
-      return E`
+      const c = l.x - a.x, f = l.y - a.y, v = Math.hypot(c, f) || 1, u = -f / v, g = c / v;
+      return T`
         <g 
           class="wall-element ${i ? "selected" : ""}" 
           data-wall-id="${e.id}"
-          @pointerdown=${(C) => this.handleWallPointerDown(e, C)}
-          @click=${(C) => this.handleWallClick(C, e)}
+          @pointerdown=${(S) => this.handleWallPointerDown(e, S)}
+          @click=${(S) => this.handleWallClick(S, e)}
         >
           <polygon points="${h}" class="wall-rect" />
           <line x1="${a.x}" y1="${a.y}" x2="${l.x}" y2="${l.y}" class="wall-centerline" />
           
-          ${this.showDimensions && c >= 0.4 ? E`
-            <g class="wall-dim-badge" transform="translate(${p.x + u * 14}, ${p.y + f * 14})">
+          ${this.showDimensions && d >= 0.4 ? T`
+            <g class="wall-dim-badge" transform="translate(${p.x + u * 14}, ${p.y + g * 14})">
               <rect x="-24" y="-9" width="48" height="18" />
-              <text>${S.roundMeters(c).toFixed(2)} m</text>
+              <text>${C.roundMeters(d).toFixed(2)} m</text>
             </g>
           ` : null}
         </g>
@@ -3008,36 +3092,36 @@ let L = class extends V {
   renderOpenings() {
     return this.project.openings.map((t) => {
       var v, u;
-      const e = (u = (v = this.selectedElements) == null ? void 0 : v.openingIds) == null ? void 0 : u.includes(t.id), i = this.project.walls.find((f) => f.id === t.wallId);
+      const e = (u = (v = this.selectedElements) == null ? void 0 : v.openingIds) == null ? void 0 : u.includes(t.id), i = this.project.walls.find((g) => g.id === t.wallId);
       if (!i) return null;
       const s = i.end.x - i.start.x, o = i.end.y - i.start.y, r = Math.sqrt(s * s + o * o);
       if (r === 0) return null;
-      const a = Math.atan2(o, s) * 180 / Math.PI, l = i.start.x + t.offset / r * s, h = i.start.y + t.offset / r * o, c = this.worldToScreen({ x: l, y: h }), p = this.project.pixelsPerMeter * this.viewport.zoom, d = t.width * p, g = i.thickness * p;
-      return E`
+      const a = Math.atan2(o, s) * 180 / Math.PI, l = i.start.x + t.offset / r * s, h = i.start.y + t.offset / r * o, d = this.worldToScreen({ x: l, y: h }), p = this.project.pixelsPerMeter * this.viewport.zoom, c = t.width * p, f = i.thickness * p;
+      return T`
         <g 
           class="opening-element ${e ? "selected" : ""}" 
-          transform="translate(${c.x}, ${c.y}) rotate(${a})"
+          transform="translate(${d.x}, ${d.y}) rotate(${a})"
           style="cursor: pointer;"
-          @click=${(f) => this.handleOpeningClick(f, t)}
+          @click=${(g) => this.handleOpeningClick(g, t)}
         >
           <rect 
-            x="${-d / 2}" 
-            y="${-g / 2 - 1}" 
-            width="${d}" 
-            height="${g + 2}" 
+            x="${-c / 2}" 
+            y="${-f / 2 - 1}" 
+            width="${c}" 
+            height="${f + 2}" 
             class="wall-cutout"
           />
 
-          ${t.type === "door" ? this.renderDoorSymbol(d, g, t.flipSide, t.flipDirection) : null}
-          ${t.type === "window" ? this.renderWindowSymbol(d, g, t.sashCount || (t.width >= 1.25 ? 2 : 1)) : null}
-          ${t.type === "french_window" ? this.renderFrenchWindowSymbol(d, g) : null}
+          ${t.type === "door" ? this.renderDoorSymbol(c, f, t.flipSide, t.flipDirection) : null}
+          ${t.type === "window" ? this.renderWindowSymbol(c, f, t.sashCount || (t.width >= 1.25 ? 2 : 1)) : null}
+          ${t.type === "french_window" ? this.renderFrenchWindowSymbol(c, f) : null}
         </g>
       `;
     });
   }
   renderDoorSymbol(t, e, i, s) {
     const o = t / 2, r = i ? -1 : 1, n = s ? o : -o, a = s ? -1 : 1;
-    return E`
+    return T`
       <g>
         <rect x="${-o}" y="${-e / 2}" width="4" height="${e}" fill="#94a3b8" />
         <rect x="${o - 4}" y="${-e / 2}" width="4" height="${e}" fill="#94a3b8" />
@@ -3057,7 +3141,7 @@ let L = class extends V {
   }
   renderWindowSymbol(t, e, i = 1) {
     const s = t / 2;
-    return i === 2 ? E`
+    return i === 2 ? T`
         <g>
           <rect x="${-s}" y="${-e / 2}" width="${t}" height="${e}" fill="none" class="opening-window-frame" />
           <line x1="${-s}" y1="0" x2="${s}" y2="0" class="opening-window-glass" />
@@ -3065,7 +3149,7 @@ let L = class extends V {
           <line x1="${-s + 4}" y1="${-e / 4}" x2="-3" y2="${-e / 4}" stroke="rgba(56, 189, 248, 0.45)" stroke-width="1.2" />
           <line x1="3" y1="${e / 4}" x2="${s - 4}" y2="${e / 4}" stroke="rgba(56, 189, 248, 0.45)" stroke-width="1.2" />
         </g>
-      ` : E`
+      ` : T`
       <g>
         <rect x="${-s}" y="${-e / 2}" width="${t}" height="${e}" fill="none" class="opening-window-frame" />
         <line x1="${-s}" y1="0" x2="${s}" y2="0" class="opening-window-glass" />
@@ -3076,7 +3160,7 @@ let L = class extends V {
   }
   renderFrenchWindowSymbol(t, e) {
     const i = t / 2;
-    return E`
+    return T`
       <g>
         <rect x="${-i}" y="${-e / 2}" width="${t}" height="${e}" fill="none" class="opening-window-frame" />
         <rect x="${-i}" y="${-e / 4}" width="${i}" height="3" fill="#38bdf8" />
@@ -3106,8 +3190,8 @@ let L = class extends V {
     if (s === "switch")
       return i === "on" ? { text: "Actif", statusClass: "on" } : { text: "Éteint", statusClass: "off" };
     if (s === "binary_sensor") {
-      const l = r === "motion" || r === "occupancy" || r === "presence" || t.entityId.includes("presence") || t.entityId.includes("occupancy") || t.entityId.includes("radar") || t.entityId.includes("motion"), h = r === "door" || r === "window" || r === "garage_door" || r === "opening", c = r === "moisture", p = r === "smoke";
-      return i === "on" || i === "detected" ? l ? { text: "Mouvement", statusClass: "alert" } : h ? { text: "Ouvert", statusClass: "alert" } : c ? { text: "Fuite !", statusClass: "alert" } : p ? { text: "Fumée !", statusClass: "alert" } : { text: "Détecté", statusClass: "alert" } : l ? { text: "Au repos", statusClass: "info" } : h ? { text: "Fermé", statusClass: "info" } : c ? { text: "Sec", statusClass: "info" } : p ? { text: "Normal", statusClass: "info" } : { text: "Inactif", statusClass: "off" };
+      const l = r === "motion" || r === "occupancy" || r === "presence" || t.entityId.includes("presence") || t.entityId.includes("occupancy") || t.entityId.includes("radar") || t.entityId.includes("motion"), h = r === "door" || r === "window" || r === "garage_door" || r === "opening", d = r === "moisture", p = r === "smoke";
+      return i === "on" || i === "detected" ? l ? { text: "Mouvement", statusClass: "alert" } : h ? { text: "Ouvert", statusClass: "alert" } : d ? { text: "Fuite !", statusClass: "alert" } : p ? { text: "Fumée !", statusClass: "alert" } : { text: "Détecté", statusClass: "alert" } : l ? { text: "Au repos", statusClass: "info" } : h ? { text: "Fermé", statusClass: "info" } : d ? { text: "Sec", statusClass: "info" } : p ? { text: "Normal", statusClass: "info" } : { text: "Inactif", statusClass: "off" };
     }
     if (s === "climate") {
       const l = o.current_temperature, h = o.temperature;
@@ -3125,9 +3209,9 @@ let L = class extends V {
   }
   renderEntityBindings() {
     return this.project.bindings.map((t) => {
-      var f, w, y, C, x, M;
-      const e = this.worldToScreen(t.position), i = (w = (f = this.hass) == null ? void 0 : f.states) == null ? void 0 : w[t.entityId], s = (i == null ? void 0 : i.state) || "off", o = t.entityId.startsWith("light.") && s === "on", r = t.entityId.startsWith("binary_sensor.") && (s === "on" || s === "detected"), n = t.entityId.startsWith("sensor.") || t.entityId.startsWith("climate."), a = t.entityId.startsWith("fan."), l = a && s === "on", h = t.entityId.startsWith("media_player."), c = h && s === "playing", p = t.entityId.startsWith("cover."), d = (y = i == null ? void 0 : i.attributes) == null ? void 0 : y.current_position, g = ((C = i == null ? void 0 : i.attributes) == null ? void 0 : C.unit_of_measurement) || (n ? "°" : ""), v = (M = (x = this.selectedElements) == null ? void 0 : x.bindingIds) == null ? void 0 : M.includes(t.id), u = this.getEntityDisplayState(t);
-      return E`
+      var g, w, y, S, x, M;
+      const e = this.worldToScreen(t.position), i = (w = (g = this.hass) == null ? void 0 : g.states) == null ? void 0 : w[t.entityId], s = (i == null ? void 0 : i.state) || "off", o = t.entityId.startsWith("light.") && s === "on", r = t.entityId.startsWith("binary_sensor.") && (s === "on" || s === "detected"), n = t.entityId.startsWith("sensor.") || t.entityId.startsWith("climate."), a = t.entityId.startsWith("fan."), l = a && s === "on", h = t.entityId.startsWith("media_player."), d = h && s === "playing", p = t.entityId.startsWith("cover."), c = (y = i == null ? void 0 : i.attributes) == null ? void 0 : y.current_position, f = ((S = i == null ? void 0 : i.attributes) == null ? void 0 : S.unit_of_measurement) || (n ? "°" : ""), v = (M = (x = this.selectedElements) == null ? void 0 : x.bindingIds) == null ? void 0 : M.includes(t.id), u = this.getEntityDisplayState(t);
+      return T`
         <g 
           class="entity-pin ${v ? "selected" : ""} ${o ? "active-light" : ""} ${r ? "active-radar" : ""}"
           transform="translate(${e.x}, ${e.y})"
@@ -3137,10 +3221,10 @@ let L = class extends V {
           title="${t.customName || t.entityId} : ${u.text} (Clic pour basculer)"
         >
           <!-- Onde radar animée si mouvement détecté -->
-          ${r ? E`<circle cx="0" cy="0" r="16" class="radar-pulse-ring" />` : null}
+          ${r ? T`<circle cx="0" cy="0" r="16" class="radar-pulse-ring" />` : null}
 
           <!-- Ondes sonores pour lecteur multimédia actif -->
-          ${c ? E`<circle cx="0" cy="0" r="16" class="soundwave-pulse" />` : null}
+          ${d ? T`<circle cx="0" cy="0" r="16" class="soundwave-pulse" />` : null}
 
           <!-- Pastille de fond -->
           <circle cx="0" cy="0" r="16" class="entity-pin-bg" />
@@ -3161,18 +3245,18 @@ let L = class extends V {
           </text>
 
           <!-- Badge Valeur (Thermostat / Capteur de température) -->
-          ${n && s !== "unknown" ? E`
+          ${n && s !== "unknown" ? T`
             <g class="entity-pin-value-badge" transform="translate(14, -14)">
               <rect x="-14" y="-8" width="28" height="16" />
-              <text>${s}${g}</text>
+              <text>${s}${f}</text>
             </g>
           ` : null}
 
           <!-- Badge Position Volet roulant -->
-          ${p && d !== void 0 ? E`
+          ${p && c !== void 0 ? T`
             <g class="entity-pin-value-badge" transform="translate(14, -14)">
               <rect x="-14" y="-8" width="28" height="16" />
-              <text>${d}%</text>
+              <text>${c}%</text>
             </g>
           ` : null}
         </g>
@@ -3182,7 +3266,7 @@ let L = class extends V {
   renderOpeningPreview() {
     if (!this.wallSnap) return null;
     const t = this.project.pixelsPerMeter * this.viewport.zoom, e = (this.currentOpeningWidth || 0.9) * t, i = this.wallSnap.wall.thickness * t, s = this.worldToScreen(this.wallSnap.projectionPoint), o = this.wallSnap.angleRad * 180 / Math.PI;
-    return E`
+    return T`
       <g 
         class="opening-preview" 
         transform="translate(${s.x}, ${s.y}) rotate(${o})"
@@ -3200,22 +3284,22 @@ let L = class extends V {
       this.drawingWallStart,
       this.previewPoint,
       this.currentWallThickness
-    ).map((a) => this.worldToScreen(a)), i = this.worldToScreen(this.drawingWallStart), s = this.worldToScreen(this.previewPoint), o = e.map((a) => `${a.x},${a.y}`).join(" "), r = S.distance(this.drawingWallStart, this.previewPoint), n = {
+    ).map((a) => this.worldToScreen(a)), i = this.worldToScreen(this.drawingWallStart), s = this.worldToScreen(this.previewPoint), o = e.map((a) => `${a.x},${a.y}`).join(" "), r = C.distance(this.drawingWallStart, this.previewPoint), n = {
       x: (i.x + s.x) / 2,
       y: (i.y + s.y) / 2
     };
-    return E`
+    return T`
       <g class="preview-wall-group">
         <polygon points="${o}" class="preview-wall-rect" />
         <line x1="${i.x}" y1="${i.y}" x2="${s.x}" y2="${s.y}" class="preview-wall-line" />
 
-        ${this.snapInfo.guideAngle !== void 0 ? E`
+        ${this.snapInfo.guideAngle !== void 0 ? T`
           <line x1="${i.x}" y1="${i.y}" x2="${s.x}" y2="${s.y}" class="angle-guide-line" />
         ` : null}
 
         <g class="dimension-badge" transform="translate(${n.x}, ${n.y - 16})">
           <rect x="-30" y="-11" width="60" height="22" />
-          <text>${S.roundMeters(r).toFixed(2)} m</text>
+          <text>${C.roundMeters(r).toFixed(2)} m</text>
         </g>
       </g>
     `;
@@ -3223,7 +3307,7 @@ let L = class extends V {
   renderCalibrationLine() {
     if (!this.calibrateStart || !this.calibrateCurrent) return null;
     const t = this.calibrateStart, e = this.calibrateCurrent, i = e.x - t.x, s = e.y - t.y, o = Math.sqrt(i * i + s * s), r = { x: (t.x + e.x) / 2, y: (t.y + e.y) / 2 };
-    return E`
+    return T`
       <g class="calibration-preview-group">
         <line x1="${t.x}" y1="${t.y}" x2="${e.x}" y2="${e.y}" class="calibration-line" />
         <circle cx="${t.x}" cy="${t.y}" r="6" class="calibration-endpoint" />
@@ -3238,11 +3322,11 @@ let L = class extends V {
   }
   renderRescaleLine() {
     if (!this.rescaleStart || !this.rescaleCurrent) return null;
-    const t = this.worldToScreen(this.rescaleStart), e = this.worldToScreen(this.rescaleCurrent), i = S.distance(this.rescaleStart, this.rescaleCurrent), s = {
+    const t = this.worldToScreen(this.rescaleStart), e = this.worldToScreen(this.rescaleCurrent), i = C.distance(this.rescaleStart, this.rescaleCurrent), s = {
       x: (t.x + e.x) / 2,
       y: (t.y + e.y) / 2
     };
-    return E`
+    return T`
       <g class="rescale-preview-group">
         <line 
           x1="${t.x}" y1="${t.y}" 
@@ -3257,7 +3341,7 @@ let L = class extends V {
         <g class="dimension-badge" transform="translate(${s.x}, ${s.y - 18})">
           <rect x="-48" y="-13" width="96" height="26" rx="6" fill="#0f172a" stroke="#38bdf8" stroke-width="1.8" />
           <text fill="#38bdf8" font-size="12px" font-weight="800" text-anchor="middle" dy="5">
-            📐 ${S.roundMeters(i).toFixed(2)} m
+            📐 ${C.roundMeters(i).toFixed(2)} m
           </text>
         </g>
       </g>
@@ -3266,11 +3350,11 @@ let L = class extends V {
   renderGhostLayer() {
     if (!this.ghostProject || !this.ghostProject.walls || this.ghostProject.walls.length === 0) return null;
     const t = this.project.pixelsPerMeter * this.viewport.zoom;
-    return E`
+    return T`
       <g class="ghost-layer" opacity="0.45" pointer-events="none">
         ${this.ghostProject.walls.map((e) => {
       const i = this.worldToScreen(e.start), s = this.worldToScreen(e.end), o = (e.thickness || 0.2) * t;
-      return E`
+      return T`
             <line 
               x1="${i.x}" y1="${i.y}" 
               x2="${s.x}" y2="${s.y}" 
@@ -3283,9 +3367,9 @@ let L = class extends V {
     `;
   }
   renderSmartGuides() {
-    return this.snapInfo.smartGuideX === void 0 && this.snapInfo.smartGuideY === void 0 ? null : E`
+    return this.snapInfo.smartGuideX === void 0 && this.snapInfo.smartGuideY === void 0 ? null : T`
       <g class="smart-guides-group" pointer-events="none">
-        ${this.snapInfo.smartGuideX !== void 0 ? E`
+        ${this.snapInfo.smartGuideX !== void 0 ? T`
           <line 
             x1="${this.worldToScreen({ x: this.snapInfo.smartGuideX, y: 0 }).x}" 
             y1="-2000" 
@@ -3294,7 +3378,7 @@ let L = class extends V {
             class="smart-guide-line" 
           />
         ` : null}
-        ${this.snapInfo.smartGuideY !== void 0 ? E`
+        ${this.snapInfo.smartGuideY !== void 0 ? T`
           <line 
             x1="-2000" 
             y1="${this.worldToScreen({ x: 0, y: this.snapInfo.smartGuideY }).y}" 
@@ -3309,9 +3393,9 @@ let L = class extends V {
   renderFurniture() {
     const t = this.project.pixelsPerMeter * this.viewport.zoom;
     return (this.project.furniture || []).map((e) => {
-      var c;
-      const i = gt(e.type), s = ((c = this.selectedElements.furnitureIds) == null ? void 0 : c.includes(e.id)) || !1, o = this.worldToScreen(e.position), r = e.width || (i == null ? void 0 : i.width) || 1, n = e.length || (i == null ? void 0 : i.length) || 1, a = r * t, l = n * t, h = e.rotation || 0;
-      return E`
+      var d;
+      const i = gt(e.type), s = ((d = this.selectedElements.furnitureIds) == null ? void 0 : d.includes(e.id)) || !1, o = this.worldToScreen(e.position), r = e.width || (i == null ? void 0 : i.width) || 1, n = e.length || (i == null ? void 0 : i.length) || 1, a = r * t, l = n * t, h = e.rotation || 0;
+      return T`
         <g
           class="furniture-group ${s ? "selected" : ""}"
           data-furniture-id="${e.id}"
@@ -3320,11 +3404,11 @@ let L = class extends V {
           @click=${(p) => this.handleFurnitureClick(p, e)}
           title="${e.name} (${r.toFixed(2)} × ${n.toFixed(2)} m) - Touche R pour pivoter"
         >
-          ${i ? i.renderSvg(a, l, s) : E`
+          ${i ? i.renderSvg(a, l, s) : T`
             <rect x="${-a / 2}" y="${-l / 2}" width="${a}" height="${l}" fill="rgba(30, 41, 59, 0.85)" stroke="${s ? "#38bdf8" : "#94a3b8"}" stroke-width="1.5" rx="4" />
             <text x="0" y="4" text-anchor="middle" font-size="12" fill="#cbd5e1">${e.icon || "📦"}</text>
           `}
-          ${s ? E`
+          ${s ? T`
             <!-- Ligne de rappel vers la poignée -->
             <line x1="0" y1="${-l / 2}" x2="0" y2="${-l / 2 - 18}" stroke="#38bdf8" stroke-width="1.5" stroke-dasharray="3,2" />
             <!-- Poignée interactive de rotation degré par degré -->
@@ -3358,10 +3442,10 @@ let L = class extends V {
   renderSnapIndicator() {
     if (!this.previewPoint || this.snapInfo.snappedTo === "none") return null;
     const t = this.worldToScreen(this.previewPoint), e = this.snapInfo.snappedTo === "vertex";
-    return E`
+    return T`
       <g transform="translate(${t.x}, ${t.y})">
         <circle r="${e ? 7 : 5}" class="snap-indicator" />
-        ${e ? E`<circle r="2" fill="#38bdf8" />` : null}
+        ${e ? T`<circle r="2" fill="#38bdf8" />` : null}
       </g>
     `;
   }
@@ -3371,18 +3455,21 @@ let L = class extends V {
   zoomOut() {
     this.viewport = { ...this.viewport, zoom: Math.max(this.viewport.zoom / 1.25, 0.15) };
   }
+  rotateQuarterTurn() {
+    this.is3DMode ? this.orbitYaw = (this.orbitYaw - 90) % 360 : (this.viewRotation = (this.viewRotation + 270) % 360, this.fitToScreen()), this.requestUpdate();
+  }
   fitToScreen(t = 60) {
-    var v;
+    var w;
     const e = this.getBoundingClientRect(), i = e.width || this.clientWidth || 800, s = e.height || this.clientHeight || 600;
-    if (!(this.project.walls && this.project.walls.length > 0 || this.project.rooms && this.project.rooms.length > 0 || this.project.furniture && this.project.furniture.length > 0 || ((v = this.project.background) == null ? void 0 : v.imageUrl) && this.project.background.visible)) {
+    if (!(this.project.walls && this.project.walls.length > 0 || this.project.rooms && this.project.rooms.length > 0 || this.project.furniture && this.project.furniture.length > 0 || ((w = this.project.background) == null ? void 0 : w.imageUrl) && this.project.background.visible)) {
       this.viewport = { x: i / 2, y: s / 2, zoom: 1 }, this.requestUpdate();
       return;
     }
-    const r = Pe.calculateBoundingBox(this.project, 0.6), n = r.ppm, a = r.width * n, l = r.height * n, h = (r.minX + r.width / 2) * n, c = (r.minY + r.height / 2) * n, p = Math.max(100, i - t * 2), d = Math.max(100, s - t * 2);
-    let g = Math.min(p / Math.max(a, 100), d / Math.max(l, 100));
+    const r = Pe.calculateBoundingBox(this.project, 0.6), n = r.ppm, a = !this.is3DMode && (this.viewRotation === 90 || this.viewRotation === 270), l = r.width * n, h = r.height * n, d = a ? h : l, p = a ? l : h, c = (r.minX + r.width / 2) * n, f = (r.minY + r.height / 2) * n, v = Math.max(100, i - t * 2), u = Math.max(100, s - t * 2);
+    let g = Math.min(v / Math.max(d, 100), u / Math.max(p, 100));
     g = Math.min(Math.max(g, 0.2), 2.5), this.viewport = {
-      x: i / 2 - h * g,
-      y: s / 2 - c * g,
+      x: i / 2 - c * g,
+      y: s / 2 - f * g,
       zoom: g
     }, this.requestUpdate();
   }
@@ -3417,7 +3504,7 @@ let L = class extends V {
       >
         <div 
           class="viewport-3d-wrapper ${this.is3DMode ? "mode-3d" : ""}"
-          style="${this.is3DMode ? `transform: rotateX(${this.orbitPitch}deg) rotateZ(${this.orbitYaw}deg); transition: ${this.isOrbiting ? "none" : "transform 0.4s cubic-bezier(0.16, 1, 0.3, 1)"};` : ""}"
+          style="${this.is3DMode ? `transform: rotateX(${this.orbitPitch}deg) rotateZ(${this.orbitYaw}deg); transition: ${this.isOrbiting ? "none" : "transform 0.4s cubic-bezier(0.16, 1, 0.3, 1)"};` : this.viewRotation !== 0 ? `transform: rotate(${this.viewRotation}deg); transform-origin: center center; transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);` : ""}"
         >
           <svg class="main-viewport">
             ${this.renderBackgroundLayer()}
@@ -3474,6 +3561,24 @@ let L = class extends V {
             </div>
           ` : null}
 
+          <!-- Rotation du plan d'un quart de tour à gauche (90°) -->
+          <button 
+            class="hud-btn" 
+            @click=${this.rotateQuarterTurn} 
+            title="Pivoter le plan d'un quart de tour à gauche (↺ 90°)"
+          >
+            ↺
+          </button>
+
+          <!-- Zoom automatique et centrage sur l'écran -->
+          <button 
+            class="hud-btn" 
+            @click=${() => this.fitToScreen(40)} 
+            title="Ajuster automatiquement à la page (Zoom auto & centrage)"
+          >
+            ⛶
+          </button>
+
           <button class="hud-btn" @click=${this.zoomOut} title="Zoom Arrière">−</button>
           <div class="hud-zoom-label">${Math.round(this.viewport.zoom * 100)}%</div>
           <button class="hud-btn" @click=${this.zoomIn} title="Zoom Avant">+</button>
@@ -3483,121 +3588,124 @@ let L = class extends V {
     `;
   }
 };
-L.styles = Bt;
+A.styles = Bt;
 W([
   O({ type: Object })
-], L.prototype, "hass", 2);
+], A.prototype, "hass", 2);
 W([
   O({ type: Object })
-], L.prototype, "project", 2);
+], A.prototype, "project", 2);
 W([
   O({ type: String })
-], L.prototype, "activeTool", 2);
+], A.prototype, "activeTool", 2);
 W([
   O({ type: Number })
-], L.prototype, "currentWallThickness", 2);
+], A.prototype, "currentWallThickness", 2);
 W([
   O({ type: Number })
-], L.prototype, "currentOpeningWidth", 2);
+], A.prototype, "currentOpeningWidth", 2);
 W([
   O({ type: Boolean })
-], L.prototype, "is3DMode", 2);
+], A.prototype, "is3DMode", 2);
 W([
   O({ type: Object })
-], L.prototype, "selectedElements", 2);
+], A.prototype, "selectedElements", 2);
 W([
   O({ type: Boolean })
-], L.prototype, "isDashboardMode", 2);
+], A.prototype, "isDashboardMode", 2);
 W([
   O({ type: Object })
-], L.prototype, "ghostProject", 2);
+], A.prototype, "ghostProject", 2);
 W([
   O({ type: Boolean })
-], L.prototype, "showDimensions", 2);
+], A.prototype, "showDimensions", 2);
 W([
   O({ type: Boolean })
-], L.prototype, "showThermalHeatmap", 2);
+], A.prototype, "showThermalHeatmap", 2);
 W([
   b()
-], L.prototype, "isMarqueeSelecting", 2);
+], A.prototype, "isMarqueeSelecting", 2);
 W([
   b()
-], L.prototype, "marqueeStart", 2);
+], A.prototype, "marqueeStart", 2);
 W([
   b()
-], L.prototype, "marqueeCurrent", 2);
+], A.prototype, "marqueeCurrent", 2);
 W([
   b()
-], L.prototype, "viewport", 2);
+], A.prototype, "viewport", 2);
 W([
   b()
-], L.prototype, "isPanning", 2);
+], A.prototype, "isPanning", 2);
 W([
   b()
-], L.prototype, "drawingWallStart", 2);
+], A.prototype, "drawingWallStart", 2);
 W([
   b()
-], L.prototype, "previewPoint", 2);
+], A.prototype, "previewPoint", 2);
 W([
   b()
-], L.prototype, "snapInfo", 2);
+], A.prototype, "snapInfo", 2);
 W([
   b()
-], L.prototype, "cursorCoords", 2);
+], A.prototype, "cursorCoords", 2);
 W([
   b()
-], L.prototype, "draggingFurnitureId", 2);
+], A.prototype, "draggingFurnitureId", 2);
 W([
   b()
-], L.prototype, "rotatingFurnitureId", 2);
+], A.prototype, "rotatingFurnitureId", 2);
 W([
   b()
-], L.prototype, "draggingWallId", 2);
+], A.prototype, "draggingWallId", 2);
 W([
   b()
-], L.prototype, "wallSnap", 2);
+], A.prototype, "wallSnap", 2);
 W([
   O({ type: Boolean })
-], L.prototype, "openingFlipSide", 2);
+], A.prototype, "openingFlipSide", 2);
 W([
   O({ type: Boolean })
-], L.prototype, "openingFlipDirection", 2);
+], A.prototype, "openingFlipDirection", 2);
 W([
   O({ type: Number })
-], L.prototype, "windowSashCount", 2);
+], A.prototype, "windowSashCount", 2);
 W([
   b()
-], L.prototype, "calibrateStart", 2);
+], A.prototype, "calibrateStart", 2);
 W([
   b()
-], L.prototype, "calibrateCurrent", 2);
+], A.prototype, "calibrateCurrent", 2);
 W([
   b()
-], L.prototype, "rescaleStart", 2);
+], A.prototype, "rescaleStart", 2);
 W([
   b()
-], L.prototype, "rescaleCurrent", 2);
+], A.prototype, "rescaleCurrent", 2);
 W([
   b()
-], L.prototype, "draggingBindingId", 2);
+], A.prototype, "draggingBindingId", 2);
 W([
   b()
-], L.prototype, "orbitPitch", 2);
+], A.prototype, "viewRotation", 2);
 W([
   b()
-], L.prototype, "orbitYaw", 2);
+], A.prototype, "orbitPitch", 2);
 W([
   b()
-], L.prototype, "isOrbiting", 2);
-L = W([
+], A.prototype, "orbitYaw", 2);
+W([
+  b()
+], A.prototype, "isOrbiting", 2);
+A = W([
   se("home-architect-canvas")
-], L);
-var Gt = Object.defineProperty, Xt = Object.getOwnPropertyDescriptor, Z = (t, e, i, s) => {
+], A);
+var Vt = Object.defineProperty, Xt = Object.getOwnPropertyDescriptor, Z = (t, e, i, s) => {
   for (var o = s > 1 ? void 0 : s ? Xt(e, i) : e, r = t.length - 1, n; r >= 0; r--)
     (n = t[r]) && (o = (s ? n(e, i, o) : n(o)) || o);
-  return s && o && Gt(e, i, o), o;
+  return s && o && Vt(e, i, o), o;
 };
-let X = class extends V {
+let X = class extends G {
   constructor() {
     super(...arguments), this.activeTool = "wall", this.canUndo = !1, this.canRedo = !1, this.currentThickness = 0.2, this.doorFlipSide = !1, this.doorFlipDirection = !0, this.windowSashCount = 1, this.position = { x: 20, y: 20 }, this.isDragging = !1, this.activeSubmenu = "none", this.submenuTop = 0, this.submenuOnLeft = !1, this.dragStartPointer = { x: 0, y: 0 }, this.dragStartPosition = { x: 20, y: 20 }, this.handleWindowPointerDown = (t) => {
       this.activeSubmenu !== "none" && (t.composedPath().includes(this) || (this.activeSubmenu = "none"));
@@ -3631,8 +3739,8 @@ let X = class extends V {
   handleDragMove(t) {
     if (!this.isDragging) return;
     t.preventDefault(), t.stopPropagation();
-    const e = t.clientX - this.dragStartPointer.x, i = t.clientY - this.dragStartPointer.y, o = (this.parentElement || document.body).getBoundingClientRect(), r = this.getBoundingClientRect(), n = 8, a = Math.max(n, o.width - r.width - 8), l = 8, h = Math.max(l, o.height - r.height - 8), c = Math.min(Math.max(this.dragStartPosition.x + e, n), a), p = Math.min(Math.max(this.dragStartPosition.y + i, l), h);
-    this.position = { x: Math.round(c), y: Math.round(p) }, this.updateHostPosition();
+    const e = t.clientX - this.dragStartPointer.x, i = t.clientY - this.dragStartPointer.y, o = (this.parentElement || document.body).getBoundingClientRect(), r = this.getBoundingClientRect(), n = 8, a = Math.max(n, o.width - r.width - 8), l = 8, h = Math.max(l, o.height - r.height - 8), d = Math.min(Math.max(this.dragStartPosition.x + e, n), a), p = Math.min(Math.max(this.dragStartPosition.y + i, l), h);
+    this.position = { x: Math.round(d), y: Math.round(p) }, this.updateHostPosition();
   }
   handleDragEnd(t) {
     if (this.isDragging) {
@@ -4432,7 +4540,7 @@ const ge = [
     addWindow: !0
   }
 ];
-let ne = class extends V {
+let ne = class extends G {
   constructor() {
     super(...arguments), this.selectedTemplate = ge[0], this.width = ge[0].widthMeters, this.length = ge[0].lengthMeters, this.thickness = ge[0].wallThickness, this.addDoor = ge[0].addDoor, this.addWindow = ge[0].addWindow, this.roomName = ge[0].name, this.height = 2.5;
   }
@@ -4828,12 +4936,12 @@ pe([
 ne = pe([
   se("home-architect-wizard-modal")
 ], ne);
-var Qt = Object.defineProperty, Zt = Object.getOwnPropertyDescriptor, Ve = (t, e, i, s) => {
+var Qt = Object.defineProperty, Zt = Object.getOwnPropertyDescriptor, Ge = (t, e, i, s) => {
   for (var o = s > 1 ? void 0 : s ? Zt(e, i) : e, r = t.length - 1, n; r >= 0; r--)
     (n = t[r]) && (o = (s ? n(e, i, o) : n(o)) || o);
   return s && o && Qt(e, i, o), o;
 };
-let Te = class extends V {
+let Te = class extends G {
   constructor() {
     super(...arguments), this.pixelDistance = 200, this.defaultMeters = 4, this.realMeters = 4;
   }
@@ -5049,16 +5157,16 @@ Te.styles = ie`
       transform: translateY(-1px);
     }
   `;
-Ve([
+Ge([
   O({ type: Number })
 ], Te.prototype, "pixelDistance", 2);
-Ve([
+Ge([
   O({ type: Number })
 ], Te.prototype, "defaultMeters", 2);
-Ve([
+Ge([
   b()
 ], Te.prototype, "realMeters", 2);
-Te = Ve([
+Te = Ge([
   se("home-architect-calibrate-modal")
 ], Te);
 var ei = Object.defineProperty, ti = Object.getOwnPropertyDescriptor, ke = (t, e, i, s) => {
@@ -5078,7 +5186,7 @@ const ft = {
   fan: "💨",
   default: "⚡"
 };
-let de = class extends V {
+let de = class extends G {
   constructor() {
     super(...arguments), this.collapsed = !1, this.activeTab = "entities", this.furnitureCategory = "all", this.searchQuery = "", this.activeCategory = "all";
   }
@@ -5649,7 +5757,7 @@ const oi = [
   { label: "3.00 m (Haussmann)", val: 3 },
   { label: "3.50 m (Cathédrale)", val: 3.5 }
 ];
-let we = class extends V {
+let we = class extends G {
   constructor() {
     super(...arguments), this.name = "", this.height = 2.5, this.color = "rgba(56, 189, 248, 0.18)";
   }
@@ -6137,8 +6245,8 @@ class ni {
           stats: { wallCount: 0, doorCount: 0, windowCount: 0, roomCount: 0, textLabelCount: 0, ignoredMeasurementLinesCount: 0 },
           error: "Le fichier SVG contient des erreurs XML : " + h.textContent
         };
-      const c = l.querySelector("svg");
-      if (!c)
+      const d = l.querySelector("svg");
+      if (!d)
         return {
           success: !1,
           walls: [],
@@ -6149,40 +6257,40 @@ class ni {
           stats: { wallCount: 0, doorCount: 0, windowCount: 0, roomCount: 0, textLabelCount: 0, ignoredMeasurementLinesCount: 0 },
           error: "Aucune balise <svg> trouvée dans le document."
         };
-      const p = this.extractViewBox(c), d = p.width > 0 ? p.width : 1e3, g = i / d, v = Math.round(d / i * 10) / 10, u = [], f = [], w = [], y = [];
-      this.traverseElement(c, re.identity(), {
+      const p = this.extractViewBox(d), c = p.width > 0 ? p.width : 1e3, f = i / c, v = Math.round(c / i * 10) / 10, u = [], g = [], w = [], y = [];
+      this.traverseElement(d, re.identity(), {
         segments: u,
-        arcs: f,
+        arcs: g,
         textLabels: w,
         polygons: y,
         defaultThickness: s
       });
-      const C = u.filter(($) => $.isMeasurementLine).length, x = this.convertSegmentsToWalls(
+      const S = u.filter(($) => $.isMeasurementLine).length, x = this.convertSegmentsToWalls(
         u,
         p,
-        g,
+        f,
         s,
         o
       ), M = this.detectOpenings(
-        f,
+        g,
         u,
         x,
         p,
-        g
+        f
       ), P = this.detectRooms(
         y,
         x,
         w,
         p,
-        g,
+        f,
         o,
         n.importLabels !== !1
-      ), j = n.importWalls !== !1 ? x : [], _ = M.filter(($) => $.type === "door" ? n.importDoors !== !1 : n.importWindows !== !1), A = n.importRooms !== !1 ? P : [];
+      ), D = n.importWalls !== !1 ? x : [], _ = M.filter(($) => $.type === "door" ? n.importDoors !== !1 : n.importWindows !== !1), R = n.importRooms !== !1 ? P : [];
       return {
         success: !0,
-        walls: j,
+        walls: D,
         openings: _,
-        rooms: A,
+        rooms: R,
         viewBox: p,
         pixelsPerMeter: v || 50,
         stats: {
@@ -6191,7 +6299,7 @@ class ni {
           windowCount: M.filter(($) => $.type === "window" || $.type === "french_window").length,
           roomCount: P.length,
           textLabelCount: w.length,
-          ignoredMeasurementLinesCount: C
+          ignoredMeasurementLinesCount: S
         }
       };
     } catch (n) {
@@ -6228,37 +6336,37 @@ class ni {
    * Parcours récursif des nœuds de l'arbre SVG
    */
   static traverseElement(e, i, s) {
-    var $, R, U, K;
-    const o = e.getAttribute("transform"), r = o ? i.multiply(re.parseTransform(o)) : i, n = e.tagName.toLowerCase(), a = (e.getAttribute("id") || "").toLowerCase(), l = (e.getAttribute("class") || "").toLowerCase(), h = (e.getAttribute("inkscape:label") || "").toLowerCase(), c = ((($ = e.closest("g[id]")) == null ? void 0 : $.getAttribute("id")) || "").toLowerCase(), p = (((R = e.parentElement) == null ? void 0 : R.getAttribute("class")) || "").toLowerCase(), d = `${a} ${l} ${h} ${c} ${p}`, g = e.getAttribute("stroke-dasharray") || "", v = (e.getAttribute("style") || "").toLowerCase(), u = ((U = e.closest("[stroke-dasharray]")) == null ? void 0 : U.getAttribute("stroke-dasharray")) || "", y = !!g && g !== "none" && g !== "0" || /stroke-dasharray\s*:\s*(?!none|0)[\d\s,.]+/i.test(v) || !!u && u !== "none" && u !== "0" || /dashed|dotted/.test(v) || /pointill|tirete|dashed|dotted/.test(d) || /dimension|cotation|mesure|cote|measure|guideline|guide|axis|axe|fleche|arrow|marker|tick/i.test(d) || e.hasAttribute("marker-start") || e.hasAttribute("marker-end") || e.closest('g[id*="dimension" i], g[id*="cotation" i], g[id*="cote" i], g[id*="measure" i], g[id*="guide" i]') !== null, C = /door|porte|portillon|swing|battant/.test(d), x = /window|fenetre|vitrage|chassis|baie/.test(d), M = !y && (/wall|mur|cloison|facade|envelope|structure|enveloppe/.test(d) || !C && !x), P = /room|piece|espace|zone|area|chambre|salon|cuisine|sdb|sejour/.test(d), j = e.getAttribute("fill") || "", _ = e.getAttribute("display"), A = e.getAttribute("visibility");
-    if (!(_ === "none" || A === "hidden")) {
+    var $, L, U, K;
+    const o = e.getAttribute("transform"), r = o ? i.multiply(re.parseTransform(o)) : i, n = e.tagName.toLowerCase(), a = (e.getAttribute("id") || "").toLowerCase(), l = (e.getAttribute("class") || "").toLowerCase(), h = (e.getAttribute("inkscape:label") || "").toLowerCase(), d = ((($ = e.closest("g[id]")) == null ? void 0 : $.getAttribute("id")) || "").toLowerCase(), p = (((L = e.parentElement) == null ? void 0 : L.getAttribute("class")) || "").toLowerCase(), c = `${a} ${l} ${h} ${d} ${p}`, f = e.getAttribute("stroke-dasharray") || "", v = (e.getAttribute("style") || "").toLowerCase(), u = ((U = e.closest("[stroke-dasharray]")) == null ? void 0 : U.getAttribute("stroke-dasharray")) || "", y = !!f && f !== "none" && f !== "0" || /stroke-dasharray\s*:\s*(?!none|0)[\d\s,.]+/i.test(v) || !!u && u !== "none" && u !== "0" || /dashed|dotted/.test(v) || /pointill|tirete|dashed|dotted/.test(c) || /dimension|cotation|mesure|cote|measure|guideline|guide|axis|axe|fleche|arrow|marker|tick/i.test(c) || e.hasAttribute("marker-start") || e.hasAttribute("marker-end") || e.closest('g[id*="dimension" i], g[id*="cotation" i], g[id*="cote" i], g[id*="measure" i], g[id*="guide" i]') !== null, S = /door|porte|portillon|swing|battant/.test(c), x = /window|fenetre|vitrage|chassis|baie/.test(c), M = !y && (/wall|mur|cloison|facade|envelope|structure|enveloppe/.test(c) || !S && !x), P = /room|piece|espace|zone|area|chambre|salon|cuisine|sdb|sejour/.test(c), D = e.getAttribute("fill") || "", _ = e.getAttribute("display"), R = e.getAttribute("visibility");
+    if (!(_ === "none" || R === "hidden")) {
       switch (n) {
         case "line": {
-          const N = parseFloat(e.getAttribute("x1") || "0"), k = parseFloat(e.getAttribute("y1") || "0"), I = parseFloat(e.getAttribute("x2") || "0"), T = parseFloat(e.getAttribute("y2") || "0"), z = r.transformPoint({ x: N, y: k }), H = r.transformPoint({ x: I, y: T });
+          const N = parseFloat(e.getAttribute("x1") || "0"), k = parseFloat(e.getAttribute("y1") || "0"), I = parseFloat(e.getAttribute("x2") || "0"), E = parseFloat(e.getAttribute("y2") || "0"), z = r.transformPoint({ x: N, y: k }), H = r.transformPoint({ x: I, y: E });
           s.segments.push({
             start: z,
             end: H,
             thickness: s.defaultThickness,
             isWallHint: M && !y,
             isWindowHint: x,
-            isDoorHint: C,
+            isDoorHint: S,
             isMeasurementLine: y
           });
           break;
         }
         case "polyline":
         case "polygon": {
-          const k = (e.getAttribute("points") || "").trim().split(/[\s,]+/).map(parseFloat).filter((T) => !isNaN(T)), I = [];
-          for (let T = 0; T < k.length; T += 2)
-            T + 1 < k.length && I.push(r.transformPoint({ x: k[T], y: k[T + 1] }));
+          const k = (e.getAttribute("points") || "").trim().split(/[\s,]+/).map(parseFloat).filter((E) => !isNaN(E)), I = [];
+          for (let E = 0; E < k.length; E += 2)
+            E + 1 < k.length && I.push(r.transformPoint({ x: k[E], y: k[E + 1] }));
           if (I.length >= 2) {
-            for (let T = 0; T < I.length - 1; T++)
+            for (let E = 0; E < I.length - 1; E++)
               s.segments.push({
-                start: I[T],
-                end: I[T + 1],
+                start: I[E],
+                end: I[E + 1],
                 thickness: s.defaultThickness,
                 isWallHint: M && !y,
                 isWindowHint: x,
-                isDoorHint: C,
+                isDoorHint: S,
                 isMeasurementLine: y
               });
             n === "polygon" && I.length >= 3 && (s.segments.push({
@@ -6267,54 +6375,54 @@ class ni {
               thickness: s.defaultThickness,
               isWallHint: M && !y,
               isWindowHint: x,
-              isDoorHint: C,
+              isDoorHint: S,
               isMeasurementLine: y
             }), y || s.polygons.push({
               points: I,
               isRoomHint: P,
-              fill: j
+              fill: D
             }));
           }
           break;
         }
         case "rect": {
-          const N = parseFloat(e.getAttribute("x") || "0"), k = parseFloat(e.getAttribute("y") || "0"), I = parseFloat(e.getAttribute("width") || "0"), T = parseFloat(e.getAttribute("height") || "0");
-          if (I > 0 && T > 0) {
-            const z = r.transformPoint({ x: N, y: k }), H = r.transformPoint({ x: N + I, y: k }), q = r.transformPoint({ x: N + I, y: k + T }), J = r.transformPoint({ x: N, y: k + T });
-            if (Math.max(I / T, T / I) >= 3 && !y)
-              if (I > T) {
-                const ue = r.transformPoint({ x: N, y: k + T / 2 }), Ee = r.transformPoint({ x: N + I, y: k + T / 2 });
+          const N = parseFloat(e.getAttribute("x") || "0"), k = parseFloat(e.getAttribute("y") || "0"), I = parseFloat(e.getAttribute("width") || "0"), E = parseFloat(e.getAttribute("height") || "0");
+          if (I > 0 && E > 0) {
+            const z = r.transformPoint({ x: N, y: k }), H = r.transformPoint({ x: N + I, y: k }), q = r.transformPoint({ x: N + I, y: k + E }), J = r.transformPoint({ x: N, y: k + E });
+            if (Math.max(I / E, E / I) >= 3 && !y)
+              if (I > E) {
+                const ue = r.transformPoint({ x: N, y: k + E / 2 }), Ee = r.transformPoint({ x: N + I, y: k + E / 2 });
                 s.segments.push({
                   start: ue,
                   end: Ee,
                   thickness: s.defaultThickness,
                   isWallHint: !0,
                   isWindowHint: x,
-                  isDoorHint: C,
+                  isDoorHint: S,
                   isMeasurementLine: !1
                 });
               } else {
-                const ue = r.transformPoint({ x: N + I / 2, y: k }), Ee = r.transformPoint({ x: N + I / 2, y: k + T });
+                const ue = r.transformPoint({ x: N + I / 2, y: k }), Ee = r.transformPoint({ x: N + I / 2, y: k + E });
                 s.segments.push({
                   start: ue,
                   end: Ee,
                   thickness: s.defaultThickness,
                   isWallHint: !0,
                   isWindowHint: x,
-                  isDoorHint: C,
+                  isDoorHint: S,
                   isMeasurementLine: !1
                 });
               }
             else
               y || (s.polygons.push({
                 points: [z, H, q, J],
-                isRoomHint: P || j !== "none" && j !== "#000000" && j !== "black",
-                fill: j
+                isRoomHint: P || D !== "none" && D !== "#000000" && D !== "black",
+                fill: D
               }), s.segments.push(
-                { start: z, end: H, thickness: s.defaultThickness, isWallHint: M, isWindowHint: x, isDoorHint: C, isMeasurementLine: !1 },
-                { start: H, end: q, thickness: s.defaultThickness, isWallHint: M, isWindowHint: x, isDoorHint: C, isMeasurementLine: !1 },
-                { start: q, end: J, thickness: s.defaultThickness, isWallHint: M, isWindowHint: x, isDoorHint: C, isMeasurementLine: !1 },
-                { start: J, end: z, thickness: s.defaultThickness, isWallHint: M, isWindowHint: x, isDoorHint: C, isMeasurementLine: !1 }
+                { start: z, end: H, thickness: s.defaultThickness, isWallHint: M, isWindowHint: x, isDoorHint: S, isMeasurementLine: !1 },
+                { start: H, end: q, thickness: s.defaultThickness, isWallHint: M, isWindowHint: x, isDoorHint: S, isMeasurementLine: !1 },
+                { start: q, end: J, thickness: s.defaultThickness, isWallHint: M, isWindowHint: x, isDoorHint: S, isMeasurementLine: !1 },
+                { start: J, end: z, thickness: s.defaultThickness, isWallHint: M, isWindowHint: x, isDoorHint: S, isMeasurementLine: !1 }
               ));
           }
           break;
@@ -6327,15 +6435,15 @@ class ni {
             s,
             M && !y,
             x,
-            C,
+            S,
             y,
-            j
+            D
           );
           break;
         }
         case "text": {
-          const N = parseFloat(e.getAttribute("x") || "0"), k = parseFloat(e.getAttribute("y") || "0"), I = ((K = e.textContent) == null ? void 0 : K.trim()) || "", T = /^\d+([.,]\d+)?\s*(m|cm|mm)?$/i.test(I);
-          if (I.length > 0 && !T) {
+          const N = parseFloat(e.getAttribute("x") || "0"), k = parseFloat(e.getAttribute("y") || "0"), I = ((K = e.textContent) == null ? void 0 : K.trim()) || "", E = /^\d+([.,]\d+)?\s*(m|cm|mm)?$/i.test(I);
+          if (I.length > 0 && !E) {
             const z = r.transformPoint({ x: N, y: k });
             s.textLabels.push({
               text: I,
@@ -6353,87 +6461,87 @@ class ni {
    * Parse une chaîne de commandes SVG path ('d')
    */
   static parsePathData(e, i, s, o, r, n, a, l) {
-    const h = /([a-df-z])|([-+]?(?:\d*\.\d+|\d+)(?:[eE][-+]?\d+)?)/gi, c = [];
+    const h = /([a-df-z])|([-+]?(?:\d*\.\d+|\d+)(?:[eE][-+]?\d+)?)/gi, d = [];
     let p;
     for (; (p = h.exec(e)) !== null; )
-      c.push(p[0]);
-    let d = { x: 0, y: 0 }, g = { x: 0, y: 0 }, v = [], u = 0, f = "";
-    for (; u < c.length; ) {
-      const w = c[u];
-      /^[a-df-z]$/i.test(w) && (f = w, u++);
-      const y = f === f.toLowerCase(), C = f.toUpperCase();
-      switch (C) {
+      d.push(p[0]);
+    let c = { x: 0, y: 0 }, f = { x: 0, y: 0 }, v = [], u = 0, g = "";
+    for (; u < d.length; ) {
+      const w = d[u];
+      /^[a-df-z]$/i.test(w) && (g = w, u++);
+      const y = g === g.toLowerCase(), S = g.toUpperCase();
+      switch (S) {
         case "M": {
-          const x = parseFloat(c[u++]), M = parseFloat(c[u++]);
-          !isNaN(x) && !isNaN(M) && (d = y ? { x: d.x + x, y: d.y + M } : { x, y: M }, g = { ...d }, v.length >= 3 && !a && s.polygons.push({
+          const x = parseFloat(d[u++]), M = parseFloat(d[u++]);
+          !isNaN(x) && !isNaN(M) && (c = y ? { x: c.x + x, y: c.y + M } : { x, y: M }, f = { ...c }, v.length >= 3 && !a && s.polygons.push({
             points: v.map((P) => i.transformPoint(P)),
             isRoomHint: o ? !1 : l !== "none" && l !== "",
             fill: l
-          }), v = [{ ...d }]);
+          }), v = [{ ...c }]);
           break;
         }
         case "L": {
-          const x = parseFloat(c[u++]), M = parseFloat(c[u++]);
+          const x = parseFloat(d[u++]), M = parseFloat(d[u++]);
           if (!isNaN(x) && !isNaN(M)) {
-            const P = y ? { x: d.x + x, y: d.y + M } : { x, y: M }, j = i.transformPoint(d), _ = i.transformPoint(P);
+            const P = y ? { x: c.x + x, y: c.y + M } : { x, y: M }, D = i.transformPoint(c), _ = i.transformPoint(P);
             s.segments.push({
-              start: j,
+              start: D,
               end: _,
               thickness: s.defaultThickness,
               isWallHint: o && !a,
               isWindowHint: r,
               isDoorHint: n,
               isMeasurementLine: a
-            }), d = P, v.push({ ...d });
+            }), c = P, v.push({ ...c });
           }
           break;
         }
         case "H": {
-          const x = parseFloat(c[u++]);
+          const x = parseFloat(d[u++]);
           if (!isNaN(x)) {
-            const M = y ? { x: d.x + x, y: d.y } : { x, y: d.y }, P = i.transformPoint(d), j = i.transformPoint(M);
+            const M = y ? { x: c.x + x, y: c.y } : { x, y: c.y }, P = i.transformPoint(c), D = i.transformPoint(M);
             s.segments.push({
               start: P,
-              end: j,
+              end: D,
               thickness: s.defaultThickness,
               isWallHint: o && !a,
               isWindowHint: r,
               isDoorHint: n,
               isMeasurementLine: a
-            }), d = M, v.push({ ...d });
+            }), c = M, v.push({ ...c });
           }
           break;
         }
         case "V": {
-          const x = parseFloat(c[u++]);
+          const x = parseFloat(d[u++]);
           if (!isNaN(x)) {
-            const M = y ? { x: d.x, y: d.y + x } : { x: d.x, y: x }, P = i.transformPoint(d), j = i.transformPoint(M);
+            const M = y ? { x: c.x, y: c.y + x } : { x: c.x, y: x }, P = i.transformPoint(c), D = i.transformPoint(M);
             s.segments.push({
               start: P,
-              end: j,
+              end: D,
               thickness: s.defaultThickness,
               isWallHint: o && !a,
               isWindowHint: r,
               isDoorHint: n,
               isMeasurementLine: a
-            }), d = M, v.push({ ...d });
+            }), c = M, v.push({ ...c });
           }
           break;
         }
         case "A": {
-          const x = parseFloat(c[u++]), M = parseFloat(c[u++]);
-          parseFloat(c[u++]), parseFloat(c[u++]);
-          const P = parseFloat(c[u++]), j = parseFloat(c[u++]), _ = parseFloat(c[u++]);
-          if (!isNaN(j) && !isNaN(_) && !isNaN(x) && !isNaN(M)) {
-            const A = y ? { x: d.x + j, y: d.y + _ } : { x: j, y: _ }, $ = i.transformPoint(d), R = i.transformPoint(A);
+          const x = parseFloat(d[u++]), M = parseFloat(d[u++]);
+          parseFloat(d[u++]), parseFloat(d[u++]);
+          const P = parseFloat(d[u++]), D = parseFloat(d[u++]), _ = parseFloat(d[u++]);
+          if (!isNaN(D) && !isNaN(_) && !isNaN(x) && !isNaN(M)) {
+            const R = y ? { x: c.x + D, y: c.y + _ } : { x: D, y: _ }, $ = i.transformPoint(c), L = i.transformPoint(R);
             s.arcs.push({
               start: $,
-              end: R,
+              end: L,
               rx: x,
               ry: M,
               sweepFlag: P === 1,
               isDoorHint: !0
-            }), d = A, v.push({ ...d });
+            }), c = R, v.push({ ...c });
           }
           break;
         }
@@ -6441,15 +6549,15 @@ class ni {
         case "S":
         case "Q":
         case "T": {
-          const x = C === "C" ? 6 : C === "S" || C === "Q" ? 4 : 2, M = [];
-          for (let _ = 0; _ < x; _++) M.push(parseFloat(c[u++]));
-          const P = M[M.length - 2], j = M[M.length - 1];
-          !isNaN(P) && !isNaN(j) && (d = y ? { x: d.x + P, y: d.y + j } : { x: P, y: j }, v.push({ ...d }));
+          const x = S === "C" ? 6 : S === "S" || S === "Q" ? 4 : 2, M = [];
+          for (let _ = 0; _ < x; _++) M.push(parseFloat(d[u++]));
+          const P = M[M.length - 2], D = M[M.length - 1];
+          !isNaN(P) && !isNaN(D) && (c = y ? { x: c.x + P, y: c.y + D } : { x: P, y: D }, v.push({ ...c }));
           break;
         }
         case "Z": {
           if (v.length >= 2) {
-            const x = i.transformPoint(d), M = i.transformPoint(g);
+            const x = i.transformPoint(c), M = i.transformPoint(f);
             s.segments.push({
               start: x,
               end: M,
@@ -6464,7 +6572,7 @@ class ni {
             points: v.map((x) => i.transformPoint(x)),
             isRoomHint: o ? !1 : l !== "none" && l !== "",
             fill: l
-          }), d = { ...g }, v = [];
+          }), c = { ...f }, v = [];
           break;
         }
         default:
@@ -6487,10 +6595,10 @@ class ni {
         x: (a.end.x - i.x) * s,
         y: (a.end.y - i.y) * s
       };
-      S.distance(l, h) < 0.2 || n.push({
+      C.distance(l, h) < 0.2 || n.push({
         id: `w_svg_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
-        start: { x: S.roundMeters(l.x), y: S.roundMeters(l.y) },
-        end: { x: S.roundMeters(h.x), y: S.roundMeters(h.y) },
+        start: { x: C.roundMeters(l.x), y: C.roundMeters(l.y) },
+        end: { x: C.roundMeters(h.x), y: C.roundMeters(h.y) },
         thickness: o,
         height: r,
         type: "standard"
@@ -6508,7 +6616,7 @@ class ni {
       for (let n = r + 1; n < i.length; n++)
         for (const a of [i[r].start, i[r].end])
           for (const l of [i[n].start, i[n].end])
-            S.distance(a, l) < 0.12 && (l.x = a.x, l.y = a.y);
+            C.distance(a, l) < 0.12 && (l.x = a.x, l.y = a.y);
     let s = !0, o = 0;
     for (; s && o < 5; ) {
       s = !1, o++;
@@ -6518,20 +6626,20 @@ class ni {
           for (let a = r + 1; a < i.length; a++) {
             const l = i[a];
             if (!l) continue;
-            const h = n.end.x - n.start.x, c = n.end.y - n.start.y, p = Math.sqrt(h * h + c * c), d = l.end.x - l.start.x, g = l.end.y - l.start.y, v = Math.sqrt(d * d + g * g);
+            const h = n.end.x - n.start.x, d = n.end.y - n.start.y, p = Math.sqrt(h * h + d * d), c = l.end.x - l.start.x, f = l.end.y - l.start.y, v = Math.sqrt(c * c + f * f);
             if (p === 0 || v === 0) continue;
-            const u = (h * d + c * g) / (p * v);
+            const u = (h * c + d * f) / (p * v);
             if (Math.abs(u) > 0.995) {
-              if (S.distance(n.end, l.start) < 0.05) {
+              if (C.distance(n.end, l.start) < 0.05) {
                 n.end = { ...l.end }, i.splice(a, 1), s = !0;
                 break;
-              } else if (S.distance(n.end, l.end) < 0.05) {
+              } else if (C.distance(n.end, l.end) < 0.05) {
                 n.end = { ...l.start }, i.splice(a, 1), s = !0;
                 break;
-              } else if (S.distance(n.start, l.end) < 0.05) {
+              } else if (C.distance(n.start, l.end) < 0.05) {
                 n.start = { ...l.start }, i.splice(a, 1), s = !0;
                 break;
-              } else if (S.distance(n.start, l.start) < 0.05) {
+              } else if (C.distance(n.start, l.start) < 0.05) {
                 n.start = { ...l.end }, i.splice(a, 1), s = !0;
                 break;
               }
@@ -6553,17 +6661,17 @@ class ni {
       const h = {
         x: (a.start.x - o.x) * r,
         y: (a.start.y - o.y) * r
-      }, c = {
+      }, d = {
         x: (a.end.x - o.x) * r,
         y: (a.end.y - o.y) * r
-      }, p = S.snapPointToWall(h, s, 0.75), d = S.snapPointToWall(c, s, 0.75), g = p && (!d || p.distance < d.distance) ? p : d;
-      if (g && g.distance < 0.7) {
-        const v = S.roundMeters(Math.min(Math.max(l, 0.73), 1.1)), u = S.roundMeters(g.offset);
+      }, p = C.snapPointToWall(h, s, 0.75), c = C.snapPointToWall(d, s, 0.75), f = p && (!c || p.distance < c.distance) ? p : c;
+      if (f && f.distance < 0.7) {
+        const v = C.roundMeters(Math.min(Math.max(l, 0.73), 1.1)), u = C.roundMeters(f.offset);
         n.some(
-          (w) => w.wallId === g.wall.id && Math.abs(w.offset - u) < 0.35
+          (w) => w.wallId === f.wall.id && Math.abs(w.offset - u) < 0.35
         ) || n.push({
           id: `op_door_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
-          wallId: g.wall.id,
+          wallId: f.wall.id,
           type: "door",
           offset: u,
           width: v,
@@ -6580,19 +6688,19 @@ class ni {
       }, h = {
         x: (a.end.x - o.x) * r,
         y: (a.end.y - o.y) * r
-      }, c = { x: (l.x + h.x) / 2, y: (l.y + h.y) / 2 }, p = S.distance(l, h);
+      }, d = { x: (l.x + h.x) / 2, y: (l.y + h.y) / 2 }, p = C.distance(l, h);
       if (p < 0.4 || p > 3) continue;
-      const d = S.snapPointToWall(c, s, 0.6);
-      if (d && d.distance < 0.5) {
-        const g = a.isDoorHint ? "door" : p > 1.8 ? "french_window" : "window", v = S.roundMeters(d.offset);
+      const c = C.snapPointToWall(d, s, 0.6);
+      if (c && c.distance < 0.5) {
+        const f = a.isDoorHint ? "door" : p > 1.8 ? "french_window" : "window", v = C.roundMeters(c.offset);
         n.some(
-          (f) => f.wallId === d.wall.id && Math.abs(f.offset - v) < 0.35
+          (g) => g.wallId === c.wall.id && Math.abs(g.offset - v) < 0.35
         ) || n.push({
-          id: `op_${g}_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
-          wallId: d.wall.id,
-          type: g,
+          id: `op_${f}_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+          wallId: c.wall.id,
+          type: f,
           offset: v,
-          width: S.roundMeters(p),
+          width: C.roundMeters(p),
           flipSide: !1,
           flipDirection: !1
         });
@@ -6604,57 +6712,57 @@ class ni {
    * Détecte les pièces (Rooms) et associe automatiquement les étiquettes de texte
    */
   static detectRooms(e, i, s, o, r, n, a = !0) {
-    const l = [], h = s.map((c) => ({
-      text: c.text,
+    const l = [], h = s.map((d) => ({
+      text: d.text,
       position: {
-        x: (c.position.x - o.x) * r,
-        y: (c.position.y - o.y) * r
+        x: (d.position.x - o.x) * r,
+        y: (d.position.y - o.y) * r
       }
     }));
-    for (const c of e) {
-      if (c.points.length < 3) continue;
-      const p = c.points.map((f) => ({
-        x: S.roundMeters((f.x - o.x) * r),
-        y: S.roundMeters((f.y - o.y) * r)
-      })), d = ee.computeArea(p);
-      if (d < 1.5 || d > 300) continue;
-      let g = "";
+    for (const d of e) {
+      if (d.points.length < 3) continue;
+      const p = d.points.map((g) => ({
+        x: C.roundMeters((g.x - o.x) * r),
+        y: C.roundMeters((g.y - o.y) * r)
+      })), c = ee.computeArea(p);
+      if (c < 1.5 || c > 300) continue;
+      let f = "";
       if (a) {
-        for (const f of h)
-          if (ee.isPointInPolygon(f.position, p)) {
-            g = f.text;
+        for (const g of h)
+          if (ee.isPointInPolygon(g.position, p)) {
+            f = g.text;
             break;
           }
       }
-      if (!g && !c.isRoomHint) continue;
-      const v = g || `Pièce ${l.length + 1}`, u = this.getRoomStyle(v);
+      if (!f && !d.isRoomHint) continue;
+      const v = f || `Pièce ${l.length + 1}`, u = this.getRoomStyle(v);
       l.push({
         id: `room_svg_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
         name: v,
         polygon: p,
-        areaM2: d,
+        areaM2: c,
         color: u.color,
         icon: u.icon,
         height: n
       });
     }
     if (l.length === 0 && h.length > 0 && i.length >= 4 && a)
-      for (const c of h) {
-        const p = c.text.toLowerCase();
+      for (const d of h) {
+        const p = d.text.toLowerCase();
         if (/salon|sejour|chambre|cuisine|sdb|bain|wc|bureau|entree|garage|couloir/i.test(p)) {
-          const d = c.position.x, g = c.position.y, v = 1.8, u = [
-            { x: S.roundMeters(d - v), y: S.roundMeters(g - v) },
-            { x: S.roundMeters(d + v), y: S.roundMeters(g - v) },
-            { x: S.roundMeters(d + v), y: S.roundMeters(g + v) },
-            { x: S.roundMeters(d - v), y: S.roundMeters(g + v) }
-          ], f = this.getRoomStyle(c.text);
+          const c = d.position.x, f = d.position.y, v = 1.8, u = [
+            { x: C.roundMeters(c - v), y: C.roundMeters(f - v) },
+            { x: C.roundMeters(c + v), y: C.roundMeters(f - v) },
+            { x: C.roundMeters(c + v), y: C.roundMeters(f + v) },
+            { x: C.roundMeters(c - v), y: C.roundMeters(f + v) }
+          ], g = this.getRoomStyle(d.text);
           l.push({
             id: `room_svg_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
-            name: c.text,
+            name: d.text,
             polygon: u,
             areaM2: ee.computeArea(u),
-            color: f.color,
-            icon: f.icon,
+            color: g.color,
+            icon: g.icon,
             height: n
           });
         }
@@ -6669,12 +6777,12 @@ class ni {
     return /salon|sejour|living|sam|salle à manger/i.test(i) ? { color: "rgba(59, 130, 246, 0.28)", icon: "mdi:sofa" } : /chambre|bed|suite|parentale/i.test(i) ? { color: "rgba(139, 92, 246, 0.28)", icon: "mdi:bed" } : /cuisine|kitchen/i.test(i) ? { color: "rgba(245, 158, 11, 0.28)", icon: "mdi:silverware-fork-knife" } : /sdb|bain|douche|bath|eau/i.test(i) ? { color: "rgba(6, 182, 212, 0.28)", icon: "mdi:shower" } : /wc|toilet/i.test(i) ? { color: "rgba(16, 185, 129, 0.28)", icon: "mdi:toilet" } : /bureau|office|travail/i.test(i) ? { color: "rgba(99, 102, 241, 0.28)", icon: "mdi:desk" } : /entree|entrée|hall|couloir|degagement|dégagement/i.test(i) ? { color: "rgba(100, 116, 139, 0.28)", icon: "mdi:door" } : /garage|atelier/i.test(i) ? { color: "rgba(120, 113, 108, 0.28)", icon: "mdi:garage" } : /terrasse|balcon|patio/i.test(i) ? { color: "rgba(20, 184, 166, 0.28)", icon: "mdi:balcony" } : { color: "rgba(56, 189, 248, 0.25)", icon: "mdi:home-outline" };
   }
 }
-var ai = Object.defineProperty, li = Object.getOwnPropertyDescriptor, G = (t, e, i, s) => {
+var ai = Object.defineProperty, li = Object.getOwnPropertyDescriptor, V = (t, e, i, s) => {
   for (var o = s > 1 ? void 0 : s ? li(e, i) : e, r = t.length - 1, n; r >= 0; r--)
     (n = t[r]) && (o = (s ? n(e, i, o) : n(o)) || o);
   return s && o && ai(e, i, o), o;
 };
-let Y = class extends V {
+let Y = class extends G {
   constructor() {
     super(...arguments), this.currentLevel = "rdc", this.imageDataUrl = null, this.imageWidth = 0, this.imageHeight = 0, this.imageName = "", this.isSvg = !1, this.svgRawText = null, this.svgInterpretResult = null, this.svgImportMode = "vectorize", this.keepSvgBackground = !0, this.importOptions = {
       importWalls: !0,
@@ -7802,52 +7910,52 @@ Y.styles = ie`
       box-shadow: none;
     }
   `;
-G([
+V([
   O({ type: String })
 ], Y.prototype, "currentLevel", 2);
-G([
+V([
   b()
 ], Y.prototype, "imageDataUrl", 2);
-G([
+V([
   b()
 ], Y.prototype, "imageWidth", 2);
-G([
+V([
   b()
 ], Y.prototype, "imageHeight", 2);
-G([
+V([
   b()
 ], Y.prototype, "imageName", 2);
-G([
+V([
   b()
 ], Y.prototype, "isSvg", 2);
-G([
+V([
   b()
 ], Y.prototype, "svgRawText", 2);
-G([
+V([
   b()
 ], Y.prototype, "svgInterpretResult", 2);
-G([
+V([
   b()
 ], Y.prototype, "svgImportMode", 2);
-G([
+V([
   b()
 ], Y.prototype, "keepSvgBackground", 2);
-G([
+V([
   b()
 ], Y.prototype, "importOptions", 2);
-G([
+V([
   b()
 ], Y.prototype, "calibrateMode", 2);
-G([
+V([
   b()
 ], Y.prototype, "totalWidthMeters", 2);
-G([
+V([
   b()
 ], Y.prototype, "opacity", 2);
-G([
+V([
   b()
 ], Y.prototype, "isDragOver", 2);
-Y = G([
+Y = V([
   se("home-architect-import-modal")
 ], Y);
 var di = Object.defineProperty, ci = Object.getOwnPropertyDescriptor, Se = (t, e, i, s) => {
@@ -7855,7 +7963,7 @@ var di = Object.defineProperty, ci = Object.getOwnPropertyDescriptor, Se = (t, e
     (n = t[r]) && (o = (s ? n(e, i, o) : n(o)) || o);
   return s && o && di(e, i, o), o;
 };
-let ce = class extends V {
+let ce = class extends G {
   constructor() {
     super(...arguments), this.measuredMeters = 0, this.wallCount = 0, this.roomCount = 0, this.openingCount = 0, this.targetMeters = 0, this.adjustBackground = !0;
   }
@@ -8345,8 +8453,8 @@ class mt {
       try {
         const l = new TextEncoder().encode(i.svgContent);
         let h = "";
-        for (let c = 0; c < l.length; c++)
-          h += String.fromCharCode(l[c]);
+        for (let d = 0; d < l.length; d++)
+          h += String.fromCharCode(l[d]);
         s = `data:image/svg+xml;base64,${btoa(h)}`;
       } catch {
         s = i.imagePath || `/local/plan_${e.id || "rdc"}.svg`;
@@ -8369,53 +8477,53 @@ class mt {
       return a += `  # Aucune entité liée pour le moment. Glissez-déposez des entités sur le plan !
 `, a;
     for (const l of n) {
-      const h = l.position || { x: 0, y: 0 }, { left: c, top: p } = Pe.worldToPercentage(h, r), d = l.entityId || "sensor.unknown", g = d.split("."), v = g[0] || "sensor", u = (g[1] || "entity").replace(/_/g, " "), f = l.customName || u, w = hi(f), y = pi(l);
+      const h = l.position || { x: 0, y: 0 }, { left: d, top: p } = Pe.worldToPercentage(h, r), c = l.entityId || "sensor.unknown", f = c.split("."), v = f[0] || "sensor", u = (f[1] || "entity").replace(/_/g, " "), g = l.customName || u, w = hi(g), y = pi(l);
       if (v === "light")
         a += `  # 💡 Lumière : ${w}
 `, a += `  - type: state-icon
-`, a += `    entity: ${d}
+`, a += `    entity: ${c}
 `, y && (a += `    icon: ${y}
-`), a += `    title: ${oe(f)}
+`), a += `    title: ${oe(g)}
 `, a += `    tap_action:
 `, a += `      action: toggle
 `, a += `    hold_action:
 `, a += `      action: more-info
 `, a += `    style:
 `, a += `      top: ${p}%
-`, a += `      left: ${c}%
+`, a += `      left: ${d}%
 `, a += `      transform: translate(-50%, -50%)
 `, a += `      --paper-item-icon-active-color: "#facc15"
 `, a += `      --paper-item-icon-color: "#94a3b8"
 
 `;
       else if (v === "binary_sensor") {
-        const C = d.includes("presence") || d.includes("occupancy") || d.includes("radar") || d.includes("motion") || d.includes("mouvement");
-        a += `  # 📡 ${C ? "Radar de Présence" : "Capteur"} : ${w}
+        const S = c.includes("presence") || c.includes("occupancy") || c.includes("radar") || c.includes("motion") || c.includes("mouvement");
+        a += `  # 📡 ${S ? "Radar de Présence" : "Capteur"} : ${w}
 `, a += `  - type: state-icon
-`, a += `    entity: ${d}
+`, a += `    entity: ${c}
 `, y && (a += `    icon: ${y}
-`), a += `    title: ${oe(f)}
+`), a += `    title: ${oe(g)}
 `, a += `    tap_action:
 `, a += `      action: more-info
 `, a += `    style:
 `, a += `      top: ${p}%
-`, a += `      left: ${c}%
+`, a += `      left: ${d}%
 `, a += `      transform: translate(-50%, -50%)
 `, a += `      --paper-item-icon-active-color: "#ef4444"
 `, a += `      --paper-item-icon-color: "#10b981"
 
 `;
       } else if (v === "sensor") {
-        const C = d.includes("temp") || d.includes("temperature");
-        a += `  # ${C ? "🌡️ Température" : "📊 Capteur"} : ${w}
+        const S = c.includes("temp") || c.includes("temperature");
+        a += `  # ${S ? "🌡️ Température" : "📊 Capteur"} : ${w}
 `, a += `  - type: state-label
-`, a += `    entity: ${d}
-`, a += `    title: ${oe(f)}
+`, a += `    entity: ${c}
+`, a += `    title: ${oe(g)}
 `, a += `    tap_action:
 `, a += `      action: more-info
 `, a += `    style:
 `, a += `      top: ${p}%
-`, a += `      left: ${c}%
+`, a += `      left: ${d}%
 `, a += `      transform: translate(-50%, -50%)
 `, a += `      background: "rgba(15, 23, 42, 0.85)"
 `, a += `      border: "1px solid rgba(56, 189, 248, 0.5)"
@@ -8429,15 +8537,15 @@ class mt {
 `;
       } else v === "climate" ? (a += `  # ❄️ Climatisation / Thermostat : ${w}
 `, a += `  - type: state-label
-`, a += `    entity: ${d}
+`, a += `    entity: ${c}
 `, a += `    attribute: current_temperature
 `, a += `    suffix: "°C"
-`, a += `    title: ${oe(f)}
+`, a += `    title: ${oe(g)}
 `, a += `    tap_action:
 `, a += `      action: more-info
 `, a += `    style:
 `, a += `      top: ${p}%
-`, a += `      left: ${c}%
+`, a += `      left: ${d}%
 `, a += `      transform: translate(-50%, -50%)
 `, a += `      background: "rgba(15, 23, 42, 0.85)"
 `, a += `      border: "1px solid rgba(245, 158, 11, 0.5)"
@@ -8450,30 +8558,30 @@ class mt {
 
 `) : v === "switch" ? (a += `  # 🔌 Interrupteur / Prise : ${w}
 `, a += `  - type: state-icon
-`, a += `    entity: ${d}
+`, a += `    entity: ${c}
 `, y && (a += `    icon: ${y}
-`), a += `    title: ${oe(f)}
+`), a += `    title: ${oe(g)}
 `, a += `    tap_action:
 `, a += `      action: toggle
 `, a += `    hold_action:
 `, a += `      action: more-info
 `, a += `    style:
 `, a += `      top: ${p}%
-`, a += `      left: ${c}%
+`, a += `      left: ${d}%
 `, a += `      transform: translate(-50%, -50%)
 `, a += `      --paper-item-icon-active-color: "#38bdf8"
 `, a += `      --paper-item-icon-color: "#64748b"
 
 `) : (a += `  # ⚡ Entité : ${w}
 `, a += `  - type: state-icon
-`, a += `    entity: ${d}
+`, a += `    entity: ${c}
 `, y && (a += `    icon: ${y}
-`), a += `    title: ${oe(f)}
+`), a += `    title: ${oe(g)}
 `, a += `    tap_action:
 `, a += `      action: more-info
 `, a += `    style:
 `, a += `      top: ${p}%
-`, a += `      left: ${c}%
+`, a += `      left: ${d}%
 `, a += `      transform: translate(-50%, -50%)
 
 `);
@@ -8509,7 +8617,7 @@ var ui = Object.defineProperty, gi = Object.getOwnPropertyDescriptor, le = (t, e
     (n = t[r]) && (o = (s ? n(e, i, o) : n(o)) || o);
   return s && o && ui(e, i, o), o;
 };
-let te = class extends V {
+let te = class extends G {
   constructor() {
     super(...arguments), this.activeTab = "picture_elements", this.imagePath = "", this.customCardViewMode = "2d", this.copiedToast = !1, this.syncStatus = "idle", this.syncErrorMsg = "", this.embedDataUri = !1;
   }
@@ -8585,8 +8693,8 @@ let te = class extends V {
     s.href = i, s.download = `projet_plan_${this.project.id || "rdc"}.json`, document.body.appendChild(s), s.click(), document.body.removeChild(s), URL.revokeObjectURL(i);
   }
   getEntitySummary() {
-    var a, l, h, c, p;
-    const t = ((a = this.project) == null ? void 0 : a.bindings) || [], e = t.filter((d) => d.entityId.startsWith("light.")).length, i = t.filter((d) => d.entityId.startsWith("binary_sensor.")).length, s = t.filter((d) => d.entityId.startsWith("sensor.") || d.entityId.startsWith("climate.")).length, o = t.filter((d) => d.entityId.startsWith("switch.")).length, r = ((h = (l = this.project) == null ? void 0 : l.rooms) == null ? void 0 : h.length) || 0, n = ((p = (c = this.project) == null ? void 0 : c.furniture) == null ? void 0 : p.length) || 0;
+    var a, l, h, d, p;
+    const t = ((a = this.project) == null ? void 0 : a.bindings) || [], e = t.filter((c) => c.entityId.startsWith("light.")).length, i = t.filter((c) => c.entityId.startsWith("binary_sensor.")).length, s = t.filter((c) => c.entityId.startsWith("sensor.") || c.entityId.startsWith("climate.")).length, o = t.filter((c) => c.entityId.startsWith("switch.")).length, r = ((h = (l = this.project) == null ? void 0 : l.rooms) == null ? void 0 : h.length) || 0, n = ((p = (d = this.project) == null ? void 0 : d.furniture) == null ? void 0 : p.length) || 0;
     return { lights: e, radars: i, sensors: s, switches: o, rooms: r, furniture: n, total: t.length };
   }
   render() {
@@ -9468,7 +9576,7 @@ const He = [
   { id: "etage3", label: "3ème Étage", icon: "🏠" },
   { id: "autre", label: "Autre", icon: "📁" }
 ];
-let Q = class extends V {
+let Q = class extends G {
   constructor() {
     super(...arguments), this.initialTab = "save", this.activeTab = "save", this.planName = "", this.planCategory = "rdc", this.customCategoryName = "", this.savedProjects = [], this.isLoadingProjects = !1, this.searchQuery = "";
   }
@@ -9565,11 +9673,11 @@ let Q = class extends V {
     return He.find((e) => e.id === t) || { id: t || "autre", label: t || "Autre", icon: "📁" };
   }
   render() {
-    var e, i, s, o, r, n, a, l, h, c;
+    var e, i, s, o, r, n, a, l, h, d;
     const t = this.savedProjects.filter((p) => {
       if (!this.searchQuery) return !0;
-      const d = this.searchQuery.toLowerCase();
-      return p.name && p.name.toLowerCase().includes(d) || p.category && p.category.toLowerCase().includes(d) || p.id && p.id.toLowerCase().includes(d);
+      const c = this.searchQuery.toLowerCase();
+      return p.name && p.name.toLowerCase().includes(c) || p.category && p.category.toLowerCase().includes(c) || p.id && p.id.toLowerCase().includes(c);
     });
     return m`
       <div class="modal-card" @click=${(p) => p.stopPropagation()}>
@@ -9669,7 +9777,7 @@ let Q = class extends V {
                 <div class="metric-badge">📐 <strong>${((o = (s = this.project) == null ? void 0 : s.rooms) == null ? void 0 : o.length) || 0}</strong> pièce(s)</div>
                 <div class="metric-badge">🚪 <strong>${((n = (r = this.project) == null ? void 0 : r.openings) == null ? void 0 : n.length) || 0}</strong> ouvrant(s)</div>
                 <div class="metric-badge">⚡ <strong>${((l = (a = this.project) == null ? void 0 : a.bindings) == null ? void 0 : l.length) || 0}</strong> entité(s) HA</div>
-                <div class="metric-badge">🛋️ <strong>${((c = (h = this.project) == null ? void 0 : h.furniture) == null ? void 0 : c.length) || 0}</strong> meuble(s)</div>
+                <div class="metric-badge">🛋️ <strong>${((d = (h = this.project) == null ? void 0 : h.furniture) == null ? void 0 : d.length) || 0}</strong> meuble(s)</div>
               </div>
             </div>
           ` : m`
@@ -9699,29 +9807,29 @@ let Q = class extends V {
             ` : m`
               <div class="projects-list">
                 ${t.map((p) => {
-      var v, u, f, w, y, C;
-      const d = this.getCategoryItem(p.category || p.id), g = p.id === ((v = this.project) == null ? void 0 : v.id);
+      var v, u, g, w, y, S;
+      const c = this.getCategoryItem(p.category || p.id), f = p.id === ((v = this.project) == null ? void 0 : v.id);
       return m`
-                    <div class="project-item ${g ? "current" : ""}">
+                    <div class="project-item ${f ? "current" : ""}">
                       <div class="project-info">
                         <div class="project-title-row">
                           <span class="project-cat-badge">
-                            <span>${d.icon}</span>
-                            <span>${d.label}</span>
+                            <span>${c.icon}</span>
+                            <span>${c.label}</span>
                           </span>
                           <span class="project-name" title="${p.name}">${p.name || "Plan Sans Nom"}</span>
-                          ${g ? m`<span style="font-size: 0.72rem; color: #38bdf8; font-weight: 700;">(Ouvert)</span>` : null}
+                          ${f ? m`<span style="font-size: 0.72rem; color: #38bdf8; font-weight: 700;">(Ouvert)</span>` : null}
                         </div>
                         <div class="project-meta-row">
                           <span>📅 Modifié le ${this.formatDate(p.updated_at)}</span>
                           <span>•</span>
                           <span>🧱 ${((u = p.walls) == null ? void 0 : u.length) || 0} murs</span>
                           <span>•</span>
-                          <span>📐 ${((f = p.rooms) == null ? void 0 : f.length) || 0} pièces</span>
+                          <span>📐 ${((g = p.rooms) == null ? void 0 : g.length) || 0} pièces</span>
                           <span>•</span>
                           <span>🛋️ ${((w = p.furniture) == null ? void 0 : w.length) || 0} meuble${(((y = p.furniture) == null ? void 0 : y.length) || 0) > 1 ? "s" : ""}</span>
                           <span>•</span>
-                          <span>⚡ ${((C = p.bindings) == null ? void 0 : C.length) || 0} capteurs</span>
+                          <span>⚡ ${((S = p.bindings) == null ? void 0 : S.length) || 0} capteurs</span>
                         </div>
                       </div>
 
@@ -10202,7 +10310,7 @@ ae([
 Q = ae([
   se("home-architect-save-load-modal")
 ], Q);
-const Ce = "1.0.23";
+const Ce = "1.0.24";
 function mi(t) {
   var K, N;
   if ((K = t.getElementById) != null && K.call(t, "socrate-rules-overlay") || (N = t.querySelector) != null && N.call(t, "#socrate-rules-overlay"))
@@ -10386,33 +10494,33 @@ function mi(t) {
   let a = 0;
   n.forEach((k) => {
     const I = document.createElement("div");
-    I.style.display = "block", [...k].forEach((T) => {
+    I.style.display = "block", [...k].forEach((E) => {
       const z = document.createElement("span");
-      T === " " ? z.innerHTML = "&nbsp;" : z.textContent = T, z.classList.add("socrate-letter"), z.style.animationDelay = `${a * 0.07}s`, I.appendChild(z), a++;
+      E === " " ? z.innerHTML = "&nbsp;" : z.textContent = E, z.classList.add("socrate-letter"), z.style.animationDelay = `${a * 0.07}s`, I.appendChild(z), a++;
     }), o.appendChild(I);
   });
-  let l = [], h = [], c = null, p = !1, d = {
+  let l = [], h = [], d = null, p = !1, c = {
     x: null,
     y: null,
     radius: 150,
     radiusSq: 22500
   };
-  function g() {
+  function f() {
     i.width = window.innerWidth, i.height = window.innerHeight;
   }
-  g();
+  f();
   class v {
-    constructor(I, T, z, H, q, J) {
-      this.x = I, this.y = T, this.directionX = z, this.directionY = H, this.size = q, this.color = J, this.originalSize = q;
+    constructor(I, E, z, H, q, J) {
+      this.x = I, this.y = E, this.directionX = z, this.directionY = H, this.size = q, this.color = J, this.originalSize = q;
     }
     draw() {
       s.beginPath(), s.arc(this.x, this.y, this.size, 0, r, !1), s.fillStyle = this.color, s.fill();
     }
     update() {
-      if ((this.x > i.width || this.x < 0) && (this.directionX = -this.directionX), (this.y > i.height || this.y < 0) && (this.directionY = -this.directionY), this.x += this.directionX, this.y += this.directionY, d.x != null && d.y != null) {
-        let I = d.x - this.x, T = d.y - this.y, z = I * I + T * T;
-        if (z < d.radiusSq) {
-          let H = Math.sqrt(z), q = I / H, J = T / H, he = (d.radius - H) / d.radius;
+      if ((this.x > i.width || this.x < 0) && (this.directionX = -this.directionX), (this.y > i.height || this.y < 0) && (this.directionY = -this.directionY), this.x += this.directionX, this.y += this.directionY, c.x != null && c.y != null) {
+        let I = c.x - this.x, E = c.y - this.y, z = I * I + E * E;
+        if (z < c.radiusSq) {
+          let H = Math.sqrt(z), q = I / H, J = E / H, he = (c.radius - H) / c.radius;
           this.x -= q * he * 3, this.y -= J * he * 3, this.size < this.originalSize * 3.5 && (this.size += 0.2);
         } else this.size > this.originalSize && (this.size -= 0.1);
       } else this.size > this.originalSize && (this.size -= 0.1);
@@ -10420,8 +10528,8 @@ function mi(t) {
     }
   }
   class u {
-    constructor(I, T) {
-      this.x = I, this.y = T, this.size = Math.random() * 6 + 2, this.speedX = (Math.random() - 0.5) * 12, this.speedY = (Math.random() - 0.5) * 12;
+    constructor(I, E) {
+      this.x = I, this.y = E, this.size = Math.random() * 6 + 2, this.speedX = (Math.random() - 0.5) * 12, this.speedY = (Math.random() - 0.5) * 12;
       const z = ["#ff007f", "#7f00ff", "#00f0ff", "#ffffff"];
       this.color = z[Math.floor(Math.random() * z.length)], this.alpha = 1, this.decay = Math.random() * 0.015 + 0.01;
     }
@@ -10429,22 +10537,22 @@ function mi(t) {
       this.x += this.speedX, this.y += this.speedY, this.speedX *= 0.98, this.speedY *= 0.98, this.alpha -= this.decay, this.alpha > 0 && (s.save(), s.globalAlpha = this.alpha, s.beginPath(), s.arc(this.x, this.y, this.size, 0, r), s.fillStyle = this.color, s.shadowBlur = 15, s.shadowColor = this.color, s.fill(), s.restore());
     }
   }
-  function f() {
+  function g() {
     l = [];
     let k = i.width * i.height / 9e3, I = Math.min(k, 250);
-    for (let T = 0; T < I; T++) {
+    for (let E = 0; E < I; E++) {
       let z = Math.random() * 2 + 0.5, H = Math.random() * (i.width - z * 4) + z * 2, q = Math.random() * (i.height - z * 4) + z * 2, J = Math.random() * 0.4 - 0.2, he = Math.random() * 0.4 - 0.2, ue = ["rgba(127, 0, 255, 0.4)", "rgba(0, 240, 255, 0.3)", "rgba(255, 0, 127, 0.3)"], Ee = ue[Math.floor(Math.random() * ue.length)];
       l.push(new v(H, q, J, he, z, Ee));
     }
   }
   function w() {
     let k = 120, I = k * k;
-    for (let T = 0; T < l.length; T++)
-      for (let z = T + 1; z < l.length; z++) {
-        let H = l[T].x - l[z].x, q = l[T].y - l[z].y, J = H * H + q * q;
+    for (let E = 0; E < l.length; E++)
+      for (let z = E + 1; z < l.length; z++) {
+        let H = l[E].x - l[z].x, q = l[E].y - l[z].y, J = H * H + q * q;
         if (J < I) {
           let ue = (1 - Math.sqrt(J) / k) * 0.15;
-          s.strokeStyle = `rgba(127, 0, 255, ${ue})`, s.lineWidth = 0.5, s.beginPath(), s.moveTo(l[T].x, l[T].y), s.lineTo(l[z].x, l[z].y), s.stroke();
+          s.strokeStyle = `rgba(127, 0, 255, ${ue})`, s.lineWidth = 0.5, s.beginPath(), s.moveTo(l[E].x, l[E].y), s.lineTo(l[z].x, l[z].y), s.stroke();
         }
       }
   }
@@ -10454,39 +10562,39 @@ function mi(t) {
       l[k].update();
     for (let k = h.length - 1; k >= 0; k--)
       h[k].update(), h[k].alpha <= 0 && h.splice(k, 1);
-    w(), c = requestAnimationFrame(y);
+    w(), d = requestAnimationFrame(y);
   }
-  function C(k) {
-    d.x = k.clientX, d.y = k.clientY;
+  function S(k) {
+    c.x = k.clientX, c.y = k.clientY;
   }
   function x() {
-    d.x = null, d.y = null;
+    c.x = null, c.y = null;
   }
   function M(k) {
-    k.touches && k.touches.length > 0 && (d.x = k.touches[0].clientX, d.y = k.touches[0].clientY);
+    k.touches && k.touches.length > 0 && (c.x = k.touches[0].clientX, c.y = k.touches[0].clientY);
   }
   function P() {
-    d.x = null, d.y = null;
+    c.x = null, c.y = null;
   }
-  function j(k) {
-    const I = k.clientX || window.innerWidth / 2, T = k.clientY || window.innerHeight / 2;
+  function D(k) {
+    const I = k.clientX || window.innerWidth / 2, E = k.clientY || window.innerHeight / 2;
     for (let z = 0; z < 30; z++)
-      h.push(new u(I, T));
+      h.push(new u(I, E));
   }
   function _(k) {
     k.key === "Escape" && U();
   }
-  window.addEventListener("resize", g), window.addEventListener("mousemove", C), window.addEventListener("mouseout", x), window.addEventListener("touchmove", M, { passive: !0 }), window.addEventListener("touchend", P, { passive: !0 }), window.addEventListener("keydown", _), e.addEventListener("click", j);
-  let A = [];
+  window.addEventListener("resize", f), window.addEventListener("mousemove", S), window.addEventListener("mouseout", x), window.addEventListener("touchmove", M, { passive: !0 }), window.addEventListener("touchend", P, { passive: !0 }), window.addEventListener("keydown", _), e.addEventListener("click", D);
+  let R = [];
   function $(k, I) {
     if (p) return;
-    const T = Date.now();
-    A = A.filter((q) => T - q < 2e3), A.push(T);
+    const E = Date.now();
+    R = R.filter((q) => E - q < 2e3), R.push(E);
     const z = k || window.innerWidth / 2, H = I || window.innerHeight / 2;
     for (let q = 0; q < 70; q++)
       h.push(new u(z, H));
-    if (A.length >= 3) {
-      p = !0, A = [];
+    if (R.length >= 3) {
+      p = !0, R = [];
       for (let q = 0; q < 150; q++)
         h.push(new u(window.innerWidth / 2, window.innerHeight / 2));
       e.style.transition = "opacity 0.38s ease, transform 0.38s ease", e.style.opacity = "0", e.style.transform = "scale(1.05)", setTimeout(() => {
@@ -10505,10 +10613,10 @@ function mi(t) {
     },
     { passive: !0 }
   );
-  const R = e.querySelector("#socrateExitHint");
-  R && (R.addEventListener("click", (k) => {
+  const L = e.querySelector("#socrateExitHint");
+  L && (L.addEventListener("click", (k) => {
     k.stopPropagation(), $(k.clientX, k.clientY);
-  }), R.addEventListener(
+  }), L.addEventListener(
     "touchstart",
     (k) => {
       k.stopPropagation();
@@ -10518,16 +10626,16 @@ function mi(t) {
     { passive: !0 }
   ));
   function U() {
-    c && (cancelAnimationFrame(c), c = null), window.removeEventListener("resize", g), window.removeEventListener("mousemove", C), window.removeEventListener("mouseout", x), window.removeEventListener("touchmove", M), window.removeEventListener("touchend", P), window.removeEventListener("keydown", _), e.parentNode && e.parentNode.removeChild(e);
+    d && (cancelAnimationFrame(d), d = null), window.removeEventListener("resize", f), window.removeEventListener("mousemove", S), window.removeEventListener("mouseout", x), window.removeEventListener("touchmove", M), window.removeEventListener("touchend", P), window.removeEventListener("keydown", _), e.parentNode && e.parentNode.removeChild(e);
   }
-  f(), y();
+  g(), y();
 }
 var xi = Object.defineProperty, vi = Object.getOwnPropertyDescriptor, F = (t, e, i, s) => {
   for (var o = s > 1 ? void 0 : s ? vi(e, i) : e, r = t.length - 1, n; r >= 0; r--)
     (n = t[r]) && (o = (s ? n(e, i, o) : n(o)) || o);
   return s && o && xi(e, i, o), o;
 };
-const De = {
+const je = {
   light: {
     title: "Éclairage & Luminaires",
     tabLabel: "💡 Éclairage",
@@ -10663,7 +10771,7 @@ const De = {
     ]
   }
 };
-let D = class extends V {
+let j = class extends G {
   constructor() {
     super(...arguments), this.narrow = !1, this.activeTool = "wall", this.currentThickness = 0.2, this.currentOpeningWidth = 0.9, this.doorFlipSide = !1, this.doorFlipDirection = !0, this.windowSashCount = 1, this.activeLevel = "rdc", this.showDimensions = !0, this.showThermalHeatmap = !1, this.showGhostLevel = !1, this.levelProjects = {}, this.is3DMode = !1, this.isFullscreen = !1, this.isDrawerCollapsed = !1, this.isWizardOpen = !1, this.isImportModalOpen = !1, this.isExportModalOpen = !1, this.isSaveLoadModalOpen = !1, this.isNewPlanModalOpen = !1, this.newPlanName = "Nouveau Plan", this.newPlanCategory = "rdc", this.isResetModalOpen = !1, this.saveLoadModalTab = "save", this.isCalibrateModalOpen = !1, this.calibrationData = null, this.isRescaleModalOpen = !1, this.rescaleMeasuredMeters = 0, this.selectedRoomForEdit = null, this.selectedElements = {
       wallIds: [],
@@ -10757,38 +10865,38 @@ let D = class extends V {
   }
   handleCreateRoomFromWizard(t) {
     this.pushUndoSnapshot();
-    const { name: e, width: i, length: s, thickness: o, height: r, color: n, icon: a, addDoor: l, addWindow: h } = t.detail, c = r || 2.5, p = 2, d = 2, g = { x: p, y: d }, v = { x: p + i, y: d }, u = { x: p + i, y: d + s }, f = { x: p, y: d + s }, w = {
+    const { name: e, width: i, length: s, thickness: o, height: r, color: n, icon: a, addDoor: l, addWindow: h } = t.detail, d = r || 2.5, p = 2, c = 2, f = { x: p, y: c }, v = { x: p + i, y: c }, u = { x: p + i, y: c + s }, g = { x: p, y: c + s }, w = {
       id: `w_top_${Date.now()}`,
-      start: g,
+      start: f,
       end: v,
       thickness: o,
-      height: c,
+      height: d,
       type: "standard"
     }, y = {
       id: `w_right_${Date.now()}`,
       start: v,
       end: u,
       thickness: o,
-      height: c,
+      height: d,
       type: "standard"
-    }, C = {
+    }, S = {
       id: `w_bottom_${Date.now()}`,
       start: u,
-      end: f,
+      end: g,
       thickness: o,
-      height: c,
+      height: d,
       type: "standard"
     }, x = {
       id: `w_left_${Date.now()}`,
-      start: f,
-      end: g,
+      start: g,
+      end: f,
       thickness: o,
-      height: c,
+      height: d,
       type: "standard"
     }, M = [];
     l && M.push({
       id: `op_door_${Date.now()}`,
-      wallId: C.id,
+      wallId: S.id,
       type: "door",
       offset: i / 2,
       width: 0.9,
@@ -10806,15 +10914,15 @@ let D = class extends V {
     const P = {
       id: `room_${Date.now()}`,
       name: e,
-      polygon: [g, v, u, f],
+      polygon: [f, v, u, g],
       areaM2: i * s,
       color: n,
       icon: a,
-      height: c
+      height: d
     };
     this.project = {
       ...this.project,
-      walls: [...this.project.walls, w, y, C, x],
+      walls: [...this.project.walls, w, y, S, x],
       openings: [...this.project.openings, ...M],
       rooms: [...this.project.rooms, P]
     }, this.isWizardOpen = !1, this.activeTool = "select";
@@ -10976,9 +11084,9 @@ let D = class extends V {
       if (!r || !r.shadowRoot) return;
       const a = (r.shadowRoot.querySelector("paper-listbox, ha-md-list, nav, div.menu, div.items") || r.shadowRoot).querySelectorAll("paper-icon-item, ha-md-list-item, ha-sidebar-item, a"), l = ["home-architect", "home_architect", "home architect"];
       for (const h of Array.from(a)) {
-        const c = h.getAttribute("href") || ((e = h.dataset) == null ? void 0 : e.panel) || ((i = h.dataset) == null ? void 0 : i.href) || "", p = h.id || "", d = h.getAttribute("aria-label") || "", g = (h.textContent || "").toLowerCase();
+        const d = h.getAttribute("href") || ((e = h.dataset) == null ? void 0 : e.panel) || ((i = h.dataset) == null ? void 0 : i.href) || "", p = h.id || "", c = h.getAttribute("aria-label") || "", f = (h.textContent || "").toLowerCase();
         if (l.some(
-          (u) => c.toLowerCase().includes(u) || p.toLowerCase().includes(u) || d.toLowerCase().includes(u) || g.includes(u)
+          (u) => d.toLowerCase().includes(u) || p.toLowerCase().includes(u) || c.toLowerCase().includes(u) || f.includes(u)
         )) {
           let u = h.querySelector(".domolink-sidebar-badge");
           t ? u || (u = document.createElement("span"), u.className = "badge domolink-sidebar-badge", u.setAttribute("slot", "end"), u.setAttribute("style", "background: linear-gradient(135deg, #ef4444, #f59e0b); color: white; border-radius: 9999px; padding: 2px 7px; font-size: 10px; font-weight: 800; box-shadow: 0 2px 6px rgba(239,68,68,0.4); margin-left: auto; letter-spacing: 0.5px; z-index: 10; display: inline-block;"), u.textContent = "MAJ", u.setAttribute("title", "Mise à jour disponible !"), h.appendChild(u)) : u && u.remove();
@@ -11048,9 +11156,9 @@ let D = class extends V {
     }, 1500);
     setTimeout(() => {
       clearInterval(n), e && (e.style.width = "95%"), i && (i.textContent = "Redémarrage de Home Assistant..."), s && (s.textContent = "Fichiers mis à jour ! Reconnexion automatique au serveur en cours...");
-      let c = 0;
+      let d = 0;
       const p = setInterval(async () => {
-        c++, o && (o.textContent = `Tentative de reconnexion (${c * 2}s)...`);
+        d++, o && (o.textContent = `Tentative de reconnexion (${d * 2}s)...`);
         try {
           (await fetch("/manifest.json", { cache: "no-store" })).ok && (clearInterval(p), e && (e.style.width = "100%"), i && (i.textContent = "Mise à jour terminée !"), s && (s.textContent = "Rechargement de la page..."), setTimeout(() => {
             window.location.reload();
@@ -11102,7 +11210,7 @@ let D = class extends V {
       keepSvgBackground: h
     } = t.detail;
     if (this.isImportModalOpen = !1, a && l && l.success) {
-      const { walls: p, openings: d, rooms: g, pixelsPerMeter: v, stats: u } = l, f = h ? {
+      const { walls: p, openings: c, rooms: f, pixelsPerMeter: v, stats: u } = l, g = h ? {
         imageUrl: e,
         opacity: o !== void 0 ? o : 0.25,
         visible: !0,
@@ -11116,18 +11224,18 @@ let D = class extends V {
         ...this.project,
         pixelsPerMeter: v || this.project.pixelsPerMeter,
         walls: [...this.project.walls, ...p],
-        openings: [...this.project.openings, ...d],
-        rooms: [...this.project.rooms, ...g],
-        background: f
+        openings: [...this.project.openings, ...c],
+        rooms: [...this.project.rooms, ...f],
+        background: g
       }, this.activeTool = "select", this.showToast(
         `✨ Plan SVG converti : ${u.wallCount} mur${u.wallCount > 1 ? "s" : ""}, ${u.doorCount} porte${u.doorCount > 1 ? "s" : ""}, ${u.windowCount} fenêtre${u.windowCount > 1 ? "s" : ""} et ${u.roomCount} pièce${u.roomCount > 1 ? "s" : ""} créés !`
       );
       return;
     }
-    let c = this.project.pixelsPerMeter;
-    r === "auto_dimension" && n && n > 0 && (c = Math.round(i / n * 10) / 10), this.project = {
+    let d = this.project.pixelsPerMeter;
+    r === "auto_dimension" && n && n > 0 && (d = Math.round(i / n * 10) / 10), this.project = {
       ...this.project,
-      pixelsPerMeter: c,
+      pixelsPerMeter: d,
       background: {
         imageUrl: e,
         opacity: o !== void 0 ? o : 0.4,
@@ -11138,7 +11246,7 @@ let D = class extends V {
         widthPx: i,
         heightPx: s
       }
-    }, r === "auto_dimension" ? (this.activeTool = "wall", this.showToast(`✅ Plan importé et étalonné automatiquement (1 m = ${c} px) ! Vous pouvez tracer vos murs (🧱).`)) : (this.activeTool = "calibrate", this.showToast("📏 Plan importé ! Tracez un segment sur un mur mesuré pour étalonner l'échelle."));
+    }, r === "auto_dimension" ? (this.activeTool = "wall", this.showToast(`✅ Plan importé et étalonné automatiquement (1 m = ${d} px) ! Vous pouvez tracer vos murs (🧱).`)) : (this.activeTool = "calibrate", this.showToast("📏 Plan importé ! Tracez un segment sur un mur mesuré pour étalonner l'échelle."));
   }
   handlePaste(t) {
     var s;
@@ -11201,55 +11309,55 @@ let D = class extends V {
     this.pushUndoSnapshot();
     const { currentMeters: e, targetMeters: i, scaleFactor: s, adjustBackground: o } = t.detail;
     if (this.isRescaleModalOpen = !1, s <= 0 || isNaN(s)) return;
-    const r = this.project.walls.map((d) => ({
-      ...d,
+    const r = this.project.walls.map((c) => ({
+      ...c,
       start: {
-        x: S.roundMeters(d.start.x * s),
-        y: S.roundMeters(d.start.y * s)
+        x: C.roundMeters(c.start.x * s),
+        y: C.roundMeters(c.start.y * s)
       },
       end: {
-        x: S.roundMeters(d.end.x * s),
-        y: S.roundMeters(d.end.y * s)
+        x: C.roundMeters(c.end.x * s),
+        y: C.roundMeters(c.end.y * s)
       }
-    })), n = this.project.openings.map((d) => ({
-      ...d,
-      offset: S.roundMeters(d.offset * s),
-      width: S.roundMeters(d.width * s)
-    })), a = this.project.rooms.map((d) => {
-      const g = d.polygon.map((u) => ({
-        x: S.roundMeters(u.x * s),
-        y: S.roundMeters(u.y * s)
-      })), v = ee.computeArea(g);
+    })), n = this.project.openings.map((c) => ({
+      ...c,
+      offset: C.roundMeters(c.offset * s),
+      width: C.roundMeters(c.width * s)
+    })), a = this.project.rooms.map((c) => {
+      const f = c.polygon.map((u) => ({
+        x: C.roundMeters(u.x * s),
+        y: C.roundMeters(u.y * s)
+      })), v = ee.computeArea(f);
       return {
-        ...d,
-        polygon: g,
-        areaM2: v || S.roundMeters(d.areaM2 * s * s)
+        ...c,
+        polygon: f,
+        areaM2: v || C.roundMeters(c.areaM2 * s * s)
       };
-    }), l = this.project.bindings.map((d) => ({
-      ...d,
+    }), l = this.project.bindings.map((c) => ({
+      ...c,
       position: {
-        x: S.roundMeters(d.position.x * s),
-        y: S.roundMeters(d.position.y * s)
+        x: C.roundMeters(c.position.x * s),
+        y: C.roundMeters(c.position.y * s)
       }
-    })), h = (this.project.furniture || []).map((d) => ({
-      ...d,
+    })), h = (this.project.furniture || []).map((c) => ({
+      ...c,
       position: {
-        x: S.roundMeters(d.position.x * s),
-        y: S.roundMeters(d.position.y * s)
+        x: C.roundMeters(c.position.x * s),
+        y: C.roundMeters(c.position.y * s)
       },
-      width: S.roundMeters(d.width * s),
-      length: S.roundMeters(d.length * s)
+      width: C.roundMeters(c.width * s),
+      length: C.roundMeters(c.length * s)
     }));
-    let c = this.project.pixelsPerMeter, p = this.project.background ? { ...this.project.background } : void 0;
-    o && p && (c = Math.round(this.project.pixelsPerMeter / s * 10) / 10, p.offset && (p = {
+    let d = this.project.pixelsPerMeter, p = this.project.background ? { ...this.project.background } : void 0;
+    o && p && (d = Math.round(this.project.pixelsPerMeter / s * 10) / 10, p.offset && (p = {
       ...p,
       offset: {
-        x: S.roundMeters(p.offset.x * s),
-        y: S.roundMeters(p.offset.y * s)
+        x: C.roundMeters(p.offset.x * s),
+        y: C.roundMeters(p.offset.y * s)
       }
     })), this.project = {
       ...this.project,
-      pixelsPerMeter: c,
+      pixelsPerMeter: d,
       walls: r,
       openings: n,
       rooms: a,
@@ -11360,14 +11468,14 @@ let D = class extends V {
     this.pushUndoSnapshot();
     const n = this.project.walls.filter((p) => !t.includes(p.id)), a = this.project.openings.filter(
       (p) => !e.includes(p.id) && !t.includes(p.wallId)
-    ), l = this.project.rooms.filter((p) => !i.includes(p.id)), h = this.project.bindings.filter((p) => !s.includes(p.id)), c = (this.project.furniture || []).filter((p) => !o.includes(p.id));
+    ), l = this.project.rooms.filter((p) => !i.includes(p.id)), h = this.project.bindings.filter((p) => !s.includes(p.id)), d = (this.project.furniture || []).filter((p) => !o.includes(p.id));
     this.project = {
       ...this.project,
       walls: n,
       openings: a,
       rooms: l,
       bindings: h,
-      furniture: c
+      furniture: d
     }, this.selectedElements = { wallIds: [], openingIds: [], roomIds: [], bindingIds: [], furnitureIds: [] }, this.showToast(`🗑️ ${r} élément${r > 1 ? "s" : ""} supprimé${r > 1 ? "s" : ""} !`);
   }
   clearSelection() {
@@ -11401,7 +11509,7 @@ let D = class extends V {
       const t = this.project.bindings.find((e) => e.id === this.selectedElements.bindingIds[0]);
       if (t) {
         const e = t.entityId.split(".")[0];
-        if (De[e]) return e;
+        if (je[e]) return e;
       }
     }
     return "light";
@@ -11695,6 +11803,20 @@ let D = class extends V {
                   ${this.showGhostLevel ? m`<span class="dropdown-item-check">✓</span>` : null}
                 </button>
                 <div class="dropdown-divider"></div>
+                <button class="dropdown-item" @click=${() => {
+      var r, n;
+      (n = (r = this.shadowRoot) == null ? void 0 : r.querySelector("home-architect-canvas")) == null || n.fitToScreen(), this.activeDropdown = null;
+    }}>
+                  <span>⛶</span>
+                  <span>Ajuster à l'écran (Zoom auto)</span>
+                </button>
+                <button class="dropdown-item" @click=${() => {
+      var r, n;
+      (n = (r = this.shadowRoot) == null ? void 0 : r.querySelector("home-architect-canvas")) == null || n.rotateQuarterTurn(), this.activeDropdown = null;
+    }}>
+                  <span>↺</span>
+                  <span>Pivoter la vue de 90° à gauche</span>
+                </button>
                 <button class="dropdown-item ${this.isFullscreen ? "active" : ""}" @click=${() => {
       this.toggleFullscreen(), this.activeDropdown = null;
     }}>
@@ -11919,7 +12041,7 @@ let D = class extends V {
         const n = this.project.bindings.find((a) => a.id === this.selectedElements.bindingIds[0]);
         if (n) {
           const a = n.entityId.split(".")[0];
-          De[a] && (this.selectedTypologyTab = a);
+          je[a] && (this.selectedTypologyTab = a);
         }
         this.isIconPickerOpen = !0;
       }
@@ -11956,8 +12078,8 @@ let D = class extends V {
                   ` : null}
 
                   ${this.selectedElements.openingIds.some((h) => {
-        var c;
-        return ((c = this.project.openings.find((p) => p.id === h)) == null ? void 0 : c.type) === "door";
+        var d;
+        return ((d = this.project.openings.find((p) => p.id === h)) == null ? void 0 : d.type) === "door";
       }) ? m`
                     <div class="hud-options-group">
                       <span class="hud-label">Porte :</span>
@@ -11969,8 +12091,8 @@ let D = class extends V {
                   ` : null}
 
                   ${this.selectedElements.openingIds.some((h) => {
-        const c = this.project.openings.find((p) => p.id === h);
-        return c && (c.type === "window" || c.type === "french_window");
+        const d = this.project.openings.find((p) => p.id === h);
+        return d && (d.type === "window" || d.type === "french_window");
       }) ? m`
                     <div class="hud-options-group">
                       <span class="hud-label">Fenêtre :</span>
@@ -12013,18 +12135,18 @@ let D = class extends V {
                 ${n && this.isIconPickerOpen ? m`
                   <div class="hud-icon-picker-panel">
                     <div class="icon-category-tabs">
-                      ${Object.entries(De).map(([h, c]) => m`
+                      ${Object.entries(je).map(([h, d]) => m`
                         <button 
                           class="icon-category-tab ${this.getActiveTypology() === h ? "active" : ""}"
                           @click=${() => this.selectedTypologyTab = h}
                         >
-                          ${c.tabLabel}
+                          ${d.tabLabel}
                         </button>
                       `)}
                     </div>
 
                     <div class="icon-grid">
-                      ${(De[this.getActiveTypology()] || De.light).icons.map((h) => m`
+                      ${(je[this.getActiveTypology()] || je.light).icons.map((h) => m`
                         <button 
                           class="icon-item-btn ${n.icon === h.icon ? "active" : ""}"
                           @click=${() => this.updateSelectedBindingIcon(h.icon, h.mdi)}
@@ -12047,13 +12169,13 @@ let D = class extends V {
                           maxlength="4"
                           @keydown=${(h) => {
         if (h.key === "Enter") {
-          const c = h.target.value.trim();
-          c && this.updateSelectedBindingIcon(c);
+          const d = h.target.value.trim();
+          d && this.updateSelectedBindingIcon(d);
         }
       }}
                           @change=${(h) => {
-        const c = h.target.value.trim();
-        c && this.updateSelectedBindingIcon(c);
+        const d = h.target.value.trim();
+        d && this.updateSelectedBindingIcon(d);
       }}
                         />
                       </div>
@@ -12322,7 +12444,7 @@ let D = class extends V {
     `;
   }
 };
-D.styles = ie`
+j.styles = ie`
     :host {
       display: flex;
       flex-direction: column;
@@ -13373,133 +13495,133 @@ D.styles = ie`
   `;
 F([
   O({ type: Object })
-], D.prototype, "hass", 2);
+], j.prototype, "hass", 2);
 F([
   O({ type: Boolean })
-], D.prototype, "narrow", 2);
+], j.prototype, "narrow", 2);
 F([
   b()
-], D.prototype, "activeTool", 2);
+], j.prototype, "activeTool", 2);
 F([
   b()
-], D.prototype, "currentThickness", 2);
+], j.prototype, "currentThickness", 2);
 F([
   b()
-], D.prototype, "currentOpeningWidth", 2);
+], j.prototype, "currentOpeningWidth", 2);
 F([
   b()
-], D.prototype, "doorFlipSide", 2);
+], j.prototype, "doorFlipSide", 2);
 F([
   b()
-], D.prototype, "doorFlipDirection", 2);
+], j.prototype, "doorFlipDirection", 2);
 F([
   b()
-], D.prototype, "windowSashCount", 2);
+], j.prototype, "windowSashCount", 2);
 F([
   b()
-], D.prototype, "activeLevel", 2);
+], j.prototype, "activeLevel", 2);
 F([
   b()
-], D.prototype, "showDimensions", 2);
+], j.prototype, "showDimensions", 2);
 F([
   b()
-], D.prototype, "showThermalHeatmap", 2);
+], j.prototype, "showThermalHeatmap", 2);
 F([
   b()
-], D.prototype, "showGhostLevel", 2);
+], j.prototype, "showGhostLevel", 2);
 F([
   b()
-], D.prototype, "levelProjects", 2);
+], j.prototype, "levelProjects", 2);
 F([
   b()
-], D.prototype, "is3DMode", 2);
+], j.prototype, "is3DMode", 2);
 F([
   b()
-], D.prototype, "isFullscreen", 2);
+], j.prototype, "isFullscreen", 2);
 F([
   b()
-], D.prototype, "isDrawerCollapsed", 2);
+], j.prototype, "isDrawerCollapsed", 2);
 F([
   b()
-], D.prototype, "isWizardOpen", 2);
+], j.prototype, "isWizardOpen", 2);
 F([
   b()
-], D.prototype, "isImportModalOpen", 2);
+], j.prototype, "isImportModalOpen", 2);
 F([
   b()
-], D.prototype, "isExportModalOpen", 2);
+], j.prototype, "isExportModalOpen", 2);
 F([
   b()
-], D.prototype, "isSaveLoadModalOpen", 2);
+], j.prototype, "isSaveLoadModalOpen", 2);
 F([
   b()
-], D.prototype, "isNewPlanModalOpen", 2);
+], j.prototype, "isNewPlanModalOpen", 2);
 F([
   b()
-], D.prototype, "newPlanName", 2);
+], j.prototype, "newPlanName", 2);
 F([
   b()
-], D.prototype, "newPlanCategory", 2);
+], j.prototype, "newPlanCategory", 2);
 F([
   b()
-], D.prototype, "isResetModalOpen", 2);
+], j.prototype, "isResetModalOpen", 2);
 F([
   b()
-], D.prototype, "saveLoadModalTab", 2);
+], j.prototype, "saveLoadModalTab", 2);
 F([
   b()
-], D.prototype, "isCalibrateModalOpen", 2);
+], j.prototype, "isCalibrateModalOpen", 2);
 F([
   b()
-], D.prototype, "calibrationData", 2);
+], j.prototype, "calibrationData", 2);
 F([
   b()
-], D.prototype, "isRescaleModalOpen", 2);
+], j.prototype, "isRescaleModalOpen", 2);
 F([
   b()
-], D.prototype, "rescaleMeasuredMeters", 2);
+], j.prototype, "rescaleMeasuredMeters", 2);
 F([
   b()
-], D.prototype, "selectedRoomForEdit", 2);
+], j.prototype, "selectedRoomForEdit", 2);
 F([
   b()
-], D.prototype, "selectedElements", 2);
+], j.prototype, "selectedElements", 2);
 F([
   b()
-], D.prototype, "activeDropdown", 2);
+], j.prototype, "activeDropdown", 2);
 F([
   b()
-], D.prototype, "selectedTypologyTab", 2);
+], j.prototype, "selectedTypologyTab", 2);
 F([
   b()
-], D.prototype, "isIconPickerOpen", 2);
+], j.prototype, "isIconPickerOpen", 2);
 F([
   b()
-], D.prototype, "updateInfo", 2);
+], j.prototype, "updateInfo", 2);
 F([
   b()
-], D.prototype, "isUpdateModalOpen", 2);
+], j.prototype, "isUpdateModalOpen", 2);
 F([
   b()
-], D.prototype, "undoStack", 2);
+], j.prototype, "undoStack", 2);
 F([
   b()
-], D.prototype, "redoStack", 2);
+], j.prototype, "redoStack", 2);
 F([
   b()
-], D.prototype, "project", 2);
+], j.prototype, "project", 2);
 F([
   b()
-], D.prototype, "toastMessage", 2);
-D = F([
+], j.prototype, "toastMessage", 2);
+j = F([
   se("home-architect-panel")
-], D);
+], j);
 var yi = Object.defineProperty, wi = Object.getOwnPropertyDescriptor, Ne = (t, e, i, s) => {
   for (var o = s > 1 ? void 0 : s ? wi(e, i) : e, r = t.length - 1, n; r >= 0; r--)
     (n = t[r]) && (o = (s ? n(e, i, o) : n(o)) || o);
   return s && o && yi(e, i, o), o;
 };
-let $e = class extends V {
+let $e = class extends G {
   constructor() {
     super(...arguments), this.project = {
       id: "rdc",
