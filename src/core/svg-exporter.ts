@@ -8,6 +8,7 @@ export interface SvgExportOptions {
   includeRoomLabels?: boolean;
   includeDimensions?: boolean;
   includeEntityMarkers?: boolean;
+  includeBackground?: boolean;
   backgroundColor?: string;
   paddingMeters?: number;
 }
@@ -22,7 +23,7 @@ export interface ProjectBoundingBox {
 
 export class SvgExporter {
   /**
-   * Calcule la boîte englobante exacte du plan (murs, pièces, entités)
+   * Calcule la boîte englobante exacte du plan (murs, pièces, entités, image de fond)
    */
   public static calculateBoundingBox(
     project: HomeArchitectProject, 
@@ -50,6 +51,19 @@ export class SvgExporter {
       }
     }
 
+    // 4. Points du plan de fond (si présent et visible)
+    if (project.background && project.background.imageUrl && project.background.visible) {
+      const bg = project.background;
+      const off = bg.offset || { x: 0, y: 0 };
+      const scale = bg.scale || 1.0;
+      const wMeters = ((bg.widthPx || 1200) * scale) / ppm;
+      const hMeters = ((bg.heightPx || 900) * scale) / ppm;
+      pts.push(
+        { x: off.x, y: off.y },
+        { x: off.x + wMeters, y: off.y + hMeters }
+      );
+    }
+
     if (pts.length === 0) {
       return {
         minX: -1,
@@ -65,12 +79,12 @@ export class SvgExporter {
     let minY = Math.min(...pts.map(p => p.y));
     let maxY = Math.max(...pts.map(p => p.y));
 
-    // Marge minimale autour du plan
+    // Marge minimale autour du plan (6%)
     const rawSpanX = maxX - minX || 5;
     const rawSpanY = maxY - minY || 5;
     const padding = customPadding !== undefined 
       ? customPadding 
-      : Math.max(0.8, Math.max(rawSpanX, rawSpanY) * 0.06);
+      : Math.max(0.6, Math.max(rawSpanX, rawSpanY) * 0.05);
 
     const boxX = minX - padding;
     const boxY = minY - padding;
@@ -111,6 +125,7 @@ export class SvgExporter {
       includeRoomLabels: true,
       includeDimensions: false,
       includeEntityMarkers: false,
+      includeBackground: true,
       backgroundColor: '#0f172a',
       ...options
     };
@@ -120,17 +135,29 @@ export class SvgExporter {
 
     const svgMinX = (bbox.minX * ppm).toFixed(1);
     const svgMinY = (bbox.minY * ppm).toFixed(1);
-    const svgW = (bbox.width * ppm).toFixed(1);
-    const svgH = (bbox.height * ppm).toFixed(1);
+    const svgW = Math.max(100, Math.round(bbox.width * ppm));
+    const svgH = Math.max(100, Math.round(bbox.height * ppm));
 
     let content = '';
 
-    // 1. Fond
+    // 1. Fond de couleur
     if (opts.backgroundColor && opts.backgroundColor !== 'transparent') {
       content += `  <rect x="${svgMinX}" y="${svgMinY}" width="${svgW}" height="${svgH}" fill="${opts.backgroundColor}" />\n`;
     }
 
-    // 2. Pièces (Floors)
+    // 2. Image de fond d'origine (si présente et cochée)
+    if (opts.includeBackground !== false && project.background?.imageUrl && project.background.visible) {
+      const bg = project.background;
+      const bgX = (bg.offset?.x || 0) * ppm;
+      const bgY = (bg.offset?.y || 0) * ppm;
+      const scale = bg.scale || 1.0;
+      const bgW = (bg.widthPx || 1200) * scale;
+      const bgH = (bg.heightPx || 900) * scale;
+      content += `  <!-- Image de fond du plan d'origine -->\n`;
+      content += `  <image href="${bg.imageUrl}" x="${bgX.toFixed(1)}" y="${bgY.toFixed(1)}" width="${bgW.toFixed(1)}" height="${bgH.toFixed(1)}" opacity="${bg.opacity || 0.6}" />\n`;
+    }
+
+    // 3. Pièces (Floors)
     if (opts.includeRooms && project.rooms.length > 0) {
       content += `  <!-- Pièces -->\n  <g id="rooms">\n`;
       for (const room of project.rooms) {
@@ -142,7 +169,7 @@ export class SvgExporter {
       content += `  </g>\n`;
     }
 
-    // 3. Murs (Walls)
+    // 4. Murs (Walls)
     if (opts.includeWalls && project.walls.length > 0) {
       content += `  <!-- Murs -->\n  <g id="walls">\n`;
       for (const wall of project.walls) {
@@ -153,7 +180,7 @@ export class SvgExporter {
       content += `  </g>\n`;
     }
 
-    // 4. Ouvertures (Doors & Windows)
+    // 5. Ouvertures (Doors & Windows)
     if (opts.includeOpenings && project.openings.length > 0) {
       content += `  <!-- Portes & Fenêtres -->\n  <g id="openings">\n`;
       for (const op of project.openings) {
@@ -174,7 +201,6 @@ export class SvgExporter {
         const thickPx = wall.thickness * ppm;
 
         content += `    <g transform="translate(${opX.toFixed(1)}, ${opY.toFixed(1)}) rotate(${angleDeg})">\n`;
-        // Découpe dans le mur
         content += `      <rect x="${(-wPx / 2).toFixed(1)}" y="${(-thickPx / 2 - 1).toFixed(1)}" width="${wPx.toFixed(1)}" height="${(thickPx + 2).toFixed(1)}" fill="${opts.backgroundColor || '#0f172a'}" />\n`;
 
         if (op.type === 'door') {
@@ -198,7 +224,7 @@ export class SvgExporter {
       content += `  </g>\n`;
     }
 
-    // 5. Noms et étiquettes des pièces
+    // 6. Noms et étiquettes des pièces
     if (opts.includeRoomLabels && project.rooms.length > 0) {
       content += `  <!-- Étiquettes de Pièces -->\n  <g id="room-labels">\n`;
       for (const room of project.rooms) {
@@ -215,7 +241,7 @@ export class SvgExporter {
       content += `  </g>\n`;
     }
 
-    // 6. Marqueurs visuels d'entités (si demandé)
+    // 7. Marqueurs visuels d'entités (si demandé)
     if (opts.includeEntityMarkers && project.bindings.length > 0) {
       content += `  <!-- Emplacements des Entités -->\n  <g id="entity-markers">\n`;
       for (const b of project.bindings) {
@@ -234,7 +260,7 @@ export class SvgExporter {
     }
 
     return `<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="${svgMinX} ${svgMinY} ${svgW} ${svgH}" width="100%" height="100%" style="background-color: ${opts.backgroundColor || '#0f172a'}; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="${svgMinX} ${svgMinY} ${svgW} ${svgH}" width="${svgW}" height="${svgH}" style="background-color: ${opts.backgroundColor || '#0f172a'}; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 100%; height: auto;">
 ${content}</svg>`;
   }
 
