@@ -3012,6 +3012,14 @@ export class HomeArchitectPanel extends LitElement {
                   ${this.showGhostLevel ? html`<span class="dropdown-item-check">✓</span>` : null}
                 </button>
                 <div class="dropdown-divider"></div>
+                <button class="dropdown-item" @click=${() => { (this.shadowRoot?.querySelector('home-architect-canvas') as any)?.fitToScreen(); this.activeDropdown = null; }}>
+                  <span>⛶</span>
+                  <span>Ajuster à l'écran (Zoom auto)</span>
+                </button>
+                <button class="dropdown-item" @click=${() => { (this.shadowRoot?.querySelector('home-architect-canvas') as any)?.rotateQuarterTurn(); this.activeDropdown = null; }}>
+                  <span>↺</span>
+                  <span>Pivoter la vue de 90° à gauche</span>
+                </button>
                 <button class="dropdown-item ${this.isFullscreen ? 'active' : ''}" @click=${() => { this.toggleFullscreen(); this.activeDropdown = null; }}>
                   <span>${this.isFullscreen ? '🗗' : '⛶'}</span>
                   <span>${this.isFullscreen ? 'Sortir du plein écran' : 'Plein écran'}</span>

@@ -163,6 +163,10 @@ export class HomeArchitectCanvas extends LitElement {
   private dragBindingMoved: boolean = false;
   private dragBindingStartPos: Point = { x: 0, y: 0 };
 
+  // État de rotation de la vue 2D (0, 90, 180, 270 degrés)
+  @state()
+  public viewRotation: number = 0;
+
   // État Orbite / Rotation 3D
   @state()
   private orbitPitch: number = 55;
@@ -189,8 +193,19 @@ export class HomeArchitectCanvas extends LitElement {
 
   public screenToWorld(screenX: number, screenY: number): Point {
     const rect = this.getBoundingClientRect();
-    const relX = screenX - rect.left;
-    const relY = screenY - rect.top;
+    let relX = screenX - rect.left;
+    let relY = screenY - rect.top;
+
+    // Prise en compte de la rotation de vue 2D par rapport au centre du canvas
+    if (!this.is3DMode && this.viewRotation !== 0) {
+      const cx = (rect.width || 800) / 2;
+      const cy = (rect.height || 600) / 2;
+      const dx = relX - cx;
+      const dy = relY - cy;
+      const rad = (-this.viewRotation * Math.PI) / 180;
+      relX = cx + (dx * Math.cos(rad) - dy * Math.sin(rad));
+      relY = cy + (dx * Math.sin(rad) + dy * Math.cos(rad));
+    }
 
     const ppm = this.project.pixelsPerMeter * this.viewport.zoom;
     return {
@@ -201,9 +216,24 @@ export class HomeArchitectCanvas extends LitElement {
 
   public worldToScreen(worldPoint: Point): Point {
     const ppm = this.project.pixelsPerMeter * this.viewport.zoom;
+    let sx = worldPoint.x * ppm + this.viewport.x;
+    let sy = worldPoint.y * ppm + this.viewport.y;
+
+    // Prise en compte de la rotation de vue 2D par rapport au centre du canvas
+    if (!this.is3DMode && this.viewRotation !== 0) {
+      const rect = this.getBoundingClientRect();
+      const cx = (rect.width || 800) / 2;
+      const cy = (rect.height || 600) / 2;
+      const dx = sx - cx;
+      const dy = sy - cy;
+      const rad = (this.viewRotation * Math.PI) / 180;
+      sx = cx + (dx * Math.cos(rad) - dy * Math.sin(rad));
+      sy = cy + (dx * Math.sin(rad) + dy * Math.cos(rad));
+    }
+
     return {
-      x: worldPoint.x * ppm + this.viewport.x,
-      y: worldPoint.y * ppm + this.viewport.y
+      x: sx,
+      y: sy
     };
   }
 
@@ -504,15 +534,16 @@ export class HomeArchitectCanvas extends LitElement {
         let newX = this.dragFurnitureItemStartPos.x + dx;
         let newY = this.dragFurnitureItemStartPos.y + dy;
 
-        if (this.project.grid.snapToGrid) {
+        // Déplacement ultra-précis pixel par pixel (ou snap si Alt / grille forcé, mais par défaut libre)
+        if (this.project.grid.snapToGrid && e.altKey) {
           const gSize = this.project.grid.size || 0.5;
           newX = Math.round(newX / gSize) * gSize;
           newY = Math.round(newY / gSize) * gSize;
         }
 
         const newPos = {
-          x: SnappingEngine.roundMeters(newX),
-          y: SnappingEngine.roundMeters(newY)
+          x: Math.round(newX * 1000) / 1000,
+          y: Math.round(newY * 1000) / 1000
         };
         const matchingRoom = PolygonUtils.findRoomContainingPoint(newPos, this.project.rooms);
 
@@ -2185,6 +2216,18 @@ export class HomeArchitectCanvas extends LitElement {
     this.viewport = { ...this.viewport, zoom: Math.max(this.viewport.zoom / 1.25, 0.15) };
   }
 
+  public rotateQuarterTurn(): void {
+    if (this.is3DMode) {
+      // En 3D : pivoter l'angle d'orbite de 90°
+      this.orbitYaw = (this.orbitYaw - 90) % 360;
+    } else {
+      // En 2D : pivoter l'angle de vue de 90° dans le sens anti-horaire
+      this.viewRotation = (this.viewRotation + 270) % 360;
+      this.fitToScreen();
+    }
+    this.requestUpdate();
+  }
+
   public fitToScreen(padding: number = 60): void {
     const rect = this.getBoundingClientRect();
     const canvasW = rect.width || this.clientWidth || 800;
@@ -2203,8 +2246,14 @@ export class HomeArchitectCanvas extends LitElement {
 
     const bbox = SvgExporter.calculateBoundingBox(this.project, 0.6);
     const ppm = bbox.ppm;
-    const planW = bbox.width * ppm;
-    const planH = bbox.height * ppm;
+    
+    // Si la vue est tournée de 90° ou 270°, inverser largeur et hauteur pour le cadrage
+    const isTransposed = (!this.is3DMode && (this.viewRotation === 90 || this.viewRotation === 270));
+    const rawPlanW = bbox.width * ppm;
+    const rawPlanH = bbox.height * ppm;
+    const planW = isTransposed ? rawPlanH : rawPlanW;
+    const planH = isTransposed ? rawPlanW : rawPlanH;
+
     const planCenterX = (bbox.minX + bbox.width / 2) * ppm;
     const planCenterY = (bbox.minY + bbox.height / 2) * ppm;
 
@@ -2279,7 +2328,9 @@ export class HomeArchitectCanvas extends LitElement {
       >
         <div 
           class="viewport-3d-wrapper ${this.is3DMode ? 'mode-3d' : ''}"
-          style="${this.is3DMode ? `transform: rotateX(${this.orbitPitch}deg) rotateZ(${this.orbitYaw}deg); transition: ${this.isOrbiting ? 'none' : 'transform 0.4s cubic-bezier(0.16, 1, 0.3, 1)'};` : ''}"
+          style="${this.is3DMode 
+            ? `transform: rotateX(${this.orbitPitch}deg) rotateZ(${this.orbitYaw}deg); transition: ${this.isOrbiting ? 'none' : 'transform 0.4s cubic-bezier(0.16, 1, 0.3, 1)'};` 
+            : (this.viewRotation !== 0 ? `transform: rotate(${this.viewRotation}deg); transform-origin: center center; transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);` : '')}"
         >
           <svg class="main-viewport">
             ${this.renderBackgroundLayer()}
@@ -2335,6 +2386,24 @@ export class HomeArchitectCanvas extends LitElement {
               <button class="hud-preset-btn" @click=${() => this.setCameraPreset(75, 0)} title="Vue Plongeante">Top</button>
             </div>
           ` : null}
+
+          <!-- Rotation du plan d'un quart de tour à gauche (90°) -->
+          <button 
+            class="hud-btn" 
+            @click=${this.rotateQuarterTurn} 
+            title="Pivoter le plan d'un quart de tour à gauche (↺ 90°)"
+          >
+            ↺
+          </button>
+
+          <!-- Zoom automatique et centrage sur l'écran -->
+          <button 
+            class="hud-btn" 
+            @click=${() => this.fitToScreen(40)} 
+            title="Ajuster automatiquement à la page (Zoom auto & centrage)"
+          >
+            ⛶
+          </button>
 
           <button class="hud-btn" @click=${this.zoomOut} title="Zoom Arrière">−</button>
           <div class="hud-zoom-label">${Math.round(this.viewport.zoom * 100)}%</div>
