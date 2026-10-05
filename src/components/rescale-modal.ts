@@ -1,14 +1,51 @@
-import { LitElement, html, css } from 'lit';
-import { customElement, property, state } from 'lit/decorators.js';
+import { LitElement, html, css, PropertyValues } from 'lit';
+import { property, state } from 'lit/decorators.js';
+import { defineElement } from '../core/define';
+import { getEventTarget } from '../core/keyboard';
 
 export interface RescaleModalResult {
   currentMeters: number;
   targetMeters: number;
   scaleFactor: number;
+  /** True seulement si le projet a un calque de fond ET que l'utilisateur a choisi de l'ajuster. */
   adjustBackground: boolean;
 }
 
-@customElement('home-architect-rescale-modal')
+/** Bornes du facteur de mise à l'échelle : une saisie en millimètres ou en kilomètres en sort. */
+export const RESCALE_MIN_FACTOR = 0.01;
+export const RESCALE_MAX_FACTOR = 100;
+/** Au-delà de ×10 (ou en deçà de ÷10), une confirmation explicite est demandée. */
+export const RESCALE_CONFIRM_FACTOR = 10;
+
+/** Vrai si le facteur est fini et dans [RESCALE_MIN_FACTOR ; RESCALE_MAX_FACTOR] (à revérifier avant d'appliquer). */
+export function isValidRescaleFactor(factor: number): boolean {
+  return Number.isFinite(factor) && factor >= RESCALE_MIN_FACTOR && factor <= RESCALE_MAX_FACTOR;
+}
+
+/** Vrai pour un facteur inhabituel (au-delà de ×10 ou en deçà de ÷10) qui demande une confirmation. */
+export function isUnusualRescaleFactor(factor: number): boolean {
+  return factor > RESCALE_CONFIRM_FACTOR || factor < 1 / RESCALE_CONFIRM_FACTOR;
+}
+
+/** Nombre décimal saisi (virgule ou point acceptés), ou null si la saisie n'est pas un nombre fini. */
+function parseDecimal(text: string): number | null {
+  const t = text.trim().replace(',', '.');
+  if (t === '') return null;
+  const v = Number(t);
+  return Number.isFinite(v) ? v : null;
+}
+
+function plural(count: number, singular: string, pluralForm: string): string {
+  return `${count} ${count > 1 ? pluralForm : singular}`;
+}
+
+interface RescaleEvaluation {
+  target: number | null;
+  factor: number | null;
+  error: string;
+  unusual: boolean;
+}
+
 export class HomeArchitectRescaleModal extends LitElement {
   static styles = css`
     :host {
@@ -287,6 +324,44 @@ export class HomeArchitectRescaleModal extends LitElement {
       cursor: not-allowed;
       box-shadow: none;
     }
+
+    .target-input.invalid {
+      border-color: #ef4444;
+    }
+
+    .field-error {
+      color: #f87171;
+      font-size: 0.8rem;
+      font-weight: 600;
+    }
+
+    .warning-box {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      background: rgba(245, 158, 11, 0.12);
+      border: 1px solid rgba(245, 158, 11, 0.4);
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: 0.82rem;
+      color: #fbbf24;
+    }
+
+    .check-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.82rem;
+      color: #e2e8f0;
+      cursor: pointer;
+    }
+
+    .check-row input {
+      width: 16px;
+      height: 16px;
+      accent-color: #38bdf8;
+      cursor: pointer;
+    }
   `;
 
   @property({ type: Number })
@@ -301,20 +376,100 @@ export class HomeArchitectRescaleModal extends LitElement {
   @property({ type: Number })
   public openingCount: number = 0;
 
+  @property({ type: Number })
+  public furnitureCount: number = 0;
+
+  @property({ type: Number })
+  public bindingCount: number = 0;
+
+  /** Le projet a-t-il un calque de fond ? (sinon l'option d'ajustement du fond est masquée) */
+  @property({ type: Boolean })
+  public hasBackground: boolean = false;
+
+  /** Saisie brute : jamais réécrite pendant la frappe, validée à la confirmation. */
   @state()
-  private targetMeters: number = 0;
+  private targetText: string = '';
 
   @state()
   private adjustBackground: boolean = true;
 
+  @state()
+  private unusualConfirmed: boolean = false;
+
   connectedCallback() {
     super.connectedCallback();
-    this.targetMeters = this.measuredMeters;
+    this.addEventListener('keydown', this.handleKeyDown);
   }
 
+  disconnectedCallback() {
+    this.removeEventListener('keydown', this.handleKeyDown);
+    super.disconnectedCallback();
+  }
+
+  protected willUpdate(changed: PropertyValues<this>) {
+    if (changed.has('measuredMeters')) {
+      const measured = this.measuredMeters;
+      this.targetText = Number.isFinite(measured) && measured > 0 ? String(Math.round(measured * 1000) / 1000) : '';
+      this.unusualConfirmed = false;
+    }
+  }
+
+  protected firstUpdated() {
+    const input = this.renderRoot.querySelector<HTMLInputElement>('.target-input');
+    input?.focus();
+    input?.select();
+  }
+
+  /**
+   * Les touches tapées dans la modale ne doivent pas atteindre les raccourcis globaux du panneau
+   * et du canevas (Retour arrière supprimerait la sélection, « r » ferait pivoter un meuble…).
+   */
+  private handleKeyDown = (e: KeyboardEvent) => {
+    e.stopPropagation();
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      this.close();
+    } else if (e.key === 'Enter' && !e.isComposing) {
+      // Entrée dans le champ de saisie valide (sur un bouton ou une case, Entrée garde son action native).
+      const target = getEventTarget(e);
+      if (target instanceof HTMLInputElement && target.type === 'text') {
+        e.preventDefault();
+        this.confirm();
+      }
+    }
+  };
+
   private handleInputChange(e: Event) {
-    const val = parseFloat((e.target as HTMLInputElement).value);
-    this.targetMeters = isNaN(val) ? 0 : val;
+    this.targetText = (e.target as HTMLInputElement).value;
+    this.unusualConfirmed = false;
+  }
+
+  private evaluate(): RescaleEvaluation {
+    const measured = this.measuredMeters;
+    if (!(Number.isFinite(measured) && measured > 0)) {
+      return { target: null, factor: null, error: 'La cote mesurée est invalide : refaites la mesure sur le plan.', unusual: false };
+    }
+    const target = parseDecimal(this.targetText);
+    if (target === null) {
+      return { target: null, factor: null, error: this.targetText.trim() === '' ? '' : 'Saisissez un nombre (ex. 4.25).', unusual: false };
+    }
+    if (target <= 0) {
+      return { target, factor: null, error: 'La longueur doit être strictement positive.', unusual: false };
+    }
+    const factor = target / measured;
+    if (!isValidRescaleFactor(factor)) {
+      return {
+        target,
+        factor: null,
+        error: `Facteur ×${Number(factor.toPrecision(3))} hors limites (×${RESCALE_MIN_FACTOR} à ×${RESCALE_MAX_FACTOR}) : la longueur est-elle bien en mètres ?`,
+        unusual: false
+      };
+    }
+    return { target, factor, error: '', unusual: isUnusualRescaleFactor(factor) };
+  }
+
+  private isConfirmable(ev: RescaleEvaluation): boolean {
+    return ev.factor !== null && !ev.error && Math.abs(ev.factor - 1) > 0.0001 && (!ev.unusual || this.unusualConfirmed);
   }
 
   private close() {
@@ -322,68 +477,83 @@ export class HomeArchitectRescaleModal extends LitElement {
   }
 
   private confirm() {
-    if (this.targetMeters <= 0 || this.measuredMeters <= 0) return;
+    const ev = this.evaluate();
+    if (!this.isConfirmable(ev) || ev.target === null || ev.factor === null) return;
 
-    const scaleFactor = this.targetMeters / this.measuredMeters;
-    this.dispatchEvent(new CustomEvent('rescale-confirmed', {
+    this.dispatchEvent(new CustomEvent<RescaleModalResult>('rescale-confirmed', {
       detail: {
         currentMeters: this.measuredMeters,
-        targetMeters: this.targetMeters,
-        scaleFactor,
-        adjustBackground: this.adjustBackground
-      } as RescaleModalResult,
+        targetMeters: ev.target,
+        scaleFactor: ev.factor,
+        adjustBackground: this.hasBackground && this.adjustBackground
+      },
       bubbles: true,
       composed: true
     }));
   }
 
+  private renderBackgroundImpact() {
+    if (!this.hasBackground) return null;
+    return html`
+      <label class="check-row">
+        <input
+          type="checkbox"
+          .checked=${this.adjustBackground}
+          @change=${(e: Event) => this.adjustBackground = (e.target as HTMLInputElement).checked}
+        />
+        <span>Ajuster aussi le calque de fond (conserve la superposition avec le plan)</span>
+      </label>
+    `;
+  }
+
   render() {
-    const ratio = this.measuredMeters > 0 && this.targetMeters > 0 
-      ? this.targetMeters / this.measuredMeters 
-      : 1.0;
+    const ev = this.evaluate();
+    const measuredValid = Number.isFinite(this.measuredMeters) && this.measuredMeters > 0;
+    const ratio = ev.factor ?? 1.0;
     const pctDiff = (ratio - 1.0) * 100;
-    const isValid = this.targetMeters > 0 && Math.abs(ratio - 1.0) > 0.0001;
+    const isValid = this.isConfirmable(ev);
 
     return html`
-      <div class="modal-card">
+      <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="rescale-title">
         <div class="modal-header">
           <div class="modal-title-group">
             <span class="modal-icon">📐</span>
             <div>
-              <h3 class="modal-title">Mettre à l'échelle le plan</h3>
+              <h3 class="modal-title" id="rescale-title">Mettre à l'échelle le plan</h3>
               <p class="modal-subtitle">Recalcule automatiquement toutes les dimensions et cotes</p>
             </div>
           </div>
-          <button class="btn-close" @click=${this.close}>✕</button>
+          <button class="btn-close" title="Fermer" @click=${this.close}>✕</button>
         </div>
 
         <div class="modal-body">
           <div class="metric-compare">
             <div class="metric-box">
               <span class="metric-label">Cote mesurée actuelle</span>
-              <span class="metric-val">${this.measuredMeters.toFixed(2)} m</span>
+              <span class="metric-val">${measuredValid ? this.measuredMeters.toFixed(2) : '--'} m</span>
             </div>
             <div class="metric-box active">
               <span class="metric-label">Nouvelle cote cible</span>
-              <span class="metric-val" style="color: #38bdf8;">${this.targetMeters > 0 ? this.targetMeters.toFixed(2) : '--'} m</span>
+              <span class="metric-val" style="color: #38bdf8;">${ev.target !== null && ev.target > 0 ? ev.target.toFixed(2) : '--'} m</span>
             </div>
           </div>
 
           <div class="input-group">
-            <label class="input-label">Quelle est la taille réelle de ce segment en mètres ?</label>
+            <label class="input-label" for="rescale-target">Quelle est la taille réelle de ce segment en mètres ?</label>
             <div class="input-row">
-              <input 
-                type="number" 
-                step="0.05" 
-                min="0.10" 
-                max="500" 
-                class="target-input" 
-                .value=${this.targetMeters}
+              <input
+                id="rescale-target"
+                type="text"
+                inputmode="decimal"
+                autocomplete="off"
+                class="target-input ${ev.error ? 'invalid' : ''}"
+                aria-invalid=${ev.error ? 'true' : 'false'}
+                .value=${this.targetText}
                 @input=${this.handleInputChange}
-                autofocus
               />
               <span class="unit-badge">mètres</span>
             </div>
+            ${ev.error ? html`<span class="field-error" role="alert">${ev.error}</span>` : null}
           </div>
 
           <div class="ratio-indicator">
@@ -393,35 +563,66 @@ export class HomeArchitectRescaleModal extends LitElement {
             </span>
           </div>
 
+          ${ev.unusual ? html`
+            <div class="warning-box">
+              <span>⚠️ Facteur inhabituel (×${ratio.toFixed(3)}) : toutes les dimensions seront multipliées par ce facteur. Vérifiez l'unité saisie.</span>
+              <label class="check-row">
+                <input
+                  type="checkbox"
+                  .checked=${this.unusualConfirmed}
+                  @change=${(e: Event) => this.unusualConfirmed = (e.target as HTMLInputElement).checked}
+                />
+                <span>Je confirme ce facteur</span>
+              </label>
+            </div>
+          ` : null}
+
           <div class="impact-list">
             <div class="impact-item">
               <span class="impact-icon">🧱</span>
-              <span><strong>${this.wallCount} murs</strong> : toutes les longueurs et cotes seront recalculées</span>
+              <span><strong>${plural(this.wallCount, 'mur', 'murs')}</strong> : toutes les longueurs et cotes seront recalculées</span>
             </div>
             ${this.openingCount > 0 ? html`
               <div class="impact-item">
                 <span class="impact-icon">🚪</span>
-                <span><strong>${this.openingCount} ouvertures</strong> : positions ajustées proportionnellement</span>
+                <span><strong>${plural(this.openingCount, 'ouverture', 'ouvertures')}</strong> : positions et largeurs ajustées proportionnellement</span>
               </div>
             ` : null}
             ${this.roomCount > 0 ? html`
               <div class="impact-item">
                 <span class="impact-icon">🏡</span>
-                <span><strong>${this.roomCount} pièces</strong> : toutes les surfaces en m² seront actualisées</span>
+                <span><strong>${plural(this.roomCount, 'pièce', 'pièces')}</strong> : toutes les surfaces en m² seront actualisées</span>
               </div>
             ` : null}
-            <div class="impact-item">
-              <span class="impact-icon">🖼️</span>
-              <span><strong>Calque de fond</strong> : échelle synchronisée pour conserver la superposition</span>
-            </div>
+            ${this.furnitureCount > 0 ? html`
+              <div class="impact-item">
+                <span class="impact-icon">🛋️</span>
+                <span><strong>${plural(this.furnitureCount, 'meuble', 'meubles')}</strong> : positions et dimensions ajustées</span>
+              </div>
+            ` : null}
+            ${this.bindingCount > 0 ? html`
+              <div class="impact-item">
+                <span class="impact-icon">⚡</span>
+                <span><strong>${plural(this.bindingCount, 'entité', 'entités')}</strong> : ${this.bindingCount > 1 ? 'positions ajustées' : 'position ajustée'}</span>
+              </div>
+            ` : null}
+            ${this.hasBackground ? html`
+              <div class="impact-item">
+                <span class="impact-icon">🖼️</span>
+                <span><strong>Calque de fond</strong> : ${this.adjustBackground
+                  ? 'échelle synchronisée pour conserver la superposition'
+                  : 'inchangé (il ne sera plus superposé au plan)'}</span>
+              </div>
+            ` : null}
+            ${this.renderBackgroundImpact()}
           </div>
         </div>
 
         <div class="modal-footer">
           <button class="btn-cancel" @click=${this.close}>Annuler</button>
-          <button 
-            class="btn-confirm" 
-            ?disabled=${!isValid} 
+          <button
+            class="btn-confirm"
+            ?disabled=${!isValid}
             @click=${this.confirm}
           >
             <span>📐</span>
@@ -432,6 +633,8 @@ export class HomeArchitectRescaleModal extends LitElement {
     `;
   }
 }
+
+defineElement('home-architect-rescale-modal', HomeArchitectRescaleModal);
 
 declare global {
   interface HTMLElementTagNameMap {

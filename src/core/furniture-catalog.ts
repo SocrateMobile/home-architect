@@ -1,18 +1,227 @@
-import { svg, SVGTemplateResult } from 'lit';
+import { nothing, svg, SVGTemplateResult } from 'lit';
 import { FurnitureCategory, FurnitureItem } from './types';
 
-export interface FurnitureCatalogTemplate {
+/**
+ * Catalogue de mobilier. Chaque symbole est décrit par des primitives en MÈTRES dans le repère
+ * local du meuble (origine au centre, X = largeur, Y = profondeur ; le dossier / la tête est du
+ * côté des Y négatifs). Le rendu (canevas, carte, SVG exporté) les projette à l'échelle voulue :
+ * les proportions sont donc identiques à tous les zooms, et les épaisseurs de trait restent en
+ * pixels. Sous MIN_SYMBOL_DETAIL_PX, seul le contour est dessiné.
+ */
+
+/** Rôle de peinture d'une primitive : la couleur réelle dépend de la sélection et de la couleur du meuble. */
+export type SymbolPaint =
+  | 'body'      // corps principal (couleur du meuble)
+  | 'accent'    // dossier, accoudoirs, tiroirs
+  | 'soft'      // oreillers
+  | 'water'     // bacs, vasques
+  | 'heat'      // foyers de cuisson
+  | 'glass'     // dossier transparent
+  | 'outline'   // traits de décor sans remplissage
+  | 'highlight' // trait clair (tête de lit, écran)
+  | 'frost'     // trait bleu (réfrigérateur)
+  | 'knob'      // petites pastilles (boutons, robinets)
+  | 'brass'     // poignées laiton
+  | 'drain';    // bonde
+
+/** Commande de tracé en mètres. 'A' : rx, ry, grand arc (0|1), sens (0|1), x, y. */
+export type SymbolPathCommand =
+  | ['M' | 'L', number, number]
+  | ['Q', number, number, number, number]
+  | ['A', number, number, 0 | 1, 0 | 1, number, number]
+  | ['Z'];
+
+interface SymbolShapeStyle {
+  paint: SymbolPaint;
+  /** Épaisseur de trait en pixels (défaut : celle du modèle). */
+  strokeWidth?: number;
+  /** Motif de pointillés en pixels (ex. '3,3'). */
+  dash?: string;
+  opacity?: number;
+}
+
+/** Primitive de dessin d'un symbole, en mètres. */
+export type SymbolShape =
+  | (SymbolShapeStyle & { kind: 'rect'; x: number; y: number; w: number; h: number; r?: number })
+  | (SymbolShapeStyle & { kind: 'ellipse'; cx: number; cy: number; rx: number; ry: number })
+  | (SymbolShapeStyle & { kind: 'line'; x1: number; y1: number; x2: number; y2: number })
+  | (SymbolShapeStyle & { kind: 'path'; d: SymbolPathCommand[] });
+
+/** Définition d'un modèle du catalogue (données et primitives du symbole). */
+export interface FurnitureTemplateDefinition {
+  /** Identifiant persistant dans les projets (ne jamais le renommer). */
   type: string;
   name: string;
   category: FurnitureCategory;
   width: number;  // in meters (width along X)
   length: number; // in meters (depth along Y)
   icon: string;
+  /** Couleur de remplissage du corps quand le meuble n'en définit pas (sinon teinte neutre). */
   defaultColor?: string;
-  renderSvg: (w: number, h: number, isSelected: boolean) => SVGTemplateResult;
+  /** Anciens noms par défaut de ce modèle (projets existants), remplacés par `name` à l'affichage. */
+  legacyNames?: string[];
+  /** Épaisseur de trait par défaut, en pixels. */
+  strokeWidth?: number;
+  /** Primitives du symbole pour un meuble de w × l mètres (dimensions toujours ≥ 0). */
+  shapes: (w: number, l: number) => SymbolShape[];
 }
 
-export const FURNITURE_CATALOG: FurnitureCatalogTemplate[] = [
+export interface FurnitureCatalogTemplate extends FurnitureTemplateDefinition {
+  /**
+   * @deprecated Ancienne signature en pixels écran, conservée le temps que le canevas passe à
+   * renderFurnitureSymbol (qui gère aussi la couleur du meuble). Le symbole est dessiné aux
+   * proportions demandées, l'échelle étant déduite de la largeur du modèle.
+   */
+  renderSvg: (wPx: number, lPx: number, isSelected: boolean) => SVGTemplateResult;
+}
+
+/** Données d'un meuble nécessaires au rendu de son symbole. */
+export type FurnitureSymbolSource = Pick<FurnitureItem, 'type'> & Partial<Pick<FurnitureItem, 'width' | 'length' | 'color' | 'icon'>>;
+
+export interface FurnitureSymbolOptions {
+  /** Échelle de rendu : unités SVG par mètre (pixels écran = pixelsPerMeter × zoom pour le canevas). */
+  pixelsPerMeter: number;
+  selected?: boolean;
+}
+
+/** Sous cette taille (plus petit côté, en pixels), le symbole est réduit à son contour. */
+export const MIN_SYMBOL_DETAIL_PX = 12;
+
+/** Libellés des catégories de mobilier (filtres du volet). */
+export const FURNITURE_CATEGORY_LABELS: Record<FurnitureCategory, string> = {
+  seating: 'Salon',
+  bed: 'Chambre',
+  table: 'Tables',
+  storage: 'Rangements',
+  bathroom: 'Bains',
+  kitchen: 'Cuisine',
+  other: 'Autres'
+};
+
+const CATEGORY_ORDER: FurnitureCategory[] = ['seating', 'bed', 'table', 'storage', 'bathroom', 'kitchen', 'other'];
+
+const DEFAULT_STROKE_WIDTH = 1.5;
+const STROKE = '#94a3b8';
+const STROKE_SELECTED = '#38bdf8';
+const BODY_FILL = 'rgba(30, 41, 59, 0.85)';
+const BODY_FILL_SELECTED = 'rgba(56, 189, 248, 0.25)';
+const ACCENT_FILL = 'rgba(51, 65, 85, 0.9)';
+
+// ------------------------------------------------------------------
+// Aides de construction (toutes les dimensions sont bornées à ≥ 0)
+// ------------------------------------------------------------------
+
+function clamp(v: number, min: number, max: number): number {
+  return Math.min(Math.max(v, min), Math.max(min, max));
+}
+
+function rect(x: number, y: number, w: number, h: number, paint: SymbolPaint, r = 0, style: Partial<SymbolShapeStyle> = {}): SymbolShape {
+  const width = Math.max(0, w);
+  const height = Math.max(0, h);
+  return { kind: 'rect', x, y, w: width, h: height, r: clamp(r, 0, Math.min(width, height) / 2), paint, ...style };
+}
+
+function ellipse(cx: number, cy: number, rx: number, ry: number, paint: SymbolPaint, style: Partial<SymbolShapeStyle> = {}): SymbolShape {
+  return { kind: 'ellipse', cx, cy, rx: Math.max(0, rx), ry: Math.max(0, ry), paint, ...style };
+}
+
+function line(x1: number, y1: number, x2: number, y2: number, paint: SymbolPaint, style: Partial<SymbolShapeStyle> = {}): SymbolShape {
+  return { kind: 'line', x1, y1, x2, y2, paint, ...style };
+}
+
+function path(d: SymbolPathCommand[], paint: SymbolPaint, style: Partial<SymbolShapeStyle> = {}): SymbolShape {
+  return { kind: 'path', d, paint, ...style };
+}
+
+/** Contour arrondi occupant toute l'emprise du meuble. */
+function outline(w: number, l: number, radiusRatio = 0.08): SymbolShape {
+  return rect(-w / 2, -l / 2, w, l, 'body', Math.min(w, l) * radiusRatio);
+}
+
+/** Symétrie gauche/droite (X → −X) d'un ensemble de primitives. */
+function mirrorX(shapes: SymbolShape[]): SymbolShape[] {
+  return shapes.map(s => {
+    switch (s.kind) {
+      case 'rect': return { ...s, x: -(s.x + s.w) };
+      case 'ellipse': return { ...s, cx: -s.cx };
+      case 'line': return { ...s, x1: -s.x1, x2: -s.x2 };
+      case 'path': return {
+        ...s,
+        d: s.d.map((c): SymbolPathCommand => {
+          switch (c[0]) {
+            case 'M': case 'L': return [c[0], -c[1], c[2]];
+            case 'Q': return ['Q', -c[1], c[2], -c[3], c[4]];
+            case 'A': return ['A', c[1], c[2], c[3], c[4] === 1 ? 0 : 1, -c[5], c[6]];
+            default: return c;
+          }
+        })
+      };
+    }
+  });
+}
+
+/** Canapé : accoudoirs, dossier et `seats` coussins d'assise. */
+function sofaShapes(w: number, l: number, seats: number, armRatio: number): SymbolShape[] {
+  const armW = clamp(w * armRatio, 0.1, w * 0.25);
+  const backH = clamp(l * 0.26, 0.12, l * 0.45);
+  const gap = Math.min(0.04, w * 0.02, l * 0.04);
+  const innerW = w - armW * 2;
+  const cushionW = innerW / seats;
+  const shapes: SymbolShape[] = [
+    outline(w, l),
+    rect(-w / 2 + armW, -l / 2, innerW, backH, 'accent', backH * 0.2),
+    rect(-w / 2, -l / 2, armW, l, 'accent', armW * 0.3),
+    rect(w / 2 - armW, -l / 2, armW, l, 'accent', armW * 0.3)
+  ];
+  for (let i = 0; i < seats; i++) {
+    const cw = cushionW - gap;
+    shapes.push(rect(-w / 2 + armW + i * cushionW + gap / 2, -l / 2 + backH + gap / 2, cw, l - backH - gap, 'body', Math.min(cw, l) * 0.1));
+  }
+  return shapes;
+}
+
+/** Divan / méridienne, tête à gauche. */
+function divanShapes(w: number, l: number): SymbolShape[] {
+  const headW = clamp(w * 0.22, 0.15, w * 0.4);
+  const backH = clamp(l * 0.24, 0.1, l * 0.45);
+  const gap = Math.min(0.05, w * 0.03, l * 0.05);
+  const seatW = w - headW;
+  const lineTop = -l / 2 + backH + gap;
+  const lineBottom = Math.max(lineTop, l / 2 - gap);
+  return [
+    outline(w, l, 0.1),
+    rect(-w / 2, -l / 2, w * 0.65, backH, 'accent', backH * 0.25),
+    rect(-w / 2, -l / 2, headW, l, 'accent', headW * 0.2),
+    rect(-w / 2 + headW + gap, -l / 2 + backH + gap, seatW - gap * 2, l - backH - gap * 2, 'body', Math.min(seatW, l) * 0.08),
+    line(-w / 2 + headW + seatW / 3, lineTop, -w / 2 + headW + seatW / 3, lineBottom, 'outline', { dash: '3,3', opacity: 0.5 }),
+    line(-w / 2 + headW + (seatW * 2) / 3, lineTop, -w / 2 + headW + (seatW * 2) / 3, lineBottom, 'outline', { dash: '3,3', opacity: 0.5 })
+  ];
+}
+
+/** Lit : tête de lit, `pillows` oreillers et revers de couette. */
+function bedShapes(w: number, l: number, pillows: number): SymbolShape[] {
+  const margin = Math.min(w * 0.05, l * 0.04, 0.08);
+  const headboard = Math.min(l * 0.03, 0.05);
+  const pillowH = l * 0.18;
+  const pillowW = (w - margin * (pillows + 1)) / pillows;
+  const pillowY = -l / 2 + headboard + margin;
+  const duvetY = Math.min(l / 2, pillowY + pillowH + margin);
+  const shapes: SymbolShape[] = [
+    outline(w, l, 0.06),
+    line(-w / 2, -l / 2 + headboard, w / 2, -l / 2 + headboard, 'highlight', { strokeWidth: 2.5 })
+  ];
+  for (let i = 0; i < pillows; i++) {
+    shapes.push(rect(-w / 2 + margin + i * (pillowW + margin), pillowY, pillowW, pillowH, 'soft', Math.min(pillowW, pillowH) * 0.2));
+  }
+  shapes.push(path([['M', -w / 2 + margin / 2, duvetY], ['Q', 0, duvetY + l * 0.04, w / 2 - margin / 2, duvetY]], 'outline', { strokeWidth: 1.8 }));
+  return shapes;
+}
+
+// ------------------------------------------------------------------
+// Catalogue
+// ------------------------------------------------------------------
+
+const CATALOG_DEFINITIONS: FurnitureTemplateDefinition[] = [
   // ==========================================
   // SALON (SEATING)
   // ==========================================
@@ -23,26 +232,8 @@ export const FURNITURE_CATALOG: FurnitureCatalogTemplate[] = [
     width: 2.20,
     length: 0.95,
     icon: '🛋️',
-    renderSvg: (w, h, sel) => {
-      const armW = Math.max(8, w * 0.1);
-      const backH = Math.max(10, h * 0.26);
-      const cushionW = (w - armW * 2) / 3;
-      return svg`
-        <g class="furniture-symbol" stroke="${sel ? '#38bdf8' : '#94a3b8'}" stroke-width="1.6" fill="${sel ? 'rgba(56, 189, 248, 0.25)' : 'rgba(30, 41, 59, 0.85)'}">
-          <!-- Contour principal -->
-          <rect x="${-w/2}" y="${-h/2}" width="${w}" height="${h}" rx="6" />
-          <!-- Dossier arrière -->
-          <rect x="${-w/2 + armW}" y="${-h/2}" width="${w - armW*2}" height="${backH}" rx="3" fill="rgba(51, 65, 85, 0.9)" />
-          <!-- Accoudoirs gauche & droit -->
-          <rect x="${-w/2}" y="${-h/2}" width="${armW}" height="${h}" rx="4" fill="rgba(51, 65, 85, 0.9)" />
-          <rect x="${w/2 - armW}" y="${-h/2}" width="${armW}" height="${h}" rx="4" fill="rgba(51, 65, 85, 0.9)" />
-          <!-- 3 Coussins d'assise -->
-          <rect x="${-w/2 + armW + 2}" y="${-h/2 + backH + 2}" width="${cushionW - 4}" height="${h - backH - 4}" rx="4" />
-          <rect x="${-w/2 + armW + cushionW + 2}" y="${-h/2 + backH + 2}" width="${cushionW - 4}" height="${h - backH - 4}" rx="4" />
-          <rect x="${-w/2 + armW + cushionW*2 + 2}" y="${-h/2 + backH + 2}" width="${cushionW - 4}" height="${h - backH - 4}" rx="4" />
-        </g>
-      `;
-    }
+    strokeWidth: 1.6,
+    shapes: (w, l) => sofaShapes(w, l, 3, 0.1)
   },
   {
     type: 'sofa_2p',
@@ -51,21 +242,8 @@ export const FURNITURE_CATALOG: FurnitureCatalogTemplate[] = [
     width: 1.60,
     length: 0.90,
     icon: '🛋️',
-    renderSvg: (w, h, sel) => {
-      const armW = Math.max(8, w * 0.12);
-      const backH = Math.max(10, h * 0.26);
-      const cushionW = (w - armW * 2) / 2;
-      return svg`
-        <g class="furniture-symbol" stroke="${sel ? '#38bdf8' : '#94a3b8'}" stroke-width="1.6" fill="${sel ? 'rgba(56, 189, 248, 0.25)' : 'rgba(30, 41, 59, 0.85)'}">
-          <rect x="${-w/2}" y="${-h/2}" width="${w}" height="${h}" rx="6" />
-          <rect x="${-w/2 + armW}" y="${-h/2}" width="${w - armW*2}" height="${backH}" rx="3" fill="rgba(51, 65, 85, 0.9)" />
-          <rect x="${-w/2}" y="${-h/2}" width="${armW}" height="${h}" rx="4" fill="rgba(51, 65, 85, 0.9)" />
-          <rect x="${w/2 - armW}" y="${-h/2}" width="${armW}" height="${h}" rx="4" fill="rgba(51, 65, 85, 0.9)" />
-          <rect x="${-w/2 + armW + 2}" y="${-h/2 + backH + 2}" width="${cushionW - 4}" height="${h - backH - 4}" rx="4" />
-          <rect x="${-w/2 + armW + cushionW + 2}" y="${-h/2 + backH + 2}" width="${cushionW - 4}" height="${h - backH - 4}" rx="4" />
-        </g>
-      `;
-    }
+    strokeWidth: 1.6,
+    shapes: (w, l) => sofaShapes(w, l, 2, 0.12)
   },
   {
     type: 'divan',
@@ -74,25 +252,8 @@ export const FURNITURE_CATALOG: FurnitureCatalogTemplate[] = [
     width: 1.80,
     length: 0.85,
     icon: '🛋️',
-    renderSvg: (w, h, sel) => {
-      const headRestW = Math.max(12, w * 0.22);
-      const backH = Math.max(10, h * 0.24);
-      return svg`
-        <g class="furniture-symbol" stroke="${sel ? '#38bdf8' : '#94a3b8'}" stroke-width="1.6" fill="${sel ? 'rgba(56, 189, 248, 0.25)' : 'rgba(30, 41, 59, 0.85)'}">
-          <!-- Matelas / assise longue -->
-          <rect x="${-w/2}" y="${-h/2}" width="${w}" height="${h}" rx="8" />
-          <!-- Dossier asymétrique (méridienne / divan) -->
-          <rect x="${-w/2}" y="${-h/2}" width="${w * 0.65}" height="${backH}" rx="4" fill="rgba(51, 65, 85, 0.9)" />
-          <!-- Tête de divan / repose-tête surélevé gauche -->
-          <rect x="${-w/2}" y="${-h/2}" width="${headRestW}" height="${h}" rx="6" fill="rgba(51, 65, 85, 0.9)" />
-          <!-- Coussin capitonné -->
-          <rect x="${-w/2 + headRestW + 3}" y="${-h/2 + backH + 3}" width="${w - headRestW - 6}" height="${h - backH - 6}" rx="5" />
-          <!-- Lignes décoratives capitonnage -->
-          <line x1="${-w/2 + headRestW + (w - headRestW)*0.33}" y1="${-h/2 + backH + 4}" x2="${-w/2 + headRestW + (w - headRestW)*0.33}" y2="${h/2 - 4}" stroke-dasharray="3,3" opacity="0.5" />
-          <line x1="${-w/2 + headRestW + (w - headRestW)*0.66}" y1="${-h/2 + backH + 4}" x2="${-w/2 + headRestW + (w - headRestW)*0.66}" y2="${h/2 - 4}" stroke-dasharray="3,3" opacity="0.5" />
-        </g>
-      `;
-    }
+    strokeWidth: 1.6,
+    shapes: (w, l) => divanShapes(w, l)
   },
   {
     type: 'divan_right',
@@ -101,25 +262,8 @@ export const FURNITURE_CATALOG: FurnitureCatalogTemplate[] = [
     width: 1.80,
     length: 0.85,
     icon: '🛋️',
-    renderSvg: (w, h, sel) => {
-      const headRestW = Math.max(12, w * 0.22);
-      const backH = Math.max(10, h * 0.24);
-      return svg`
-        <g class="furniture-symbol" stroke="${sel ? '#38bdf8' : '#94a3b8'}" stroke-width="1.6" fill="${sel ? 'rgba(56, 189, 248, 0.25)' : 'rgba(30, 41, 59, 0.85)'}">
-          <!-- Matelas / assise longue -->
-          <rect x="${-w/2}" y="${-h/2}" width="${w}" height="${h}" rx="8" />
-          <!-- Dossier asymétrique (méridienne côté droit) -->
-          <rect x="${w/2 - w * 0.65}" y="${-h/2}" width="${w * 0.65}" height="${backH}" rx="4" fill="rgba(51, 65, 85, 0.9)" />
-          <!-- Tête de divan / repose-tête surélevé droit -->
-          <rect x="${w/2 - headRestW}" y="${-h/2}" width="${headRestW}" height="${h}" rx="6" fill="rgba(51, 65, 85, 0.9)" />
-          <!-- Coussin capitonné -->
-          <rect x="${-w/2 + 3}" y="${-h/2 + backH + 3}" width="${w - headRestW - 6}" height="${h - backH - 6}" rx="5" />
-          <!-- Lignes décoratives capitonnage -->
-          <line x1="${-w/2 + (w - headRestW)*0.33}" y1="${-h/2 + backH + 4}" x2="${-w/2 + (w - headRestW)*0.33}" y2="${h/2 - 4}" stroke-dasharray="3,3" opacity="0.5" />
-          <line x1="${-w/2 + (w - headRestW)*0.66}" y1="${-h/2 + backH + 4}" x2="${-w/2 + (w - headRestW)*0.66}" y2="${h/2 - 4}" stroke-dasharray="3,3" opacity="0.5" />
-        </g>
-      `;
-    }
+    strokeWidth: 1.6,
+    shapes: (w, l) => mirrorX(divanShapes(w, l))
   },
   {
     type: 'armchair',
@@ -128,18 +272,17 @@ export const FURNITURE_CATALOG: FurnitureCatalogTemplate[] = [
     width: 0.85,
     length: 0.85,
     icon: '🪑',
-    renderSvg: (w, h, sel) => {
-      const armW = Math.max(6, w * 0.18);
-      const backH = Math.max(8, h * 0.28);
-      return svg`
-        <g class="furniture-symbol" stroke="${sel ? '#38bdf8' : '#94a3b8'}" stroke-width="1.5" fill="${sel ? 'rgba(56, 189, 248, 0.25)' : 'rgba(30, 41, 59, 0.85)'}">
-          <rect x="${-w/2}" y="${-h/2}" width="${w}" height="${h}" rx="6" />
-          <rect x="${-w/2 + armW}" y="${-h/2}" width="${w - armW*2}" height="${backH}" rx="3" fill="rgba(51, 65, 85, 0.9)" />
-          <rect x="${-w/2}" y="${-h/2}" width="${armW}" height="${h}" rx="4" fill="rgba(51, 65, 85, 0.9)" />
-          <rect x="${w/2 - armW}" y="${-h/2}" width="${armW}" height="${h}" rx="4" fill="rgba(51, 65, 85, 0.9)" />
-          <rect x="${-w/2 + armW + 2}" y="${-h/2 + backH + 2}" width="${w - armW*2 - 4}" height="${h - backH - 4}" rx="4" />
-        </g>
-      `;
+    shapes: (w, l) => {
+      const armW = clamp(w * 0.18, 0.08, w * 0.3);
+      const backH = clamp(l * 0.28, 0.1, l * 0.45);
+      const gap = Math.min(0.04, w * 0.04, l * 0.04);
+      return [
+        outline(w, l),
+        rect(-w / 2 + armW, -l / 2, w - armW * 2, backH, 'accent', backH * 0.2),
+        rect(-w / 2, -l / 2, armW, l, 'accent', armW * 0.3),
+        rect(w / 2 - armW, -l / 2, armW, l, 'accent', armW * 0.3),
+        rect(-w / 2 + armW + gap / 2, -l / 2 + backH + gap / 2, w - armW * 2 - gap, l - backH - gap, 'body', Math.min(w, l) * 0.06)
+      ];
     }
   },
   {
@@ -149,14 +292,13 @@ export const FURNITURE_CATALOG: FurnitureCatalogTemplate[] = [
     width: 1.10,
     length: 0.60,
     icon: '☕',
-    renderSvg: (w, h, sel) => {
-      return svg`
-        <g class="furniture-symbol" stroke="${sel ? '#38bdf8' : '#94a3b8'}" stroke-width="1.5" fill="${sel ? 'rgba(56, 189, 248, 0.25)' : 'rgba(30, 41, 59, 0.85)'}">
-          <rect x="${-w/2}" y="${-h/2}" width="${w}" height="${h}" rx="8" />
-          <line x1="${-w/2 + 8}" y1="${-h/2 + 8}" x2="${w/2 - 8}" y2="${h/2 - 8}" stroke-dasharray="3,3" opacity="0.4" />
-          <line x1="${w/2 - 8}" y1="${-h/2 + 8}" x2="${-w/2 + 8}" y2="${h/2 - 8}" stroke-dasharray="3,3" opacity="0.4" />
-        </g>
-      `;
+    shapes: (w, l) => {
+      const m = Math.min(w, l) * 0.12;
+      return [
+        outline(w, l, 0.12),
+        line(-w / 2 + m, -l / 2 + m, w / 2 - m, l / 2 - m, 'outline', { dash: '3,3', opacity: 0.4 }),
+        line(w / 2 - m, -l / 2 + m, -w / 2 + m, l / 2 - m, 'outline', { dash: '3,3', opacity: 0.4 })
+      ];
     }
   },
 
@@ -170,24 +312,8 @@ export const FURNITURE_CATALOG: FurnitureCatalogTemplate[] = [
     width: 1.60,
     length: 2.00,
     icon: '🛏️',
-    renderSvg: (w, h, sel) => {
-      const pillowW = (w - 16) / 2;
-      const pillowH = h * 0.22;
-      const duvetY = -h/2 + pillowH + 8;
-      return svg`
-        <g class="furniture-symbol" stroke="${sel ? '#38bdf8' : '#94a3b8'}" stroke-width="1.6" fill="${sel ? 'rgba(56, 189, 248, 0.25)' : 'rgba(30, 41, 59, 0.85)'}">
-          <!-- Cadre du lit -->
-          <rect x="${-w/2}" y="${-h/2}" width="${w}" height="${h}" rx="6" />
-          <!-- Tête de lit -->
-          <line x1="${-w/2}" y1="${-h/2 + 4}" x2="${w/2}" y2="${-h/2 + 4}" stroke-width="3" stroke="${sel ? '#38bdf8' : '#cbd5e1'}" />
-          <!-- 2 Oreillers -->
-          <rect x="${-w/2 + 6}" y="${-h/2 + 8}" width="${pillowW}" height="${pillowH}" rx="4" fill="rgba(241, 245, 249, 0.2)" />
-          <rect x="${w/2 - pillowW - 6}" y="${-h/2 + 8}" width="${pillowW}" height="${pillowH}" rx="4" fill="rgba(241, 245, 249, 0.2)" />
-          <!-- Revers de couette -->
-          <path d="M ${-w/2 + 4} ${duvetY} Q 0 ${duvetY + 8} ${w/2 - 4} ${duvetY}" fill="none" stroke-width="1.8" />
-        </g>
-      `;
-    }
+    strokeWidth: 1.6,
+    shapes: (w, l) => bedShapes(w, l, 2)
   },
   {
     type: 'bed_single',
@@ -196,19 +322,7 @@ export const FURNITURE_CATALOG: FurnitureCatalogTemplate[] = [
     width: 0.90,
     length: 1.90,
     icon: '🛏️',
-    renderSvg: (w, h, sel) => {
-      const pillowW = w - 16;
-      const pillowH = h * 0.22;
-      const duvetY = -h/2 + pillowH + 8;
-      return svg`
-        <g class="furniture-symbol" stroke="${sel ? '#38bdf8' : '#94a3b8'}" stroke-width="1.5" fill="${sel ? 'rgba(56, 189, 248, 0.25)' : 'rgba(30, 41, 59, 0.85)'}">
-          <rect x="${-w/2}" y="${-h/2}" width="${w}" height="${h}" rx="6" />
-          <line x1="${-w/2}" y1="${-h/2 + 3}" x2="${w/2}" y2="${-h/2 + 3}" stroke-width="2.5" stroke="${sel ? '#38bdf8' : '#cbd5e1'}" />
-          <rect x="${-w/2 + 8}" y="${-h/2 + 8}" width="${pillowW}" height="${pillowH}" rx="4" fill="rgba(241, 245, 249, 0.2)" />
-          <path d="M ${-w/2 + 4} ${duvetY} Q 0 ${duvetY + 6} ${w/2 - 4} ${duvetY}" fill="none" stroke-width="1.8" />
-        </g>
-      `;
-    }
+    shapes: (w, l) => bedShapes(w, l, 1)
   },
   {
     type: 'nightstand',
@@ -217,17 +331,22 @@ export const FURNITURE_CATALOG: FurnitureCatalogTemplate[] = [
     width: 0.45,
     length: 0.40,
     icon: '🕰️',
-    renderSvg: (w, h, sel) => {
-      return svg`
-        <g class="furniture-symbol" stroke="${sel ? '#38bdf8' : '#94a3b8'}" stroke-width="1.4" fill="${sel ? 'rgba(56, 189, 248, 0.25)' : 'rgba(30, 41, 59, 0.85)'}">
-          <rect x="${-w/2}" y="${-h/2}" width="${w}" height="${h}" rx="4" />
-          <line x1="${-w/2 + 4}" y1="${0}" x2="${w/2 - 4}" y2="${0}" stroke-width="1.2" />
-          <circle cx="0" cy="${-h/4}" r="2" fill="${sel ? '#38bdf8' : '#94a3b8'}" />
-          <circle cx="0" cy="${h/4}" r="2" fill="${sel ? '#38bdf8' : '#94a3b8'}" />
-        </g>
-      `;
+    strokeWidth: 1.4,
+    shapes: (w, l) => {
+      const m = Math.min(w, l) * 0.1;
+      const knob = Math.min(w, l) * 0.05;
+      return [
+        outline(w, l),
+        line(-w / 2 + m, 0, w / 2 - m, 0, 'outline', { strokeWidth: 1.2 }),
+        ellipse(0, -l / 4, knob, knob, 'knob'),
+        ellipse(0, l / 4, knob, knob, 'knob')
+      ];
     }
   },
+
+  // ==========================================
+  // RANGEMENTS (STORAGE)
+  // ==========================================
   {
     type: 'wardrobe',
     name: 'Armoire dressing',
@@ -235,17 +354,15 @@ export const FURNITURE_CATALOG: FurnitureCatalogTemplate[] = [
     width: 1.80,
     length: 0.60,
     icon: '🚪',
-    renderSvg: (w, h, sel) => {
-      const doorW = w / 3;
-      return svg`
-        <g class="furniture-symbol" stroke="${sel ? '#38bdf8' : '#94a3b8'}" stroke-width="1.5" fill="${sel ? 'rgba(56, 189, 248, 0.25)' : 'rgba(30, 41, 59, 0.85)'}">
-          <rect x="${-w/2}" y="${-h/2}" width="${w}" height="${h}" rx="3" />
-          <line x1="${-w/2 + doorW}" y1="${-h/2}" x2="${-w/2 + doorW}" y2="${h/2}" />
-          <line x1="${-w/2 + doorW*2}" y1="${-h/2}" x2="${-w/2 + doorW*2}" y2="${h/2}" />
-          <!-- Tringle à vêtements symbolique -->
-          <line x1="${-w/2 + 6}" y1="0" x2="${w/2 - 6}" y2="0" stroke-dasharray="4,3" stroke-width="1.2" opacity="0.6" />
-        </g>
-      `;
+    shapes: (w, l) => {
+      const m = Math.min(w, l) * 0.1;
+      return [
+        outline(w, l, 0.05),
+        line(-w / 2 + w / 3, -l / 2, -w / 2 + w / 3, l / 2, 'outline'),
+        line(-w / 2 + (w * 2) / 3, -l / 2, -w / 2 + (w * 2) / 3, l / 2, 'outline'),
+        // Tringle à vêtements symbolique
+        line(-w / 2 + m, 0, w / 2 - m, 0, 'outline', { dash: '4,3', strokeWidth: 1.2, opacity: 0.6 })
+      ];
     }
   },
 
@@ -259,23 +376,18 @@ export const FURNITURE_CATALOG: FurnitureCatalogTemplate[] = [
     width: 1.60,
     length: 0.90,
     icon: '🍽️',
-    renderSvg: (w, h, sel) => {
+    shapes: (w, l) => {
+      // Les chaises débordent de l'emprise du plateau (voir furnitureBounds).
       const chairW = w * 0.24;
-      const chairD = 7;
-      return svg`
-        <g class="furniture-symbol" stroke="${sel ? '#38bdf8' : '#94a3b8'}" stroke-width="1.5" fill="${sel ? 'rgba(56, 189, 248, 0.25)' : 'rgba(30, 41, 59, 0.85)'}">
-          <!-- Plateau principal -->
-          <rect x="${-w/2}" y="${-h/2}" width="${w}" height="${h}" rx="5" />
-          <!-- 3 Chaises du haut -->
-          <rect x="${-w/2 + 6}" y="${-h/2 - chairD}" width="${chairW}" height="${chairD}" rx="2" />
-          <rect x="${-chairW/2}" y="${-h/2 - chairD}" width="${chairW}" height="${chairD}" rx="2" />
-          <rect x="${w/2 - chairW - 6}" y="${-h/2 - chairD}" width="${chairW}" height="${chairD}" rx="2" />
-          <!-- 3 Chaises du bas -->
-          <rect x="${-w/2 + 6}" y="${h/2}" width="${chairW}" height="${chairD}" rx="2" />
-          <rect x="${-chairW/2}" y="${h/2}" width="${chairW}" height="${chairD}" rx="2" />
-          <rect x="${w/2 - chairW - 6}" y="${h/2}" width="${chairW}" height="${chairD}" rx="2" />
-        </g>
-      `;
+      const chairD = Math.min(0.18, l * 0.25);
+      const m = w * 0.04;
+      const xs = [-w / 2 + m, -chairW / 2, w / 2 - chairW - m];
+      const r = Math.min(chairW, chairD) * 0.2;
+      return [
+        outline(w, l, 0.06),
+        ...xs.map(x => rect(x, -l / 2 - chairD, chairW, chairD, 'body', r)),
+        ...xs.map(x => rect(x, l / 2, chairW, chairD, 'body', r))
+      ];
     }
   },
   {
@@ -285,42 +397,43 @@ export const FURNITURE_CATALOG: FurnitureCatalogTemplate[] = [
     width: 1.40,
     length: 0.70,
     icon: '💻',
-    renderSvg: (w, h, sel) => {
-      return svg`
-        <g class="furniture-symbol" stroke="${sel ? '#38bdf8' : '#94a3b8'}" stroke-width="1.5" fill="${sel ? 'rgba(56, 189, 248, 0.25)' : 'rgba(30, 41, 59, 0.85)'}">
-          <!-- Plateau de bureau -->
-          <rect x="${-w/2}" y="${-h/2}" width="${w}" height="${h}" rx="4" />
-          <!-- Écran d'ordinateur symbolique -->
-          <rect x="-14" y="${-h/2 + 6}" width="28" height="4" rx="1" fill="${sel ? '#38bdf8' : '#cbd5e1'}" />
-          <!-- Évidement chaise -->
-          <path d="M -16 ${h/2} A 16 16 0 0 1 16 ${h/2}" fill="none" stroke-dasharray="3,3" />
-        </g>
-      `;
+    shapes: (w, l) => {
+      const screenW = Math.min(w * 0.4, 0.6);
+      const screenH = Math.min(l * 0.06, 0.05);
+      const cutR = Math.min(w * 0.2, l * 0.45);
+      return [
+        outline(w, l, 0.05),
+        // Écran d'ordinateur symbolique
+        rect(-screenW / 2, -l / 2 + l * 0.08, screenW, screenH, 'highlight', screenH * 0.25),
+        // Évidement chaise
+        path([['M', -cutR, l / 2], ['A', cutR, cutR, 0, 1, cutR, l / 2]], 'outline', { dash: '3,3' })
+      ];
     }
   },
   {
+    // Identifiant historique conservé pour la compatibilité des projets existants.
     type: 'chair_starck',
-    name: 'Chaise Starck (Ghost)',
+    name: 'Chaise médaillon transparente',
+    legacyNames: ['Chaise Starck (Ghost)'],
     category: 'table',
     width: 0.54,
     length: 0.55,
     icon: '🪑',
-    renderSvg: (w, h, sel) => {
-      const seatR = Math.min(w, h) * 0.38;
-      const backR = Math.min(w, h) * 0.32;
-      return svg`
-        <g class="furniture-symbol" stroke="${sel ? '#38bdf8' : '#94a3b8'}" stroke-width="1.5" fill="${sel ? 'rgba(56, 189, 248, 0.25)' : 'rgba(30, 41, 59, 0.85)'}">
-          <!-- Assise carrée aux coins adoucis -->
-          <rect x="${-w/2 + 2}" y="${-h/2 + 6}" width="${w - 4}" height="${h - 10}" rx="6" />
-          <!-- Dossier médaillon emblématique de type Starck / Louis Ghost -->
-          <ellipse cx="0" cy="${-h/2 + 6}" rx="${backR}" ry="${h * 0.16}" fill="rgba(56, 189, 248, 0.15)" stroke-width="1.6" />
-          <!-- Accoudoirs fluides galbés -->
-          <path d="M ${-w/2 + 4} ${-h/2 + 10} Q ${-w/2 + 1} 0 ${-w/2 + 6} ${h/2 - 6}" fill="none" stroke-width="1.4" opacity="0.8" />
-          <path d="M ${w/2 - 4} ${-h/2 + 10} Q ${w/2 - 1} 0 ${w/2 - 6} ${h/2 - 6}" fill="none" stroke-width="1.4" opacity="0.8" />
-          <!-- Galbe assise transparente -->
-          <circle cx="0" cy="${h * 0.08}" r="${seatR * 0.55}" fill="none" stroke-dasharray="2,2" opacity="0.4" />
-        </g>
-      `;
+    shapes: (w, l) => {
+      const s = Math.min(w, l);
+      const mx = w * 0.04;
+      const seatTop = -l / 2 + l * 0.11;
+      return [
+        // Assise aux coins adoucis
+        rect(-w / 2 + mx, seatTop, w - mx * 2, l - l * 0.18, 'body', s * 0.11),
+        // Dossier médaillon
+        ellipse(0, seatTop, s * 0.32, l * 0.16, 'glass', { strokeWidth: 1.6 }),
+        // Accoudoirs galbés
+        path([['M', -w / 2 + mx * 2, -l / 2 + l * 0.18], ['Q', -w / 2 + mx * 0.5, 0, -w / 2 + mx * 3, l / 2 - l * 0.11]], 'outline', { strokeWidth: 1.4, opacity: 0.8 }),
+        path([['M', w / 2 - mx * 2, -l / 2 + l * 0.18], ['Q', w / 2 - mx * 0.5, 0, w / 2 - mx * 3, l / 2 - l * 0.11]], 'outline', { strokeWidth: 1.4, opacity: 0.8 }),
+        // Galbe de l'assise transparente
+        ellipse(0, l * 0.08, s * 0.21, s * 0.21, 'outline', { dash: '2,2', opacity: 0.4 })
+      ];
     }
   },
   {
@@ -330,20 +443,17 @@ export const FURNITURE_CATALOG: FurnitureCatalogTemplate[] = [
     width: 1.20,
     length: 0.35,
     icon: '🗄️',
-    renderSvg: (w, h, sel) => {
-      const drawerW = (w - 8) / 2;
-      return svg`
-        <g class="furniture-symbol" stroke="${sel ? '#38bdf8' : '#94a3b8'}" stroke-width="1.5" fill="${sel ? 'rgba(56, 189, 248, 0.25)' : 'rgba(30, 41, 59, 0.85)'}">
-          <!-- Plateau fin élancé -->
-          <rect x="${-w/2}" y="${-h/2}" width="${w}" height="${h}" rx="3" />
-          <!-- 2 Tiroirs ou compartiments de rangement -->
-          <rect x="${-w/2 + 3}" y="${-h/2 + 3}" width="${drawerW}" height="${h - 6}" rx="2" fill="rgba(51, 65, 85, 0.9)" />
-          <rect x="${1}" y="${-h/2 + 3}" width="${drawerW}" height="${h - 6}" rx="2" fill="rgba(51, 65, 85, 0.9)" />
-          <!-- Poignées discrètes en laiton -->
-          <circle cx="${-w/4}" cy="0" r="1.8" fill="${sel ? '#38bdf8' : '#f59e0b'}" />
-          <circle cx="${w/4}" cy="0" r="1.8" fill="${sel ? '#38bdf8' : '#f59e0b'}" />
-        </g>
-      `;
+    shapes: (w, l) => {
+      const g = Math.min(w, l) * 0.08;
+      const drawerW = (w - g * 3) / 2;
+      const handle = Math.min(w, l) * 0.05;
+      return [
+        outline(w, l, 0.08),
+        rect(-w / 2 + g, -l / 2 + g, drawerW, l - g * 2, 'accent', g * 0.6),
+        rect(g / 2, -l / 2 + g, drawerW, l - g * 2, 'accent', g * 0.6),
+        ellipse(-w / 4, 0, handle, handle, 'brass'),
+        ellipse(w / 4, 0, handle, handle, 'brass')
+      ];
     }
   },
 
@@ -357,20 +467,16 @@ export const FURNITURE_CATALOG: FurnitureCatalogTemplate[] = [
     width: 0.45,
     length: 0.65,
     icon: '🚽',
-    renderSvg: (w, h, sel) => {
-      const tankH = h * 0.28;
-      return svg`
-        <g class="furniture-symbol" stroke="${sel ? '#38bdf8' : '#94a3b8'}" stroke-width="1.5" fill="${sel ? 'rgba(56, 189, 248, 0.25)' : 'rgba(30, 41, 59, 0.85)'}">
-          <!-- Réservoir d'eau -->
-          <rect x="${-w/2}" y="${-h/2}" width="${w}" height="${tankH}" rx="3" fill="rgba(51, 65, 85, 0.9)" />
-          <!-- Cuvette de WC -->
-          <path d="M ${-w/2 + 2} ${-h/2 + tankH} 
-                   L ${w/2 - 2} ${-h/2 + tankH} 
-                   L ${w/2 - 2} ${h/2 - w/2} 
-                   A ${w/2 - 2} ${w/2 - 2} 0 0 1 ${-w/2 + 2} ${h/2 - w/2} 
-                   Z" />
-        </g>
-      `;
+    shapes: (w, l) => {
+      const tankH = l * 0.28;
+      const g = w * 0.04;
+      const r = Math.max(0, w / 2 - g);
+      const top = -l / 2 + tankH;
+      const arcY = Math.max(top, l / 2 - r);
+      return [
+        rect(-w / 2, -l / 2, w, tankH, 'accent', Math.min(w, tankH) * 0.15),
+        path([['M', -w / 2 + g, top], ['L', w / 2 - g, top], ['L', w / 2 - g, arcY], ['A', r, r, 0, 1, -w / 2 + g, arcY], ['Z']], 'body')
+      ];
     }
   },
   {
@@ -380,20 +486,17 @@ export const FURNITURE_CATALOG: FurnitureCatalogTemplate[] = [
     width: 0.90,
     length: 0.90,
     icon: '🚿',
-    renderSvg: (w, h, sel) => {
-      return svg`
-        <g class="furniture-symbol" stroke="${sel ? '#38bdf8' : '#94a3b8'}" stroke-width="1.5" fill="${sel ? 'rgba(56, 189, 248, 0.25)' : 'rgba(30, 41, 59, 0.85)'}">
-          <!-- Bac carré -->
-          <rect x="${-w/2}" y="${-h/2}" width="${w}" height="${h}" rx="2" />
-          <!-- Diagonales d'écoulement -->
-          <line x1="${-w/2}" y1="${-h/2}" x2="0" y2="0" stroke-width="1" stroke-dasharray="2,2" opacity="0.6" />
-          <line x1="${w/2}" y1="${-h/2}" x2="0" y2="0" stroke-width="1" stroke-dasharray="2,2" opacity="0.6" />
-          <line x1="${-w/2}" y1="${h/2}" x2="0" y2="0" stroke-width="1" stroke-dasharray="2,2" opacity="0.6" />
-          <line x1="${w/2}" y1="${h/2}" x2="0" y2="0" stroke-width="1" stroke-dasharray="2,2" opacity="0.6" />
-          <!-- Bonde centrale -->
-          <circle cx="0" cy="0" r="4" fill="${sel ? '#38bdf8' : '#0284c7'}" />
-        </g>
-      `;
+    shapes: (w, l) => {
+      const drain = Math.min(w, l) * 0.045;
+      const diag = { strokeWidth: 1, dash: '2,2', opacity: 0.6 };
+      return [
+        outline(w, l, 0.03),
+        line(-w / 2, -l / 2, 0, 0, 'outline', diag),
+        line(w / 2, -l / 2, 0, 0, 'outline', diag),
+        line(-w / 2, l / 2, 0, 0, 'outline', diag),
+        line(w / 2, l / 2, 0, 0, 'outline', diag),
+        ellipse(0, 0, drain, drain, 'drain')
+      ];
     }
   },
   {
@@ -403,17 +506,15 @@ export const FURNITURE_CATALOG: FurnitureCatalogTemplate[] = [
     width: 1.70,
     length: 0.75,
     icon: '🛁',
-    renderSvg: (w, h, sel) => {
-      return svg`
-        <g class="furniture-symbol" stroke="${sel ? '#38bdf8' : '#94a3b8'}" stroke-width="1.6" fill="${sel ? 'rgba(56, 189, 248, 0.25)' : 'rgba(30, 41, 59, 0.85)'}">
-          <!-- Contour extérieur -->
-          <rect x="${-w/2}" y="${-h/2}" width="${w}" height="${h}" rx="5" />
-          <!-- Cuve arrondie intérieure -->
-          <rect x="${-w/2 + 6}" y="${-h/2 + 6}" width="${w - 12}" height="${h - 12}" rx="${(h-12)/2}" fill="rgba(2, 132, 199, 0.2)" />
-          <!-- Bonde -->
-          <circle cx="${-w/2 + 18}" cy="0" r="3" fill="${sel ? '#38bdf8' : '#94a3b8'}" />
-        </g>
-      `;
+    strokeWidth: 1.6,
+    shapes: (w, l) => {
+      const m = Math.min(w, l) * 0.08;
+      const drain = Math.min(w, l) * 0.035;
+      return [
+        outline(w, l, 0.07),
+        rect(-w / 2 + m, -l / 2 + m, w - m * 2, l - m * 2, 'water', (l - m * 2) / 2),
+        ellipse(-w / 2 + m + Math.min(w, l) * 0.15, 0, drain, drain, 'knob')
+      ];
     }
   },
   {
@@ -423,18 +524,14 @@ export const FURNITURE_CATALOG: FurnitureCatalogTemplate[] = [
     width: 0.90,
     length: 0.50,
     icon: '🧼',
-    renderSvg: (w, h, sel) => {
-      const basinW = w * 0.65;
-      const basinH = h * 0.65;
-      return svg`
-        <g class="furniture-symbol" stroke="${sel ? '#38bdf8' : '#94a3b8'}" stroke-width="1.5" fill="${sel ? 'rgba(56, 189, 248, 0.25)' : 'rgba(30, 41, 59, 0.85)'}">
-          <rect x="${-w/2}" y="${-h/2}" width="${w}" height="${h}" rx="3" />
-          <!-- Vasque ovale -->
-          <ellipse cx="0" cy="0" rx="${basinW/2}" ry="${basinH/2}" fill="rgba(2, 132, 199, 0.25)" />
-          <!-- Robinet -->
-          <circle cx="0" cy="${-basinH/2 + 2}" r="2" fill="${sel ? '#38bdf8' : '#94a3b8'}" />
-        </g>
-      `;
+    shapes: (w, l) => {
+      const basinRy = (l * 0.65) / 2;
+      const tap = Math.min(w, l) * 0.04;
+      return [
+        outline(w, l, 0.06),
+        ellipse(0, 0, (w * 0.65) / 2, basinRy, 'water'),
+        ellipse(0, -basinRy + tap * 1.2, tap, tap, 'knob')
+      ];
     }
   },
 
@@ -448,19 +545,16 @@ export const FURNITURE_CATALOG: FurnitureCatalogTemplate[] = [
     width: 1.00,
     length: 0.60,
     icon: '🚰',
-    renderSvg: (w, h, sel) => {
-      const basinW = (w - 18) / 2;
-      const basinH = h - 16;
-      return svg`
-        <g class="furniture-symbol" stroke="${sel ? '#38bdf8' : '#94a3b8'}" stroke-width="1.5" fill="${sel ? 'rgba(56, 189, 248, 0.25)' : 'rgba(30, 41, 59, 0.85)'}">
-          <rect x="${-w/2}" y="${-h/2}" width="${w}" height="${h}" rx="3" />
-          <!-- 2 Bacs -->
-          <rect x="${-w/2 + 6}" y="${-h/2 + 8}" width="${basinW}" height="${basinH}" rx="4" fill="rgba(2, 132, 199, 0.25)" />
-          <rect x="${6}" y="${-h/2 + 8}" width="${basinW}" height="${basinH}" rx="4" fill="rgba(2, 132, 199, 0.25)" />
-          <!-- Mitigeur -->
-          <circle cx="0" cy="${-h/2 + 5}" r="2.5" fill="${sel ? '#38bdf8' : '#f59e0b'}" />
-        </g>
-      `;
+    shapes: (w, l) => {
+      const g = Math.min(w, l) * 0.08;
+      const basinW = (w - g * 3) / 2;
+      const basinH = l - g * 2.6;
+      return [
+        outline(w, l, 0.05),
+        rect(-w / 2 + g, -l / 2 + g * 1.6, basinW, basinH, 'water', Math.min(basinW, basinH) * 0.12),
+        rect(g / 2, -l / 2 + g * 1.6, basinW, basinH, 'water', Math.min(basinW, basinH) * 0.12),
+        ellipse(0, -l / 2 + g * 0.8, g * 0.4, g * 0.4, 'brass')
+      ];
     }
   },
   {
@@ -470,19 +564,16 @@ export const FURNITURE_CATALOG: FurnitureCatalogTemplate[] = [
     width: 0.60,
     length: 0.60,
     icon: '🍳',
-    renderSvg: (w, h, sel) => {
-      const rLarge = Math.min(w, h) * 0.18;
-      const rSmall = Math.min(w, h) * 0.13;
-      return svg`
-        <g class="furniture-symbol" stroke="${sel ? '#38bdf8' : '#94a3b8'}" stroke-width="1.5" fill="${sel ? 'rgba(56, 189, 248, 0.25)' : 'rgba(30, 41, 59, 0.85)'}">
-          <rect x="${-w/2}" y="${-h/2}" width="${w}" height="${h}" rx="4" />
-          <!-- 4 Feux / Foyers induction -->
-          <circle cx="${-w/4}" cy="${-h/4}" r="${rLarge}" fill="rgba(239, 68, 68, 0.2)" />
-          <circle cx="${w/4}" cy="${-h/4}" r="${rSmall}" fill="rgba(239, 68, 68, 0.2)" />
-          <circle cx="${-w/4}" cy="${h/4}" r="${rSmall}" fill="rgba(239, 68, 68, 0.2)" />
-          <circle cx="${w/4}" cy="${h/4}" r="${rLarge}" fill="rgba(239, 68, 68, 0.2)" />
-        </g>
-      `;
+    shapes: (w, l) => {
+      const rLarge = Math.min(w, l) * 0.18;
+      const rSmall = Math.min(w, l) * 0.13;
+      return [
+        outline(w, l, 0.07),
+        ellipse(-w / 4, -l / 4, rLarge, rLarge, 'heat'),
+        ellipse(w / 4, -l / 4, rSmall, rSmall, 'heat'),
+        ellipse(-w / 4, l / 4, rSmall, rSmall, 'heat'),
+        ellipse(w / 4, l / 4, rLarge, rLarge, 'heat')
+      ];
     }
   },
   {
@@ -492,20 +583,271 @@ export const FURNITURE_CATALOG: FurnitureCatalogTemplate[] = [
     width: 0.65,
     length: 0.65,
     icon: '🧊',
-    renderSvg: (w, h, sel) => {
-      return svg`
-        <g class="furniture-symbol" stroke="${sel ? '#38bdf8' : '#94a3b8'}" stroke-width="1.5" fill="${sel ? 'rgba(56, 189, 248, 0.25)' : 'rgba(30, 41, 59, 0.85)'}">
-          <rect x="${-w/2}" y="${-h/2}" width="${w}" height="${h}" rx="3" />
-          <line x1="${-w/2}" y1="${-h/2 + 6}" x2="${w/2}" y2="${-h/2 + 6}" stroke-width="2" />
-          <line x1="${-w/2 + 8}" y1="${-h/2 + 3}" x2="${-w/2 + 20}" y2="${-h/2 + 3}" stroke-width="2" stroke="${sel ? '#38bdf8' : '#38bdf8'}" />
-          <!-- Symbole Froid Flocon -->
-          <text x="0" y="3" text-anchor="middle" font-size="12" fill="${sel ? '#38bdf8' : '#38bdf8'}" stroke="none">❄</text>
-        </g>
-      `;
+    shapes: (w, l) => {
+      const flake = Math.min(w, l) * 0.18;
+      const branches = [90, 30, 150].map(deg => {
+        const dx = flake * Math.cos((deg * Math.PI) / 180);
+        const dy = flake * Math.sin((deg * Math.PI) / 180);
+        return line(-dx, l * 0.06 - dy, dx, l * 0.06 + dy, 'frost', { strokeWidth: 1.4 });
+      });
+      return [
+        outline(w, l, 0.05),
+        line(-w / 2, -l / 2 + l * 0.09, w / 2, -l / 2 + l * 0.09, 'outline', { strokeWidth: 2 }),
+        line(-w / 2 + w * 0.12, -l / 2 + l * 0.045, -w / 2 + w * 0.3, -l / 2 + l * 0.045, 'frost', { strokeWidth: 2 }),
+        // Symbole froid (flocon)
+        ...branches
+      ];
     }
   }
 ];
 
+export const FURNITURE_CATALOG: FurnitureCatalogTemplate[] = CATALOG_DEFINITIONS.map(def => ({
+  ...def,
+  renderSvg: (wPx: number, lPx: number, isSelected: boolean) => renderLegacySymbol(def, wPx, lPx, isSelected)
+}));
+
+/** Catégories présentes dans le catalogue, dans l'ordre d'affichage des filtres du volet. */
+export const FURNITURE_FILTER_CATEGORIES: readonly FurnitureCategory[] =
+  CATEGORY_ORDER.filter(c => FURNITURE_CATALOG.some(t => t.category === c));
+
 export function findFurnitureTemplate(type: string): FurnitureCatalogTemplate | undefined {
   return FURNITURE_CATALOG.find(f => f.type === type);
+}
+
+/**
+ * Nom d'affichage d'un meuble : le nom enregistré, sauf s'il s'agit d'un ancien nom par défaut
+ * de son modèle (renommage du catalogue), auquel cas le nom actuel du modèle.
+ */
+export function furnitureDisplayName(item: Pick<FurnitureItem, 'type' | 'name'>): string {
+  const template = findFurnitureTemplate(item.type);
+  if (template && (!item.name || template.legacyNames?.includes(item.name))) return template.name;
+  return item.name || template?.name || item.type;
+}
+
+// ------------------------------------------------------------------
+// Rendu
+// ------------------------------------------------------------------
+
+interface ResolvedPaint {
+  fill: string;
+  stroke: string | null;
+}
+
+interface ResolvedSymbol {
+  shapes: SymbolShape[];
+  strokeWidth: number;
+  bodyFill: string;
+  selected: boolean;
+  /** Icône de repli (meuble inconnu du catalogue) et sa taille en unités de rendu. */
+  icon?: { text: string; size: number };
+}
+
+function resolvePaint(paint: SymbolPaint, selected: boolean, bodyFill: string): ResolvedPaint {
+  const stroke = selected ? STROKE_SELECTED : STROKE;
+  switch (paint) {
+    case 'body': return { fill: bodyFill, stroke };
+    case 'accent': return { fill: ACCENT_FILL, stroke };
+    case 'soft': return { fill: 'rgba(241, 245, 249, 0.2)', stroke };
+    case 'water': return { fill: 'rgba(2, 132, 199, 0.25)', stroke };
+    case 'heat': return { fill: 'rgba(239, 68, 68, 0.2)', stroke };
+    case 'glass': return { fill: 'rgba(56, 189, 248, 0.15)', stroke };
+    case 'outline': return { fill: 'none', stroke };
+    case 'highlight': return selected ? { fill: STROKE_SELECTED, stroke: STROKE_SELECTED } : { fill: '#cbd5e1', stroke: '#cbd5e1' };
+    case 'frost': return { fill: 'none', stroke: '#38bdf8' };
+    case 'knob': return { fill: selected ? STROKE_SELECTED : STROKE, stroke: null };
+    case 'brass': return { fill: selected ? STROKE_SELECTED : '#f59e0b', stroke: null };
+    case 'drain': return { fill: selected ? STROKE_SELECTED : '#0284c7', stroke: null };
+  }
+}
+
+function positive(v: number | undefined): number | undefined {
+  return typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : undefined;
+}
+
+/** Dimensions effectives (m) d'un meuble : les siennes, sinon celles du modèle, sinon 1 m. */
+function furnitureSize(item: FurnitureSymbolSource, template: FurnitureTemplateDefinition | undefined): { w: number; l: number } {
+  return {
+    w: positive(item.width) ?? template?.width ?? 1,
+    l: positive(item.length) ?? template?.length ?? 1
+  };
+}
+
+/** Symbole d'un modèle (ou d'un type inconnu) de w × l mètres, rendu à `scale` unités par mètre. */
+function resolveSymbol(
+  template: FurnitureTemplateDefinition | undefined,
+  w: number,
+  l: number,
+  scale: number,
+  selected: boolean,
+  color?: string,
+  icon?: string
+): ResolvedSymbol {
+  const bodyFill = selected ? BODY_FILL_SELECTED : (color || template?.defaultColor || BODY_FILL);
+  const detailed = template !== undefined && Math.min(w, l) * scale >= MIN_SYMBOL_DETAIL_PX;
+  const resolved: ResolvedSymbol = {
+    shapes: detailed ? template.shapes(w, l) : [outline(w, l, 0.06)],
+    strokeWidth: template?.strokeWidth ?? DEFAULT_STROKE_WIDTH,
+    bodyFill,
+    selected
+  };
+  if (!template && icon && Math.min(w, l) * scale >= MIN_SYMBOL_DETAIL_PX) {
+    resolved.icon = { text: icon, size: clamp(Math.min(w, l) * scale * 0.5, 8, 16) };
+  }
+  return resolved;
+}
+
+function resolveItemSymbol(item: FurnitureSymbolSource, opts: FurnitureSymbolOptions): { sym: ResolvedSymbol; k: number } {
+  const template = findFurnitureTemplate(item.type);
+  const { w, l } = furnitureSize(item, template);
+  const k = positive(opts.pixelsPerMeter) ?? 1;
+  return { sym: resolveSymbol(template, w, l, k, opts.selected === true, item.color, item.icon), k };
+}
+
+/** Arrondi au centième d'unité de rendu (SVG compact, sans -0). */
+function n(v: number): number {
+  const r = Math.round(v * 100) / 100;
+  return r === 0 ? 0 : r;
+}
+
+function pathData(d: SymbolPathCommand[], k: number): string {
+  return d.map(c => {
+    switch (c[0]) {
+      case 'M': case 'L': return `${c[0]} ${n(c[1] * k)} ${n(c[2] * k)}`;
+      case 'Q': return `Q ${n(c[1] * k)} ${n(c[2] * k)} ${n(c[3] * k)} ${n(c[4] * k)}`;
+      case 'A': return `A ${n(c[1] * k)} ${n(c[2] * k)} 0 ${c[3]} ${c[4]} ${n(c[5] * k)} ${n(c[6] * k)}`;
+      default: return 'Z';
+    }
+  }).join(' ');
+}
+
+/** Attributs SVG d'une primitive projetée à l'échelle k (valeurs numériques ou chaînes, jamais négatives pour les tailles). */
+function shapeAttributes(s: SymbolShape, k: number): Array<[string, string | number]> {
+  switch (s.kind) {
+    case 'rect': return [['x', n(s.x * k)], ['y', n(s.y * k)], ['width', n(s.w * k)], ['height', n(s.h * k)], ['rx', n((s.r ?? 0) * k)]];
+    case 'ellipse': return [['cx', n(s.cx * k)], ['cy', n(s.cy * k)], ['rx', n(s.rx * k)], ['ry', n(s.ry * k)]];
+    case 'line': return [['x1', n(s.x1 * k)], ['y1', n(s.y1 * k)], ['x2', n(s.x2 * k)], ['y2', n(s.y2 * k)]];
+    case 'path': return [['d', pathData(s.d, k)]];
+  }
+}
+
+function styleAttributes(s: SymbolShape, sym: ResolvedSymbol): Array<[string, string | number]> {
+  const paint = resolvePaint(s.paint, sym.selected, sym.bodyFill);
+  const attrs: Array<[string, string | number]> = [['fill', paint.fill], ['stroke', paint.stroke ?? 'none']];
+  if (paint.stroke) attrs.push(['stroke-width', s.strokeWidth ?? sym.strokeWidth]);
+  if (paint.stroke && s.dash) attrs.push(['stroke-dasharray', s.dash]);
+  if (s.opacity !== undefined) attrs.push(['opacity', s.opacity]);
+  return attrs;
+}
+
+function shapeTemplate(s: SymbolShape, k: number, sym: ResolvedSymbol): SVGTemplateResult {
+  const paint = resolvePaint(s.paint, sym.selected, sym.bodyFill);
+  const stroke = paint.stroke ?? 'none';
+  const strokeWidth = paint.stroke ? (s.strokeWidth ?? sym.strokeWidth) : nothing;
+  const dash = paint.stroke && s.dash ? s.dash : nothing;
+  const opacity = s.opacity ?? nothing;
+  switch (s.kind) {
+    case 'rect':
+      return svg`<rect x=${n(s.x * k)} y=${n(s.y * k)} width=${n(s.w * k)} height=${n(s.h * k)} rx=${n((s.r ?? 0) * k)}
+        fill=${paint.fill} stroke=${stroke} stroke-width=${strokeWidth} stroke-dasharray=${dash} opacity=${opacity} />`;
+    case 'ellipse':
+      return svg`<ellipse cx=${n(s.cx * k)} cy=${n(s.cy * k)} rx=${n(s.rx * k)} ry=${n(s.ry * k)}
+        fill=${paint.fill} stroke=${stroke} stroke-width=${strokeWidth} stroke-dasharray=${dash} opacity=${opacity} />`;
+    case 'line':
+      return svg`<line x1=${n(s.x1 * k)} y1=${n(s.y1 * k)} x2=${n(s.x2 * k)} y2=${n(s.y2 * k)}
+        fill=${paint.fill} stroke=${stroke} stroke-width=${strokeWidth} stroke-dasharray=${dash} opacity=${opacity} />`;
+    case 'path':
+      return svg`<path d=${pathData(s.d, k)}
+        fill=${paint.fill} stroke=${stroke} stroke-width=${strokeWidth} stroke-dasharray=${dash} opacity=${opacity} />`;
+  }
+}
+
+/**
+ * Symbole d'un meuble pour le canevas et la carte (Lit), centré sur l'origine : l'appelant le place
+ * avec `translate(x, y) rotate(rotation)`. `pixelsPerMeter` = échelle d'affichage (ppm × zoom).
+ * Couleur : item.color, sinon defaultColor du modèle, sinon teinte neutre ; la sélection prime.
+ * Un type inconnu du catalogue est dessiné comme un rectangle avec son icône.
+ */
+export function renderFurnitureSymbol(item: FurnitureSymbolSource, opts: FurnitureSymbolOptions): SVGTemplateResult {
+  const { sym, k } = resolveItemSymbol(item, opts);
+  return symbolTemplate(sym, k);
+}
+
+function symbolTemplate(sym: ResolvedSymbol, k: number): SVGTemplateResult {
+  return svg`
+    <g class="furniture-symbol">
+      ${sym.shapes.map(s => shapeTemplate(s, k, sym))}
+      ${sym.icon ? svg`<text x="0" y=${n(sym.icon.size * 0.35)} text-anchor="middle" font-size=${n(sym.icon.size)} fill="#cbd5e1" stroke="none">${sym.icon.text}</text>` : nothing}
+    </g>
+  `;
+}
+
+/** Adaptateur de l'ancienne signature en pixels (voir FurnitureCatalogTemplate.renderSvg). */
+function renderLegacySymbol(def: FurnitureTemplateDefinition, wPx: number, lPx: number, selected: boolean): SVGTemplateResult {
+  const k = wPx > 0 ? wPx / def.width : 1;
+  return symbolTemplate(resolveSymbol(def, Math.max(0, wPx) / k, Math.max(0, lPx) / k, k, selected), k);
+}
+
+function escapeXml(value: string): string {
+  return value.replace(/[<>&'"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '\'': '&apos;', '"': '&quot;' }[c] as string));
+}
+
+/**
+ * Même symbole que renderFurnitureSymbol, sous forme de balisage SVG (export du plan).
+ * `pixelsPerMeter` = échelle du SVG exporté. Toutes les valeurs textuelles sont échappées.
+ */
+export function furnitureSymbolMarkup(item: FurnitureSymbolSource, opts: FurnitureSymbolOptions): string {
+  const { sym, k } = resolveItemSymbol(item, opts);
+  const attr = (pairs: Array<[string, string | number]>) =>
+    pairs.map(([name, value]) => `${name}="${escapeXml(String(value))}"`).join(' ');
+  const parts = sym.shapes.map(s => `<${s.kind} ${attr([...shapeAttributes(s, k), ...styleAttributes(s, sym)])} />`);
+  if (sym.icon) {
+    parts.push(`<text x="0" y="${n(sym.icon.size * 0.35)}" text-anchor="middle" font-size="${n(sym.icon.size)}" fill="#cbd5e1" stroke="none">${escapeXml(sym.icon.text)}</text>`);
+  }
+  return `<g class="furniture-symbol">${parts.join('')}</g>`;
+}
+
+/** Boîte englobante locale (m, avant rotation) des primitives d'un symbole. */
+function localExtents(shapes: SymbolShape[], w: number, l: number): { minX: number; minY: number; maxX: number; maxY: number } {
+  let minX = -w / 2, minY = -l / 2, maxX = w / 2, maxY = l / 2;
+  const add = (x: number, y: number) => {
+    minX = Math.min(minX, x); minY = Math.min(minY, y);
+    maxX = Math.max(maxX, x); maxY = Math.max(maxY, y);
+  };
+  for (const s of shapes) {
+    switch (s.kind) {
+      case 'rect': add(s.x, s.y); add(s.x + s.w, s.y + s.h); break;
+      case 'ellipse': add(s.cx - s.rx, s.cy - s.ry); add(s.cx + s.rx, s.cy + s.ry); break;
+      case 'line': add(s.x1, s.y1); add(s.x2, s.y2); break;
+      case 'path':
+        for (const c of s.d) {
+          if (c[0] === 'M' || c[0] === 'L') add(c[1], c[2]);
+          else if (c[0] === 'Q') { add(c[1], c[2]); add(c[3], c[4]); }
+          else if (c[0] === 'A') add(c[5], c[6]);
+        }
+        break;
+    }
+  }
+  return { minX, minY, maxX, maxY };
+}
+
+/**
+ * Emprise d'un meuble dans le monde (m) : boîte englobante alignée sur les axes de son symbole
+ * (décors débordants compris, ex. chaises de la table) après rotation autour de sa position.
+ * À utiliser pour la boîte d'export, le recadrage et la sélection au cadre.
+ */
+export function furnitureBounds(item: FurnitureSymbolSource & Pick<FurnitureItem, 'position'> & Partial<Pick<FurnitureItem, 'rotation'>>): { minX: number; minY: number; maxX: number; maxY: number } {
+  const template = findFurnitureTemplate(item.type);
+  const { w, l } = furnitureSize(item, template);
+  const local = localExtents(template ? template.shapes(w, l) : [], w, l);
+  const rad = (((item.rotation ?? 0) % 360) * Math.PI) / 180;
+  const cos = Math.cos(rad), sin = Math.sin(rad);
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const [x, y] of [[local.minX, local.minY], [local.maxX, local.minY], [local.maxX, local.maxY], [local.minX, local.maxY]]) {
+    // Même convention que le transform SVG rotate(θ) (repère Y vers le bas).
+    const wx = item.position.x + x * cos - y * sin;
+    const wy = item.position.y + x * sin + y * cos;
+    minX = Math.min(minX, wx); minY = Math.min(minY, wy);
+    maxX = Math.max(maxX, wx); maxY = Math.max(maxY, wy);
+  }
+  return { minX, minY, maxX, maxY };
 }

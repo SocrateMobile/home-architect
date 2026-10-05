@@ -603,6 +603,18 @@ class HomeArchitectStorage:
         self._async_notify(project_id, _revision_of(project))
         return removed
 
+    async def async_save_svg_to_www(self, filename: str, svg: str) -> str:
+        """Assainit et écrit un fichier SVG directement dans /config/www/."""
+        try:
+            return await self.hass.async_add_executor_job(
+                self.files.save_svg_to_www, filename, svg
+            )
+        except SvgSanitizeError as err:
+            raise InvalidSvgError(str(err)) from err
+        except OSError as err:
+            _LOGGER.error("Failed to save SVG %s to www: %s", filename, err)
+            raise StorageWriteError("save_to_www failed") from err
+
     async def async_store_background(self, project_id: str, data: bytes, mime: str) -> dict[str, Any]:
         """Stocke une image de fond téléversée ; retourne {asset_id, mime_type, size}."""
         try:

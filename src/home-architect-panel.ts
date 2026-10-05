@@ -1,5 +1,5 @@
-import { LitElement, html, css } from 'lit';
-import { customElement, property, state } from 'lit/decorators.js';
+import { LitElement, html, css, PropertyValues } from 'lit';
+import { property, state } from 'lit/decorators.js';
 import './components/canvas-view';
 import './components/toolbar';
 import './components/wizard-modal';
@@ -7,19 +7,55 @@ import './components/room-modal';
 import './components/calibrate-modal';
 import './components/entity-drawer';
 import './components/import-modal';
-import { ImportModalResult } from './components/import-modal';
 import './components/rescale-modal';
 import { RescaleModalResult } from './components/rescale-modal';
 import './components/export-modal';
 import './components/save-load-modal';
-import { PLAN_CATEGORIES } from './components/save-load-modal';
 import { SnappingEngine } from './core/snapping';
 import { PolygonUtils } from './core/polygon';
 import { VERSION } from './version';
 import { launchSocrateRulesEasterEgg } from './core/easter-egg';
-import { 
-  ActiveTool, HomeArchitectProject, Wall, Opening, OpeningType, Room, Point, EntityBinding, SelectedElements 
+import { defineElement } from './core/define';
+import { hasPrimaryModifier, isEventFromHost, shouldHandleShortcut } from './core/keyboard';
+import { CUSTOM_CATEGORY_DEF, DEFAULT_LEVEL, KNOWN_LEVELS, getLevelBelow, getLevelLabel, isKnownLevel } from './core/levels';
+import { generateElementId } from './core/project-model';
+import { isAdmin } from './core/ha-api';
+import {
+  ActiveTool, BackgroundPlan, ExportFrame, HomeArchitectProject, Wall, Opening, Room, Point, EntityBinding,
+  PublishInfo, SelectedElements
 } from './core/types';
+import { SvgParseResult } from './core/svg-parser';
+import { PlanEntry, isEmptyProject } from './panel/workspace';
+import { ImportedBackground, isInlineDataUrl } from './panel/background';
+import { PersistenceController } from './panel/persistence-controller';
+import { HA_UPDATES_PATH, UpdateInfo, fetchUpdateInfo, navigateInHa, updateEntitySignature } from './panel/update-check';
+import { PanelNotice, renderUpdateDialog } from './panel/dialogs';
+import { persistenceStyles } from './panel/styles';
+
+/**
+ * Détail de `import-confirmed` (SPEC §6) : l'image de fond arrive déjà compressée sous forme de
+ * Blob, le panneau la téléverse puis ne garde que sa référence (assetId).
+ */
+interface ImportConfirmedDetail {
+  background?: ImportedBackground;
+  opacity?: number;
+  mode: 'auto_dimension' | 'interactive_calibrate';
+  totalWidthMeters?: number;
+  isSvgVectorized?: boolean;
+  svgInterpretation?: SvgParseResult;
+  keepSvgBackground?: boolean;
+}
+
+/** Remplace dans un élément de liste ce que `fn` modifie ; null si rien n'a changé. */
+function mapChanged<T>(list: T[], fn: (item: T) => T): T[] | null {
+  let changed = false;
+  const next = list.map(item => {
+    const updated = fn(item);
+    if (updated !== item) changed = true;
+    return updated;
+  });
+  return changed ? next : null;
+}
 
 export interface TypologyIcon {
   icon: string;
@@ -164,9 +200,8 @@ export const TYPOLOGY_ICONS: Record<string, { title: string; tabLabel: string; i
   }
 };
 
-@customElement('home-architect-panel')
 export class HomeArchitectPanel extends LitElement {
-  static styles = css`
+  static styles = [css`
     :host {
       display: flex;
       flex-direction: column;
@@ -1214,7 +1249,7 @@ export class HomeArchitectPanel extends LitElement {
       background: rgba(239, 68, 68, 0.15);
       color: #f87171;
     }
-  `;
+  `, persistenceStyles];
 
   @property({ type: Object })
   public hass: any;
@@ -1241,9 +1276,6 @@ export class HomeArchitectPanel extends LitElement {
   private windowSashCount: number = 1;
 
   @state()
-  private activeLevel: string = 'rdc';
-
-  @state()
   private showDimensions: boolean = true;
 
   @state()
@@ -1251,9 +1283,6 @@ export class HomeArchitectPanel extends LitElement {
 
   @state()
   private showGhostLevel: boolean = false;
-
-  @state()
-  private levelProjects: Record<string, HomeArchitectProject> = {};
 
   @state()
   private is3DMode: boolean = false;
@@ -1283,7 +1312,7 @@ export class HomeArchitectPanel extends LitElement {
   private newPlanName: string = 'Nouveau Plan';
 
   @state()
-  private newPlanCategory: string = 'rdc';
+  private newPlanCategory: string = DEFAULT_LEVEL;
 
   @state()
   private isResetModalOpen: boolean = false;
@@ -1324,18 +1353,9 @@ export class HomeArchitectPanel extends LitElement {
   @state()
   private isIconPickerOpen: boolean = true;
 
+  /** Dernière réponse de check_updates (administrateurs uniquement), null tant qu'elle est inconnue. */
   @state()
-  private updateInfo: {
-    available: boolean;
-    latestVersion: string;
-    releaseNotes: string;
-    releaseUrl: string;
-  } = {
-    available: false,
-    latestVersion: VERSION,
-    releaseNotes: '',
-    releaseUrl: '',
-  };
+  private updateInfo: UpdateInfo | null = null;
 
   @state()
   private isUpdateModalOpen: boolean = false;
@@ -1343,35 +1363,34 @@ export class HomeArchitectPanel extends LitElement {
   private logoClickTimes: number[] = [];
   private socrateKeySequence: string = '';
   private _boundEasterEggKeyDown: ((e: KeyboardEvent) => void) | null = null;
-  private _updateCheckDone: boolean = false;
+  private updateCheckStarted: boolean = false;
+  /** Signature de l'entité update au dernier contrôle (réévaluation quand elle change). */
+  private updateEntitySig: string | null = null;
 
-  @state()
-  private undoStack: HomeArchitectProject[] = [];
+  /**
+   * Persistance (src/panel/persistence-controller.ts) : plans ouverts indexés par id, chargement,
+   * sauvegarde avec contrôle de révision, brouillons locaux, image de fond et abonnement.
+   */
+  private readonly persistence = new PersistenceController(this, {
+    toast: message => this.showToast(message),
+    activeProjectChanged: () => this.clearSelection()
+  });
 
-  @state()
-  private redoStack: HomeArchitectProject[] = [];
+  /** Projet affiché et édité. */
+  private get project(): HomeArchitectProject {
+    return this.persistence.project;
+  }
 
-  @state()
-  private project: HomeArchitectProject = {
-    id: 'rdc',
-    name: 'Rez-de-Chaussée',
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    pixelsPerMeter: 50,
-    grid: {
-      size: 0.5,
-      subdivisions: 2,
-      snapToGrid: true,
-      snapToAngles: true,
-      snapToElements: true
-    },
-    walls: [],
-    openings: [],
-    rooms: [],
-    bindings: [],
-    furniture: [],
-    category: 'rdc'
-  };
+  /** Niveau du projet actif (null pour un plan « Autre » ou de catégorie personnalisée). */
+  private get activeLevel(): string | null {
+    const category = this.project.category;
+    return category && isKnownLevel(category) ? category : null;
+  }
+
+  /** Lecture seule : utilisateur non administrateur (défense en profondeur, constat F11). */
+  private get readOnly(): boolean {
+    return this.persistence.readOnly;
+  }
 
   private fileInputRef: HTMLInputElement | null = null;
 
@@ -1391,19 +1410,18 @@ export class HomeArchitectPanel extends LitElement {
     this.doorFlipDirection = e.detail.flipDirection;
     this.activeTool = 'door';
 
-    // Mettre à jour les portes sélectionnées
-    if (this.selectedElements.openingIds.length > 0) {
-      this.pushUndoSnapshot();
+    // Mettre à jour les portes sélectionnées (seulement si l'une d'elles change réellement)
+    if (this.selectedElements.openingIds.length > 0 && !this.readOnly) {
       let updated = 0;
-      const newOpenings = this.project.openings.map(op => {
-        if (this.selectedElements.openingIds.includes(op.id) && op.type === 'door') {
+      const newOpenings = mapChanged(this.project.openings, op => {
+        if (this.selectedElements.openingIds.includes(op.id) && op.type === 'door' &&
+            (op.flipSide !== e.detail.flipSide || op.flipDirection !== e.detail.flipDirection)) {
           updated++;
           return { ...op, flipSide: e.detail.flipSide, flipDirection: e.detail.flipDirection };
         }
         return op;
       });
-      if (updated > 0) {
-        this.project = { ...this.project, openings: newOpenings };
+      if (newOpenings && this.commitProject({ ...this.project, openings: newOpenings })) {
         this.showToast(`🚪 ${updated} porte(s) mise(s) à jour`);
       }
     }
@@ -1414,12 +1432,12 @@ export class HomeArchitectPanel extends LitElement {
     this.currentOpeningWidth = e.detail.width;
     this.windowSashCount = e.detail.sashCount;
 
-    // Mettre à jour les fenêtres sélectionnées
-    if (this.selectedElements.openingIds.length > 0) {
-      this.pushUndoSnapshot();
+    // Mettre à jour les fenêtres sélectionnées (seulement si l'une d'elles change réellement)
+    if (this.selectedElements.openingIds.length > 0 && !this.readOnly) {
       let updated = 0;
-      const newOpenings = this.project.openings.map(op => {
-        if (this.selectedElements.openingIds.includes(op.id) && (op.type === 'window' || op.type === 'french_window')) {
+      const newOpenings = mapChanged(this.project.openings, op => {
+        if (this.selectedElements.openingIds.includes(op.id) && (op.type === 'window' || op.type === 'french_window') &&
+            (op.type !== e.detail.type || op.width !== e.detail.width || op.sashCount !== e.detail.sashCount)) {
           updated++;
           return {
             ...op,
@@ -1430,8 +1448,7 @@ export class HomeArchitectPanel extends LitElement {
         }
         return op;
       });
-      if (updated > 0) {
-        this.project = { ...this.project, openings: newOpenings };
+      if (newOpenings && this.commitProject({ ...this.project, openings: newOpenings })) {
         this.showToast(`🪟 ${updated} fenêtre(s) mise(s) à jour`);
       }
     }
@@ -1442,67 +1459,77 @@ export class HomeArchitectPanel extends LitElement {
     this.activeTool = 'wall';
 
     // Mettre à jour les murs sélectionnés
-    if (this.selectedElements.wallIds.length > 0) {
-      this.pushUndoSnapshot();
-      const newWalls = this.project.walls.map(w => {
-        if (this.selectedElements.wallIds.includes(w.id)) {
-          return { ...w, thickness: e.detail.thickness };
-        }
-        return w;
-      });
-      this.project = { ...this.project, walls: newWalls };
-      this.showToast(`🧱 Épaisseur de ${this.selectedElements.wallIds.length} mur(s) mise à jour (${Math.round(e.detail.thickness * 100)} cm)`);
+    if (this.selectedElements.wallIds.length > 0 && !this.readOnly) {
+      const newWalls = this.wallsWithThickness(e.detail.thickness);
+      if (newWalls && this.commitProject({ ...this.project, walls: newWalls })) {
+        this.showToast(`🧱 Épaisseur de ${this.selectedElements.wallIds.length} mur(s) mise à jour (${Math.round(e.detail.thickness * 100)} cm)`);
+      }
     }
   }
 
+  /** Murs sélectionnés avec la nouvelle épaisseur ; null si aucun ne change. */
+  private wallsWithThickness(thickness: number): Wall[] | null {
+    return mapChanged(this.project.walls, w =>
+      this.selectedElements.wallIds.includes(w.id) && w.thickness !== thickness ? { ...w, thickness } : w
+    );
+  }
+
   private updateSelectedDoorConfig(flipSide: boolean, flipDirection: boolean) {
-    this.pushUndoSnapshot();
     this.doorFlipSide = flipSide;
     this.doorFlipDirection = flipDirection;
-    const newOpenings = this.project.openings.map(op => {
-      if (this.selectedElements.openingIds.includes(op.id) && op.type === 'door') {
-        return { ...op, flipSide, flipDirection };
-      }
-      return op;
-    });
-    this.project = { ...this.project, openings: newOpenings };
-    this.showToast('🚪 Sens d\'ouverture de porte mis à jour');
+    const newOpenings = mapChanged(this.project.openings, op =>
+      this.selectedElements.openingIds.includes(op.id) && op.type === 'door' &&
+      (op.flipSide !== flipSide || op.flipDirection !== flipDirection)
+        ? { ...op, flipSide, flipDirection }
+        : op
+    );
+    if (newOpenings && this.commitProject({ ...this.project, openings: newOpenings })) {
+      this.showToast('🚪 Sens d\'ouverture de porte mis à jour');
+    }
   }
 
   private updateSelectedWindowConfig(type: 'window' | 'french_window', sashCount: number, width: number) {
-    this.pushUndoSnapshot();
     this.windowSashCount = sashCount;
     this.currentOpeningWidth = width;
-    const newOpenings = this.project.openings.map(op => {
-      if (this.selectedElements.openingIds.includes(op.id) && (op.type === 'window' || op.type === 'french_window')) {
-        return { ...op, type, sashCount, width };
-      }
-      return op;
-    });
-    this.project = { ...this.project, openings: newOpenings };
-    this.showToast('🪟 Format de fenêtre mis à jour');
+    const newOpenings = mapChanged(this.project.openings, op =>
+      this.selectedElements.openingIds.includes(op.id) && (op.type === 'window' || op.type === 'french_window') &&
+      (op.type !== type || op.sashCount !== sashCount || op.width !== width)
+        ? { ...op, type, sashCount, width }
+        : op
+    );
+    if (newOpenings && this.commitProject({ ...this.project, openings: newOpenings })) {
+      this.showToast('🪟 Format de fenêtre mis à jour');
+    }
   }
 
   private updateSelectedWallsThickness(thickness: number) {
-    this.pushUndoSnapshot();
     this.currentThickness = thickness;
-    const newWalls = this.project.walls.map(w => {
-      if (this.selectedElements.wallIds.includes(w.id)) {
-        return { ...w, thickness };
-      }
-      return w;
-    });
-    this.project = { ...this.project, walls: newWalls };
-    this.showToast(`🧱 Épaisseur de mur mise à jour (${Math.round(thickness * 100)} cm)`);
+    const newWalls = this.wallsWithThickness(thickness);
+    if (newWalls && this.commitProject({ ...this.project, walls: newWalls })) {
+      this.showToast(`🧱 Épaisseur de mur mise à jour (${Math.round(thickness * 100)} cm)`);
+    }
   }
 
   private handleProjectChanged(e: CustomEvent<{ project: HomeArchitectProject }>) {
-    this.pushUndoSnapshot();
-    this.project = {
-      ...e.detail.project,
-      furniture: e.detail.project.furniture || []
-    };
-    this.levelProjects[this.activeLevel] = { ...this.project };
+    const changed = e.detail?.project;
+    // Un événement tardif d'un plan qui n'est plus affiché (changement de plan pendant un glisser) est ignoré.
+    if (!changed || changed === this.project || changed.id !== this.project.id) return;
+    this.commitProject({
+      ...changed,
+      furniture: changed.furniture || []
+    });
+  }
+
+  /**
+   * Applique une modification de l'utilisateur au plan actif (historique, drapeau « modifié »,
+   * brouillon local). Renvoie false si rien n'a été appliqué.
+   */
+  private commitProject(next: HomeArchitectProject, opts: { coalesceKey?: string } = {}): boolean {
+    return this.persistence.commit(next, opts);
+  }
+
+  private notifyReadOnly() {
+    this.persistence.notifyReadOnly();
   }
 
   private handleThicknessChange(e: Event) {
@@ -1514,7 +1541,11 @@ export class HomeArchitectPanel extends LitElement {
   }
 
   private handleCreateRoomFromWizard(e: CustomEvent<any>) {
-    this.pushUndoSnapshot();
+    if (this.readOnly) {
+      this.isWizardOpen = false;
+      this.notifyReadOnly();
+      return;
+    }
     const { name, width, length, thickness, height, color, icon, addDoor, addWindow } = e.detail;
     const roomH = height || 2.50;
 
@@ -1527,7 +1558,7 @@ export class HomeArchitectPanel extends LitElement {
     const p4: Point = { x: startX, y: startY + length };
 
     const wTop: Wall = {
-      id: `w_top_${Date.now()}`,
+      id: generateElementId('w'),
       start: p1,
       end: p2,
       thickness,
@@ -1535,7 +1566,7 @@ export class HomeArchitectPanel extends LitElement {
       type: 'standard'
     };
     const wRight: Wall = {
-      id: `w_right_${Date.now()}`,
+      id: generateElementId('w'),
       start: p2,
       end: p3,
       thickness,
@@ -1543,7 +1574,7 @@ export class HomeArchitectPanel extends LitElement {
       type: 'standard'
     };
     const wBottom: Wall = {
-      id: `w_bottom_${Date.now()}`,
+      id: generateElementId('w'),
       start: p3,
       end: p4,
       thickness,
@@ -1551,7 +1582,7 @@ export class HomeArchitectPanel extends LitElement {
       type: 'standard'
     };
     const wLeft: Wall = {
-      id: `w_left_${Date.now()}`,
+      id: generateElementId('w'),
       start: p4,
       end: p1,
       thickness,
@@ -1563,7 +1594,7 @@ export class HomeArchitectPanel extends LitElement {
 
     if (addDoor) {
       newOpenings.push({
-        id: `op_door_${Date.now()}`,
+        id: generateElementId('op'),
         wallId: wBottom.id,
         type: 'door',
         offset: width / 2,
@@ -1575,7 +1606,7 @@ export class HomeArchitectPanel extends LitElement {
 
     if (addWindow) {
       newOpenings.push({
-        id: `op_win_${Date.now()}`,
+        id: generateElementId('op'),
         wallId: wTop.id,
         type: 'window',
         offset: width / 2,
@@ -1586,7 +1617,7 @@ export class HomeArchitectPanel extends LitElement {
     }
 
     const newRoom: Room = {
-      id: `room_${Date.now()}`,
+      id: generateElementId('room'),
       name,
       polygon: [p1, p2, p3, p4],
       areaM2: width * length,
@@ -1595,12 +1626,12 @@ export class HomeArchitectPanel extends LitElement {
       height: roomH
     };
 
-    this.project = {
+    this.commitProject({
       ...this.project,
       walls: [...this.project.walls, wTop, wRight, wBottom, wLeft],
       openings: [...this.project.openings, ...newOpenings],
       rooms: [...this.project.rooms, newRoom]
-    };
+    });
 
     this.isWizardOpen = false;
     this.activeTool = 'select';
@@ -1752,136 +1783,64 @@ export class HomeArchitectPanel extends LitElement {
     window.addEventListener('keydown', this._boundEasterEggKeyDown);
   }
 
-  async firstUpdated() {
+  firstUpdated() {
     this.updateSidebarOffset();
-    this.checkUpdates();
-    if (this.hass && this.hass.callWS) {
-      try {
-        const res = await this.hass.callWS({ type: 'home_architect/get_projects' });
-        if (res && res.projects && Array.isArray(res.projects)) {
-          for (const p of res.projects) {
-            if (p && p.id) {
-              this.levelProjects[p.id] = p;
-            }
-          }
-          if (this.levelProjects[this.activeLevel]) {
-            this.project = { ...this.levelProjects[this.activeLevel] };
-          }
-        }
-      } catch (e) {
-        console.warn('Initial project load from HA websocket failed:', e);
-      }
-    }
-    if (!this.levelProjects[this.activeLevel]) {
-      const saved = localStorage.getItem(`home_architect_${this.activeLevel}`);
-      if (saved) {
-        try {
-          const parsed = JSON.parse(saved);
-          if (parsed && parsed.id) {
-            this.project = parsed;
-            this.levelProjects[this.activeLevel] = parsed;
-          }
-        } catch (_) {}
-      }
-    }
   }
 
-  updated(changedProps: Map<string, any>) {
+  willUpdate(changedProps: PropertyValues<this>) {
+    super.willUpdate(changedProps);
+    if (this.isConnected) this.persistence.prefetchGhost(this.ghostLevel());
+  }
+
+  updated(changedProps: PropertyValues<this>) {
     super.updated(changedProps);
     if (changedProps.has('hass') && this.hass) {
-      if (!this._updateCheckDone) {
-        this._updateCheckDone = true;
-        this.checkUpdates();
-      }
-      this.syncSidebarBadge(this.updateInfo.available);
+      this.persistence.start();
+      this.maybeRefreshUpdateInfo();
+      this.syncSidebarBadge(!!this.updateInfo?.available);
     }
   }
+
+  // ==========================================
+  // MISES À JOUR (notification seulement)
+  // ==========================================
 
   /**
-   * Vérifie les mises à jour via l'entité HA update ou direct WebSocket / GitHub
+   * Interroge check_updates au premier hass reçu, puis chaque fois que l'entité update change
+   * (version ignorée, installée…). Réservé aux administrateurs : jamais appelé pour les autres.
    */
-  public async checkUpdates() {
+  private maybeRefreshUpdateInfo() {
+    if (!isAdmin(this.hass)) return;
+    const signature = updateEntitySignature(this.hass, this.updateInfo?.entityId ?? null);
+    if (this.updateCheckStarted && signature === this.updateEntitySig) return;
+    this.updateCheckStarted = true;
+    this.updateEntitySig = signature;
+    void this.refreshUpdateInfo();
+  }
+
+  private async refreshUpdateInfo() {
     try {
-      // 1. Vérifier si l'entité update.home_architect existe dans hass.states
-      const updateEntity = this.hass?.states && (
-        this.hass.states['update.home_architect'] ||
-        this.hass.states['update.home_architect_mise_a_jour']
-      );
-
-      if (updateEntity) {
-        const installed = (updateEntity.attributes && updateEntity.attributes.installed_version) || VERSION;
-        const latest = (updateEntity.attributes && updateEntity.attributes.latest_version) || installed;
-        const hasUpdate = Boolean(
-          updateEntity.state === 'on' ||
-          (updateEntity.attributes && updateEntity.attributes.update_available) ||
-          this.isNewerVersion(latest, installed)
-        );
-
-        this.updateInfo = {
-          available: hasUpdate,
-          latestVersion: latest,
-          releaseNotes: (updateEntity.attributes && updateEntity.attributes.release_summary) || 'Nouvelle version de Home Architect disponible.',
-          releaseUrl: (updateEntity.attributes && updateEntity.attributes.release_url) || `https://github.com/SocrateMobile/home-architect/releases/tag/v${latest}`,
-        };
-        this.syncSidebarBadge(hasUpdate);
-        return;
-      }
-
-      // 2. Si non présent ou chargement direct, interroger le websocket backend home_architect/check_updates
-      if (this.hass?.callWS) {
-        try {
-          const res = await this.hass.callWS({ type: 'home_architect/check_updates' });
-          if (res && res.latest_version) {
-            const hasUpdate = Boolean(res.update_available || this.isNewerVersion(res.latest_version, VERSION));
-            this.updateInfo = {
-              available: hasUpdate,
-              latestVersion: res.latest_version,
-              releaseNotes: res.release_notes || 'Nouvelle version officielle disponible sur GitHub.',
-              releaseUrl: res.release_url || `https://github.com/SocrateMobile/home-architect/releases/tag/v${res.latest_version}`,
-            };
-            this.syncSidebarBadge(hasUpdate);
-            return;
-          }
-        } catch (_) {}
-      }
-
-      // 3. Fallback direct via GitHub API
-      try {
-        const resp = await fetch('https://api.github.com/repos/SocrateMobile/home-architect/releases/latest', {
-          headers: { Accept: 'application/vnd.github.v3+json' },
-        });
-        if (resp.ok) {
-          const data = await resp.json();
-          const cleanTag = (data.tag_name || '').replace(/^[vV]/, '').trim();
-          if (cleanTag) {
-            const hasUpdate = this.isNewerVersion(cleanTag, VERSION);
-            this.updateInfo = {
-              available: hasUpdate,
-              latestVersion: cleanTag,
-              releaseNotes: data.body || data.name || 'Mise à jour disponible.',
-              releaseUrl: data.html_url || `https://github.com/SocrateMobile/home-architect/releases/tag/v${cleanTag}`,
-            };
-            this.syncSidebarBadge(hasUpdate);
-          }
-        }
-      } catch (_) {}
-    } catch (e) {
-      console.debug('Home Architect update check failed:', e);
+      const info = await fetchUpdateInfo(this.hass);
+      this.updateInfo = info;
+      // L'entité peut n'être connue qu'après la première réponse : mémoriser sa signature actuelle.
+      this.updateEntitySig = updateEntitySignature(this.hass, info?.entityId ?? null);
+      if (!info?.available) this.isUpdateModalOpen = false;
+      this.syncSidebarBadge(!!info?.available);
+    } catch (err) {
+      console.debug('[home-architect] Vérification des mises à jour impossible :', err);
     }
   }
 
-  private isNewerVersion(latestStr: string, currentStr: string): boolean {
-    const parse = (v: string) => (v || '').replace(/^[vV]/, '').split('.').map(n => parseInt(n, 10) || 0);
-    const l = parse(latestStr);
-    const c = parse(currentStr);
-    const len = Math.max(l.length, c.length);
-    for (let i = 0; i < len; i++) {
-      const lp = l[i] || 0;
-      const cp = c[i] || 0;
-      if (lp > cp) return true;
-      if (lp < cp) return false;
-    }
-    return false;
+  /** Ouvre la page HA des mises à jour (les brouillons des plans modifiés sont écrits avant de quitter). */
+  private openHaUpdates() {
+    this.isUpdateModalOpen = false;
+    this.persistence.flushDrafts();
+    navigateInHa(HA_UPDATES_PATH);
+  }
+
+  private reloadPage() {
+    this.persistence.flushDrafts();
+    window.location.reload();
   }
 
   /**
@@ -1965,89 +1924,6 @@ export class HomeArchitectPanel extends LitElement {
     this.isUpdateModalOpen = false;
   }
 
-  /**
-   * Lance l'installation de la mise à jour (comme dans DomoLink)
-   */
-  public async executeAutoUpdate() {
-    this.isUpdateModalOpen = false;
-
-    // Overlay plein écran d'installation et reconnexion
-    const overlay = document.createElement('div');
-    overlay.id = 'home-architect-update-overlay';
-    overlay.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,0.92); backdrop-filter:blur(12px); z-index:9999999; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:24px; cursor:wait; font-family:-apple-system,BlinkMacSystemFont,sans-serif; color:#f8fafc;';
-    overlay.innerHTML = `
-      <div style="background:#1e293b; border:1px solid rgba(245,158,11,0.4); border-radius:20px; padding:32px; width:90vw; max-width:480px; text-align:center; box-shadow:0 30px 70px rgba(0,0,0,0.9);">
-        <div style="width:60px; height:60px; border-radius:50%; background:linear-gradient(135deg, #f59e0b, #d97706); margin:0 auto 20px; display:flex; align-items:center; justify-content:center; font-size:28px; box-shadow:0 0 24px rgba(245,158,11,0.6);">
-          🚀
-        </div>
-        <div style="font-size:18px; font-weight:800; color:#fff; margin-bottom:8px;" id="update-status-title">Mise à jour en cours...</div>
-        <div style="font-size:13px; color:#94a3b8; line-height:1.6; margin-bottom:24px;" id="update-status-desc">
-          Téléchargement de la release GitHub v${this.updateInfo.latestVersion} et application des fichiers...
-        </div>
-        <div style="width:100%; height:8px; background:rgba(255,255,255,0.1); border-radius:999px; overflow:hidden; margin-bottom:16px;">
-          <div id="update-progress-bar" style="width:25%; height:100%; background:linear-gradient(90deg, #f59e0b, #10b981); border-radius:999px; transition:width 0.4s ease;"></div>
-        </div>
-        <div style="font-size:11px; color:#64748b; font-family:monospace;" id="update-timer-msg">Veuillez patienter sans fermer la page</div>
-      </div>
-    `;
-    (this.shadowRoot || this).appendChild(overlay);
-
-    // Déclenchement de la mise à jour côté HA
-    try {
-      if (this.hass?.callService) {
-        await this.hass.callService('update', 'install', { entity_id: 'update.home_architect' });
-      } else if (this.hass?.callWS) {
-        await this.hass.callWS({ type: 'home_architect/install_update', backup: true });
-      }
-    } catch (_) {
-      try {
-        if (this.hass?.callWS) {
-          await this.hass.callWS({ type: 'home_architect/install_update', backup: true });
-        }
-      } catch (err) {
-        console.warn('Update trigger returned error (may be restarting already):', err);
-      }
-    }
-
-    const progressBar = overlay.querySelector('#update-progress-bar') as HTMLElement;
-    const statusTitle = overlay.querySelector('#update-status-title') as HTMLElement;
-    const statusDesc = overlay.querySelector('#update-status-desc') as HTMLElement;
-    const timerMsg = overlay.querySelector('#update-timer-msg') as HTMLElement;
-
-    let percent = 25;
-    const progressInterval = setInterval(() => {
-      if (percent < 85) {
-        percent += 15;
-        if (progressBar) progressBar.style.width = percent + '%';
-      }
-    }, 1500);
-
-    setTimeout(() => {
-      clearInterval(progressInterval);
-      if (progressBar) progressBar.style.width = '95%';
-      if (statusTitle) statusTitle.textContent = 'Redémarrage de Home Assistant...';
-      if (statusDesc) statusDesc.textContent = 'Fichiers mis à jour ! Reconnexion automatique au serveur en cours...';
-
-      let count = 0;
-      const pollInterval = setInterval(async () => {
-        count++;
-        if (timerMsg) timerMsg.textContent = `Tentative de reconnexion (${count * 2}s)...`;
-        try {
-          const resp = await fetch('/manifest.json', { cache: 'no-store' });
-          if (resp.ok) {
-            clearInterval(pollInterval);
-            if (progressBar) progressBar.style.width = '100%';
-            if (statusTitle) statusTitle.textContent = 'Mise à jour terminée !';
-            if (statusDesc) statusDesc.textContent = 'Rechargement de la page...';
-            setTimeout(() => {
-              window.location.reload();
-            }, 1000);
-          }
-        } catch (_) {}
-      }, 2000);
-    }, 6000);
-  }
-
   disconnectedCallback() {
     super.disconnectedCallback();
     if (this._boundPaste) {
@@ -2091,63 +1967,92 @@ export class HomeArchitectPanel extends LitElement {
     }, 4500);
   }
 
-  public loadBackgroundImage(dataUrl: string, sourceLabel: string = 'Plan chargé !') {
-    const img = new Image();
-    img.onload = () => {
-      this.pushUndoSnapshot();
-      this.project = {
-        ...this.project,
-        background: {
-          imageUrl: dataUrl,
-          opacity: 0.40,
-          visible: true,
-          offset: { x: 0, y: 0 },
-          scale: 1.0,
-          rotation: 0,
-          widthPx: img.naturalWidth,
-          heightPx: img.naturalHeight
-        }
-      };
+  /**
+   * Nouvelle image de fond (collage, glisser-déposer) : une image brute (Blob ou data-URL) est
+   * compressée puis téléversée, une URL externe est référencée telle quelle (constat F1).
+   */
+  public async loadBackgroundImage(source: string | Blob, sourceLabel: string = 'Plan chargé !') {
+    if (!this.persistence.ready) return;
+    if (this.readOnly) {
+      this.notifyReadOnly();
+      return;
+    }
+    const projectId = this.project.id;
+    const background = typeof source === 'string' && !isInlineDataUrl(source)
+      ? await this.externalBackground(source)
+      : await this.persistence.withBusy('Téléversement de l\'image de fond…', () =>
+        this.persistence.prepareAndUploadBackground(projectId, source)
+      );
+    if (!background || this.project.id !== projectId) return;
+    if (this.commitProject({ ...this.project, background })) {
       this.activeTool = 'calibrate';
       this.showToast(`${sourceLabel} Tracez un segment sur un mur mesuré pour étalonner l'échelle (📏).`);
-    };
-    img.onerror = () => {
-      this.showToast('❌ Erreur lors du chargement de l\'image.');
-    };
-    img.src = dataUrl;
+    }
   }
 
-  private handleImportConfirmed(e: CustomEvent<ImportModalResult>) {
-    this.pushUndoSnapshot();
-    const { 
-      dataUrl, widthPx, heightPx, opacity, mode, totalWidthMeters,
-      isSvgVectorized, svgInterpretation, keepSvgBackground 
-    } = e.detail;
-    this.isImportModalOpen = false;
-
-    // Traitement du mode Vectorisation Intelligente SVG
-    if (isSvgVectorized && svgInterpretation && svgInterpretation.success) {
-      const { walls, openings, rooms, pixelsPerMeter: svgPpm, stats } = svgInterpretation;
-
-      const bgPlan = keepSvgBackground ? {
-        imageUrl: dataUrl,
-        opacity: opacity !== undefined ? opacity : 0.25,
+  /** Image référencée par une URL externe : dimensions lues par le navigateur, aucun téléversement. */
+  private externalBackground(url: string): Promise<BackgroundPlan | null> {
+    return new Promise(resolve => {
+      const img = new Image();
+      img.onload = () => resolve({
+        imageUrl: url,
+        opacity: 0.40,
         visible: true,
         offset: { x: 0, y: 0 },
         scale: 1.0,
         rotation: 0,
-        widthPx,
-        heightPx
-      } : undefined;
+        widthPx: img.naturalWidth,
+        heightPx: img.naturalHeight
+      });
+      img.onerror = () => {
+        this.showToast('❌ Erreur lors du chargement de l\'image.');
+        resolve(null);
+      };
+      img.src = url;
+    });
+  }
 
-      this.project = {
+  private async handleImportConfirmed(e: CustomEvent<ImportConfirmedDetail>) {
+    this.isImportModalOpen = false;
+    if (this.readOnly) {
+      this.notifyReadOnly();
+      return;
+    }
+    const {
+      background: imported, opacity, mode, totalWidthMeters,
+      isSvgVectorized, svgInterpretation, keepSvgBackground
+    } = e.detail;
+    const projectId = this.project.id;
+    const vectorized = !!(isSvgVectorized && svgInterpretation && svgInterpretation.success);
+
+    // L'image est téléversée avant de modifier le plan : le projet n'en garde que la référence.
+    let background: BackgroundPlan | undefined;
+    if (imported && (!vectorized || keepSvgBackground)) {
+      const defaultOpacity = vectorized ? 0.25 : 0.40;
+      const uploaded = await this.persistence.withBusy('Téléversement de l\'image de fond…', () =>
+        this.persistence.uploadImportedBackground(projectId, imported, opacity !== undefined ? opacity : defaultOpacity)
+      );
+      if (!uploaded) return;
+      background = uploaded;
+    }
+    if (this.project.id !== projectId) return;
+
+    // Traitement du mode Vectorisation Intelligente SVG
+    if (vectorized && svgInterpretation) {
+      const { walls, openings, rooms, metersPerUnit, stats } = svgInterpretation;
+      // L'échelle du projet ne dépend pas des unités du SVG : le calque d'origine (1 px = 1 unité de la
+      // viewBox) est aligné sur les murs vectorisés par son facteur d'échelle.
+      const alignedBackground = background && Number.isFinite(metersPerUnit) && metersPerUnit > 0
+        ? { ...background, scale: metersPerUnit * this.project.pixelsPerMeter }
+        : background;
+      const committed = this.commitProject({
         ...this.project,
-        pixelsPerMeter: svgPpm || this.project.pixelsPerMeter,
         walls: [...this.project.walls, ...walls],
         openings: [...this.project.openings, ...openings],
         rooms: [...this.project.rooms, ...rooms],
-        background: bgPlan
-      };
+        background: alignedBackground
+      });
+      if (!committed) return;
 
       this.activeTool = 'select';
       this.showToast(
@@ -2157,25 +2062,13 @@ export class HomeArchitectPanel extends LitElement {
     }
 
     // Traitement standard (image de fond ou calque passif)
+    if (!background) return;
     let calculatedPpm = this.project.pixelsPerMeter;
-    if (mode === 'auto_dimension' && totalWidthMeters && totalWidthMeters > 0) {
-      calculatedPpm = Math.round((widthPx / totalWidthMeters) * 10) / 10;
+    if (mode === 'auto_dimension' && totalWidthMeters && totalWidthMeters > 0 && background.widthPx) {
+      calculatedPpm = Math.round((background.widthPx / totalWidthMeters) * 10) / 10;
     }
 
-    this.project = {
-      ...this.project,
-      pixelsPerMeter: calculatedPpm,
-      background: {
-        imageUrl: dataUrl,
-        opacity: opacity !== undefined ? opacity : 0.40,
-        visible: true,
-        offset: { x: 0, y: 0 },
-        scale: 1.0,
-        rotation: 0,
-        widthPx,
-        heightPx
-      }
-    };
+    if (!this.commitProject({ ...this.project, pixelsPerMeter: calculatedPpm, background })) return;
 
     if (mode === 'auto_dimension') {
       this.activeTool = 'wall';
@@ -2197,12 +2090,7 @@ export class HomeArchitectPanel extends LitElement {
         const file = items[i].getAsFile();
         if (file) {
           e.preventDefault();
-          const reader = new FileReader();
-          reader.onload = (loadEvt) => {
-            const dataUrl = loadEvt.target?.result as string;
-            this.loadBackgroundImage(dataUrl, '📋 Image collée depuis le presse-papier !');
-          };
-          reader.readAsDataURL(file);
+          void this.loadBackgroundImage(file, '📋 Image collée depuis le presse-papier !');
           return;
         }
       }
@@ -2214,15 +2102,15 @@ export class HomeArchitectPanel extends LitElement {
     // 2a. Code SVG brut
     if (text && (text.startsWith('<svg') || (text.startsWith('<?xml') && text.includes('<svg')))) {
       e.preventDefault();
-      this.isImportModalOpen = true;
-      this.showToast('📥 Code SVG détecté ! Configurez la vectorisation automatique.');
+      this.openImportModal();
+      if (this.isImportModalOpen) this.showToast('📥 Code SVG détecté ! Configurez la vectorisation automatique.');
       return;
     }
 
     // 3. URL ou data-url en texte brut
     if (text && (text.startsWith('data:image/') || text.match(/\.(png|jpe?g|svg|webp)(\?.*)?$/i))) {
       e.preventDefault();
-      this.loadBackgroundImage(text, '📋 Image chargée depuis l\'URL collée !');
+      void this.loadBackgroundImage(text, '📋 Image chargée depuis l\'URL collée !');
     }
   }
 
@@ -2246,7 +2134,7 @@ export class HomeArchitectPanel extends LitElement {
     const reader = new FileReader();
     reader.onload = (loadEvent) => {
       const dataUrl = loadEvent.target?.result as string;
-      this.loadBackgroundImage(dataUrl, '🖼️ Image importée depuis votre ordinateur !');
+      void this.loadBackgroundImage(dataUrl, '🖼️ Image importée depuis votre ordinateur !');
     };
     reader.readAsDataURL(file);
   }
@@ -2257,12 +2145,14 @@ export class HomeArchitectPanel extends LitElement {
   }
 
   private handleCalibrateConfirmed(e: CustomEvent<{ pixelsPerMeter: number }>) {
-    this.pushUndoSnapshot();
     const { pixelsPerMeter } = e.detail;
-    this.project = {
-      ...this.project,
-      pixelsPerMeter: Math.round(pixelsPerMeter * 10) / 10
-    };
+    const rounded = Math.round(pixelsPerMeter * 10) / 10;
+    if (rounded !== this.project.pixelsPerMeter) {
+      this.commitProject({
+        ...this.project,
+        pixelsPerMeter: rounded
+      });
+    }
     this.isCalibrateModalOpen = false;
     this.calibrationData = null;
     this.activeTool = 'wall';
@@ -2274,11 +2164,10 @@ export class HomeArchitectPanel extends LitElement {
   }
 
   private handleRescaleConfirmed(e: CustomEvent<RescaleModalResult>) {
-    this.pushUndoSnapshot();
-    const { currentMeters, targetMeters, scaleFactor, adjustBackground } = e.detail;
+    const { scaleFactor, adjustBackground } = e.detail;
     this.isRescaleModalOpen = false;
 
-    if (scaleFactor <= 0 || isNaN(scaleFactor)) return;
+    if (!Number.isFinite(scaleFactor) || scaleFactor <= 0 || scaleFactor === 1) return;
 
     // 1. Recalcul de tous les murs (coordonnées et cotes)
     const newWalls: Wall[] = this.project.walls.map(w => ({
@@ -2350,7 +2239,7 @@ export class HomeArchitectPanel extends LitElement {
       }
     }
 
-    this.project = {
+    const committed = this.commitProject({
       ...this.project,
       pixelsPerMeter: newPpm,
       walls: newWalls,
@@ -2359,8 +2248,8 @@ export class HomeArchitectPanel extends LitElement {
       bindings: newBindings,
       furniture: newFurniture,
       background: newBg
-    };
-    this.levelProjects[this.activeLevel] = { ...this.project };
+    });
+    if (!committed) return;
 
     this.activeTool = 'select';
     this.showToast(
@@ -2370,140 +2259,63 @@ export class HomeArchitectPanel extends LitElement {
 
   private handleOpacityChange(e: Event) {
     const opacity = parseFloat((e.target as HTMLInputElement).value);
-    if (this.project.background) {
-      this.project = {
+    const bg = this.project.background;
+    if (bg && Number.isFinite(opacity) && opacity !== bg.opacity) {
+      this.commitProject({
         ...this.project,
-        background: { ...this.project.background, opacity }
-      };
+        background: { ...bg, opacity }
+      }, { coalesceKey: 'background-opacity' });
     }
   }
 
   private handleDefaultCeilingChange(val: number) {
-    this.project = {
-      ...this.project,
-      defaultCeilingHeight: val
-    };
-    this.showToast(`📐 Hauteur plafond 3D par défaut : ${val.toFixed(2)} m`);
+    if (!Number.isFinite(val) || val === this.project.defaultCeilingHeight) return;
+    if (this.commitProject({ ...this.project, defaultCeilingHeight: val })) {
+      this.showToast(`📐 Hauteur plafond 3D par défaut : ${val.toFixed(2)} m`);
+    }
   }
 
   private handleSaveRoom(e: CustomEvent<any>) {
-    this.pushUndoSnapshot();
     const { roomId, name, height, color } = e.detail;
-    const updatedRooms = this.project.rooms.map(r => {
-      if (r.id === roomId) {
-        return { ...r, name, height, color };
-      }
-      return r;
-    });
-
-    this.project = {
-      ...this.project,
-      rooms: updatedRooms
-    };
     this.selectedRoomForEdit = null;
-    this.showToast(`✨ Pièce "${name}" mise à jour (H: ${height.toFixed(2)} m) !`);
+    const updatedRooms = mapChanged(this.project.rooms, r =>
+      r.id === roomId && (r.name !== name || r.height !== height || r.color !== color)
+        ? { ...r, name, height, color }
+        : r
+    );
+    if (updatedRooms && this.commitProject({ ...this.project, rooms: updatedRooms })) {
+      this.showToast(`✨ Pièce "${name}" mise à jour (H: ${height.toFixed(2)} m) !`);
+    }
   }
 
   private handleDeleteRoom(e: CustomEvent<any>) {
-    this.pushUndoSnapshot();
     const { roomId } = e.detail;
-    this.project = {
-      ...this.project,
-      rooms: this.project.rooms.filter(r => r.id !== roomId)
-    };
     this.selectedRoomForEdit = null;
-    this.showToast('🗑️ Pièce supprimée');
-  }
-
-  private pushUndoSnapshot(snapshot?: HomeArchitectProject) {
-    const snap = JSON.parse(JSON.stringify(snapshot || this.project));
-    this.undoStack = [...this.undoStack.slice(-39), snap];
-    this.redoStack = [];
+    const rooms = this.project.rooms.filter(r => r.id !== roomId);
+    if (rooms.length !== this.project.rooms.length && this.commitProject({ ...this.project, rooms })) {
+      this.showToast('🗑️ Pièce supprimée');
+    }
   }
 
   private handleUndo() {
-    if (this.undoStack.length === 0) return;
-    const previous = this.undoStack[this.undoStack.length - 1];
-    const newUndo = this.undoStack.slice(0, -1);
-    const currentSnap = JSON.parse(JSON.stringify(this.project));
-    this.redoStack = [...this.redoStack.slice(-39), currentSnap];
-    this.undoStack = newUndo;
-    this.project = previous;
-    this.selectedElements = { wallIds: [], openingIds: [], roomIds: [], bindingIds: [] };
+    if (!this.persistence.undo()) return;
+    this.clearSelection();
     this.showToast('↩️ Action annulée');
   }
 
   private handleRedo() {
-    if (this.redoStack.length === 0) return;
-    const next = this.redoStack[this.redoStack.length - 1];
-    const newRedo = this.redoStack.slice(0, -1);
-    const currentSnap = JSON.parse(JSON.stringify(this.project));
-    this.undoStack = [...this.undoStack.slice(-39), currentSnap];
-    this.redoStack = newRedo;
-    this.project = next;
-    this.selectedElements = { wallIds: [], openingIds: [], roomIds: [], bindingIds: [] };
+    if (!this.persistence.redo()) return;
+    this.clearSelection();
     this.showToast('↪️ Action rétablie');
   }
 
-  private getGhostProject(): HomeArchitectProject | null {
-    if (!this.showGhostLevel) return null;
-    let ghostId: string | null = null;
-    if (this.activeLevel === 'etage3') ghostId = 'etage2';
-    else if (this.activeLevel === 'etage2') ghostId = 'etage1';
-    else if (this.activeLevel === 'etage1') ghostId = 'rdc';
-    else if (this.activeLevel === 'rdc') ghostId = 'sous-sol';
-    if (!ghostId) return null;
-    return this.levelProjects[ghostId] || null;
-  }
-
-  private handleLevelSwitch(newLevel: string) {
-    if (this.activeLevel === newLevel) return;
-    this.levelProjects[this.activeLevel] = { ...this.project };
-    this.activeLevel = newLevel;
-
-    if (this.levelProjects[newLevel]) {
-      this.project = { ...this.levelProjects[newLevel] };
-    } else {
-      const levelNames: Record<string, string> = {
-        'sous-sol': 'Sous-Sol',
-        'rdc': 'Rez-de-Chaussée',
-        'etage1': '1er Étage',
-        'etage2': '2ème Étage',
-        'etage3': '3ème Étage',
-        'jardin': 'Jardin'
-      };
-      this.project = {
-        id: newLevel,
-        name: levelNames[newLevel] || newLevel,
-        category: newLevel,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        pixelsPerMeter: 50,
-        grid: {
-          size: 0.5,
-          subdivisions: 2,
-          snapToGrid: true,
-          snapToAngles: true,
-          snapToElements: true
-        },
-        walls: [],
-        openings: [],
-        rooms: [],
-        bindings: [],
-        furniture: []
-      };
-      this.levelProjects[newLevel] = { ...this.project };
-    }
-
-    this.undoStack = [];
-    this.redoStack = [];
-    this.clearSelection();
-    this.showToast(`Étage sélectionné : ${this.project.name}`);
+  /** Niveau affiché en filigrane : celui situé sous le niveau du plan actif (d'après sa catégorie, constat F15). */
+  private ghostLevel(): string | null {
+    return this.showGhostLevel ? getLevelBelow(this.activeLevel) : null;
   }
 
   private rotateSelectedFurniture() {
     if (!this.selectedElements.furnitureIds || this.selectedElements.furnitureIds.length === 0) return;
-    this.pushUndoSnapshot();
     const furnIds = this.selectedElements.furnitureIds;
     const newFurniture = (this.project.furniture || []).map(f => {
       if (furnIds.includes(f.id)) {
@@ -2514,16 +2326,15 @@ export class HomeArchitectPanel extends LitElement {
       }
       return f;
     });
-    this.project = { ...this.project, furniture: newFurniture };
-    this.showToast('🔄 Meuble pivoté de 90°');
+    if (this.commitProject({ ...this.project, furniture: newFurniture })) {
+      this.showToast('🔄 Meuble pivoté de 90°');
+    }
   }
 
   private handleDeleteSelected() {
     const { wallIds, openingIds, roomIds, bindingIds, furnitureIds = [] } = this.selectedElements;
     const total = wallIds.length + openingIds.length + roomIds.length + bindingIds.length + furnitureIds.length;
     if (total === 0) return;
-
-    this.pushUndoSnapshot();
 
     const remainingWalls = this.project.walls.filter(w => !wallIds.includes(w.id));
     const remainingOpenings = this.project.openings.filter(
@@ -2533,14 +2344,15 @@ export class HomeArchitectPanel extends LitElement {
     const remainingBindings = this.project.bindings.filter(b => !bindingIds.includes(b.id));
     const remainingFurniture = (this.project.furniture || []).filter(f => !furnitureIds.includes(f.id));
 
-    this.project = {
+    const committed = this.commitProject({
       ...this.project,
       walls: remainingWalls,
       openings: remainingOpenings,
       rooms: remainingRooms,
       bindings: remainingBindings,
       furniture: remainingFurniture
-    };
+    });
+    if (!committed) return;
 
     this.selectedElements = { wallIds: [], openingIds: [], roomIds: [], bindingIds: [], furnitureIds: [] };
     this.showToast(`🗑️ ${total} élément${total > 1 ? 's' : ''} supprimé${total > 1 ? 's' : ''} !`);
@@ -2550,21 +2362,11 @@ export class HomeArchitectPanel extends LitElement {
     this.selectedElements = { wallIds: [], openingIds: [], roomIds: [], bindingIds: [], furnitureIds: [] };
   }
 
-  private getLevelLabel(levelId: string): string {
-    switch (levelId) {
-      case 'sous-sol': return 'Sous-Sol';
-      case 'rdc': return 'RDC';
-      case 'etage1': return '1er Étage';
-      case 'etage2': return '2ème Étage';
-      case 'etage3': return '3ème Étage';
-      case 'jardin': return 'Jardin';
-      default: return levelId.toUpperCase();
-    }
-  }
-
   private toggleDropdown(name: 'file' | 'plan' | 'level', e?: Event) {
     if (e) e.stopPropagation();
     this.activeDropdown = this.activeDropdown === name ? null : name;
+    // Liste des plans à jour (autres appareils) à chaque ouverture du sélecteur de niveau.
+    if (this.activeDropdown === 'level') void this.persistence.refreshSummaries();
   }
 
   private getActiveTypology(): string {
@@ -2583,16 +2385,14 @@ export class HomeArchitectPanel extends LitElement {
 
   private updateSelectedBindingIcon(icon: string, mdi?: string) {
     if (!this.selectedElements.bindingIds || this.selectedElements.bindingIds.length === 0) return;
-    this.pushUndoSnapshot();
     const bindingId = this.selectedElements.bindingIds[0];
-    const newBindings = this.project.bindings.map(b => {
-      if (b.id === bindingId) {
-        return { ...b, icon, mdiIcon: mdi };
-      }
-      return b;
-    });
-    this.project = { ...this.project, bindings: newBindings };
-    this.showToast(`✨ Icône ${icon} appliquée !`);
+    // Entrée puis change sur le champ libre : la seconde application, identique, n'est pas empilée.
+    const newBindings = mapChanged(this.project.bindings, b =>
+      b.id === bindingId && (b.icon !== icon || b.mdiIcon !== mdi) ? { ...b, icon, mdiIcon: mdi } : b
+    );
+    if (newBindings && this.commitProject({ ...this.project, bindings: newBindings })) {
+      this.showToast(`✨ Icône ${icon} appliquée !`);
+    }
   }
 
   private getSelectedSummary(): string {
@@ -2621,7 +2421,22 @@ export class HomeArchitectPanel extends LitElement {
   }
 
   private handleKeyDown(e: KeyboardEvent) {
+    // Ctrl/Cmd+S : sauvegarde du plan actif, y compris depuis un champ du studio (constat F2).
+    if (hasPrimaryModifier(e) && !e.shiftKey && e.key.toLowerCase() === 's') {
+      if (!isEventFromHost(e, this) && !shouldHandleShortcut(e, { host: this })) return;
+      e.preventDefault();
+      if (!this.isModalOpen()) void this.quickSave();
+      return;
+    }
+
+    // Dialogues de persistance et écrans d'attente : seule Échap est traitée (fermeture).
+    if (this.persistence.handleBlockingKey(e)) return;
+
     if (e.key === 'Escape') {
+      if (this.isUpdateModalOpen) {
+        this.isUpdateModalOpen = false;
+        return;
+      }
       if (this.isNewPlanModalOpen) {
         this.isNewPlanModalOpen = false;
         return;
@@ -2726,80 +2541,82 @@ export class HomeArchitectPanel extends LitElement {
   }
 
   private openNewPlanModal() {
-    this.newPlanName = `Plan ${this.getLevelLabel(this.activeLevel)}`;
-    this.newPlanCategory = this.activeLevel;
-    this.isNewPlanModalOpen = true;
     this.activeDropdown = null;
+    if (this.readOnly) {
+      this.notifyReadOnly();
+      return;
+    }
+    const level = this.activeLevel ?? DEFAULT_LEVEL;
+    this.newPlanName = `Plan ${getLevelLabel(level)}`;
+    this.newPlanCategory = level;
+    this.isNewPlanModalOpen = true;
   }
 
-  private handleConfirmNewPlan() {
-    this.pushUndoSnapshot();
-    const name = this.newPlanName.trim() || 'Nouveau Plan';
-    const category = this.newPlanCategory || 'rdc';
-    const knownCategories = ['sous-sol', 'rdc', 'etage1', 'etage2', 'etage3', 'jardin'];
-    const projectId = knownCategories.includes(category) ? category : `plan_${Date.now()}`;
-    this.project = {
-      id: projectId,
-      name,
-      category,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      pixelsPerMeter: 50,
-      grid: {
-        size: 0.5,
-        subdivisions: 2,
-        snapToGrid: true,
-        snapToAngles: true,
-        snapToElements: true
-      },
-      walls: [],
-      openings: [],
-      rooms: [],
-      bindings: [],
-      furniture: []
-    };
-    if (knownCategories.includes(category)) {
-      this.activeLevel = category;
-    }
-    this.levelProjects[this.activeLevel] = { ...this.project };
-    this.clearSelection();
-    this.isNewPlanModalOpen = false;
-    this.showToast(`📄 Nouveau plan "${name}" créé avec succès !`);
-    setTimeout(() => {
-      (this.shadowRoot?.querySelector('home-architect-canvas') as any)?.fitToScreen();
-    }, 80);
+  /**
+   * Nouveau plan : identifiant immuable généré, catégorie séparée (constat F3). Le plan en cours
+   * reste ouvert avec ses modifications et aucun plan existant n'est remplacé.
+   */
+  private async handleConfirmNewPlan() {
+    const name = this.newPlanName.trim() || 'Nouveau plan';
+    const category = this.newPlanCategory || DEFAULT_LEVEL;
+    if (await this.persistence.createPlan(name, category)) this.isNewPlanModalOpen = false;
   }
 
   private openResetModal() {
-    this.isResetModalOpen = true;
     this.activeDropdown = null;
+    if (this.readOnly) {
+      this.notifyReadOnly();
+      return;
+    }
+    this.isResetModalOpen = true;
   }
 
   private handleConfirmResetPlan() {
-    this.pushUndoSnapshot();
-    this.project = {
+    this.isResetModalOpen = false;
+    if (isEmptyProject(this.project)) return;
+    const committed = this.commitProject({
       ...this.project,
       walls: [],
       openings: [],
       rooms: [],
       bindings: [],
       furniture: [],
-      background: undefined,
-      updated_at: new Date().toISOString()
-    };
-    this.levelProjects[this.activeLevel] = { ...this.project };
+      background: undefined
+    });
+    if (!committed) return;
     this.clearSelection();
-    this.isResetModalOpen = false;
     this.showToast(`🗑️ Plan effacé (Réinitialisé). Annulez avec Ctrl+Z si besoin.`);
     setTimeout(() => {
       (this.shadowRoot?.querySelector('home-architect-canvas') as any)?.fitToScreen();
     }, 80);
   }
 
+  private openWizard() {
+    this.activeDropdown = null;
+    if (this.readOnly) {
+      this.notifyReadOnly();
+      return;
+    }
+    this.isWizardOpen = true;
+  }
+
+  private openImportModal() {
+    this.activeDropdown = null;
+    if (this.readOnly) {
+      this.notifyReadOnly();
+      return;
+    }
+    this.isImportModalOpen = true;
+  }
+
   private openSaveModal() {
+    this.activeDropdown = null;
+    if (this.readOnly) {
+      this.notifyReadOnly();
+      return;
+    }
     this.saveLoadModalTab = 'save';
     this.isSaveLoadModalOpen = true;
-    this.activeDropdown = null;
   }
 
   private openLoadModal() {
@@ -2808,91 +2625,128 @@ export class HomeArchitectPanel extends LitElement {
     this.activeDropdown = null;
   }
 
-  private saveProject() {
-    this.openSaveModal();
+  // ==========================================
+  // PERSISTANCE (src/panel/persistence-controller.ts)
+  // ==========================================
+
+  private async handleLoadProject(e: CustomEvent<{ projectId: string }>) {
+    this.isSaveLoadModalOpen = false;
+    const id = e.detail?.projectId;
+    if (typeof id !== 'string' || id === '') return;
+    await this.persistence.openPlan(id, { refresh: true });
   }
 
-  private async handleSaveConfirmed(e: CustomEvent<{ name: string; category: string }>) {
-    const { name, category } = e.detail;
-
-    const knownCategories = ['sous-sol', 'rdc', 'etage1', 'etage2', 'etage3', 'jardin'];
-    let projectId = this.project.id;
-    if (knownCategories.includes(category) && (!projectId || knownCategories.includes(projectId))) {
-      projectId = category;
-    } else if (!projectId) {
-      projectId = 'plan_' + Date.now();
-    }
-
-    this.project = {
-      ...this.project,
-      id: projectId,
-      name,
-      category,
-      furniture: this.project.furniture || [],
-      updated_at: new Date().toISOString()
-    };
-
-    if (knownCategories.includes(category)) {
-      this.activeLevel = category;
-    }
-    this.levelProjects[this.activeLevel] = { ...this.project };
-
-    if (this.hass && this.hass.callWS) {
-      try {
-        await this.hass.callWS({
-          type: 'home_architect/save_project',
-          project: this.project
-        });
-        this.showToast(`💾 Plan "${name}" (${category}) sauvegardé avec succès dans Home Assistant !`);
-      } catch (err: any) {
-        console.error('Erreur sauvegarde HA:', err);
-        try {
-          localStorage.setItem(`home_architect_${this.project.id}`, JSON.stringify(this.project));
-          this.showToast(`💾 Plan "${name}" sauvegardé localement (Mode hors-ligne).`);
-        } catch (storageErr) {
-          console.error('Quota localStorage dépassé:', storageErr);
-          this.showToast(`⚠️ Échec de la sauvegarde locale (quota dépassé). Réduisez la taille de l'image de fond.`);
-        }
-      }
-    } else {
-      try {
-        localStorage.setItem(`home_architect_${this.project.id}`, JSON.stringify(this.project));
-        this.showToast(`💾 Plan "${name}" sauvegardé localement !`);
-      } catch (storageErr) {
-        console.error('Quota localStorage dépassé:', storageErr);
-        this.showToast(`⚠️ Échec de la sauvegarde locale (quota dépassé). Réduisez la taille de l'image de fond.`);
-      }
-    }
-
+  /** Modale « Sauvegarder » : nom, catégorie et « Enregistrer sous… » (nouvel identifiant). */
+  private async handleSaveConfirmed(e: CustomEvent<{ name: string; category: string; saveAs?: boolean }>) {
     this.isSaveLoadModalOpen = false;
+    await this.persistence.saveFromDialog(e.detail);
   }
 
-  private handleLoadProject(e: CustomEvent<{ project: HomeArchitectProject }>) {
-    const loaded = e.detail.project;
-    if (!loaded) return;
-
-    this.pushUndoSnapshot();
-    this.project = {
-      ...loaded,
-      furniture: loaded.furniture || []
-    };
-
-    const cat = loaded.category || loaded.id;
-    const knownLevels = ['sous-sol', 'rdc', 'etage1', 'etage2', 'etage3', 'jardin'];
-    if (cat && knownLevels.includes(cat)) {
-      this.activeLevel = cat;
+  /** Ctrl/Cmd+S : sauvegarde directe d'un plan déjà enregistré ; un nouveau plan passe par la modale (nom, niveau). */
+  private async quickSave() {
+    if (this.readOnly) {
+      this.notifyReadOnly();
+      return;
     }
-    this.levelProjects[this.activeLevel] = { ...this.project };
+    if (!this.persistence.ready) return;
+    if (this.project.revision === undefined) {
+      this.openSaveModal();
+      return;
+    }
+    await this.persistence.save(this.project.id);
+  }
 
-    this.undoStack = [];
-    this.redoStack = [];
-    this.clearSelection();
-    this.isSaveLoadModalOpen = false;
-    this.showToast(`📂 Plan "${loaded.name || loaded.id}" chargé avec succès !`);
+  private async saveAllDirty() {
+    this.activeDropdown = null;
+    await this.persistence.saveAllDirty();
+  }
+
+  private handleExportFrameChanged(e: CustomEvent<{ frame: ExportFrame }>) {
+    this.persistence.setExportFrame(e.detail?.frame);
+  }
+
+  private handleProjectPublished(e: CustomEvent<{ publish: PublishInfo }>) {
+    this.persistence.setPublish(e.detail?.publish);
+  }
+
+  /** Au moins une modale ou un dialogue du studio est ouvert. */
+  private isModalOpen(): boolean {
+    return this.isWizardOpen || this.isImportModalOpen || this.isExportModalOpen || this.isSaveLoadModalOpen ||
+      this.isNewPlanModalOpen || this.isResetModalOpen || this.isCalibrateModalOpen || this.isRescaleModalOpen ||
+      this.isUpdateModalOpen || this.selectedRoomForEdit !== null || this.persistence.isBlocking();
+  }
+
+  /** Bandeau « rechargez la page » quand une nouvelle version a été installée pendant la session (F106). */
+  private updateBanners(): PanelNotice[] {
+    if (!this.updateInfo?.reloadRequired) return [];
+    return [{
+      key: 'reload-required',
+      kind: 'info',
+      dismissible: false,
+      message: `🔁 Nouvelle version installée (v${this.updateInfo.installedVersion}) : rechargez la page pour l'utiliser. Versions chargées : ${this.updateInfo.loadedBundles || VERSION}.`,
+      actions: [{ label: 'Recharger', run: () => this.reloadPage() }]
+    }];
+  }
+
+  /** Sélecteur de niveau : les plans de chaque niveau (par catégorie), puis les plans « Autre ». */
+  private renderLevelMenu() {
+    const activeId = this.project.id;
+    const planButton = (plan: PlanEntry, opts: { sub: boolean; icon?: string; levelName?: string }) => html`
+      <button
+        class="dropdown-item ${opts.sub ? 'sub' : ''} ${plan.id === activeId ? 'active' : ''}"
+        @click=${() => { this.activeDropdown = null; void this.persistence.openPlan(plan.id); }}
+      >
+        ${opts.icon ? html`<span>${opts.icon}</span>` : null}
+        ${opts.levelName ? html`<span>${opts.levelName}</span>` : null}
+        <span class="level-plan-name" title=${plan.name}>${plan.name}</span>
+        ${plan.dirty ? html`<span class="dirty-dot" title="Modifications non sauvegardées">●</span>` : null}
+        ${plan.stored ? null : html`<span class="dropdown-item-meta">non sauvegardé</span>`}
+        ${plan.id === activeId ? html`<span class="dropdown-item-check">✓</span>` : null}
+      </button>
+    `;
+    const customPlans = this.persistence.ws.customPlans();
+    return html`
+      <div class="dropdown-menu-popup level-menu">
+        ${KNOWN_LEVELS.map(level => {
+          const levelName = level.fullLabel !== level.label ? `${level.label} (${level.fullLabel})` : level.label;
+          const plans = this.persistence.ws.plansForCategory(level.id);
+          if (plans.length === 0) {
+            return html`
+              <button
+                class="dropdown-item"
+                ?disabled=${this.readOnly}
+                title="Aucun plan pour ce niveau : un plan vierge sera créé"
+                @click=${() => { this.activeDropdown = null; void this.persistence.switchToLevel(level.id); }}
+              >
+                <span>${level.icon}</span>
+                <span>${levelName}</span>
+                <span class="dropdown-item-meta">vide</span>
+              </button>
+            `;
+          }
+          if (plans.length === 1) return planButton(plans[0], { sub: false, icon: level.icon, levelName });
+          return html`
+            <div class="dropdown-group-label"><span>${level.icon}</span><span>${levelName}</span></div>
+            ${plans.map(plan => planButton(plan, { sub: true }))}
+          `;
+        })}
+        ${customPlans.length > 0 ? html`
+          <div class="dropdown-divider"></div>
+          <div class="dropdown-group-label"><span>${CUSTOM_CATEGORY_DEF.icon}</span><span>Autres plans</span></div>
+          ${customPlans.map(plan => planButton(plan, { sub: true }))}
+        ` : null}
+      </div>
+    `;
   }
 
   render() {
-    const hasBg = !!this.project.background?.imageUrl;
+    const hasBg = !!this.project.background;
+    const ws = this.persistence.ws;
+    const ready = this.persistence.ready;
+    const activeDirty = ws.isDirty(this.project.id);
+    const dirtyIds = ws.dirtyIds();
+    const dirtyCount = dirtyIds.length;
+    const saving = this.persistence.isSaving(this.project.id);
 
     return html`
       <header class="top-bar">
@@ -2923,7 +2777,7 @@ export class HomeArchitectPanel extends LitElement {
           <span class="brand-version" title="Version unique du composant">v${VERSION}</span>
         </div>
 
-        ${this.updateInfo.available ? html`
+        ${this.updateInfo?.available && !this.readOnly ? html`
           <button class="btn-update-auto" @click=${() => this.openUpdateModal()} title="Nouvelle version ${this.updateInfo.latestVersion} disponible">
             <span>🚀</span>
             <span>Mise à jour dispo</span>
@@ -2942,7 +2796,7 @@ export class HomeArchitectPanel extends LitElement {
             </button>
             ${this.activeDropdown === 'file' ? html`
               <div class="dropdown-menu-popup">
-                <button class="dropdown-item" @click=${() => this.openNewPlanModal()}>
+                <button class="dropdown-item" ?disabled=${this.readOnly} @click=${() => this.openNewPlanModal()}>
                   <span>📄</span>
                   <span>Nouveau plan...</span>
                 </button>
@@ -2950,12 +2804,18 @@ export class HomeArchitectPanel extends LitElement {
                   <span>📂</span>
                   <span>Ouvrir / Recharger un plan...</span>
                 </button>
-                <button class="dropdown-item" @click=${() => this.openSaveModal()}>
+                <button class="dropdown-item" ?disabled=${this.readOnly || !ready} @click=${() => this.openSaveModal()}>
                   <span>💾</span>
-                  <span>Sauvegarder le plan...</span>
+                  <span>Sauvegarder le plan... (Ctrl+S)</span>
                 </button>
+                ${dirtyCount > 1 || (dirtyCount === 1 && !activeDirty) ? html`
+                  <button class="dropdown-item" ?disabled=${this.readOnly || !ready} @click=${() => void this.saveAllDirty()}>
+                    <span>🗂️</span>
+                    <span>Sauvegarder tous les plans modifiés (${dirtyCount})</span>
+                  </button>
+                ` : null}
                 <div class="dropdown-divider"></div>
-                <button class="dropdown-item" @click=${() => { this.isImportModalOpen = true; this.activeDropdown = null; }}>
+                <button class="dropdown-item" ?disabled=${this.readOnly} @click=${() => this.openImportModal()}>
                   <span>📥</span>
                   <span>Importer un plan...</span>
                 </button>
@@ -2964,7 +2824,7 @@ export class HomeArchitectPanel extends LitElement {
                   <span>Exporter Lovelace...</span>
                 </button>
                 <div class="dropdown-divider"></div>
-                <button class="dropdown-item danger" @click=${() => this.openResetModal()}>
+                <button class="dropdown-item danger" ?disabled=${this.readOnly} @click=${() => this.openResetModal()}>
                   <span>🗑️</span>
                   <span>Effacer le plan (Reset)...</span>
                 </button>
@@ -2981,7 +2841,7 @@ export class HomeArchitectPanel extends LitElement {
             </button>
             ${this.activeDropdown === 'plan' ? html`
               <div class="dropdown-menu-popup" style="min-width: 250px;">
-                <button class="dropdown-item ${this.activeTool === 'rescale' ? 'active' : ''}" @click=${() => { this.activeTool = 'rescale'; this.activeDropdown = null; }}>
+                <button class="dropdown-item ${this.activeTool === 'rescale' ? 'active' : ''}" ?disabled=${this.readOnly} @click=${() => { this.activeTool = 'rescale'; this.activeDropdown = null; }}>
                   <span>📐</span>
                   <span>Mettre à l'échelle (S)</span>
                   ${this.activeTool === 'rescale' ? html`<span class="dropdown-item-check">✓</span>` : null}
@@ -2991,7 +2851,7 @@ export class HomeArchitectPanel extends LitElement {
                   <span>${this.is3DMode ? 'Vue 3D (Active)' : 'Vue 2D / 3D'}</span>
                   ${this.is3DMode ? html`<span class="dropdown-item-check">✓</span>` : null}
                 </button>
-                <button class="dropdown-item" @click=${() => { this.isWizardOpen = true; this.activeDropdown = null; }}>
+                <button class="dropdown-item" ?disabled=${this.readOnly} @click=${() => this.openWizard()}>
                   <span>🪄</span>
                   <span>Assistant Pièce</span>
                 </button>
@@ -3026,7 +2886,7 @@ export class HomeArchitectPanel extends LitElement {
                   ${this.isFullscreen ? html`<span class="dropdown-item-check">✓</span>` : null}
                 </button>
                 <div class="dropdown-divider"></div>
-                <button class="dropdown-item danger" @click=${() => this.openResetModal()}>
+                <button class="dropdown-item danger" ?disabled=${this.readOnly} @click=${() => this.openResetModal()}>
                   <span>🗑️</span>
                   <span>Effacer le plan (Reset)...</span>
                 </button>
@@ -3034,47 +2894,16 @@ export class HomeArchitectPanel extends LitElement {
             ` : null}
           </div>
 
-          <!-- 3. Menu Pièce (Sous-Sol, RDC, 1er Étage, 2ème Étage, 3ème Étage, Jardin) -->
+          <!-- 3. Menu Pièce : plans rangés par niveau (catégorie), puis plans « Autre » -->
           <div class="dropdown-menu-wrapper">
             <button class="btn-dropdown-trigger ${this.activeDropdown === 'level' ? 'active' : ''}" @click=${(e: Event) => this.toggleDropdown('level', e)}>
               <span>🏢</span>
-              <span>Pièce : <strong>${this.getLevelLabel(this.activeLevel)}</strong></span>
+              <span>Pièce : <strong>${getLevelLabel(this.project.category)}</strong></span>
+              <span class="level-plan-name" title=${this.project.name}>${this.project.name}</span>
+              ${activeDirty ? html`<span class="dirty-dot" title="Modifications non sauvegardées">●</span>` : null}
               <span class="chevron">▾</span>
             </button>
-            ${this.activeDropdown === 'level' ? html`
-              <div class="dropdown-menu-popup">
-                <button class="dropdown-item ${this.activeLevel === 'sous-sol' ? 'active' : ''}" @click=${() => { this.handleLevelSwitch('sous-sol'); this.activeDropdown = null; }}>
-                  <span>🏠</span>
-                  <span>Sous-Sol</span>
-                  ${this.activeLevel === 'sous-sol' ? html`<span class="dropdown-item-check">✓</span>` : null}
-                </button>
-                <button class="dropdown-item ${this.activeLevel === 'rdc' ? 'active' : ''}" @click=${() => { this.handleLevelSwitch('rdc'); this.activeDropdown = null; }}>
-                  <span>🏠</span>
-                  <span>RDC (Rez-de-Chaussée)</span>
-                  ${this.activeLevel === 'rdc' ? html`<span class="dropdown-item-check">✓</span>` : null}
-                </button>
-                <button class="dropdown-item ${this.activeLevel === 'etage1' ? 'active' : ''}" @click=${() => { this.handleLevelSwitch('etage1'); this.activeDropdown = null; }}>
-                  <span>🏠</span>
-                  <span>1er Étage</span>
-                  ${this.activeLevel === 'etage1' ? html`<span class="dropdown-item-check">✓</span>` : null}
-                </button>
-                <button class="dropdown-item ${this.activeLevel === 'etage2' ? 'active' : ''}" @click=${() => { this.handleLevelSwitch('etage2'); this.activeDropdown = null; }}>
-                  <span>🏠</span>
-                  <span>2ème Étage</span>
-                  ${this.activeLevel === 'etage2' ? html`<span class="dropdown-item-check">✓</span>` : null}
-                </button>
-                <button class="dropdown-item ${this.activeLevel === 'etage3' ? 'active' : ''}" @click=${() => { this.handleLevelSwitch('etage3'); this.activeDropdown = null; }}>
-                  <span>🏠</span>
-                  <span>3ème Étage</span>
-                  ${this.activeLevel === 'etage3' ? html`<span class="dropdown-item-check">✓</span>` : null}
-                </button>
-                <button class="dropdown-item ${this.activeLevel === 'jardin' ? 'active' : ''}" @click=${() => { this.handleLevelSwitch('jardin'); this.activeDropdown = null; }}>
-                  <span>🌳</span>
-                  <span>Jardin</span>
-                  ${this.activeLevel === 'jardin' ? html`<span class="dropdown-item-check">✓</span>` : null}
-                </button>
-              </div>
-            ` : null}
+            ${this.activeDropdown === 'level' ? this.renderLevelMenu() : null}
           </div>
         </div>
 
@@ -3084,7 +2913,7 @@ export class HomeArchitectPanel extends LitElement {
             <button 
               class="btn-history" 
               @click=${this.handleUndo} 
-              ?disabled=${this.undoStack.length === 0}
+              ?disabled=${this.readOnly || !ws.canUndo()}
               title="Annuler la dernière action (Ctrl+Z / Cmd+Z)"
             >
               ↩️ Annuler
@@ -3092,7 +2921,7 @@ export class HomeArchitectPanel extends LitElement {
             <button 
               class="btn-history" 
               @click=${this.handleRedo} 
-              ?disabled=${this.redoStack.length === 0}
+              ?disabled=${this.readOnly || !ws.canRedo()}
               title="Rétablir l'action (Ctrl+Y / Cmd+Shift+Z)"
             >
               ↪️ Rétablir
@@ -3183,12 +3012,19 @@ export class HomeArchitectPanel extends LitElement {
             <span>${this.isFullscreen ? 'Sortir du plein écran' : 'Plein écran'}</span>
           </button>
 
-          <!-- Sauvegarde Directe -->
-          <button class="btn-primary" @click=${this.saveProject}>
-            💾 Sauvegarder
+          <!-- Sauvegarde (indicateur des modifications non sauvegardées) -->
+          <button
+            class="btn-primary ${activeDirty ? 'is-dirty' : ''}"
+            ?disabled=${this.readOnly || !ready || saving}
+            @click=${this.openSaveModal}
+            title=${activeDirty ? 'Modifications non sauvegardées (Ctrl+S / Cmd+S)' : 'Sauvegarder le plan (Ctrl+S / Cmd+S)'}
+          >
+            ${saving ? '⏳ Sauvegarde…' : html`💾 Sauvegarder${activeDirty ? html` <span class="dirty-dot">●</span>` : null}`}
           </button>
         </div>
       </header>
+
+      ${this.persistence.renderBanners(this.updateBanners())}
 
       <div class="workspace">
         <div class="canvas-area">
@@ -3198,22 +3034,25 @@ export class HomeArchitectPanel extends LitElement {
             .doorFlipSide=${this.doorFlipSide}
             .doorFlipDirection=${this.doorFlipDirection}
             .windowSashCount=${this.windowSashCount}
-            .canUndo=${this.undoStack.length > 0}
-            .canRedo=${this.redoStack.length > 0}
+            .canUndo=${!this.readOnly && ws.canUndo()}
+            .canRedo=${!this.readOnly && ws.canRedo()}
+            .readOnly=${this.readOnly}
             @undo=${this.handleUndo}
             @redo=${this.handleRedo}
             @tool-selected=${this.handleToolSelected}
             @door-config-changed=${this.handleDoorConfigChanged}
             @window-config-changed=${this.handleWindowConfigChanged}
             @wall-thickness-changed=${this.handleWallThicknessChanged}
-            @open-wizard=${() => this.isWizardOpen = true}
-            @open-import-modal=${() => this.isImportModalOpen = true}
-            @trigger-upload-background=${() => this.isImportModalOpen = true}
+            @open-wizard=${() => this.openWizard()}
+            @open-import-modal=${() => this.openImportModal()}
+            @trigger-upload-background=${() => this.openImportModal()}
           ></home-architect-toolbar>
 
           <home-architect-canvas
             .hass=${this.hass}
             .project=${this.project}
+            .backgroundSrc=${this.persistence.background.src}
+            .readOnly=${this.readOnly}
             .activeTool=${this.activeTool}
             .currentWallThickness=${this.currentThickness}
             .currentOpeningWidth=${this.currentOpeningWidth}
@@ -3224,7 +3063,7 @@ export class HomeArchitectPanel extends LitElement {
             .selectedElements=${this.selectedElements}
             .showDimensions=${this.showDimensions}
             .showThermalHeatmap=${this.showThermalHeatmap}
-            .ghostProject=${this.getGhostProject()}
+            .ghostProject=${this.persistence.ghostProject(this.ghostLevel())}
             @selection-changed=${(e: any) => {
               this.selectedElements = e.detail.selectedElements;
               if (this.selectedElements.bindingIds.length > 0) {
@@ -3244,7 +3083,7 @@ export class HomeArchitectPanel extends LitElement {
             @project-changed=${this.handleProjectChanged}
             @request-calibration=${this.handleRequestCalibration}
             @request-rescale=${this.handleRequestRescale}
-            @background-image-loaded=${(e: any) => this.loadBackgroundImage(e.detail.dataUrl, '🖼️ Image de plan glissée-déposée !')}
+            @background-image-loaded=${(e: any) => void this.loadBackgroundImage(e.detail.dataUrl, '🖼️ Image de plan glissée-déposée !')}
           ></home-architect-canvas>
 
           <!-- Floating HUD de sélection multi-éléments repositionné en bas -->
@@ -3319,7 +3158,7 @@ export class HomeArchitectPanel extends LitElement {
                     </div>
                   ` : null}
 
-                  <button class="btn-delete-selection" @click=${this.handleDeleteSelected} title="Supprimer les éléments sélectionnés (Touche Suppr / Retour)">
+                  <button class="btn-delete-selection" ?disabled=${this.readOnly} @click=${this.handleDeleteSelected} title="Supprimer les éléments sélectionnés (Touche Suppr / Retour)">
                     <span>🗑️</span>
                     <span>Supprimer</span>
                   </button>
@@ -3402,7 +3241,7 @@ export class HomeArchitectPanel extends LitElement {
       <!-- Modal d'Import Automatisé -->
       ${this.isImportModalOpen ? html`
         <home-architect-import-modal
-          .currentLevel=${this.activeLevel}
+          .currentLevel=${this.activeLevel ?? DEFAULT_LEVEL}
           @import-confirmed=${this.handleImportConfirmed}
           @close=${() => this.isImportModalOpen = false}
         ></home-architect-import-modal>
@@ -3453,6 +3292,10 @@ export class HomeArchitectPanel extends LitElement {
         <home-architect-export-modal
           .project=${this.project}
           .hass=${this.hass}
+          .backgroundSrc=${this.persistence.background.src}
+          .readOnly=${this.readOnly}
+          @export-frame-changed=${this.handleExportFrameChanged}
+          @project-published=${this.handleProjectPublished}
           @close=${() => this.isExportModalOpen = false}
         ></home-architect-export-modal>
       ` : null}
@@ -3462,9 +3305,12 @@ export class HomeArchitectPanel extends LitElement {
         <home-architect-save-load-modal
           .hass=${this.hass}
           .project=${this.project}
-          .initialTab=${this.saveLoadModalTab}
+          .mode=${this.saveLoadModalTab}
+          .readOnly=${this.readOnly}
+          .dirtyProjectIds=${dirtyIds}
           @save-confirmed=${this.handleSaveConfirmed}
           @load-project=${this.handleLoadProject}
+          @project-deleted=${(e: CustomEvent<{ projectId: string }>) => this.persistence.projectDeleted(e.detail.projectId, { remote: false })}
           @close=${() => this.isSaveLoadModalOpen = false}
         ></home-architect-save-load-modal>
       ` : null}
@@ -3499,7 +3345,7 @@ export class HomeArchitectPanel extends LitElement {
               <div class="dialog-form-group">
                 <label class="dialog-label">Catégorie / Niveau :</label>
                 <div class="category-grid">
-                  ${PLAN_CATEGORIES.map(cat => html`
+                  ${[...KNOWN_LEVELS, CUSTOM_CATEGORY_DEF].map(cat => html`
                     <button
                       type="button"
                       class="category-btn ${this.newPlanCategory === cat.id ? 'active' : ''}"
@@ -3514,7 +3360,7 @@ export class HomeArchitectPanel extends LitElement {
             </div>
             <div class="modal-dialog-footer">
               <button class="btn-dialog-cancel" @click=${() => this.isNewPlanModalOpen = false}>Annuler</button>
-              <button class="btn-dialog-confirm primary" @click=${() => this.handleConfirmNewPlan()}>
+              <button class="btn-dialog-confirm primary" @click=${() => void this.handleConfirmNewPlan()}>
                 <span>✨</span>
                 <span>Créer le plan</span>
               </button>
@@ -3540,7 +3386,7 @@ export class HomeArchitectPanel extends LitElement {
             <div class="modal-dialog-body">
               <p style="color: #f1f5f9; margin: 0; line-height: 1.5; font-size: 0.92rem;">
                 Êtes-vous sûr de vouloir <strong>effacer tout le contenu</strong> du plan actuel
-                (<strong>${this.project.name || this.getLevelLabel(this.activeLevel)}</strong>) ?
+                (<strong>${this.project.name || getLevelLabel(this.project.category)}</strong>) ?
               </p>
 
               <div class="reset-summary-box">
@@ -3549,7 +3395,7 @@ export class HomeArchitectPanel extends LitElement {
                 <div>🏷️ <strong>Pièces :</strong> ${this.project.rooms.length}</div>
                 <div>⚡ <strong>Entités HA :</strong> ${this.project.bindings.length}</div>
                 <div>🛋️ <strong>Meubles :</strong> ${this.project.furniture?.length || 0}</div>
-                <div>🖼️ <strong>Image de fond :</strong> ${this.project.background?.imageUrl ? 'Oui' : 'Non'}</div>
+                <div>🖼️ <strong>Image de fond :</strong> ${this.project.background ? 'Oui' : 'Non'}</div>
               </div>
 
               <p style="color: #94a3b8; font-size: 0.8rem; margin: 0;">
@@ -3567,74 +3413,19 @@ export class HomeArchitectPanel extends LitElement {
         </div>
       ` : null}
 
-      <!-- Modal Information & Lancement Mise à jour (DomoLink Suite) -->
-      ${this.isUpdateModalOpen ? html`
-        <div class="modal-backdrop" @click=${(e: MouseEvent) => { if (e.target === e.currentTarget) this.closeUpdateModal(); }}>
-          <div class="modal-dialog" style="max-width: 540px; border-color: rgba(245, 158, 11, 0.45); box-shadow: 0 25px 60px rgba(0,0,0,0.8), 0 0 25px rgba(245, 158, 11, 0.25);">
-            <div class="modal-dialog-header" style="background: linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(217, 119, 6, 0.05)); border-bottom: 1px solid rgba(245, 158, 11, 0.25);">
-              <div class="modal-dialog-title-group">
-                <span class="modal-dialog-icon" style="background: linear-gradient(135deg, #f59e0b, #d97706); color: #fff; width: 38px; height: 38px; display: flex; align-items: center; justify-content: center; border-radius: 10px; font-size: 20px;">🚀</span>
-                <div>
-                  <h3 class="modal-dialog-title" style="color: #fff;">Mise à jour Home Architect</h3>
-                  <p class="modal-dialog-subtitle" style="color: #94a3b8;">Nouvelle version officielle disponible</p>
-                </div>
-              </div>
-              <button class="btn-dialog-close" @click=${() => this.closeUpdateModal()}>✕</button>
-            </div>
+      <!-- Modale Mise à jour (notification seulement : l'installation passe par HA) -->
+      ${this.isUpdateModalOpen && this.updateInfo?.available ? renderUpdateDialog(this.updateInfo, dirtyCount, {
+        onClose: () => this.closeUpdateModal(),
+        onOpenUpdates: () => this.openHaUpdates()
+      }) : null}
 
-            <div class="modal-dialog-body" style="gap: 16px;">
-              <!-- Comparateur de version -->
-              <div style="display: flex; align-items: center; justify-content: space-around; background: rgba(0,0,0,0.35); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 12px;">
-                <div style="text-align: center;">
-                  <div style="font-size: 11px; color: #94a3b8; font-weight: 600; text-transform: uppercase; margin-bottom: 4px;">Version installée</div>
-                  <div style="font-size: 16px; font-weight: 800; color: #fff; font-family: monospace;">v${VERSION}</div>
-                </div>
-                <div style="color: #f59e0b; font-size: 18px; font-weight: 800;">➔</div>
-                <div style="text-align: center;">
-                  <div style="font-size: 11px; color: #f59e0b; font-weight: 600; text-transform: uppercase; margin-bottom: 4px;">Nouvelle version</div>
-                  <div style="font-size: 16px; font-weight: 800; color: #10b981; font-family: monospace;">v${this.updateInfo.latestVersion}</div>
-                </div>
-              </div>
-
-              <!-- Changelog / Notes de version -->
-              <div>
-                <div style="font-size: 12px; font-weight: 700; color: #f1f5f9; margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">
-                  <span>📋</span> Notes de version & Nouveautés GitHub :
-                </div>
-                <div style="background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 12px; max-height: 160px; overflow-y: auto; font-size: 12px; color: #cbd5e1; line-height: 1.5; white-space: pre-wrap; font-family: -apple-system, BlinkMacSystemFont, sans-serif;">${this.updateInfo.releaseNotes || 'Mise à jour officielle de Home Architect.'}</div>
-              </div>
-
-              <!-- Note de sécurité -->
-              <div style="background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.25); border-radius: 10px; padding: 10px 12px; display: flex; align-items: flex-start; gap: 8px; font-size: 11.5px; color: #f8fafc; line-height: 1.45;">
-                <span style="font-size: 16px;">💡</span>
-                <div>
-                  L'installation remplace les fichiers par la release officielle GitHub, applique une sauvegarde préalable de sécurité, puis <strong>redémarre automatiquement Home Assistant</strong>.
-                </div>
-              </div>
-            </div>
-
-            <div class="modal-dialog-footer" style="justify-content: space-between;">
-              <a href="${this.updateInfo.releaseUrl || 'https://github.com/SocrateMobile/home-architect/releases'}" target="_blank" rel="noopener" style="font-size: 12px; color: #38bdf8; text-decoration: none; display: flex; align-items: center; gap: 4px;">
-                <span>🔗</span> Voir sur GitHub
-              </a>
-              <div style="display: flex; align-items: center; gap: 10px;">
-                <button class="btn-dialog-cancel" @click=${() => this.closeUpdateModal()}>Annuler</button>
-                <button 
-                  class="btn-dialog-confirm" 
-                  style="background: linear-gradient(135deg, #f59e0b, #d97706); color: white; border: none; box-shadow: 0 4px 14px rgba(245, 158, 11, 0.4);"
-                  @click=${() => this.executeAutoUpdate()}
-                >
-                  <span>🚀</span>
-                  <span>Confirmer et Mettre à jour</span>
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      ` : null}
+      <!-- Chargement bloquant, opération en cours, copies locales à restaurer, dialogue de choix -->
+      ${this.persistence.renderOverlays()}
     `;
   }
 }
+
+defineElement('home-architect-panel', HomeArchitectPanel);
 
 declare global {
   interface HTMLElementTagNameMap {

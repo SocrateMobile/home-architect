@@ -1,281 +1,239 @@
-import { HomeArchitectProject } from './types';
+import { EntityBinding, ExportFrame, HomeArchitectProject, TapActionType } from './types';
 import { SvgExporter } from './svg-exporter';
+import { defaultTapAction, entityDomain } from './project-model';
 
 export interface PictureElementsOptions {
-  imagePath?: string;
+  /** URL de l'image publiée (PublishInfo.url, avec ?v=<hash> pour invalider le cache). */
+  imageUrl: string;
+  /** Cadre du SVG publié ; à défaut, cadre figé du projet ou cadre calculé sur le contenu. */
+  frame?: ExportFrame;
+  /** Titre de la carte ; à défaut le nom du projet. */
   title?: string;
-  embedDataUri?: boolean;
-  svgContent?: string;
 }
 
 export interface CustomCardOptions {
   viewMode?: '2d' | '3d';
-  title?: string;
   height?: string;
+  showHeader?: boolean;
 }
 
-const EMOJI_TO_MDI: Record<string, string> = {
-  '💡': 'mdi:lightbulb',
-  '🛋️': 'mdi:lamp',
-  '🛋': 'mdi:wall-sconce-flat',
-  '🌟': 'mdi:ceiling-light',
-  '🔆': 'mdi:ceiling-light-outline',
-  '🏮': 'mdi:outdoor-lamp',
-  '🕯️': 'mdi:candle',
-  '🔦': 'mdi:spotlight-beam',
-  '🪩': 'mdi:led-strip-variant',
-  '✨': 'mdi:string-lights',
-  '🔌': 'mdi:power-socket-fr',
-  '⚡': 'mdi:toggle-switch',
-  '📺': 'mdi:television',
-  '☕': 'mdi:coffee-maker',
-  '💻': 'mdi:laptop',
-  '🔊': 'mdi:speaker',
-  '🖨️': 'mdi:printer',
-  '🎮': 'mdi:gamepad-variant',
-  '🔋': 'mdi:battery-charging',
-  '🪭': 'mdi:fan',
-  '🚶': 'mdi:motion-sensor',
-  '🏃': 'mdi:walk',
-  '👁️': 'mdi:radar',
-  '🚪': 'mdi:door',
-  '🪟': 'mdi:window-closed',
-  '🚗': 'mdi:garage',
-  '🚨': 'mdi:alarm-light',
-  '🔔': 'mdi:doorbell',
-  '🐾': 'mdi:paw',
-  '💧': 'mdi:water-alert',
-  '🔥': 'mdi:smoke-detector',
-  '📬': 'mdi:mailbox',
-  '🌡️': 'mdi:thermometer',
-  '☀️': 'mdi:weather-sunny',
-  '💨': 'mdi:air-filter',
-  '❄️': 'mdi:air-conditioner',
-  '♨️': 'mdi:water-boiler',
-  '⛺': 'mdi:awning',
-  '↕️': 'mdi:arrow-up-down',
-  '📻': 'mdi:speaker',
-  '🎵': 'mdi:music',
-  '🎬': 'mdi:projector',
-  '📷': 'mdi:camera',
-  '📹': 'mdi:cctv',
-  '🎥': 'mdi:video',
-  '🌀': 'mdi:fan-chevron-up',
-  '🌪️': 'mdi:ceiling-fan',
-  '🤖': 'mdi:robot-vacuum',
-  '🧹': 'mdi:broom',
-  '🔒': 'mdi:lock',
-  '🛡️': 'mdi:shield-home',
-  '🗝️': 'mdi:key'
+/** Valeur sérialisable par toYaml. */
+export type YamlValue = string | number | boolean | null | YamlValue[] | { [key: string]: YamlValue | undefined };
+
+/** Configuration d'action Lovelace (tap_action / hold_action). */
+interface ActionConfig {
+  [key: string]: string;
+  action: TapActionType;
+}
+
+/** Clé YAML laissée sans guillemets (identifiant simple) ; toute autre clé est citée. */
+const PLAIN_KEY = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
+/** Domaines affichés sous forme de valeur (state-label) plutôt que d'icône. */
+const LABEL_DOMAINS = new Set(['sensor', 'climate', 'input_number', 'number', 'counter']);
+
+/**
+ * Couleurs d'état modernes de HA (state-badge : --state-<domaine>-active-color, --state-inactive-color,
+ * --state-icon-color), adaptées au fond sombre du plan. Les autres domaines (binary_sensor, cover…)
+ * gardent les couleurs d'état de HA, qui tiennent compte de la device_class.
+ */
+const ICON_STYLE: Record<string, Record<string, string>> = {
+  light: { '--state-light-active-color': '#facc15' },
+  switch: { '--state-switch-active-color': '#38bdf8' },
 };
+const BASE_ICON_STYLE = {
+  '--state-icon-color': '#cbd5e1',
+  '--state-inactive-color': '#94a3b8',
+};
+const LABEL_STYLE = {
+  background: 'rgba(15, 23, 42, 0.85)',
+  border: '1px solid rgba(56, 189, 248, 0.5)',
+  'border-radius': '8px',
+  padding: '2px 8px',
+  'font-size': '11px',
+  'font-weight': '700',
+  color: '#38bdf8',
+};
+const CLIMATE_LABEL_STYLE = { ...LABEL_STYLE, border: '1px solid rgba(245, 158, 11, 0.5)', color: '#f59e0b' };
 
-function resolveMdiIcon(binding: any, defaultMdi?: string): string | undefined {
-  if (binding.mdiIcon) return binding.mdiIcon;
-  if (binding.icon && EMOJI_TO_MDI[binding.icon]) return EMOJI_TO_MDI[binding.icon];
-  if (binding.icon && binding.icon.startsWith('mdi:')) return binding.icon;
-  return defaultMdi;
+/**
+ * Chaîne YAML entre guillemets doubles, valide en YAML 1.1 (PyYAML) et 1.2 : échappe \ et ", les
+ * caractères de contrôle, DEL et C1, les séparateurs de ligne Unicode, le BOM et les surrogates isolés.
+ */
+export function yamlQuote(value: string): string {
+  let out = '"';
+  const s = String(value ?? '');
+  for (let i = 0; i < s.length; i++) {
+    const code = s.charCodeAt(i);
+    const ch = s[i];
+    if (code >= 0xd800 && code <= 0xdbff && i + 1 < s.length) {
+      const low = s.charCodeAt(i + 1);
+      if (low >= 0xdc00 && low <= 0xdfff) {
+        out += ch + s[i + 1]; // paire de surrogates valide (emoji…)
+        i++;
+        continue;
+      }
+    }
+    switch (ch) {
+      case '\\': out += '\\\\'; continue;
+      case '"': out += '\\"'; continue;
+      case '\n': out += '\\n'; continue;
+      case '\r': out += '\\r'; continue;
+      case '\t': out += '\\t'; continue;
+    }
+    const needsEscape = code < 0x20
+      || (code >= 0x7f && code <= 0x9f)
+      || code === 0x2028 || code === 0x2029 || code === 0xfeff
+      || (code >= 0xd800 && code <= 0xdfff)
+      || code === 0xfffe || code === 0xffff;
+    out += needsEscape ? `\\u${code.toString(16).padStart(4, '0')}` : ch;
+  }
+  return `${out}"`;
 }
 
-function yamlString(val: string): string {
-  return JSON.stringify(val ?? '');
+/** Ligne de commentaire YAML (une seule ligne, sans caractère de contrôle). */
+function yamlComment(text: string): string {
+  // eslint-disable-next-line no-control-regex -- suppression volontaire des caractères de contrôle
+  return `# ${String(text ?? '').replace(/[\x00-\x1f\x7f-\x9f\u2028\u2029]+/g, ' ').trim()}`;
 }
 
-function yamlComment(val: string): string {
-  return (val ?? '').replace(/[\r\n]+/g, ' ').replace(/[#]/g, '');
+function yamlKey(key: string): string {
+  return PLAIN_KEY.test(key) ? key : yamlQuote(key);
+}
+
+function yamlScalar(value: string | number | boolean | null): string {
+  if (value === null) return 'null';
+  if (typeof value === 'boolean') return value ? 'true' : 'false';
+  if (typeof value === 'number') return Number.isFinite(value) ? String(value) : '0';
+  return yamlQuote(value);
+}
+
+function isMapping(value: YamlValue): value is { [key: string]: YamlValue | undefined } {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function emitYaml(value: YamlValue, indent: number): string[] {
+  const pad = ' '.repeat(indent);
+  if (Array.isArray(value)) {
+    const lines: string[] = [];
+    for (const item of value) {
+      if (isMapping(item) || Array.isArray(item)) {
+        const nested = emitYaml(item, indent + 2);
+        if (nested.length === 0) {
+          lines.push(`${pad}- ${Array.isArray(item) ? '[]' : '{}'}`);
+          continue;
+        }
+        nested[0] = `${pad}- ${nested[0].slice(indent + 2)}`;
+        lines.push(...nested);
+      } else {
+        lines.push(`${pad}- ${yamlScalar(item)}`);
+      }
+    }
+    return lines;
+  }
+  if (isMapping(value)) {
+    const lines: string[] = [];
+    for (const [key, v] of Object.entries(value)) {
+      if (v === undefined) continue;
+      if (Array.isArray(v) || isMapping(v)) {
+        const nested = emitYaml(v, indent + 2);
+        if (nested.length === 0) {
+          lines.push(`${pad}${yamlKey(key)}: ${Array.isArray(v) ? '[]' : '{}'}`);
+        } else {
+          lines.push(`${pad}${yamlKey(key)}:`, ...nested);
+        }
+      } else {
+        lines.push(`${pad}${yamlKey(key)}: ${yamlScalar(v)}`);
+      }
+    }
+    return lines;
+  }
+  return [`${pad}${yamlScalar(value)}`];
+}
+
+/** Sérialise une valeur en YAML (bloc), toutes les chaînes entre guillemets. */
+export function toYaml(value: YamlValue): string {
+  return `${emitYaml(value, 0).join('\n')}\n`;
+}
+
+/** Configuration d'action : l'action 'navigate' sans chemin retombe sur `fallback`. */
+function actionConfig(action: TapActionType, binding: EntityBinding, fallback: TapActionType): ActionConfig {
+  if (action === 'navigate') {
+    return binding.navigationPath ? { action, navigation_path: binding.navigationPath } : { action: fallback };
+  }
+  return { action };
+}
+
+/** Élément picture-elements d'une entité placée sur le plan. */
+function bindingElement(binding: EntityBinding, frame: ExportFrame): { [key: string]: YamlValue } {
+  const { left, top } = SvgExporter.worldToPercentage(binding.position, frame);
+  const domain = entityDomain(binding.entityId);
+  const defaultTap = defaultTapAction(binding.entityId);
+  const isLabel = LABEL_DOMAINS.has(domain);
+
+  const element: { [key: string]: YamlValue } = {
+    type: isLabel ? 'state-label' : 'state-icon',
+    entity: binding.entityId,
+  };
+  // climate : température mesurée, formatée par HA avec l'unité de l'installation (°C ou °F).
+  if (domain === 'climate') element.attribute = 'current_temperature';
+  // Icône forcée seulement si l'utilisateur l'a choisie : sinon HA garde l'icône d'état / device_class.
+  if (!isLabel && binding.mdiIcon) element.icon = binding.mdiIcon;
+  // Infobulle : HA affiche le friendly_name courant ; seul un nom saisi par l'utilisateur est figé.
+  if (binding.customName) element.title = binding.customName;
+  element.tap_action = actionConfig(binding.tapAction ?? defaultTap, binding, defaultTap);
+  element.hold_action = actionConfig(binding.holdAction ?? 'more-info', binding, 'more-info');
+  element.style = {
+    top: `${top}%`,
+    left: `${left}%`,
+    transform: 'translate(-50%, -50%)',
+    ...(isLabel
+      ? (domain === 'climate' ? CLIMATE_LABEL_STYLE : LABEL_STYLE)
+      : { ...BASE_ICON_STYLE, ...ICON_STYLE[domain] }),
+  };
+  return element;
 }
 
 export class LovelaceGenerator {
-  /**
-   * Génère la configuration YAML complète de la carte native 'picture-elements' de Home Assistant
-   */
-  public static generatePictureElementsYaml(
+  /** Objet de configuration de la carte native 'picture-elements' (positions en % du cadre d'export). */
+  public static buildPictureElementsConfig(
     project: HomeArchitectProject,
-    options?: PictureElementsOptions
-  ): string {
-    let resolvedImage = options?.imagePath || `/local/plan_${project.id || 'rdc'}.svg`;
-    if (options?.embedDataUri && options?.svgContent) {
-      try {
-        const utf8Bytes = new TextEncoder().encode(options.svgContent);
-        let binary = '';
-        for (let i = 0; i < utf8Bytes.length; i++) {
-          binary += String.fromCharCode(utf8Bytes[i]);
-        }
-        resolvedImage = `data:image/svg+xml;base64,${btoa(binary)}`;
-      } catch (e) {
-        resolvedImage = options.imagePath || `/local/plan_${project.id || 'rdc'}.svg`;
-      }
-    }
-
-    const opts = {
-      title: project.name || 'Plan Interactif',
-      ...options,
-      imagePath: resolvedImage
+    options: PictureElementsOptions
+  ): { [key: string]: YamlValue } {
+    const frame = SvgExporter.resolveExportFrame(project, options.frame);
+    const elements = (project.bindings || [])
+      .filter(b => b && b.position && typeof b.entityId === 'string' && b.entityId.includes('.'))
+      .map(b => bindingElement(b, frame));
+    return {
+      type: 'picture-elements',
+      title: options.title ?? project.name ?? '',
+      image: options.imageUrl,
+      // Toujours un tableau (jamais null) : picture-elements refuse une liste absente.
+      elements,
     };
-
-    const bbox = SvgExporter.calculateBoundingBox(project);
-    const bindings = project.bindings || [];
-
-    let yaml = `# ========================================================\n`;
-    yaml += `# CARTE LOVELACE PICTURE-ELEMENTS (NATIVE HOME ASSISTANT)\n`;
-    yaml += `# Générée automatiquement par DomoLink Plan / Home Architect\n`;
-    yaml += `# ========================================================\n`;
-    yaml += `type: picture-elements\n`;
-    yaml += `title: ${yamlString(opts.title)}\n`;
-    yaml += `image: ${yamlString(opts.imagePath)}\n`;
-    yaml += `elements:\n`;
-
-    if (bindings.length === 0) {
-      yaml += `  # Aucune entité liée pour le moment. Glissez-déposez des entités sur le plan !\n`;
-      return yaml;
-    }
-
-    for (const binding of bindings) {
-      const pos = binding.position || { x: 0, y: 0 };
-      const { left, top } = SvgExporter.worldToPercentage(pos, bbox);
-      const entityId = binding.entityId || 'sensor.unknown';
-      const parts = entityId.split('.');
-      const domain = parts[0] || 'sensor';
-      const defaultName = (parts[1] || 'entity').replace(/_/g, ' ');
-      const customName = binding.customName || defaultName;
-      const safeComment = yamlComment(customName);
-      const mdi = resolveMdiIcon(binding);
-
-      if (domain === 'light') {
-        yaml += `  # 💡 Lumière : ${safeComment}\n`;
-        yaml += `  - type: state-icon\n`;
-        yaml += `    entity: ${entityId}\n`;
-        if (mdi) yaml += `    icon: ${mdi}\n`;
-        yaml += `    title: ${yamlString(customName)}\n`;
-        yaml += `    tap_action:\n`;
-        yaml += `      action: toggle\n`;
-        yaml += `    hold_action:\n`;
-        yaml += `      action: more-info\n`;
-        yaml += `    style:\n`;
-        yaml += `      top: ${top}%\n`;
-        yaml += `      left: ${left}%\n`;
-        yaml += `      transform: translate(-50%, -50%)\n`;
-        yaml += `      --paper-item-icon-active-color: "#facc15"\n`;
-        yaml += `      --paper-item-icon-color: "#94a3b8"\n\n`;
-      } 
-      else if (domain === 'binary_sensor') {
-        const isRadar = entityId.includes('presence') || entityId.includes('occupancy') || entityId.includes('radar') || entityId.includes('motion') || entityId.includes('mouvement');
-        yaml += `  # 📡 ${isRadar ? 'Radar de Présence' : 'Capteur'} : ${safeComment}\n`;
-        yaml += `  - type: state-icon\n`;
-        yaml += `    entity: ${entityId}\n`;
-        if (mdi) yaml += `    icon: ${mdi}\n`;
-        yaml += `    title: ${yamlString(customName)}\n`;
-        yaml += `    tap_action:\n`;
-        yaml += `      action: more-info\n`;
-        yaml += `    style:\n`;
-        yaml += `      top: ${top}%\n`;
-        yaml += `      left: ${left}%\n`;
-        yaml += `      transform: translate(-50%, -50%)\n`;
-        yaml += `      --paper-item-icon-active-color: "#ef4444"\n`;
-        yaml += `      --paper-item-icon-color: "#10b981"\n\n`;
-      } 
-      else if (domain === 'sensor') {
-        const isTemp = entityId.includes('temp') || entityId.includes('temperature');
-        yaml += `  # ${isTemp ? '🌡️ Température' : '📊 Capteur'} : ${safeComment}\n`;
-        yaml += `  - type: state-label\n`;
-        yaml += `    entity: ${entityId}\n`;
-        yaml += `    title: ${yamlString(customName)}\n`;
-        yaml += `    tap_action:\n`;
-        yaml += `      action: more-info\n`;
-        yaml += `    style:\n`;
-        yaml += `      top: ${top}%\n`;
-        yaml += `      left: ${left}%\n`;
-        yaml += `      transform: translate(-50%, -50%)\n`;
-        yaml += `      background: "rgba(15, 23, 42, 0.85)"\n`;
-        yaml += `      border: "1px solid rgba(56, 189, 248, 0.5)"\n`;
-        yaml += `      border-radius: "8px"\n`;
-        yaml += `      padding: "2px 8px"\n`;
-        yaml += `      font-size: "11px"\n`;
-        yaml += `      font-weight: "700"\n`;
-        yaml += `      color: "#38bdf8"\n`;
-        yaml += `      backdrop-filter: "blur(6px)"\n\n`;
-      } 
-      else if (domain === 'climate') {
-        yaml += `  # ❄️ Climatisation / Thermostat : ${safeComment}\n`;
-        yaml += `  - type: state-label\n`;
-        yaml += `    entity: ${entityId}\n`;
-        yaml += `    attribute: current_temperature\n`;
-        yaml += `    suffix: "°C"\n`;
-        yaml += `    title: ${yamlString(customName)}\n`;
-        yaml += `    tap_action:\n`;
-        yaml += `      action: more-info\n`;
-        yaml += `    style:\n`;
-        yaml += `      top: ${top}%\n`;
-        yaml += `      left: ${left}%\n`;
-        yaml += `      transform: translate(-50%, -50%)\n`;
-        yaml += `      background: "rgba(15, 23, 42, 0.85)"\n`;
-        yaml += `      border: "1px solid rgba(245, 158, 11, 0.5)"\n`;
-        yaml += `      border-radius: "8px"\n`;
-        yaml += `      padding: "2px 8px"\n`;
-        yaml += `      font-size: "11px"\n`;
-        yaml += `      font-weight: "700"\n`;
-        yaml += `      color: "#f59e0b"\n`;
-        yaml += `      backdrop-filter: "blur(6px)"\n\n`;
-      } 
-      else if (domain === 'switch') {
-        yaml += `  # 🔌 Interrupteur / Prise : ${safeComment}\n`;
-        yaml += `  - type: state-icon\n`;
-        yaml += `    entity: ${entityId}\n`;
-        if (mdi) yaml += `    icon: ${mdi}\n`;
-        yaml += `    title: ${yamlString(customName)}\n`;
-        yaml += `    tap_action:\n`;
-        yaml += `      action: toggle\n`;
-        yaml += `    hold_action:\n`;
-        yaml += `      action: more-info\n`;
-        yaml += `    style:\n`;
-        yaml += `      top: ${top}%\n`;
-        yaml += `      left: ${left}%\n`;
-        yaml += `      transform: translate(-50%, -50%)\n`;
-        yaml += `      --paper-item-icon-active-color: "#38bdf8"\n`;
-        yaml += `      --paper-item-icon-color: "#64748b"\n\n`;
-      } 
-      else {
-        yaml += `  # ⚡ Entité : ${safeComment}\n`;
-        yaml += `  - type: state-icon\n`;
-        yaml += `    entity: ${entityId}\n`;
-        if (mdi) yaml += `    icon: ${mdi}\n`;
-        yaml += `    title: ${yamlString(customName)}\n`;
-        yaml += `    tap_action:\n`;
-        yaml += `      action: more-info\n`;
-        yaml += `    style:\n`;
-        yaml += `      top: ${top}%\n`;
-        yaml += `      left: ${left}%\n`;
-        yaml += `      transform: translate(-50%, -50%)\n\n`;
-      }
-    }
-
-    return yaml;
   }
 
   /**
-   * Génère la configuration YAML pour la carte Lovelace personnalisée intégrée 'home-architect-card'
+   * YAML de la carte native 'picture-elements' : l'image est l'URL publiée du plan, les positions
+   * sont calculées sur le même cadre que le SVG publié.
    */
-  public static generateHomeArchitectCardYaml(
-    project: HomeArchitectProject,
-    options?: CustomCardOptions
-  ): string {
-    const opts = {
-      viewMode: '2d',
-      title: project.name || 'Plan de Maison',
-      height: '520px',
-      ...options
+  public static generatePictureElementsYaml(project: HomeArchitectProject, options: PictureElementsOptions): string {
+    const header = [
+      yamlComment(`Home Architect — carte picture-elements du plan « ${project.name || project.id} »`),
+      yamlComment('Republiez le plan depuis le studio après chaque modification, puis recollez ce code.'),
+    ];
+    return `${header.join('\n')}\n${toYaml(this.buildPictureElementsConfig(project, options))}`;
+  }
+
+  /** YAML de la carte personnalisée 'home-architect-card' (lit le projet sauvegardé sur le serveur). */
+  public static generateHomeArchitectCardYaml(project: HomeArchitectProject, options?: CustomCardOptions): string {
+    const config: { [key: string]: YamlValue } = {
+      type: 'custom:home-architect-card',
+      project_id: project.id,
+      view_mode: options?.viewMode ?? '2d',
+      show_header: options?.showHeader ?? true,
+      height: options?.height ?? '520px',
     };
-
-    let yaml = `# ========================================================\n`;
-    yaml += `# CARTE LOVELACE PERSONNALISÉE (HOME ARCHITECT CARD)\n`;
-    yaml += `# Rendu vectoriel direct 2D / 3D, états et clics en direct\n`;
-    yaml += `# ========================================================\n`;
-    yaml += `type: custom:home-architect-card\n`;
-    yaml += `project_id: ${yamlString(project.id || 'rdc')}\n`;
-    yaml += `title: ${yamlString(opts.title)}\n`;
-    yaml += `view_mode: ${opts.viewMode || '2d'} # '2d' ou '3d'\n`;
-    yaml += `show_header: true\n`;
-    yaml += `height: ${yamlString(opts.height)}\n`;
-
-    return yaml;
+    return `${yamlComment(`Home Architect — carte intégrée du plan « ${project.name || project.id} »`)}\n${toYaml(config)}`;
   }
 }

@@ -1,30 +1,113 @@
-import { LitElement, html, css } from 'lit';
-import { customElement, property, state } from 'lit/decorators.js';
-import { FURNITURE_CATALOG, FurnitureCatalogTemplate } from '../core/furniture-catalog';
+import { LitElement, html, css, nothing, PropertyValues } from 'lit';
+import { property, state } from 'lit/decorators.js';
+import { repeat } from 'lit/directives/repeat.js';
+import { live } from 'lit/directives/live.js';
+import { defineElement } from '../core/define';
+import {
+  FURNITURE_CATALOG, FURNITURE_CATEGORY_LABELS, FURNITURE_FILTER_CATEGORIES, FurnitureCatalogTemplate
+} from '../core/furniture-catalog';
+import { entityDomain } from '../core/project-model';
 
-interface EntityItem {
-  entity_id: string;
+/**
+ * Données transportées par un glisser-déposer depuis le volet (MIME 'application/json'),
+ * reprises telles quelles par l'événement 'drawer-item-picked' (« toucher pour placer »).
+ * Aucune icône ni aucun nom n'est transmis : le plan affiche l'icône dynamique de HA et
+ * le friendly_name courant (une icône ou un nom ne sont enregistrés que s'ils sont choisis).
+ */
+export type DrawerItemPayload =
+  | { kind: 'entity'; entityId: string; domain: string }
+  | { kind: 'furniture'; furnitureType: string };
+
+/** Entité indexée pour la recherche (recalculée seulement si l'ensemble des entités ou leurs noms changent). */
+interface EntityRow {
+  entityId: string;
   name: string;
-  state: string;
   domain: string;
-  icon: string;
-  unit?: string;
+  areaId?: string;
+  /** Masquée, ou de catégorie diagnostic/configuration dans le registre des entités. */
+  secondary: boolean;
+  /** Nom + entity_id en minuscules, sans accents. */
+  searchText: string;
 }
 
+interface EntityFilter {
+  id: string;
+  label: string;
+  /** Domaines retenus ; vide = tous. */
+  domains: readonly string[];
+}
+
+const ENTITY_FILTERS: readonly EntityFilter[] = [
+  { id: 'all', label: 'Tous', domains: [] },
+  { id: 'lights', label: 'Lumières', domains: ['light'] },
+  { id: 'switches', label: 'Prises & interrupteurs', domains: ['switch', 'input_boolean'] },
+  { id: 'sensors', label: 'Capteurs', domains: ['sensor', 'binary_sensor'] },
+  { id: 'climate', label: 'Climat', domains: ['climate', 'water_heater', 'humidifier'] },
+  { id: 'covers', label: 'Volets & vannes', domains: ['cover', 'valve'] },
+  { id: 'fans', label: 'Ventilation', domains: ['fan'] },
+  { id: 'media', label: 'Médias', domains: ['media_player', 'remote'] },
+  { id: 'security', label: 'Serrures & alarmes', domains: ['lock', 'alarm_control_panel', 'siren'] },
+  { id: 'cameras', label: 'Caméras', domains: ['camera'] },
+  { id: 'actions', label: 'Scènes & scripts', domains: ['scene', 'script', 'button', 'input_button', 'automation'] },
+];
+
+/** Icône d'affichage dans la liste uniquement (jamais enregistrée dans la liaison). */
 const DOMAIN_ICONS: Record<string, string> = {
   light: '💡',
   switch: '🔌',
+  input_boolean: '🔘',
   binary_sensor: '🚨',
-  climate: '🌡️',
   sensor: '📊',
+  climate: '🌡️',
+  water_heater: '♨️',
+  humidifier: '💧',
   camera: '📷',
   media_player: '📺',
+  remote: '🎛️',
   cover: '🪟',
+  valve: '🚰',
   fan: '💨',
-  default: '⚡'
+  lock: '🔒',
+  alarm_control_panel: '🛡️',
+  siren: '📢',
+  scene: '🎬',
+  script: '📜',
+  automation: '🤖',
+  button: '🔘',
+  input_button: '🔘',
+  person: '👤',
+  device_tracker: '📍',
+  vacuum: '🧹',
 };
+const DEFAULT_DOMAIN_ICON = '⚡';
 
-@customElement('home-architect-entity-drawer')
+/** Nombre d'entités rendues avant le bouton « Afficher plus ». */
+const PAGE_SIZE = 200;
+const ALL_AREAS = '';
+
+const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
+
+function normalizeSearch(text: string): string {
+  return text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+}
+
+/** Réglages régionaux qui changent le texte des états (comparés par valeur : l'objet peut être recréé). */
+function localeKey(hass: any): string {
+  const l = hass?.locale;
+  return [hass?.language, l?.language, l?.number_format, l?.time_format, l?.date_format, l?.time_zone].join('|');
+}
+
+function friendlyName(stateObj: any, entityId: string): string {
+  const name = stateObj?.attributes?.friendly_name;
+  return typeof name === 'string' && name.trim() !== '' ? name : entityId;
+}
+
+/** Filtres de meubles : catégories présentes dans le catalogue (table et libellés du catalogue). */
+const FURNITURE_FILTERS: ReadonlyArray<{ id: string; label: string }> = [
+  { id: 'all', label: 'Tous' },
+  ...FURNITURE_FILTER_CATEGORIES.map(cat => ({ id: cat, label: FURNITURE_CATEGORY_LABELS[cat] ?? cat })),
+];
+
 export class HomeArchitectEntityDrawer extends LitElement {
   static styles = css`
     :host {
@@ -47,6 +130,20 @@ export class HomeArchitectEntityDrawer extends LitElement {
       width: 0 !important;
       overflow: hidden;
       border-left: none;
+      box-shadow: none;
+    }
+
+    /* Écran étroit : tiroir superposé au canevas au lieu d'une colonne qui l'écrase
+       (la barre d'outils et ses sous-menus restent au-dessus). */
+    @media (max-width: 768px) {
+      :host {
+        position: absolute;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        height: auto;
+        width: min(320px, calc(100% - 48px));
+      }
     }
 
     .drawer-header {
@@ -362,6 +459,65 @@ export class HomeArchitectEntityDrawer extends LitElement {
       color: #64748b;
       font-size: 0.83rem;
     }
+
+    .filters-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.74rem;
+      color: #94a3b8;
+    }
+
+    .area-select {
+      flex: 1;
+      min-width: 0;
+      background: rgba(30, 41, 59, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 6px;
+      color: #f1f5f9;
+      padding: 4px 6px;
+      font-size: 0.74rem;
+      outline: none;
+    }
+
+    .area-select:focus {
+      border-color: #38bdf8;
+    }
+
+    .hidden-toggle {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .results-info {
+      font-size: 0.72rem;
+      color: #64748b;
+      padding: 0 2px;
+    }
+
+    .entity-card:focus-visible,
+    .furniture-card:focus-visible {
+      outline: 2px solid #38bdf8;
+      outline-offset: 1px;
+    }
+
+    .more-btn {
+      background: rgba(51, 65, 85, 0.5);
+      border: 1px dashed rgba(56, 189, 248, 0.4);
+      border-radius: 8px;
+      color: #38bdf8;
+      padding: 8px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .more-btn:hover {
+      background: rgba(56, 189, 248, 0.12);
+    }
   `;
 
   @property({ type: Object })
@@ -377,59 +533,180 @@ export class HomeArchitectEntityDrawer extends LitElement {
   private furnitureCategory: string = 'all';
 
   @state()
-  private searchQuery: string = '';
+  private entitySearch: string = '';
+
+  @state()
+  private furnitureSearch: string = '';
 
   @state()
   private activeCategory: string = 'all';
 
-  private getEntities(): EntityItem[] {
-    if (this.hass?.states) {
-      return Object.values(this.hass.states).map((s: any) => {
-        const domain = s.entity_id.split('.')[0];
-        const icon = DOMAIN_ICONS[domain] || DOMAIN_ICONS.default;
-        return {
-          entity_id: s.entity_id,
-          name: s.attributes?.friendly_name || s.entity_id,
-          state: s.state,
-          domain,
-          icon,
-          unit: s.attributes?.unit_of_measurement
-        };
+  @state()
+  private areaFilter: string = ALL_AREAS;
+
+  @state()
+  private showSecondary: boolean = false;
+
+  @state()
+  private visibleLimit: number = PAGE_SIZE;
+
+  // Index des entités : reconstruit seulement si l'ensemble des entity_id, leurs noms ou les registres changent.
+  private rowsSource: { states: unknown; entities: unknown; devices: unknown } | null = null;
+  private rows: EntityRow[] = [];
+  /** Nombre de clés de hass.states à la construction de l'index (les identifiants invalides n'y figurent pas). */
+  private indexedStateCount = 0;
+  private availableDomains = new Set<string>();
+  private secondaryCount = 0;
+  private areaOptions: { rows: EntityRow[]; areas: unknown; options: Array<{ id: string; name: string }> } | null = null;
+
+  // Liste filtrée : recalculée seulement si l'index ou les critères changent.
+  private filteredFor: { rows: EntityRow[]; key: string } | null = null;
+  private filtered: EntityRow[] = [];
+
+  // Dernier rendu : sert à ignorer les changements d'état d'entités non affichées.
+  private renderedRows: EntityRow[] | null = null;
+  private renderedIds: string[] = [];
+
+  protected shouldUpdate(changed: PropertyValues<this>): boolean {
+    if (!changed.has('hass') || changed.size > 1) return true;
+    // Volet replié ou onglet Meubles : un changement d'état HA n'a aucun effet visible.
+    if (this.collapsed || this.activeTab !== 'entities') return false;
+    const oldHass = changed.get('hass');
+    const oldStates = oldHass?.states;
+    const newStates = this.hass?.states;
+    if (!oldStates || !newStates) return true;
+    // Zones renommées / ajoutées (liste du filtre) ou langue / format régional changés (affichage des états).
+    if (oldHass.areas !== this.hass.areas || localeKey(oldHass) !== localeKey(this.hass)) return true;
+    if (this.getRows() !== this.renderedRows) return true;
+    return this.renderedIds.some(id => oldStates[id] !== newStates[id]);
+  }
+
+  private getRows(): EntityRow[] {
+    const hass = this.hass;
+    const states: Record<string, any> | undefined = hass?.states;
+    if (!states) {
+      this.rowsSource = null;
+      this.indexedStateCount = 0;
+      this.rows = [];
+      this.availableDomains = new Set();
+      this.secondaryCount = 0;
+      return this.rows;
+    }
+    const src = this.rowsSource;
+    if (src && src.entities === hass.entities && src.devices === hass.devices) {
+      if (src.states === states || this.hasSameEntities(states)) {
+        src.states = states;
+        return this.rows;
+      }
+    }
+    this.rowsSource = { states, entities: hass.entities, devices: hass.devices };
+    this.indexedStateCount = Object.keys(states).length;
+    this.rows = this.buildRows(states, hass.entities, hass.devices);
+    this.availableDomains = new Set(this.rows.map(r => r.domain));
+    this.secondaryCount = this.rows.reduce((n, r) => n + (r.secondary ? 1 : 0), 0);
+    return this.rows;
+  }
+
+  /** Même ensemble d'entity_id et mêmes noms que l'index actuel (parcours linéaire, sans allocation). */
+  private hasSameEntities(states: Record<string, any>): boolean {
+    let count = 0;
+    for (const id in states) {
+      if (Object.prototype.hasOwnProperty.call(states, id)) count++;
+    }
+    if (count !== this.indexedStateCount) return false;
+    for (const row of this.rows) {
+      const stateObj = states[row.entityId];
+      if (!stateObj || friendlyName(stateObj, row.entityId) !== row.name) return false;
+    }
+    return true;
+  }
+
+  private buildRows(states: Record<string, any>, entities: any, devices: any): EntityRow[] {
+    const rows: EntityRow[] = [];
+    for (const entityId of Object.keys(states)) {
+      const domain = entityDomain(entityId);
+      if (!domain) continue;
+      const name = friendlyName(states[entityId], entityId);
+      const entry = entities?.[entityId];
+      const areaId: unknown = entry?.area_id ?? (entry?.device_id ? devices?.[entry.device_id]?.area_id : undefined);
+      rows.push({
+        entityId,
+        name,
+        domain,
+        areaId: typeof areaId === 'string' && areaId !== '' ? areaId : undefined,
+        secondary: entry?.hidden === true || entry?.entity_category === 'diagnostic' || entry?.entity_category === 'config',
+        searchText: normalizeSearch(`${name} ${entityId}`),
       });
     }
-
-    // Échantillon de secours pour démonstration / standalone
-    return [
-      { entity_id: 'light.salon_plafonnier', name: 'Plafonnier Salon', state: 'on', domain: 'light', icon: '💡' },
-      { entity_id: 'light.applique_cuisine', name: 'Applique Cuisine', state: 'off', domain: 'light', icon: '💡' },
-      { entity_id: 'switch.prise_tv', name: 'Prise Smart TV', state: 'on', domain: 'switch', icon: '🔌' },
-      { entity_id: 'binary_sensor.porte_entree', name: 'Capteur Porte Entrée', state: 'off', domain: 'binary_sensor', icon: '🚪' },
-      { entity_id: 'binary_sensor.presence_salon', name: 'Radar Présence Salon', state: 'on', domain: 'binary_sensor', icon: '🚨' },
-      { entity_id: 'climate.thermostat_sejour', name: 'Thermostat Séjour', state: '21.5', domain: 'climate', icon: '🌡️', unit: '°C' },
-      { entity_id: 'sensor.temperature_chambre', name: 'Température Chambre', state: '19.8', domain: 'sensor', icon: '🌡️', unit: '°C' },
-      { entity_id: 'camera.jardin', name: 'Caméra Jardin Extérieur', state: 'idle', domain: 'camera', icon: '📷' }
-    ];
+    return rows.sort((a, b) => collator.compare(a.name, b.name) || a.entityId.localeCompare(b.entityId));
   }
 
-  private handleDragStart(e: DragEvent, item: EntityItem) {
+  private getFiltered(rows: EntityRow[], areaFilter: string): EntityRow[] {
+    const key = [this.entitySearch.trim(), this.activeCategory, areaFilter, this.showSecondary ? '1' : '0'].join('\u0000');
+    if (this.filteredFor && this.filteredFor.rows === rows && this.filteredFor.key === key) return this.filtered;
+
+    const filter = ENTITY_FILTERS.find(f => f.id === this.activeCategory);
+    const domains = filter && filter.domains.length > 0 ? new Set(filter.domains) : null;
+    const terms = normalizeSearch(this.entitySearch.trim()).split(/\s+/).filter(Boolean);
+    this.filtered = rows.filter(r =>
+      (this.showSecondary || !r.secondary) &&
+      (domains === null || domains.has(r.domain)) &&
+      (areaFilter === ALL_AREAS || r.areaId === areaFilter) &&
+      terms.every(t => r.searchText.includes(t))
+    );
+    this.filteredFor = { rows, key };
+    return this.filtered;
+  }
+
+  /** Zones HA ayant au moins une entité, triées par nom (mémorisées tant que l'index et les zones ne changent pas). */
+  private getAreaOptions(rows: EntityRow[]): Array<{ id: string; name: string }> {
+    const areas = this.hass?.areas;
+    if (this.areaOptions && this.areaOptions.rows === rows && this.areaOptions.areas === areas) {
+      return this.areaOptions.options;
+    }
+    const ids = new Set<string>();
+    for (const r of rows) if (r.areaId) ids.add(r.areaId);
+    const options = !areas ? [] : [...ids]
+      .map(id => ({ id, name: typeof areas[id]?.name === 'string' ? areas[id].name as string : id }))
+      .sort((a, b) => collator.compare(a.name, b.name));
+    this.areaOptions = { rows, areas, options };
+    return options;
+  }
+
+  /** Change un critère de filtre et revient à la première page de résultats. */
+  private setEntityCriteria(update: () => void) {
+    update();
+    this.visibleLimit = PAGE_SIZE;
+  }
+
+  private entityPayload(row: EntityRow): DrawerItemPayload {
+    return { kind: 'entity', entityId: row.entityId, domain: row.domain };
+  }
+
+  private furniturePayload(item: FurnitureCatalogTemplate): DrawerItemPayload {
+    return { kind: 'furniture', furnitureType: item.type };
+  }
+
+  private handleDragStart(e: DragEvent, payload: DrawerItemPayload) {
     if (e.dataTransfer) {
-      e.dataTransfer.setData('application/json', JSON.stringify({
-        entityId: item.entity_id,
-        domain: item.domain,
-        name: item.name,
-        icon: item.icon
-      }));
+      e.dataTransfer.setData('application/json', JSON.stringify(payload));
       e.dataTransfer.effectAllowed = 'copy';
     }
   }
 
-  private handleFurnitureDragStart(e: DragEvent, item: FurnitureCatalogTemplate) {
-    if (e.dataTransfer) {
-      e.dataTransfer.setData('application/json', JSON.stringify({
-        kind: 'furniture',
-        furnitureType: item.type
-      }));
-      e.dataTransfer.effectAllowed = 'copy';
+  /** « Toucher pour placer » : alternative au glisser-déposer (écrans tactiles, clavier). */
+  private pickItem(payload: DrawerItemPayload) {
+    this.dispatchEvent(new CustomEvent('drawer-item-picked', {
+      detail: { payload },
+      bubbles: true,
+      composed: true
+    }));
+  }
+
+  private handleItemKeyDown(e: KeyboardEvent, payload: DrawerItemPayload) {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      this.pickItem(payload);
     }
   }
 
@@ -440,29 +717,204 @@ export class HomeArchitectEntityDrawer extends LitElement {
     }));
   }
 
-  render() {
-    if (this.collapsed) return null;
-
-    let allEntities = this.getEntities();
-    let entities = allEntities;
-
-    if (this.activeCategory !== 'all') {
-      entities = entities.filter(e => e.domain === this.activeCategory);
+  private formatState(stateObj: any): string {
+    if (!stateObj) return '';
+    if (typeof this.hass?.formatEntityState === 'function') {
+      try {
+        return String(this.hass.formatEntityState(stateObj));
+      } catch {
+        // Formatage indisponible pour cette entité : repli sur l'état brut.
+      }
     }
+    const unit = stateObj.attributes?.unit_of_measurement;
+    return `${stateObj.state}${unit ? ' ' + unit : ''}`;
+  }
 
-    if (this.searchQuery.trim() && this.activeTab === 'entities') {
-      const q = this.searchQuery.toLowerCase();
-      entities = entities.filter(e => e.name.toLowerCase().includes(q) || e.entity_id.toLowerCase().includes(q));
-    }
+  private renderEntitiesTab(rows: EntityRow[]) {
+    const states: Record<string, any> = this.hass?.states ?? {};
+    const areaOptions = this.getAreaOptions(rows);
+    // Zone choisie puis supprimée (ou registre des zones pas encore chargé) : le filtre, devenu
+    // invisible, ne doit pas vider la liste.
+    const areaFilter = areaOptions.some(a => a.id === this.areaFilter) ? this.areaFilter : ALL_AREAS;
+    const filtered = this.getFiltered(rows, areaFilter);
+    const shown = filtered.slice(0, this.visibleLimit);
+    const remaining = filtered.length - shown.length;
+    const chips = ENTITY_FILTERS.filter(f =>
+      f.domains.length === 0 || f.id === this.activeCategory || f.domains.some(d => this.availableDomains.has(d)));
+    this.renderedRows = rows;
+    this.renderedIds = shown.map(r => r.entityId);
 
+    return html`
+      <div class="search-section">
+        <div class="search-input-wrapper">
+          <input 
+            type="search" 
+            class="search-input" 
+            placeholder="Rechercher une entité..."
+            aria-label="Rechercher une entité"
+            .value=${this.entitySearch}
+            @input=${(e: Event) => this.setEntityCriteria(() => this.entitySearch = (e.target as HTMLInputElement).value)}
+          />
+        </div>
+
+        <div class="categories-bar" role="group" aria-label="Filtrer par type">
+          ${chips.map(f => html`
+            <button
+              class="cat-btn ${this.activeCategory === f.id ? 'active' : ''}"
+              aria-pressed=${this.activeCategory === f.id ? 'true' : 'false'}
+              @click=${() => this.setEntityCriteria(() => this.activeCategory = f.id)}
+            >${f.label}</button>
+          `)}
+        </div>
+
+        <div class="filters-row">
+          ${areaOptions.length > 0 ? html`
+            <select
+              class="area-select"
+              aria-label="Filtrer par zone"
+              .value=${live(areaFilter)}
+              @change=${(e: Event) => this.setEntityCriteria(() => this.areaFilter = (e.target as HTMLSelectElement).value)}
+            >
+              <option value=${ALL_AREAS} ?selected=${areaFilter === ALL_AREAS}>Toutes les zones</option>
+              ${areaOptions.map(a => html`<option value=${a.id} ?selected=${areaFilter === a.id}>${a.name}</option>`)}
+            </select>
+          ` : nothing}
+          <label class="hidden-toggle" title="Afficher aussi les entités masquées, de diagnostic ou de configuration">
+            <input
+              type="checkbox"
+              .checked=${this.showSecondary}
+              @change=${(e: Event) => this.setEntityCriteria(() => this.showSecondary = (e.target as HTMLInputElement).checked)}
+            />
+            <span>Masquées</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="entities-list">
+        ${!this.hass?.states ? html`
+          <div class="empty-message">Connexion à Home Assistant…</div>
+        ` : filtered.length === 0 ? html`
+          <div class="empty-message">Aucune entité trouvée</div>
+        ` : html`
+          <div class="results-info" aria-live="polite">
+            ${filtered.length} entité${filtered.length > 1 ? 's' : ''}${remaining > 0 ? ` (${shown.length} affichées)` : ''}
+          </div>
+          ${repeat(shown, row => row.entityId, row => {
+            const stateObj = states[row.entityId];
+            const payload = this.entityPayload(row);
+            return html`
+              <div 
+                class="entity-card" 
+                draggable="true"
+                tabindex="0"
+                role="button"
+                @dragstart=${(e: DragEvent) => this.handleDragStart(e, payload)}
+                @click=${() => this.pickItem(payload)}
+                @keydown=${(e: KeyboardEvent) => this.handleItemKeyDown(e, payload)}
+                title="Glissez et déposez sur une pièce du plan"
+              >
+                <div class="entity-info">
+                  <span class="entity-icon">${DOMAIN_ICONS[row.domain] ?? DEFAULT_DOMAIN_ICON}</span>
+                  <div class="entity-details">
+                    <span class="entity-name">${row.name}</span>
+                    <span class="entity-id">${row.entityId}</span>
+                  </div>
+                </div>
+
+                <span class="entity-state-badge ${stateObj?.state === 'on' ? 'state-on' : 'state-off'}">
+                  ${this.formatState(stateObj)}
+                </span>
+              </div>
+            `;
+          })}
+          ${remaining > 0 ? html`
+            <button class="more-btn" @click=${() => this.visibleLimit += PAGE_SIZE}>
+              Afficher ${Math.min(PAGE_SIZE, remaining)} de plus (${remaining} restante${remaining > 1 ? 's' : ''})
+            </button>
+          ` : nothing}
+        `}
+      </div>
+
+      <div class="drag-hint">
+        <span>👆</span>
+        <span>Glissez une entité sur une pièce du plan</span>
+      </div>
+    `;
+  }
+
+  private renderFurnitureTab() {
     let furniture = FURNITURE_CATALOG;
     if (this.furnitureCategory !== 'all') {
       furniture = furniture.filter(f => f.category === this.furnitureCategory);
     }
-    if (this.searchQuery.trim() && this.activeTab === 'furniture') {
-      const q = this.searchQuery.toLowerCase();
-      furniture = furniture.filter(f => f.name.toLowerCase().includes(q));
+    const terms = normalizeSearch(this.furnitureSearch.trim()).split(/\s+/).filter(Boolean);
+    if (terms.length > 0) {
+      furniture = furniture.filter(f => {
+        const text = normalizeSearch(f.name);
+        return terms.every(t => text.includes(t));
+      });
     }
+
+    return html`
+      <div class="search-section">
+        <div class="search-input-wrapper">
+          <input 
+            type="search" 
+            class="search-input" 
+            placeholder="Rechercher un meuble..."
+            aria-label="Rechercher un meuble"
+            .value=${this.furnitureSearch}
+            @input=${(e: Event) => this.furnitureSearch = (e.target as HTMLInputElement).value}
+          />
+        </div>
+
+        <div class="categories-bar" role="group" aria-label="Filtrer par catégorie">
+          ${FURNITURE_FILTERS.map(f => html`
+            <button
+              class="cat-btn ${this.furnitureCategory === f.id ? 'active' : ''}"
+              aria-pressed=${this.furnitureCategory === f.id ? 'true' : 'false'}
+              @click=${() => this.furnitureCategory = f.id}
+            >${f.label}</button>
+          `)}
+        </div>
+      </div>
+
+      <div class="furniture-grid">
+        ${furniture.length === 0 ? html`
+          <div class="empty-message" style="grid-column: 1 / -1;">Aucun meuble trouvé</div>
+        ` : furniture.map(item => {
+          const payload = this.furniturePayload(item);
+          return html`
+            <div 
+              class="furniture-card" 
+              draggable="true"
+              tabindex="0"
+              role="button"
+              @dragstart=${(e: DragEvent) => this.handleDragStart(e, payload)}
+              @click=${() => this.pickItem(payload)}
+              @keydown=${(e: KeyboardEvent) => this.handleItemKeyDown(e, payload)}
+              title="Glissez et déposez sur le plan (${item.width.toFixed(2)} × ${item.length.toFixed(2)} m)"
+            >
+              <span class="furniture-card-icon">${item.icon}</span>
+              <span class="furniture-card-name">${item.name}</span>
+              <span class="furniture-card-dim">${item.width.toFixed(2)} × ${item.length.toFixed(2)} m</span>
+            </div>
+          `;
+        })}
+      </div>
+
+      <div class="drag-hint">
+        <span>👆</span>
+        <span>Glissez un meuble sur le plan (R pour pivoter)</span>
+      </div>
+    `;
+  }
+
+  render() {
+    if (this.collapsed) return nothing;
+
+    const rows = this.getRows();
+    const entityCount = this.showSecondary ? rows.length : rows.length - this.secondaryCount;
 
     return html`
       <div class="drawer-header">
@@ -475,123 +927,35 @@ export class HomeArchitectEntityDrawer extends LitElement {
         </button>
       </div>
 
-      <div class="drawer-tabs">
+      <div class="drawer-tabs" role="tablist">
         <button 
           class="tab-btn ${this.activeTab === 'entities' ? 'active' : ''}" 
-          @click=${() => { this.activeTab = 'entities'; this.searchQuery = ''; }}
+          role="tab"
+          aria-selected=${this.activeTab === 'entities' ? 'true' : 'false'}
+          @click=${() => this.activeTab = 'entities'}
         >
           <span>⚡</span>
           <span>Entités HA</span>
-          <span class="count-badge">${entities.length}</span>
+          <span class="count-badge" title="Nombre total d'entités">${entityCount}</span>
         </button>
         <button 
           class="tab-btn ${this.activeTab === 'furniture' ? 'active' : ''}" 
-          @click=${() => { this.activeTab = 'furniture'; this.searchQuery = ''; }}
+          role="tab"
+          aria-selected=${this.activeTab === 'furniture' ? 'true' : 'false'}
+          @click=${() => this.activeTab = 'furniture'}
         >
           <span>🛋️</span>
           <span>Meubles</span>
-          <span class="count-badge">${FURNITURE_CATALOG.length}</span>
+          <span class="count-badge" title="Nombre total de meubles">${FURNITURE_CATALOG.length}</span>
         </button>
       </div>
 
-      ${this.activeTab === 'entities' ? html`
-        <div class="search-section">
-          <div class="search-input-wrapper">
-            <input 
-              type="text" 
-              class="search-input" 
-              placeholder="Rechercher une entité..."
-              .value=${this.searchQuery}
-              @input=${(e: any) => this.searchQuery = e.target.value}
-            />
-          </div>
-
-          <div class="categories-bar">
-            <button class="cat-btn ${this.activeCategory === 'all' ? 'active' : ''}" @click=${() => this.activeCategory = 'all'}>Tous</button>
-            <button class="cat-btn ${this.activeCategory === 'light' ? 'active' : ''}" @click=${() => this.activeCategory = 'light'}>Lumières</button>
-            <button class="cat-btn ${this.activeCategory === 'binary_sensor' ? 'active' : ''}" @click=${() => this.activeCategory = 'binary_sensor'}>Capteurs</button>
-            <button class="cat-btn ${this.activeCategory === 'climate' ? 'active' : ''}" @click=${() => this.activeCategory = 'climate'}>Climat</button>
-            <button class="cat-btn ${this.activeCategory === 'switch' ? 'active' : ''}" @click=${() => this.activeCategory = 'switch'}>Prises</button>
-            <button class="cat-btn ${this.activeCategory === 'camera' ? 'active' : ''}" @click=${() => this.activeCategory = 'camera'}>Caméras</button>
-          </div>
-        </div>
-
-        <div class="entities-list">
-          ${entities.length === 0 ? html`
-            <div class="empty-message">Aucune entité trouvée</div>
-          ` : entities.map(item => html`
-            <div 
-              class="entity-card" 
-              draggable="true"
-              @dragstart=${(e: DragEvent) => this.handleDragStart(e, item)}
-              title="Glissez et déposez sur une pièce du plan"
-            >
-              <div class="entity-info">
-                <span class="entity-icon">${item.icon}</span>
-                <div class="entity-details">
-                  <span class="entity-name">${item.name}</span>
-                  <span class="entity-id">${item.entity_id}</span>
-                </div>
-              </div>
-
-              <span class="entity-state-badge ${item.state === 'on' ? 'state-on' : 'state-off'}">
-                ${item.state}${item.unit ? ' ' + item.unit : ''}
-              </span>
-            </div>
-          `)}
-        </div>
-
-        <div class="drag-hint">
-          <span>👆</span>
-          <span>Glissez une entité sur une pièce du plan</span>
-        </div>
-      ` : html`
-        <div class="search-section">
-          <div class="search-input-wrapper">
-            <input 
-              type="text" 
-              class="search-input" 
-              placeholder="Rechercher un meuble..."
-              .value=${this.searchQuery}
-              @input=${(e: any) => this.searchQuery = e.target.value}
-            />
-          </div>
-
-          <div class="categories-bar">
-            <button class="cat-btn ${this.furnitureCategory === 'all' ? 'active' : ''}" @click=${() => this.furnitureCategory = 'all'}>Tous</button>
-            <button class="cat-btn ${this.furnitureCategory === 'seating' ? 'active' : ''}" @click=${() => this.furnitureCategory = 'seating'}>Salon</button>
-            <button class="cat-btn ${this.furnitureCategory === 'bed' ? 'active' : ''}" @click=${() => this.furnitureCategory = 'bed'}>Chambre</button>
-            <button class="cat-btn ${this.furnitureCategory === 'table' ? 'active' : ''}" @click=${() => this.furnitureCategory = 'table'}>Tables</button>
-            <button class="cat-btn ${this.furnitureCategory === 'bathroom' ? 'active' : ''}" @click=${() => this.furnitureCategory = 'bathroom'}>Bains</button>
-            <button class="cat-btn ${this.furnitureCategory === 'kitchen' ? 'active' : ''}" @click=${() => this.furnitureCategory = 'kitchen'}>Cuisine</button>
-          </div>
-        </div>
-
-        <div class="furniture-grid">
-          ${furniture.length === 0 ? html`
-            <div class="empty-message" style="grid-column: 1 / -1;">Aucun meuble trouvé</div>
-          ` : furniture.map(item => html`
-            <div 
-              class="furniture-card" 
-              draggable="true"
-              @dragstart=${(e: DragEvent) => this.handleFurnitureDragStart(e, item)}
-              title="Glissez et déposez sur le plan (${item.width.toFixed(2)} × ${item.length.toFixed(2)} m)"
-            >
-              <span class="furniture-card-icon">${item.icon}</span>
-              <span class="furniture-card-name">${item.name}</span>
-              <span class="furniture-card-dim">${item.width.toFixed(2)} × ${item.length.toFixed(2)} m</span>
-            </div>
-          `)}
-        </div>
-
-        <div class="drag-hint">
-          <span>👆</span>
-          <span>Glissez un meuble sur le plan (R pour pivoter)</span>
-        </div>
-      `}
+      ${this.activeTab === 'entities' ? this.renderEntitiesTab(rows) : this.renderFurnitureTab()}
     `;
   }
 }
+
+defineElement('home-architect-entity-drawer', HomeArchitectEntityDrawer);
 
 declare global {
   interface HTMLElementTagNameMap {
