@@ -170,13 +170,25 @@ def _sanitize_document(content: str | bytes, ctx: _Context) -> str:
 
 
 def _reject_dtd(content: str | bytes) -> None:
-    """Refuse tout DOCTYPE ou déclaration d'entité (avant le parsing ElementTree)."""
+    """Refuse toute déclaration d'entité (avant le parsing ElementTree).
+
+    Un DOCTYPE simple (`<!DOCTYPE svg PUBLIC "..." "...">`, fréquent dans les
+    exports LibreOffice, Illustrator ou AutoCAD) est toléré : expat ne charge
+    jamais la DTD externe et le DOCTYPE disparaît à la reconstruction. Seul un
+    sous-ensemble interne (`[ ... ]`, vecteur XXE / « billion laughs ») est refusé.
+    """
 
     def _forbid(*_args: object) -> None:
         raise SvgSanitizeError("DOCTYPE and entity declarations are not allowed")
 
+    def _check_doctype(
+        _name: str, _system_id: str | None, _public_id: str | None, has_internal_subset: int
+    ) -> None:
+        if has_internal_subset:
+            _forbid()
+
     parser = expat.ParserCreate()
-    parser.StartDoctypeDeclHandler = _forbid
+    parser.StartDoctypeDeclHandler = _check_doctype
     parser.EntityDeclHandler = _forbid
     parser.UnparsedEntityDeclHandler = _forbid
     parser.NotationDeclHandler = _forbid

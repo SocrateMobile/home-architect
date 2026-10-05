@@ -180,10 +180,22 @@ def test_doctype_and_entities_are_rejected() -> None:
         '<?xml version="1.0"?><!DOCTYPE lolz [<!ENTITY lol "lol"><!ENTITY lol2 "&lol;&lol;&lol;">]>'
         '<svg xmlns="http://www.w3.org/2000/svg"><text>&lol2;</text></svg>'
     )
-    doctype_only = '<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd"><svg xmlns="http://www.w3.org/2000/svg"/>'
-    for source in (xxe, laughs, doctype_only, xxe.encode("utf-16")):
+    empty_subset = '<!DOCTYPE svg []><svg xmlns="http://www.w3.org/2000/svg"/>'
+    for source in (xxe, laughs, empty_subset, xxe.encode("utf-16")):
         with pytest.raises(SvgSanitizeError):
             sanitize_svg(source)
+
+
+def test_plain_public_doctype_is_tolerated_and_dropped() -> None:
+    # Exports LibreOffice / Illustrator / AutoCAD : DOCTYPE public sans sous-ensemble interne.
+    doctype_only = (
+        '<?xml version="1.0" encoding="UTF-8"?>'
+        '<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">'
+        '<svg xmlns="http://www.w3.org/2000/svg"><rect width="1" height="1"/></svg>'
+    )
+    result = sanitize_svg(doctype_only)
+    assert "DOCTYPE" not in result
+    assert ET.fromstring(result).find(f"{{{SVG_NS}}}rect") is not None
 
 
 def test_animation_elements_are_removed() -> None:

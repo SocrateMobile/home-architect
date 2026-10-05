@@ -114,6 +114,20 @@ const UPLOAD_MIME_EXTENSIONS: Record<string, string> = {
 const DATA_URL_RE = /^data:(image\/[a-z0-9.+-]+);base64,([A-Za-z0-9+/=\s]+)$/i;
 const RELEASE_URL = 'https://github.com/SocrateMobile/home-architect/releases';
 
+// Règles de sauvegarde du backend (storage.py / assets.py), reproduites pour que le harnais
+// ne masque pas un bug que Home Assistant révélerait.
+const MAX_PROJECTS = 100;
+/** Champs possédés par le serveur, ignorés à la réception (les clés « _* » aussi). */
+const SERVER_FIELDS = new Set(['publish', 'revision', 'schema_version', 'updated_at']);
+const LIST_FIELDS = ['walls', 'openings', 'rooms', 'bindings', 'furniture'];
+const OBJECT_FIELDS = ['grid', 'background', 'exportFrame'];
+const ASSET_ID_RE = /^([a-zA-Z0-9_-]{1,64})-([0-9a-f]{12})\.(png|jpg|webp|gif|svg)$/;
+/** background.imageUrl conservée seulement si c'est une URL http(s) ou absolue ; sinon vidée (blob:, javascript:…). */
+const EXTERNAL_IMAGE_URL_RE = /^(?:https?:\/\/|\/)[^\s\p{Cc}]*$/iu;
+const MAX_IMAGE_URL_LENGTH = 2048;
+/** Délai avant suppression d'une image de fond qui n'est plus référencée (ASSET_GRACE_PERIOD : 24 h). */
+const ASSET_GRACE_MS = 24 * 60 * 60 * 1000;
+
 /** Services simulés, par domaine (servent aussi à remplir hass.services). */
 const SERVICES: Record<string, string[]> = {
   homeassistant: ['turn_on', 'turn_off', 'toggle'],
@@ -187,7 +201,7 @@ async function contentHash(data: ArrayBuffer | string): Promise<string> {
  * et les documents invalides, retire scripts, contenus étrangers, animations, liens, gestionnaires
  * on* et références externes. La référence reste l'assainisseur du backend.
  */
-function sanitizeSvg(source: string): string {
+function sanitizeSvg(source: string, opts: { dropImages?: boolean } = {}): string {
   if (/<!DOCTYPE|<!ENTITY/i.test(source)) throw new WsCommandError('invalid_svg', 'DOCTYPE et ENTITY sont interdits.');
   const doc = new DOMParser().parseFromString(source, 'image/svg+xml');
   const root = doc.documentElement;
@@ -195,6 +209,8 @@ function sanitizeSvg(source: string): string {
     throw new WsCommandError('invalid_svg', 'Document SVG invalide.');
   }
   root.querySelectorAll('script, foreignObject, iframe, a, style, animate, set, animateMotion, animateTransform').forEach((el) => el.remove());
+  // Publication sans l'image de fond (case non cochée) : le backend retire les <image>.
+  if (opts.dropImages) root.querySelectorAll('image').forEach((el) => el.remove());
   for (const el of [root, ...Array.from(root.querySelectorAll('*'))]) {
     for (const attr of Array.from(el.attributes)) {
       const name = attr.name.toLowerCase();
@@ -217,6 +233,36 @@ function compactForLog(value: unknown, depth = 0): unknown {
   return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, compactForLog(item, depth + 1)]));
 }
 
+/** Révision stockée d'un projet (0 s'il n'existe pas ou si elle est invalide), comme _revision_of. */
+function revisionOf(project: Json | undefined): number {
+  const revision: unknown = project?.revision;
+  return typeof revision === 'number' && Number.isInteger(revision) && revision >= 0 ? revision : 0;
+}
+
+/** Validation légère des types, identique à _validate_project (complète les listes absentes). */
+function validateProject(project: Json): void {
+  const { name, category, created_at: createdAt } = project;
+  if (name === undefined || name === null || name === '') project.name = 'Plan';
+  else if (typeof name !== 'string' || name.length > 200) {
+    throw new WsCommandError('invalid_project', 'name must be a string of at most 200 characters');
+  }
+  if (category !== undefined && category !== null && (typeof category !== 'string' || category.length > 64)) {
+    throw new WsCommandError('invalid_project', 'category must be a string of at most 64 characters');
+  }
+  for (const key of LIST_FIELDS) {
+    const value: unknown = project[key];
+    if (value === undefined || value === null) project[key] = [];
+    else if (!Array.isArray(value) || !value.every(isRecord)) throw new WsCommandError('invalid_project', `${key} must be a list of objects`);
+  }
+  for (const key of OBJECT_FIELDS) {
+    const value: unknown = project[key];
+    if (value !== undefined && value !== null && !isRecord(value)) throw new WsCommandError('invalid_project', `${key} must be an object`);
+  }
+  if (createdAt !== undefined && createdAt !== null && typeof createdAt !== 'string') {
+    throw new WsCommandError('invalid_project', 'created_at must be a string');
+  }
+}
+
 function nextMinorVersion(version: string): string {
   const [major, minor] = version.split(/[.-]/).map(Number);
   return Number.isFinite(major) && Number.isFinite(minor) ? `${major}.${minor + 1}.0` : `${version}-next`;
@@ -228,7 +274,8 @@ export class MockHomeAssistant {
   private readonly entities = createEntityRegistry();
   private readonly devices = createDeviceRegistry();
   private readonly projects = new Map<string, Json>();
-  private readonly assets = new Map<string, { projectId: string; blob: Blob; mimeType: string }>();
+  /** Images de fond par asset_id ; `storedAt` sert au délai de grâce avant suppression. */
+  private readonly assets = new Map<string, { projectId: string; blob: Blob; mimeType: string; storedAt: number }>();
   /** Publications actives : fichier servi par le serveur de dev et empreinte du contenu. */
   private readonly publications = new Map<string, { file: string; hash: string; published_at: string; include_background: boolean }>();
   private readonly legacyWww = new Set(LEGACY_WWW_PROJECT_IDS);
@@ -283,7 +330,7 @@ export class MockHomeAssistant {
   }
 
   listProjectIds(): Array<{ id: string; name: string; revision: number }> {
-    return [...this.projects.values()].map((p) => ({ id: p.id, name: p.name, revision: p.revision ?? 0 }));
+    return [...this.projects.values()].map((p) => ({ id: p.id, name: p.name, revision: revisionOf(p) }));
   }
 
   /** Simule une sauvegarde depuis un autre appareil : déplace la première entité et incrémente la révision. */
@@ -293,7 +340,7 @@ export class MockHomeAssistant {
     const updated = structuredClone(project);
     const binding = Array.isArray(updated.bindings) ? updated.bindings.find(isRecord) : undefined;
     if (binding && isRecord(binding.position)) binding.position.x = Number(binding.position.x) + 0.5;
-    updated.revision = (project.revision ?? 0) + 1;
+    updated.revision = revisionOf(project) + 1;
     updated.updated_at = new Date().toISOString();
     this.projects.set(projectId, updated);
     this.log('event', `Modification distante simulée : ${projectId} → révision ${updated.revision}`);
@@ -518,7 +565,7 @@ export class MockHomeAssistant {
       category: project.category,
       created_at: project.created_at,
       updated_at: project.updated_at,
-      revision: project.revision ?? 0,
+      revision: revisionOf(project),
       has_background: Boolean(background && (background.assetId || background.imageUrl)),
       publish: this.publishInfo(project.id) ?? null,
       counts: { walls: count('walls'), rooms: count('rooms'), bindings: count('bindings'), furniture: count('furniture') }
@@ -532,58 +579,135 @@ export class MockHomeAssistant {
     return copy;
   }
 
+  /** Même déroulé que storage.async_save_project + _prepare_project (ordre des contrôles compris). */
   private async saveProject(msg: Json): Promise<Json> {
     this.requireAdmin();
     const raw = msg.project;
+    // Schéma voluptuous de la commande : erreurs « invalid_format ».
     if (!isRecord(raw) || typeof raw.id !== 'string' || !PROJECT_ID_PATTERN.test(raw.id)) {
-      throw new WsCommandError('invalid_project', 'Projet invalide : identifiant manquant ou incorrect.');
-    }
-    const bytes = utf8Length(JSON.stringify(raw));
-    if (bytes > MAX_PROJECT_BYTES) {
-      throw new WsCommandError('payload_too_large', `Projet trop volumineux : ${bytes} octets (maximum ${MAX_PROJECT_BYTES}).`);
-    }
-    for (const key of ['walls', 'openings', 'rooms', 'bindings', 'furniture']) {
-      if (raw[key] !== undefined && !Array.isArray(raw[key])) throw new WsCommandError('invalid_project', `Champ « ${key} » invalide (liste attendue).`);
-    }
-    for (const key of ['grid', 'background', 'exportFrame']) {
-      if (raw[key] !== undefined && raw[key] !== null && !isRecord(raw[key])) throw new WsCommandError('invalid_project', `Champ « ${key} » invalide (objet attendu).`);
+      throw new WsCommandError('invalid_format', "Identifiant de projet invalide @ data['project']['id']");
     }
     const expected: unknown = msg.expected_revision;
-    if (expected !== undefined && (typeof expected !== 'number' || !Number.isInteger(expected))) {
-      throw new WsCommandError('invalid_format', 'expected_revision doit être un entier.');
+    if (expected !== undefined && expected !== null && (typeof expected !== 'number' || !Number.isInteger(expected) || expected < 0)) {
+      throw new WsCommandError('invalid_format', "expected_revision doit être un entier positif ou nul @ data['expected_revision']");
+    }
+    if (msg.force !== undefined && typeof msg.force !== 'boolean') {
+      throw new WsCommandError('invalid_format', "force doit être un booléen @ data['force']");
     }
 
     const id = raw.id;
     const existing = this.projects.get(id);
-    const currentRevision: number = existing?.revision ?? 0;
-    if (expected !== undefined && msg.force !== true && expected !== currentRevision) {
+    const currentRevision = revisionOf(existing);
+    // Comme le backend : sans expected_revision (ou avec 0), le projet ne doit pas encore exister.
+    if (msg.force !== true && (typeof expected === 'number' ? expected : 0) !== currentRevision) {
       throw new WsCommandError('conflict', `conflict:${currentRevision}`);
     }
+    if (!existing && this.projects.size >= MAX_PROJECTS) {
+      throw new WsCommandError('too_many_projects', `at most ${MAX_PROJECTS} projects can be stored`);
+    }
 
-    const project = structuredClone(raw);
-    delete project.publish;
-    delete project.revision;
-    const background = project.background;
-    if (isRecord(background) && typeof background.imageUrl === 'string' && background.imageUrl.startsWith('data:')) {
-      const match = DATA_URL_RE.exec(background.imageUrl);
-      const mimeType = match?.[1].toLowerCase() ?? '';
-      if (!match || !UPLOAD_MIME_EXTENSIONS[mimeType]) {
-        throw new WsCommandError('invalid_project', "Image de fond en data-URL non prise en charge.");
+    const project: Json = Object.fromEntries(
+      Object.entries(structuredClone(raw)).filter(([key]) => !SERVER_FIELDS.has(key) && !key.startsWith('_'))
+    );
+    validateProject(project);
+
+    let dataUrl: string | undefined;
+    const background: Json | undefined = isRecord(project.background) ? { ...project.background } : undefined;
+    if (background) {
+      project.background = background;
+      const imageUrl: unknown = background.imageUrl;
+      if (typeof imageUrl === 'string' && imageUrl.startsWith('data:')) {
+        dataUrl = imageUrl;
+        background.imageUrl = '';
+      } else if (!(typeof imageUrl === 'string' && imageUrl.length <= MAX_IMAGE_URL_LENGTH && (imageUrl === '' || EXTERNAL_IMAGE_URL_RE.test(imageUrl)))) {
+        background.imageUrl = ''; // blob:, javascript:, type inattendu…
       }
-      const binary = atob(match[2].replace(/\s/g, ''));
-      const blob = new Blob([Uint8Array.from(binary, (char) => char.charCodeAt(0))], { type: mimeType });
-      project.background = { ...background, imageUrl: '', assetId: await this.storeAsset(id, blob, mimeType), mimeType };
+    }
+
+    const bytes = utf8Length(JSON.stringify(project));
+    if (bytes > MAX_PROJECT_BYTES) {
+      // Format exploité par ha-api (toHaApiError) pour afficher la taille et la limite.
+      throw new WsCommandError('payload_too_large', `payload_too_large:${bytes}:${MAX_PROJECT_BYTES}`);
+    }
+
+    if (background && dataUrl !== undefined) {
+      const { blob, mimeType } = this.decodeDataUrl(dataUrl);
+      background.assetId = await this.storeAsset(id, blob, mimeType);
+      background.mimeType = mimeType;
+    } else if (background) {
+      const assetId: unknown = background.assetId;
+      if (assetId === undefined || assetId === null || assetId === '') {
+        delete background.assetId;
+      } else if (typeof assetId !== 'string' || !ASSET_ID_RE.test(assetId)) {
+        throw new WsCommandError('invalid_project', 'invalid background.assetId');
+      } else {
+        // « Enregistrer sous » : l'image d'un autre projet est copiée sous le nouvel identifiant.
+        const adopted = this.adoptAsset(assetId, id);
+        if (adopted === null) this.log('error', `Image de fond ${assetId} introuvable (conservée telle quelle, comme le backend)`);
+        else background.assetId = adopted;
+      }
     }
 
     const now = new Date().toISOString();
-    project.revision = currentRevision + 1;
+    const previousCreatedAt: unknown = existing?.created_at;
+    project.created_at = typeof previousCreatedAt === 'string'
+      ? previousCreatedAt
+      : typeof project.created_at === 'string' ? project.created_at : now;
     project.updated_at = now;
-    project.created_at = existing?.created_at ?? (typeof project.created_at === 'string' ? project.created_at : now);
+    project.revision = currentRevision + 1;
     project.schema_version = 2;
     this.projects.set(id, project);
-    this.removeUnreferencedAssets(id);
+    const savedAssetId = typeof background?.assetId === 'string' ? background.assetId : null;
+    // L'image qui vient d'être déréférencée repart pour un délai de grâce complet (annulation après sauvegarde).
+    const previousBackground: unknown = existing?.background;
+    const released = isRecord(previousBackground) && typeof previousBackground.assetId === 'string' ? previousBackground.assetId : null;
+    const releasedAsset = released !== null && released !== savedAssetId ? this.assets.get(released) : undefined;
+    if (releasedAsset?.projectId === id) releasedAsset.storedAt = Date.now();
+    this.removeUnreferencedAssets(id, savedAssetId, ASSET_GRACE_MS);
     this.notifyProject({ project_id: id, revision: project.revision });
-    return { success: true, id, revision: project.revision, updated_at: now };
+    return { success: true, id, revision: project.revision, updated_at: now, asset_id: savedAssetId };
+  }
+
+  /** Décode une image de fond héritée en data-URL (même contrôle que le téléversement HTTP). */
+  private decodeDataUrl(dataUrl: string): { blob: Blob; mimeType: string } {
+    const match = DATA_URL_RE.exec(dataUrl);
+    const mimeType = match?.[1].toLowerCase() ?? '';
+    if (!match || !UPLOAD_MIME_EXTENSIONS[mimeType]) {
+      throw new WsCommandError('invalid_project', 'invalid background image: unsupported data URL');
+    }
+    let binary: string;
+    try {
+      binary = atob(match[2].replace(/\s/g, ''));
+    } catch {
+      throw new WsCommandError('invalid_project', 'invalid background image: invalid base64');
+    }
+    if (binary.length > MAX_UPLOAD_BYTES) throw new WsCommandError('invalid_project', 'invalid background image: too large');
+    const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+    if (mimeType === 'image/svg+xml') {
+      try {
+        return { blob: new Blob([sanitizeSvg(new TextDecoder().decode(bytes))], { type: mimeType }), mimeType };
+      } catch {
+        throw new WsCommandError('invalid_project', 'invalid background image: invalid SVG');
+      }
+    }
+    return { blob: new Blob([bytes], { type: mimeType }), mimeType };
+  }
+
+  /** Rattache à `projectId` l'image d'un autre projet (assets.adopt_background) ; null si la source n'existe pas. */
+  private adoptAsset(assetId: string, projectId: string): string | null {
+    const match = ASSET_ID_RE.exec(assetId);
+    if (!match) return null;
+    if (match[1] === projectId) return assetId;
+    const targetId = `${projectId}-${match[2]}.${match[3]}`;
+    const existingTarget = this.assets.get(targetId);
+    if (existingTarget) {
+      existingTarget.storedAt = Date.now();
+      return targetId;
+    }
+    const source = this.assets.get(assetId);
+    if (!source) return null;
+    this.assets.set(targetId, { projectId, blob: source.blob, mimeType: source.mimeType, storedAt: Date.now() });
+    return targetId;
   }
 
   /** Supprime un projet et ses fichiers ; renvoie les fichiers retirés (comme le backend). */
@@ -603,7 +727,7 @@ export class MockHomeAssistant {
     }
     if (this.legacyWww.delete(projectId)) removed.push(`www/plan_${projectId}.svg`);
     this.projects.delete(projectId);
-    this.notifyProject({ project_id: projectId, revision: project?.revision ?? 0, deleted: true });
+    this.notifyProject({ project_id: projectId, revision: revisionOf(project), deleted: true });
     return removed;
   }
 
@@ -614,10 +738,11 @@ export class MockHomeAssistant {
     if (msg.include_background !== undefined && typeof msg.include_background !== 'boolean') {
       throw new WsCommandError('invalid_format', 'include_background doit être un booléen.');
     }
-    if (utf8Length(msg.svg_content) > MAX_PUBLISH_BYTES) {
-      throw new WsCommandError('payload_too_large', `SVG trop volumineux (maximum ${MAX_PUBLISH_BYTES} octets).`);
+    const size = utf8Length(msg.svg_content);
+    if (size > MAX_PUBLISH_BYTES) {
+      throw new WsCommandError('payload_too_large', `payload_too_large:${size}:${MAX_PUBLISH_BYTES}`);
     }
-    const svg = sanitizeSvg(msg.svg_content);
+    const svg = sanitizeSvg(msg.svg_content, { dropImages: msg.include_background !== true });
     const projectId = String(project.id);
     // Le jeton (donc l'URL) reste stable d'une publication à l'autre ; unpublish le régénère.
     const file = this.publications.get(projectId)?.file ?? `${projectId}-${randomToken(32)}.svg`;
@@ -630,21 +755,25 @@ export class MockHomeAssistant {
       published_at: new Date().toISOString(),
       include_background: msg.include_background === true
     });
-    this.notifyProject({ project_id: projectId, revision: project.revision ?? 0 });
+    this.notifyProject({ project_id: projectId, revision: revisionOf(project) });
     return this.publishInfo(projectId) ?? {};
   }
 
+  /** Retire la publication ET l'ancien fichier /config/www (comme assets.unpublish). */
   private unpublish(msg: Json): Json {
     this.requireAdmin();
     const project = this.requireProject(msg);
     const projectId = String(project.id);
+    const removed: string[] = [];
     const publication = this.publications.get(projectId);
     if (publication) {
       this.deletePublishedFile(publication.file);
       this.publications.delete(projectId);
+      removed.push(`published/${publication.file}`);
     }
-    this.notifyProject({ project_id: projectId, revision: project.revision ?? 0 });
-    return { success: true };
+    if (this.legacyWww.delete(projectId)) removed.push(`www/plan_${projectId}.svg`);
+    this.notifyProject({ project_id: projectId, revision: revisionOf(project) });
+    return { success: true, removed_files: removed };
   }
 
   private publishInfo(projectId: string): Json | undefined {
@@ -790,26 +919,40 @@ export class MockHomeAssistant {
     if (!asset || asset.projectId !== projectId || !assetId.startsWith(`${projectId}-`)) {
       return jsonResponse(404, { message: 'Not Found' });
     }
-    return new Response(asset.blob, {
-      status: 200,
-      headers: { 'Content-Type': asset.mimeType, 'Cache-Control': 'private, max-age=31536000, immutable' }
-    });
+    const headers: Record<string, string> = {
+      'Content-Type': asset.mimeType,
+      'Cache-Control': 'private, max-age=31536000, immutable',
+      'X-Content-Type-Options': 'nosniff'
+    };
+    if (asset.mimeType === 'image/svg+xml') {
+      headers['Content-Security-Policy'] = "default-src 'none'; style-src 'unsafe-inline'; img-src data:; sandbox";
+    }
+    return new Response(asset.blob, { status: 200, headers });
   }
 
-  /** Stocke un asset sous `<project_id>-<empreinte[:12]>.<ext>` (même nommage que le backend). */
+  /**
+   * Stocke un asset sous `<project_id>-<empreinte[:12]>.<ext>` (même nommage que le backend).
+   * Un contenu identique réutilise le même asset et repousse son nettoyage (_write_or_touch).
+   */
   private async storeAsset(projectId: string, blob: Blob, mimeType: string): Promise<string> {
     const hash = (await contentHash(await blob.arrayBuffer())).slice(0, 12);
     const assetId = `${projectId}-${hash}.${UPLOAD_MIME_EXTENSIONS[mimeType]}`;
-    this.assets.set(assetId, { projectId, blob, mimeType });
+    this.assets.set(assetId, { projectId, blob, mimeType, storedAt: Date.now() });
     return assetId;
   }
 
-  /** Après une sauvegarde : supprime les assets du projet que le projet ne référence plus. */
-  private removeUnreferencedAssets(projectId: string): void {
-    const background = this.projects.get(projectId)?.background;
-    const referenced = isRecord(background) ? background.assetId : undefined;
+  /**
+   * Après une sauvegarde : supprime les assets du projet qu'il ne référence plus ET plus anciens que
+   * `minAgeMs`. Comme le backend (délai de grâce de 24 h), une image téléversée mais pas encore
+   * sauvegardée, ou celle qu'une annulation après sauvegarde fait réapparaître, reste disponible.
+   */
+  private removeUnreferencedAssets(projectId: string, keep: string | null, minAgeMs: number): void {
+    const now = Date.now();
     for (const [assetId, asset] of this.assets) {
-      if (asset.projectId === projectId && assetId !== referenced) this.assets.delete(assetId);
+      if (asset.projectId === projectId && assetId !== keep && now - asset.storedAt >= minAgeMs) {
+        this.assets.delete(assetId);
+        this.log('event', `Image de fond non référencée supprimée : ${assetId}`);
+      }
     }
   }
 

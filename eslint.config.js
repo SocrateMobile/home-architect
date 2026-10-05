@@ -8,7 +8,8 @@
 //  - « warn » : problèmes réels mais présents dans le code existant et sans risque immédiat
 //    (promesses non attendues dans les callbacks Lit, variables inutilisées, catch vides…).
 //    Ils restent visibles dans la sortie sans bloquer la CI.
-//  - « off » : règles stylistiques ou faux positifs pour ce projet :
+//  - « off » (désactivées ici, ou simplement non activées car absentes des préréglages
+//    recommandés) : règles stylistiques ou faux positifs pour ce projet :
 //      * no-unsafe-* / no-explicit-any : l'objet `hass` de Home Assistant n'est pas typé ici ;
 //      * unbound-method : Lit lie automatiquement `@event=${this.handler}` à l'élément hôte ;
 //      * lit/no-this-assign-in-render : signale à tort les affectations dans les handlers
