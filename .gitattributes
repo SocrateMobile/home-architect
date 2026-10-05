@@ -4,6 +4,7 @@
 # Explicitly declare text files you want to always be normalized and converted
 *.ts text eol=lf
 *.js text eol=lf
+*.mjs text eol=lf
 *.json text eol=lf
 *.py text eol=lf
 *.md text eol=lf
@@ -18,6 +19,12 @@
 *.jpg binary
 *.jpeg binary
 *.gif binary
+*.webp binary
 *.ico binary
 *.woff binary
 *.woff2 binary
+
+# Generated files: bundle produced by `npm run build` (checked by CI), npm lockfile.
+# Collapsed in GitHub diffs and excluded from language statistics.
+custom_components/home_architect/frontend/** linguist-generated=true
+package-lock.json linguist-generated=true

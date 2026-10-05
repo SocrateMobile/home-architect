@@ -2,150 +2,98 @@
 from __future__ import annotations
 
 import logging
-import os
+from pathlib import Path
+
+from homeassistant.components import frontend
+from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.components import frontend
-from homeassistant.components.http import StaticPathConfig, HomeAssistantView
+import homeassistant.helpers.config_validation as cv
+from homeassistant.helpers.typing import ConfigType
 
-from .const import (
-    DOMAIN,
-    FRONTEND_FILE_NAME,
-    FRONTEND_URL_PATH,
-    PANEL_ICON,
-    PANEL_NAME,
-    PANEL_TITLE,
-    PANEL_URL_PATH,
-    CONF_SHOW_SIDEBAR_PANEL,
-    DEFAULT_SHOW_SIDEBAR_PANEL,
-    VERSION,
-    PLATFORMS,
-)
+from .const import DATA_ENTRY_ID, DATA_STORAGE, DOMAIN, FRONTEND_URL_PATH, PLATFORMS
+from .http import async_register_views
+from .panel import async_register_panel, async_unregister_panel, card_module_url
+from .release import ReleaseChecker
+from .runtime import HomeArchitectConfigEntry, HomeArchitectRuntimeData
 from .storage import HomeArchitectStorage
 from .websocket import async_register_websocket_commands
 
 _LOGGER = logging.getLogger(__name__)
 
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
-async def async_setup(hass: HomeAssistant, config: dict) -> bool:
-    """Set up Home Architect component via configuration.yaml (if used)."""
-    hass.data.setdefault(DOMAIN, {})
+_FRONTEND_DIR = Path(__file__).parent / "frontend"
+
+
+async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
+    """Enregistrements uniques : fichiers frontend, vues HTTP et commandes WebSocket."""
+    hass.data[DOMAIN] = {DATA_STORAGE: None, DATA_ENTRY_ID: None}
+
+    if await hass.async_add_executor_job(_FRONTEND_DIR.is_dir):
+        await hass.http.async_register_static_paths(
+            [StaticPathConfig(FRONTEND_URL_PATH, str(_FRONTEND_DIR), cache_headers=False)]
+        )
+    else:
+        _LOGGER.error("Home Architect frontend bundle is missing (%s)", _FRONTEND_DIR)
+
+    async_register_views(hass)
+    async_register_websocket_commands(hass)
     return True
 
 
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+async def async_setup_entry(hass: HomeAssistant, entry: HomeArchitectConfigEntry) -> bool:
     """Set up Home Architect from a config entry."""
-    hass.data.setdefault(DOMAIN, {})
+    domain_data = hass.data[DOMAIN]
+    if domain_data[DATA_STORAGE] is None:
+        # Chargé une seule fois par démarrage : conservé lors des rechargements de l'entrée
+        storage = HomeArchitectStorage(hass)
+        await storage.async_load()
+        domain_data[DATA_STORAGE] = storage
+        hass.async_create_background_task(
+            storage.async_collect_garbage(), f"{DOMAIN}_collect_garbage"
+        )
 
-    # 1. Initialize Storage
-    storage = HomeArchitectStorage(hass)
-    await storage.async_load()
-    hass.data[DOMAIN]["storage"] = storage
+    entry.runtime_data = HomeArchitectRuntimeData(checker=ReleaseChecker(hass))
+    # Enregistré avant l'entité update : c'est ensuite elle qui met à jour le badge.
+    async_register_panel(hass, entry, update_available=False)
+    try:
+        await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    except Exception:
+        async_unregister_panel(hass, entry)
+        raise
 
-    # 2. Register WebSocket API commands
-    async_register_websocket_commands(hass, storage)
-
-    # 3. Register static path and Lovelace card resource for frontend JS bundle
-    frontend_dir = os.path.join(os.path.dirname(__file__), "frontend")
-    module_url = f"{FRONTEND_URL_PATH}/{FRONTEND_FILE_NAME}?v={VERSION}"
-    if os.path.exists(frontend_dir):
-        if hasattr(hass.http, "async_register_static_paths"):
-            await hass.http.async_register_static_paths(
-                [StaticPathConfig(FRONTEND_URL_PATH, frontend_dir, cache_headers=False)]
-            )
-        else:
-            hass.http.register_static_path(FRONTEND_URL_PATH, frontend_dir, cache_headers=False)
-        _LOGGER.debug("Registered Home Architect frontend path at %s", FRONTEND_URL_PATH)
-
-        if hasattr(frontend, "add_extra_js_url"):
-            frontend.add_extra_js_url(hass, module_url)
-        elif hasattr(frontend, "async_register_built_in_panel"):
-            pass
-
-    # Register HTTP view to serve floor plan SVGs
-    hass.http.register_view(HomeArchitectSvgView(hass))
-
-    # 4. Register sidebar panel
-    show_panel = entry.options.get(
-        CONF_SHOW_SIDEBAR_PANEL,
-        entry.data.get(CONF_SHOW_SIDEBAR_PANEL, DEFAULT_SHOW_SIDEBAR_PANEL),
-    )
-
-    if show_panel:
-        module_url = f"{FRONTEND_URL_PATH}/{FRONTEND_FILE_NAME}?v={VERSION}"
-        try:
-            frontend.async_register_built_in_panel(
-                hass,
-                component_name="custom",
-                sidebar_title=PANEL_TITLE,
-                sidebar_icon=PANEL_ICON,
-                frontend_url_path=PANEL_URL_PATH,
-                config={
-                    "_panel_custom": {
-                        "name": PANEL_NAME,
-                        "module_url": module_url,
-                        "embed_iframe": False,
-                        "trust_external": False,
-                    }
-                },
-                require_admin=False,
-            )
-            _LOGGER.info("Registered Home Architect sidebar panel at /%s", PANEL_URL_PATH)
-        except Exception as err:
-            _LOGGER.warning("Could not register Home Architect panel: %s", err)
-
-    entry.async_on_unload(entry.add_update_listener(async_reload_entry))
-    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    domain_data[DATA_ENTRY_ID] = entry.entry_id
+    frontend.add_extra_js_url(hass, card_module_url())
+    entry.async_on_unload(entry.add_update_listener(_async_update_listener))
     return True
 
 
-async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Unload a config entry."""
+async def async_unload_entry(hass: HomeAssistant, entry: HomeArchitectConfigEntry) -> bool:
+    """Unload a config entry (le stockage global et les routes restent en place)."""
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
-    try:
-        frontend.async_remove_panel(hass, PANEL_URL_PATH)
-    except Exception:
-        pass
-
-    if DOMAIN in hass.data:
-        hass.data.pop(DOMAIN, None)
-
-    return unload_ok
+    if not unload_ok:
+        return False
+    async_unregister_panel(hass, entry)
+    frontend.remove_extra_js_url(hass, card_module_url())
+    hass.data[DOMAIN][DATA_ENTRY_ID] = None
+    return True
 
 
-async def async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    """Reload config entry upon options update."""
-    await async_unload_entry(hass, entry)
-    await async_setup_entry(hass, entry)
+async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Suppression de l'intégration : retire les plans publics (publiés et anciens /local).
+
+    Les plans et images de fond privés sont conservés pour une réinstallation.
+    """
+    storage = hass.data.get(DOMAIN, {}).get(DATA_STORAGE)
+    if storage is None:
+        storage = HomeArchitectStorage(hass)
+        await storage.async_load()
+    removed = await storage.async_remove_public_files()
+    if removed:
+        _LOGGER.info("Removed public Home Architect files: %s", removed)
 
 
-class HomeArchitectSvgView(HomeAssistantView):
-    """View to serve exported floor plan SVGs directly via HTTP."""
-
-    url = "/api/home_architect/plan/{project_id}.svg"
-    name = "api:home_architect:plan_svg"
-    requires_auth = True
-
-    def __init__(self, hass: HomeAssistant) -> None:
-        """Initialize the view."""
-        self.hass = hass
-
-    async def get(self, request, project_id: str):
-        """Serve the SVG for a project."""
-        from aiohttp import web
-        import os
-        import re
-
-        clean_id = os.path.basename(project_id)
-        if not re.match(r"^[a-zA-Z0-9_\-]{1,64}$", clean_id):
-            return web.Response(status=400, text="Invalid project_id")
-
-        www_target = self.hass.config.path("www", f"plan_{clean_id}.svg")
-        if os.path.exists(www_target):
-            def _read():
-                with open(www_target, "r", encoding="utf-8") as f:
-                    return f.read()
-            content = await self.hass.async_add_executor_job(_read)
-            return web.Response(text=content, content_type="image/svg+xml")
-
-        return web.Response(status=404, text=f"Floorplan SVG for {clean_id} not found in www")
+async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Recharge l'entrée quand ses options changent."""
+    await hass.config_entries.async_reload(entry.entry_id)

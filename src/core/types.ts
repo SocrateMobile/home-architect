@@ -1,9 +1,14 @@
+/** Version du schéma de projet écrite par ce client (le backend applique la même). */
+export const PROJECT_SCHEMA_VERSION = 2;
+
 export interface Point {
   x: number; // In meters
   y: number; // In meters
 }
 
-export type WallType = 'standard' | 'partition' | 'loadbearing' | 'exterior';
+/** Types de murs connus (liste d'exécution utilisée pour valider les projets chargés). */
+export const WALL_TYPES = ['standard', 'partition', 'loadbearing', 'exterior'] as const;
+export type WallType = typeof WALL_TYPES[number];
 
 export interface Wall {
   id: string;
@@ -14,13 +19,15 @@ export interface Wall {
   type: WallType;
 }
 
-export type OpeningType = 'door' | 'double_door' | 'sliding_door' | 'window' | 'french_window';
+/** Types d'ouvertures connus (liste d'exécution utilisée pour valider les projets chargés). */
+export const OPENING_TYPES = ['door', 'double_door', 'sliding_door', 'window', 'french_window'] as const;
+export type OpeningType = typeof OPENING_TYPES[number];
 
 export interface Opening {
   id: string;
   wallId: string;
   type: OpeningType;
-  offset: number; // Distance in meters from wall.start
+  offset: number; // Distance in meters from wall.start to the opening center
   width: number;  // Width in meters (e.g. 0.90 for standard door)
   height?: number; // Height in meters
   flipSide: boolean; // Invert open swing side (interior/exterior)
@@ -40,6 +47,10 @@ export interface Room {
   height?: number;  // Ceiling height in meters (e.g. 2.50m)
 }
 
+/** Actions possibles sur une entité du plan (tap / appui long). */
+export const TAP_ACTION_TYPES = ['toggle', 'more-info', 'navigate', 'none'] as const;
+export type TapActionType = typeof TAP_ACTION_TYPES[number];
+
 export interface EntityBinding {
   id: string;
   entityId: string;
@@ -47,13 +58,16 @@ export interface EntityBinding {
   roomId?: string;
   icon?: string;
   mdiIcon?: string;
-  customName?: string;
-  tapAction: 'toggle' | 'more-info' | 'navigate';
+  customName?: string;         // UNIQUEMENT si l'utilisateur a saisi un nom ; sinon le friendly_name live est affiché
+  tapAction?: TapActionType;   // undefined = action par défaut du domaine (voir defaultTapAction)
+  holdAction?: TapActionType;  // défaut 'more-info'
   navigationPath?: string;
 }
 
 export interface BackgroundPlan {
-  imageUrl: string;
+  imageUrl: string;   // URL externe http(s) OU data-URL héritée (sera migrée). Chaîne vide '' si assetId est utilisé.
+  assetId?: string;   // Nom de fichier de l'asset côté serveur (ex: "plan_ab12cd34-9f8e7d6c5b4a.webp")
+  mimeType?: string;
   opacity: number;
   visible: boolean;
   offset: Point;     // Offset in meters
@@ -63,8 +77,26 @@ export interface BackgroundPlan {
   heightPx?: number;
 }
 
+/** Cadre d'export figé (en mètres) servant de référence aux positions % de picture-elements. */
+export interface ExportFrame {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+}
+
+/** Informations de publication du SVG : possédées par le SERVEUR, injectées en lecture par get_project. */
+export interface PublishInfo {
+  url: string;            // "/api/home_architect/published/<file>.svg?v=<hash>"
+  path: string;           // Sans ?v
+  hash: string;
+  published_at: string;
+  include_background: boolean;
+  legacy_path?: string;   // "/local/plan_<id>.svg" si un ancien fichier www existe
+}
+
 export interface GridConfig {
-  size: number;       // Grid cell size in meters, e.g. 0.5m or 1.0m
+  size: number;       // Grid cell size in meters (0.05 à 1 m réglable dans l'interface)
   subdivisions: number;
   snapToGrid: boolean;
   snapToAngles: boolean; // 0°, 45°, 90°
@@ -72,9 +104,11 @@ export interface GridConfig {
 }
 
 export interface HomeArchitectProject {
-  id: string;
+  id: string;        // Identifiant immuable ('plan_xxxxxxxx', ou ancien id de niveau 'rdc', 'etage1'…)
   name: string;
-  category?: string; // 'rdc' | 'jardin' | 'sous-sol' | 'etage1' | 'etage2' | 'etage3' | 'autre'
+  category?: string; // Niveau ('rdc' | 'jardin' | 'sous-sol' | 'etage1' | 'etage2' | 'etage3') ou 'autre' (voir core/levels.ts)
+  schema_version?: number; // PROJECT_SCHEMA_VERSION
+  revision?: number;       // Possédé par le serveur (incrémenté à chaque sauvegarde)
   created_at: string;
   updated_at: string;
   pixelsPerMeter: number; // Default 50 px/m
@@ -85,17 +119,20 @@ export interface HomeArchitectProject {
   openings: Opening[];
   rooms: Room[];
   bindings: EntityBinding[];
-  furniture?: FurnitureItem[];
+  furniture?: FurnitureItem[]; // Optionnel dans le type (compatibilité), mais normalizeProject garantit []
   showDimensions?: boolean;
   showThermalHeatmap?: boolean;
   showGhostLevel?: boolean;
   ghostLevelId?: string;
+  exportFrame?: ExportFrame; // Cadre figé pour les positions % de picture-elements
+  publish?: PublishInfo;     // Lecture seule, injecté par le serveur ; retiré avant la sauvegarde
 }
 
-export type ActiveTool = 
+export type ActiveTool =
   | 'select'
   | 'wall'
-  | 'rect_room'
+  | 'room'       // Pièce polygonale (clic par sommet, double-clic / clic sur le 1er sommet pour fermer)
+  | 'rect_room'  // Pièce rectangulaire par glisser
   | 'door'
   | 'window'
   | 'french_window'
@@ -138,7 +175,9 @@ export interface SelectedElements {
   furnitureIds?: string[];
 }
 
-export type FurnitureCategory = 'seating' | 'bed' | 'table' | 'kitchen' | 'bathroom' | 'storage' | 'other';
+/** Catégories de mobilier connues (liste d'exécution utilisée pour valider les projets chargés). */
+export const FURNITURE_CATEGORIES = ['seating', 'bed', 'table', 'kitchen', 'bathroom', 'storage', 'other'] as const;
+export type FurnitureCategory = typeof FURNITURE_CATEGORIES[number];
 
 export interface FurnitureItem {
   id: string;
@@ -148,7 +187,7 @@ export interface FurnitureItem {
   position: Point; // in meters
   width: number;   // in meters
   length: number;  // in meters
-  rotation: number; // 0, 90, 180, 270 degrees
+  rotation: number; // Degrés quelconques, normalisés dans [0, 360)
   roomId?: string;
   color?: string;
   icon?: string;

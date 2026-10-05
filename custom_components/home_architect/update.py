@@ -1,352 +1,133 @@
-"""Update platform for Home Architect integration."""
+"""Update platform for Home Architect.
+
+L'entité ne fait que NOTIFIER (version, notes de version) : l'installation se
+fait par HACS. Aucun téléchargement, extraction ni redémarrage n'est effectué ici.
+"""
 from __future__ import annotations
 
-import asyncio
-import json
-import logging
-import os
-import re
-import shutil
-import tempfile
-import zipfile
-from datetime import timedelta
+from datetime import datetime
 from typing import Any
 
-import aiohttp
-
-from homeassistant.components import frontend
-from homeassistant.components.update import (
-    UpdateDeviceClass,
-    UpdateEntity,
-    UpdateEntityFeature,
-)
-from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
-from homeassistant.helpers.aiohttp_client import async_get_clientsession
-from homeassistant.helpers.entity import DeviceInfo
+from homeassistant.components.update import UpdateEntity, UpdateEntityFeature
+from homeassistant.const import STATE_ON
+from homeassistant.core import Event, EventStateChangedData, HomeAssistant, callback
+from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.event import async_track_time_interval
+from homeassistant.helpers.event import (
+    async_track_state_change_event,
+    async_track_time_interval,
+)
 
-from .const import DOMAIN, NAME, VERSION, PANEL_URL_PATH, FRONTEND_URL_PATH, FRONTEND_FILE_NAME
+from .const import DOMAIN, NAME, UPDATE_CHECK_INTERVAL, VERSION
+from .panel import async_register_panel
+from .runtime import HomeArchitectConfigEntry
+from .version_utils import is_newer_version
 
-_LOGGER = logging.getLogger(__name__)
-
-GITHUB_REPO = "SocrateMobile/home-architect"
-GITHUB_LATEST_RELEASE_URL = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
-UPDATE_CHECK_INTERVAL = timedelta(hours=4)
-
-
-def parse_semver(version_str: str) -> tuple[int, ...]:
-    """Parse semver string into a comparable tuple of integers."""
-    if not version_str:
-        return (0, 0, 0)
-    clean = re.sub(r"^[vV]", "", version_str.strip())
-    parts: list[int] = []
-    for segment in clean.split("."):
-        digits = re.match(r"^\d+", segment)
-        parts.append(int(digits.group(0)) if digits else 0)
-    return tuple(parts)
-
-
-def get_installed_version() -> str:
-    """Read version directly from manifest.json with fallback to const.VERSION."""
-    manifest_path = os.path.join(os.path.dirname(__file__), "manifest.json")
-    try:
-        if os.path.exists(manifest_path):
-            with open(manifest_path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                return str(data.get("version", VERSION))
-    except Exception as err:
-        _LOGGER.warning("Could not read manifest.json version: %s", err)
-    return VERSION
+_ATTR_SKIPPED_VERSION = "skipped_version"
 
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    entry: ConfigEntry,
+    entry: HomeArchitectConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up the update platform for Home Architect."""
-    entry_data = hass.data.setdefault(DOMAIN, {}).setdefault(entry.entry_id, {})
-    installed_ver = get_installed_version()
-
-    update_entity = HomeArchitectUpdateEntity(
-        hass=hass,
-        entry=entry,
-        installed_version=installed_ver,
-    )
-
-    entry_data["update_entity"] = update_entity
-    hass.data[DOMAIN]["update_entity"] = update_entity
-    async_add_entities([update_entity], False)
+    entity = HomeArchitectUpdateEntity(entry)
+    entry.runtime_data.update_entity = entity
+    async_add_entities([entity])
 
 
 class HomeArchitectUpdateEntity(UpdateEntity):
-    """Representation of the Home Architect update entity."""
+    """Notifie qu'une nouvelle version de Home Architect est publiée."""
 
     _attr_has_entity_name = True
-    _attr_device_class = UpdateDeviceClass.FIRMWARE
-    _attr_supported_features = (
-        UpdateEntityFeature.INSTALL
-        | UpdateEntityFeature.RELEASE_NOTES
-        | UpdateEntityFeature.PROGRESS
-    )
+    _attr_name = None
+    _attr_translation_key = "update"
+    _attr_should_poll = False
+    _attr_supported_features = UpdateEntityFeature.RELEASE_NOTES
+    _attr_title = NAME
+    _attr_installed_version = VERSION
 
-    def __init__(
-        self,
-        hass: HomeAssistant,
-        entry: ConfigEntry,
-        installed_version: str,
-    ) -> None:
+    def __init__(self, entry: HomeArchitectConfigEntry) -> None:
         """Initialize the update entity."""
-        self.hass = hass
-        self.entry = entry
-        self._attr_name = "Mise à jour"
+        self._entry = entry
+        self._checker = entry.runtime_data.checker
         self._attr_unique_id = f"home_architect_update_{entry.entry_id}"
-        self._attr_title = NAME
-
-        self._attr_installed_version = installed_version
-        self._attr_latest_version = installed_version
-        self._attr_release_summary: str | None = None
-        self._attr_release_url: str | None = None
-        self._release_body: str | None = None
-        self._zip_download_url: str | None = None
-
-        self._attr_in_progress = False
-        self._attr_update_percentage: int | None = None
-
+        self._attr_latest_version = VERSION
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, entry.entry_id)},
             name=NAME,
             manufacturer="SocrateMobile",
-            model="Home Architect Studio",
-            sw_version=installed_version,
+            model=NAME,
+            sw_version=VERSION,
+            entry_type=DeviceEntryType.SERVICE,
         )
+        self._apply_release()
 
-        self._unsub_interval = None
+    def version_is_newer(self, latest_version: str, installed_version: str) -> bool:
+        """Comparaison SemVer (une version locale plus récente n'est pas une mise à jour)."""
+        return is_newer_version(latest_version, installed_version)
 
     async def async_added_to_hass(self) -> None:
-        """Register periodic update checks and initial check."""
+        """Abonnements : release connue, état de l'entité (badge du panneau), minuterie."""
         await super().async_added_to_hass()
-        self._unsub_interval = async_track_time_interval(
-            self.hass, self._async_periodic_check, UPDATE_CHECK_INTERVAL
+        self.async_on_remove(self._checker.async_add_listener(self._async_release_changed))
+        self.async_on_remove(
+            async_track_state_change_event(self.hass, [self.entity_id], self._async_state_changed)
         )
-        if hasattr(self.hass, "async_create_background_task"):
-            self.hass.async_create_background_task(
-                self.async_update(), name=f"{DOMAIN}_initial_update_check"
+        if not self._entry.pref_disable_polling:
+            self.async_on_remove(
+                async_track_time_interval(self.hass, self._async_scheduled_check, UPDATE_CHECK_INTERVAL)
             )
-        else:
-            self.hass.async_create_task(self.async_update())
+        self._entry.async_create_background_task(
+            self.hass, self._checker.async_refresh(), f"{DOMAIN}_initial_update_check"
+        )
 
-    async def async_will_remove_from_hass(self) -> None:
-        """Clean up when entity is removed."""
-        if self._unsub_interval:
-            self._unsub_interval()
-            self._unsub_interval = None
-        await super().async_will_remove_from_hass()
+    async def _async_scheduled_check(self, _now: datetime) -> None:
+        await self._checker.async_refresh()
 
-    async def _async_periodic_check(self, _now: Any = None) -> None:
-        """Periodic check called by timer."""
-        await self.async_update()
+    def _apply_release(self) -> None:
+        if (release := self._checker.release) is None:
+            return
+        self._attr_latest_version = release.version
+        self._attr_release_summary = release.title
+        self._attr_release_url = release.url
 
-    async def async_update(self) -> None:
-        """Check GitHub for the latest release."""
-        try:
-            session = async_get_clientsession(self.hass)
-            headers = {
-                "User-Agent": "Home-Architect-HA",
-                "Accept": "application/vnd.github.v3+json",
-            }
-            async with session.get(
-                GITHUB_LATEST_RELEASE_URL, headers=headers, timeout=aiohttp.ClientTimeout(total=15)
-            ) as resp:
-                if resp.status != 200:
-                    _LOGGER.debug(
-                        "GitHub release check returned HTTP %s for %s",
-                        resp.status,
-                        GITHUB_REPO,
-                    )
-                    return
+    @callback
+    def _async_release_changed(self) -> None:
+        self._apply_release()
+        self.async_write_ha_state()
 
-                data = await resp.json()
-                tag = data.get("tag_name", "").strip()
-                clean_tag = re.sub(r"^[vV]", "", tag)
-                if not clean_tag:
-                    return
-
-                self._attr_latest_version = clean_tag
-                self._attr_release_summary = data.get("name") or f"Version {clean_tag}"
-                self._release_body = data.get("body") or ""
-                self._attr_release_url = data.get("html_url")
-                self._zip_download_url = (
-                    f"https://github.com/{GITHUB_REPO}/archive/refs/tags/{tag}.zip"
-                )
-
-                has_update = parse_semver(clean_tag) > parse_semver(self._attr_installed_version)
-
-                # Update left sidebar panel badge
-                self._update_sidebar_panel(has_update)
-
-                if getattr(self, "hass", None) and getattr(self, "entity_id", None):
-                    try:
-                        self.async_write_ha_state()
-                    except Exception:
-                        pass
-                _LOGGER.info(
-                    "Home Architect update check: installed=%s, latest=%s, update_available=%s",
-                    self._attr_installed_version,
-                    clean_tag,
-                    has_update,
-                )
-        except asyncio.TimeoutError:
-            _LOGGER.debug("Timeout checking GitHub releases for Home Architect")
-        except Exception as err:
-            _LOGGER.warning("Error checking GitHub releases for Home Architect: %s", err)
-
-    def _update_sidebar_panel(self, update_available: bool) -> None:
-        """Update the Home Assistant left sidebar panel badge/title."""
-        try:
-            title = f"{NAME} 🔴" if update_available else NAME
-            module_url = f"{FRONTEND_URL_PATH}/{FRONTEND_FILE_NAME}?v={self._attr_installed_version}"
-            frontend.async_register_built_in_panel(
-                self.hass,
-                component_name="custom",
-                sidebar_title=title,
-                sidebar_icon="mdi:floor-plan",
-                frontend_url_path=PANEL_URL_PATH,
-                config={
-                    "_panel_custom": {
-                        "name": "home-architect-panel",
-                        "module_url": module_url,
-                        "embed_iframe": False,
-                        "trust_external": False,
-                    }
-                },
-                require_admin=False,
-                update=True,
-            )
-        except Exception as err:
-            _LOGGER.debug("Could not update sidebar panel registration: %s", err)
+    @callback
+    def _async_state_changed(self, event: Event[EventStateChangedData]) -> None:
+        # L'état « on » tient compte de la version ignorée par l'utilisateur.
+        new_state = event.data["new_state"]
+        async_register_panel(
+            self.hass, self._entry, new_state is not None and new_state.state == STATE_ON
+        )
 
     async def async_release_notes(self) -> str | None:
         """Return release notes in markdown."""
-        return self._release_body
+        release = self._checker.release
+        return release.notes if release is not None else None
 
-    async def async_install(
-        self, version: str | None = None, backup: bool = True, **kwargs: Any
-    ) -> None:
-        """Download and install update, then restart Home Assistant."""
-        if not self._zip_download_url:
-            raise ValueError("No download URL available for Home Architect update")
-
-        _LOGGER.info(
-            "Starting Home Architect update to version %s (download: %s)",
-            self._attr_latest_version,
-            self._zip_download_url,
-        )
-
-        self._attr_in_progress = True
-        self._attr_update_percentage = 10
-        if self.entity_id is not None:
-            self.async_write_ha_state()
-
-        def _do_download_and_extract() -> None:
-            """Synchronous blocking filesystem work executed in executor."""
-            import urllib.request
-            import ssl
-
-            ctx = ssl.create_default_context()
-            try:
-                import certifi
-                ctx.load_verify_locations(certifi.where())
-            except Exception:
-                try:
-                    ctx.check_hostname = False
-                    ctx.verify_mode = ssl.CERT_NONE
-                except Exception:
-                    pass
-
-            temp_dir = tempfile.mkdtemp(prefix="home_architect_update_")
-            zip_path = os.path.join(temp_dir, "release.zip")
-            try:
-                # 1. Download zip
-                req = urllib.request.Request(
-                    self._zip_download_url,
-                    headers={"User-Agent": "Home-Architect-HA"},
-                )
-                with urllib.request.urlopen(req, context=ctx, timeout=45) as resp, open(
-                    zip_path, "wb"
-                ) as out_file:
-                    shutil.copyfileobj(resp, out_file)
-
-                # 2. Extract zip
-                extract_path = os.path.join(temp_dir, "extracted")
-                os.makedirs(extract_path, exist_ok=True)
-                with zipfile.ZipFile(zip_path, "r") as zip_ref:
-                    zip_ref.extractall(extract_path)
-
-                # 3. Locate custom_components/home_architect inside extracted content
-                source_component_dir = None
-                for root, _dirs, _files in os.walk(extract_path):
-                    if (
-                        os.path.basename(root) == "home_architect"
-                        and os.path.basename(os.path.dirname(root)) == "custom_components"
-                    ):
-                        source_component_dir = root
-                        break
-
-                if not source_component_dir or not os.path.exists(
-                    os.path.join(source_component_dir, "__init__.py")
-                ):
-                    raise RuntimeError(
-                        "Archive does not contain a valid custom_components/home_architect structure"
-                    )
-
-                # 4. Target component directory
-                target_dir = os.path.abspath(os.path.dirname(__file__))
-
-                # 5. Optional safety backup of current directory
-                if backup:
-                    backup_dir = os.path.join(tempfile.gettempdir(), "home_architect_last_backup")
-                    if os.path.exists(backup_dir):
-                        shutil.rmtree(backup_dir, ignore_errors=True)
-                    shutil.copytree(target_dir, backup_dir, dirs_exist_ok=True)
-                    _LOGGER.info("Home Architect safety backup saved to %s", backup_dir)
-
-                # 6. Overwrite target directory with newly extracted files
-                shutil.copytree(source_component_dir, target_dir, dirs_exist_ok=True)
-                _LOGGER.info("Home Architect files successfully updated in %s", target_dir)
-
-            finally:
-                shutil.rmtree(temp_dir, ignore_errors=True)
-
-        try:
-            self._attr_update_percentage = 30
-            if self.entity_id is not None:
-                self.async_write_ha_state()
-
-            await self.hass.async_add_executor_job(_do_download_and_extract)
-
-            self._attr_update_percentage = 90
-            if self.entity_id is not None:
-                self.async_write_ha_state()
-
-            # Reset sidebar panel title
-            self._update_sidebar_panel(False)
-
-            self._attr_update_percentage = 100
-            self._attr_installed_version = self._attr_latest_version
-            self._attr_in_progress = False
-            if self.entity_id is not None:
-                self.async_write_ha_state()
-
-            _LOGGER.info("Update complete! Requesting Home Assistant restart...")
-            await asyncio.sleep(1)
-
-            # Trigger Home Assistant restart
-            await self.hass.services.async_call("homeassistant", "restart")
-
-        except Exception as err:
-            self._attr_in_progress = False
-            _LOGGER.error("Failed to install Home Architect update: %s", err)
-            raise
+    @callback
+    def async_status(self) -> dict[str, Any]:
+        """Réponse de la commande WS check_updates."""
+        release = self._checker.release
+        state = self.hass.states.get(self.entity_id) if self.hass and self.entity_id else None
+        if state is not None:
+            update_available = state.state == STATE_ON
+            skipped_version = state.attributes.get(_ATTR_SKIPPED_VERSION)
+        else:  # entité désactivée
+            update_available = release is not None and is_newer_version(release.version, VERSION)
+            skipped_version = None
+        return {
+            "installed_version": VERSION,
+            "latest_version": release.version if release is not None else None,
+            "update_available": update_available,
+            "skipped_version": skipped_version,
+            "release_url": release.url if release is not None else None,
+            "release_notes": release.notes if release is not None else "",
+            "update_entity_id": self.entity_id,
+        }
