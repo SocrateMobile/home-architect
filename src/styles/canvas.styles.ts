@@ -62,6 +62,11 @@ export const canvasStyles = css`
     shape-rendering: geometricPrecision;
   }
 
+  .viewport-2d-rotator {
+    transform-box: view-box;
+    transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
   /* Grid styles */
   .grid-pattern line {
     stroke: rgba(255, 255, 255, 0.07);

@@ -1717,8 +1717,8 @@ export class HomeArchitectCanvas extends LitElement {
           <line x1="0" y1="0" x2="0" y2="${majorStepPx}" stroke="rgba(255,255,255,0.14)" stroke-width="1" />
         </pattern>
       </defs>
-      <rect width="100%" height="100%" fill="url(#grid-sub)" />
-      <rect width="100%" height="100%" fill="url(#grid-major)" />
+      <rect x="-10000" y="-10000" width="20000" height="20000" fill="url(#grid-sub)" />
+      <rect x="-10000" y="-10000" width="20000" height="20000" fill="url(#grid-major)" />
     `;
   }
 
@@ -2477,6 +2477,11 @@ export class HomeArchitectCanvas extends LitElement {
 
   render() {
     const helpMsg = this.getHelpMessage();
+    const rect = this.getBoundingClientRect();
+    const canvasW = rect.width || this.clientWidth || 800;
+    const canvasH = rect.height || this.clientHeight || 600;
+    const cx = canvasW / 2;
+    const cy = canvasH / 2;
 
     return html`
       <div 
@@ -2493,24 +2498,31 @@ export class HomeArchitectCanvas extends LitElement {
           class="viewport-3d-wrapper ${this.is3DMode ? 'mode-3d' : ''}"
           style="${this.is3DMode 
             ? `transform: rotateX(${this.orbitPitch}deg) rotateZ(${this.orbitYaw}deg); transition: ${this.isOrbiting ? 'none' : 'transform 0.4s cubic-bezier(0.16, 1, 0.3, 1)'};` 
-            : `transform: rotate(${this.viewRotation}deg); transform-origin: center center; transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);`}"
+            : ''}"
         >
           <svg class="main-viewport">
-            ${this.renderBackgroundLayer()}
-            ${this.renderGhostLayer()}
-            ${this.renderGrid()}
-            ${this.renderRooms()}
-            ${this.renderFurniture()}
-            ${this.renderWalls()}
-            ${this.renderOpenings()}
-            ${this.renderOpeningPreview()}
-            ${this.renderPreviewWall()}
-            ${this.renderCalibrationLine()}
-            ${this.renderRescaleLine()}
-            ${this.renderSmartGuides()}
-            ${this.renderSnapIndicator()}
-            ${this.renderEntityBindings()}
-            ${this.renderMarqueeBox()}
+            <g
+              class="viewport-2d-rotator"
+              style="${!this.is3DMode 
+                ? `transform: rotate(${this.viewRotation}deg); transform-origin: ${cx}px ${cy}px; transform-box: view-box; transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);` 
+                : ''}"
+            >
+              ${this.renderBackgroundLayer()}
+              ${this.renderGhostLayer()}
+              ${this.renderGrid()}
+              ${this.renderRooms()}
+              ${this.renderFurniture()}
+              ${this.renderWalls()}
+              ${this.renderOpenings()}
+              ${this.renderOpeningPreview()}
+              ${this.renderPreviewWall()}
+              ${this.renderCalibrationLine()}
+              ${this.renderRescaleLine()}
+              ${this.renderSmartGuides()}
+              ${this.renderSnapIndicator()}
+              ${this.renderEntityBindings()}
+              ${this.renderMarqueeBox()}
+            </g>
           </svg>
         </div>
 
