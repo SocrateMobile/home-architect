@@ -320,6 +320,21 @@ export const canvasStyles = css`
     cursor: grabbing;
   }
 
+  .furniture-resize-handle {
+    cursor: nwse-resize;
+    transition: transform 0.15s ease, filter 0.15s ease;
+  }
+
+  .furniture-resize-handle:hover rect {
+    fill: #06b6d4 !important;
+    stroke: #ffffff !important;
+    filter: drop-shadow(0 0 8px #06b6d4);
+  }
+
+  .furniture-resize-handle:active {
+    cursor: nwse-resize;
+  }
+
   /* Calque fantôme niveau inférieur (Onion Skinning) */
   .ghost-wall {
     stroke: rgba(148, 163, 184, 0.42);
