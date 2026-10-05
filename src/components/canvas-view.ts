@@ -121,6 +121,14 @@ export class HomeArchitectCanvas extends LitElement {
   private rotateFurnitureStartAngle: number = 0;
   private rotateFurnitureInitialAngle: number = 0;
 
+  // État redimensionnement / étirement de meuble (poignée coin bas-droit)
+  @state()
+  private resizingFurnitureId: string | null = null;
+  private resizeFurnitureMoved: boolean = false;
+  private resizeFurnitureStartPointer: Point = { x: 0, y: 0 };
+  private resizeFurnitureInitialWidth: number = 1.0;
+  private resizeFurnitureInitialLength: number = 1.0;
+
   // État déplacement de mur
   @state()
   private draggingWallId: string | null = null;
@@ -491,6 +499,59 @@ export class HomeArchitectCanvas extends LitElement {
   }
 
   private handlePointerMove(e: PointerEvent): void {
+    if (this.resizingFurnitureId) {
+      this.resizeFurnitureMoved = true;
+      const item = (this.project.furniture || []).find(f => f.id === this.resizingFurnitureId);
+      if (item) {
+        const ppm = this.project.pixelsPerMeter * this.viewport.zoom;
+        const dxScreen = e.clientX - this.resizeFurnitureStartPointer.x;
+        const dyScreen = e.clientY - this.resizeFurnitureStartPointer.y;
+
+        // Angle total appliqué au meuble dans le canvas (rotation meuble + rotation de vue 2D)
+        const totalAngleDeg = (item.rotation || 0) + (!this.is3DMode ? this.viewRotation : 0);
+        const rad = (totalAngleDeg * Math.PI) / 180;
+        const cos = Math.cos(rad);
+        const sin = Math.sin(rad);
+
+        // Projection du vecteur de déplacement de la souris dans le repère local du meuble (axe X = largeur, axe Y = longueur)
+        const dxLocalPx = dxScreen * cos + dyScreen * sin;
+        const dyLocalPx = -dxScreen * sin + dyScreen * cos;
+
+        const dWidthMeters = dxLocalPx / ppm;
+        const dLengthMeters = dyLocalPx / ppm;
+
+        let newWidth = Math.max(0.20, this.resizeFurnitureInitialWidth + dWidthMeters);
+        let newLength = Math.max(0.20, this.resizeFurnitureInitialLength + dLengthMeters);
+
+        // Si Shift est maintenu, conserver les proportions d'origine (aspect ratio)
+        if (e.shiftKey && this.resizeFurnitureInitialWidth > 0 && this.resizeFurnitureInitialLength > 0) {
+          const ratio = this.resizeFurnitureInitialLength / this.resizeFurnitureInitialWidth;
+          const scale = Math.max(newWidth / this.resizeFurnitureInitialWidth, newLength / this.resizeFurnitureInitialLength);
+          newWidth = Math.max(0.20, this.resizeFurnitureInitialWidth * scale);
+          newLength = Math.max(0.20, newWidth * ratio);
+        }
+
+        // Arrondi millimétrique (pixel par pixel)
+        newWidth = Math.round(newWidth * 1000) / 1000;
+        newLength = Math.round(newLength * 1000) / 1000;
+
+        const newFurniture = (this.project.furniture || []).map(f => {
+          if (f.id === this.resizingFurnitureId) {
+            return {
+              ...f,
+              width: newWidth,
+              length: newLength
+            };
+          }
+          return f;
+        });
+
+        this.project = { ...this.project, furniture: newFurniture };
+        this.requestUpdate();
+      }
+      return;
+    }
+
     if (this.rotatingFurnitureId) {
       this.rotateFurnitureMoved = true;
       const item = (this.project.furniture || []).find(f => f.id === this.rotatingFurnitureId);
@@ -707,6 +768,19 @@ export class HomeArchitectCanvas extends LitElement {
   }
 
   private handlePointerUp(e: PointerEvent): void {
+    if (this.resizingFurnitureId) {
+      const moved = this.resizeFurnitureMoved;
+      this.resizingFurnitureId = null;
+      this.resizeFurnitureMoved = false;
+      try {
+        (e.target as HTMLElement).releasePointerCapture?.(e.pointerId);
+      } catch (_) {}
+      if (moved) {
+        this.dispatchProjectChanged();
+        return;
+      }
+    }
+
     if (this.rotatingFurnitureId) {
       const moved = this.rotateFurnitureMoved;
       this.rotatingFurnitureId = null;
@@ -1028,6 +1102,30 @@ export class HomeArchitectCanvas extends LitElement {
     const sCenter = this.worldToScreen(item.position);
     this.rotateFurnitureStartAngle = Math.atan2(e.clientY - sCenter.y, e.clientX - sCenter.x) * (180 / Math.PI);
     this.rotateFurnitureInitialAngle = item.rotation || 0;
+
+    // Assurer que le meuble est sélectionné
+    if (!this.selectedElements.furnitureIds?.includes(item.id)) {
+      this.selectedElements = { wallIds: [], openingIds: [], roomIds: [], bindingIds: [], furnitureIds: [item.id] };
+      this.dispatchSelectionChanged();
+    }
+
+    try {
+      (e.currentTarget as HTMLElement)?.setPointerCapture?.(e.pointerId);
+    } catch (_) {}
+  }
+
+  private handleFurnitureResizePointerDown(item: FurnitureItem, e: PointerEvent): void {
+    if (this.isDashboardMode) return;
+    if (e.button !== 0) return;
+    e.stopPropagation();
+
+    this.resizingFurnitureId = item.id;
+    this.resizeFurnitureMoved = false;
+    this.resizeFurnitureStartPointer = { x: e.clientX, y: e.clientY };
+
+    const tmpl = findFurnitureTemplate(item.type);
+    this.resizeFurnitureInitialWidth = item.width || tmpl?.width || 1.0;
+    this.resizeFurnitureInitialLength = item.length || tmpl?.length || 1.0;
 
     // Assurer que le meuble est sélectionné
     if (!this.selectedElements.furnitureIds?.includes(item.id)) {
@@ -2163,7 +2261,7 @@ export class HomeArchitectCanvas extends LitElement {
             <text x="0" y="4" text-anchor="middle" font-size="12" fill="#cbd5e1">${item.icon || '📦'}</text>
           `}
           ${isSelected ? svg`
-            <!-- Ligne de rappel vers la poignée -->
+            <!-- Ligne de rappel vers la poignée de rotation -->
             <line x1="0" y1="${-lPx/2}" x2="0" y2="${-lPx/2 - 18}" stroke="#38bdf8" stroke-width="1.5" stroke-dasharray="3,2" />
             <!-- Poignée interactive de rotation degré par degré -->
             <g
@@ -2187,6 +2285,45 @@ export class HomeArchitectCanvas extends LitElement {
               >
                 ${Math.round(rot)}°
               </text>
+            </g>
+
+            <!-- Poignée interactive d'étirement / redimensionnement en bas à droite -->
+            <g
+              class="furniture-resize-handle"
+              @pointerdown=${(e: PointerEvent) => this.handleFurnitureResizePointerDown(item, e)}
+              style="cursor: nwse-resize;"
+            >
+              <!-- Zone cliquable invisible élargie -->
+              <rect x="${wPx/2 - 6}" y="${lPx/2 - 6}" width="20" height="20" fill="transparent" />
+              <!-- Poignée carrée moderne aux coins légèrement arrondis avec bordure blanche -->
+              <rect 
+                x="${wPx/2 - 2}" 
+                y="${lPx/2 - 2}" 
+                width="11" 
+                height="11" 
+                rx="2.5" 
+                fill="#38bdf8" 
+                stroke="#ffffff" 
+                stroke-width="1.8" 
+              />
+              <!-- 2 stries diagonales symbolisant le grip de redimensionnement -->
+              <line x1="${wPx/2 + 2}" y1="${lPx/2 + 7}" x2="${wPx/2 + 7}" y2="${lPx/2 + 2}" stroke="#0f172a" stroke-width="1.2" stroke-linecap="round" />
+              <line x1="${wPx/2 + 5}" y1="${lPx/2 + 7}" x2="${wPx/2 + 7}" y2="${lPx/2 + 5}" stroke="#0f172a" stroke-width="1.2" stroke-linecap="round" />
+
+              <!-- Badge des dimensions actuelles en bas à droite -->
+              <g transform="translate(${wPx/2 + 14}, ${lPx/2 + 16})" style="user-select: none; pointer-events: none;">
+                <rect x="-2" y="-9" width="${(wMeters.toFixed(2) + '×' + lMeters.toFixed(2) + 'm').length * 6.5 + 8}" height="14" rx="3" fill="rgba(15, 23, 42, 0.85)" stroke="rgba(56, 189, 248, 0.4)" stroke-width="0.8" />
+                <text 
+                  x="2" 
+                  y="1.5" 
+                  font-size="9" 
+                  font-weight="700" 
+                  font-family="ui-monospace, SFMono-Regular, monospace"
+                  fill="#38bdf8"
+                >
+                  ${wMeters.toFixed(2)}×${lMeters.toFixed(2)}m
+                </text>
+              </g>
             </g>
           ` : null}
         </g>
