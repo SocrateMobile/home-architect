@@ -28,6 +28,8 @@ interface ActionConfig {
 
 /** Clé YAML laissée sans guillemets (identifiant simple) ; toute autre clé est citée. */
 const PLAIN_KEY = /^[A-Za-z_][A-Za-z0-9_]*$/;
+/** Identifiants que YAML 1.1 (PyYAML) lit comme booléen ou null : toujours cités, même en clé. */
+const YAML11_RESERVED_KEY = /^(?:y|n|yes|no|true|false|on|off|null)$/i;
 
 /** Domaines affichés sous forme de valeur (state-label) plutôt que d'icône. */
 const LABEL_DOMAINS = new Set(['sensor', 'climate', 'input_number', 'number', 'counter']);
@@ -98,7 +100,7 @@ function yamlComment(text: string): string {
 }
 
 function yamlKey(key: string): string {
-  return PLAIN_KEY.test(key) ? key : yamlQuote(key);
+  return PLAIN_KEY.test(key) && !YAML11_RESERVED_KEY.test(key) ? key : yamlQuote(key);
 }
 
 function yamlScalar(value: string | number | boolean | null): string {

@@ -79,6 +79,15 @@ describe('toYaml', () => {
     const yaml = toYaml({ a: 'yes', b: '12', c: undefined });
     expect(yaml).toBe('a: "yes"\nb: "12"\n');
   });
+
+  it('cite les clés que YAML 1.1 lirait comme booléen ou null', () => {
+    const value = { on: 1, Off: 2, yes: 3, n: 4, null: 5, TRUE: 6, online: 7 };
+    const yaml = toYaml(value);
+    expect(yaml).toContain('"on": 1');
+    expect(yaml).toContain('online: 7');
+    expect(parse(yaml)).toEqual(value);
+    expect(parse(yaml, { version: '1.1' })).toEqual(value);
+  });
 });
 
 describe('LovelaceGenerator.generatePictureElementsYaml', () => {

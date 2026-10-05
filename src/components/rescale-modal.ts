@@ -7,7 +7,7 @@ export interface RescaleModalResult {
   currentMeters: number;
   targetMeters: number;
   scaleFactor: number;
-  /** True seulement si le projet a un calque de fond ET que l'utilisateur a choisi de l'ajuster. */
+  /** False si le projet n'a pas de calque de fond (hasBackground=false) ou si l'utilisateur a décoché l'option. */
   adjustBackground: boolean;
 }
 
@@ -382,9 +382,13 @@ export class HomeArchitectRescaleModal extends LitElement {
   @property({ type: Number })
   public bindingCount: number = 0;
 
-  /** Le projet a-t-il un calque de fond ? (sinon l'option d'ajustement du fond est masquée) */
-  @property({ type: Boolean })
-  public hasBackground: boolean = false;
+  /**
+   * Le projet a-t-il un calque de fond ? false : l'option d'ajustement du fond est masquée et
+   * adjustBackground vaut false. Non renseigné (parent qui ne le transmet pas) : l'option est
+   * proposée, cochée, comme avant (le fond éventuel reste superposé au plan).
+   */
+  @property({ attribute: false })
+  public hasBackground?: boolean;
 
   /** Saisie brute : jamais réécrite pendant la frappe, validée à la confirmation. */
   @state()
@@ -439,6 +443,11 @@ export class HomeArchitectRescaleModal extends LitElement {
     }
   };
 
+  /** Option « ajuster le fond » proposée : fond présent, ou information non transmise par le parent. */
+  private get backgroundOptionVisible(): boolean {
+    return this.hasBackground !== false;
+  }
+
   private handleInputChange(e: Event) {
     this.targetText = (e.target as HTMLInputElement).value;
     this.unusualConfirmed = false;
@@ -485,7 +494,7 @@ export class HomeArchitectRescaleModal extends LitElement {
         currentMeters: this.measuredMeters,
         targetMeters: ev.target,
         scaleFactor: ev.factor,
-        adjustBackground: this.hasBackground && this.adjustBackground
+        adjustBackground: this.backgroundOptionVisible && this.adjustBackground
       },
       bubbles: true,
       composed: true
@@ -493,7 +502,7 @@ export class HomeArchitectRescaleModal extends LitElement {
   }
 
   private renderBackgroundImpact() {
-    if (!this.hasBackground) return null;
+    if (!this.backgroundOptionVisible) return null;
     return html`
       <label class="check-row">
         <input
@@ -606,7 +615,7 @@ export class HomeArchitectRescaleModal extends LitElement {
                 <span><strong>${plural(this.bindingCount, 'entité', 'entités')}</strong> : ${this.bindingCount > 1 ? 'positions ajustées' : 'position ajustée'}</span>
               </div>
             ` : null}
-            ${this.hasBackground ? html`
+            ${this.backgroundOptionVisible ? html`
               <div class="impact-item">
                 <span class="impact-icon">🖼️</span>
                 <span><strong>Calque de fond</strong> : ${this.adjustBackground

@@ -4,7 +4,8 @@ import { repeat } from 'lit/directives/repeat.js';
 import { live } from 'lit/directives/live.js';
 import { defineElement } from '../core/define';
 import {
-  FURNITURE_CATALOG, FURNITURE_CATEGORY_LABELS, FURNITURE_FILTER_CATEGORIES, FurnitureCatalogTemplate
+  FURNITURE_CATALOG, FURNITURE_CATEGORY_LABELS, FURNITURE_FILTER_CATEGORIES, FurnitureCatalogTemplate,
+  renderFurnitureSymbol
 } from '../core/furniture-catalog';
 import { entityDomain } from '../core/project-model';
 
@@ -107,6 +108,27 @@ const FURNITURE_FILTERS: ReadonlyArray<{ id: string; label: string }> = [
   { id: 'all', label: 'Tous' },
   ...FURNITURE_FILTER_CATEGORIES.map(cat => ({ id: cat, label: FURNITURE_CATEGORY_LABELS[cat] ?? cat })),
 ];
+
+/** Texte de recherche d'un meuble : son nom et le libellé de sa catégorie (« rangement » trouve l'armoire). */
+const FURNITURE_SEARCH_TEXT = new Map(FURNITURE_CATALOG.map(t =>
+  [t.type, normalizeSearch(`${t.name} ${FURNITURE_CATEGORY_LABELS[t.category] ?? ''}`)]));
+
+/**
+ * Aperçu du symbole (vue de dessus, tel qu'il sera dessiné sur le plan) : cadre fixe en pixels, à
+ * 48 px/m au plus pour garder les tailles relatives des meubles, réduit si le meuble n'y tient pas.
+ */
+const PREVIEW_WIDTH = 104;
+const PREVIEW_HEIGHT = 64;
+const PREVIEW_MARGIN = 4;
+const PREVIEW_MAX_PIXELS_PER_METER = 48;
+
+function previewPixelsPerMeter(item: FurnitureCatalogTemplate): number {
+  return Math.min(
+    PREVIEW_MAX_PIXELS_PER_METER,
+    (PREVIEW_WIDTH - 2 * PREVIEW_MARGIN) / item.width,
+    (PREVIEW_HEIGHT - 2 * PREVIEW_MARGIN) / item.length
+  );
+}
 
 export class HomeArchitectEntityDrawer extends LitElement {
   static styles = css`
@@ -403,6 +425,8 @@ export class HomeArchitectEntityDrawer extends LitElement {
     .furniture-grid {
       display: grid;
       grid-template-columns: repeat(2, 1fr);
+      /* Peu de résultats (filtre, recherche) : cartes en haut, sans étirer les lignes. */
+      align-content: start;
       gap: 8px;
       padding: 10px 14px;
       overflow-y: auto;
@@ -410,6 +434,7 @@ export class HomeArchitectEntityDrawer extends LitElement {
     }
 
     .furniture-card {
+      position: relative;
       background: rgba(30, 41, 59, 0.65);
       border: 1px solid rgba(255, 255, 255, 0.08);
       border-radius: 9px;
@@ -435,8 +460,21 @@ export class HomeArchitectEntityDrawer extends LitElement {
       cursor: grabbing;
     }
 
+    .furniture-card-preview {
+      display: block;
+      flex: none;
+      max-width: 100%;
+      height: auto;
+      background: rgba(15, 23, 42, 0.6);
+      border-radius: 6px;
+    }
+
     .furniture-card-icon {
-      font-size: 1.5rem;
+      position: absolute;
+      top: 4px;
+      left: 6px;
+      font-size: 0.9rem;
+      line-height: 1;
     }
 
     .furniture-card-name {
@@ -850,7 +888,7 @@ export class HomeArchitectEntityDrawer extends LitElement {
     const terms = normalizeSearch(this.furnitureSearch.trim()).split(/\s+/).filter(Boolean);
     if (terms.length > 0) {
       furniture = furniture.filter(f => {
-        const text = normalizeSearch(f.name);
+        const text = FURNITURE_SEARCH_TEXT.get(f.type) ?? '';
         return terms.every(t => text.includes(t));
       });
     }
@@ -895,7 +933,14 @@ export class HomeArchitectEntityDrawer extends LitElement {
               @keydown=${(e: KeyboardEvent) => this.handleItemKeyDown(e, payload)}
               title="Glissez et déposez sur le plan (${item.width.toFixed(2)} × ${item.length.toFixed(2)} m)"
             >
-              <span class="furniture-card-icon">${item.icon}</span>
+              <span class="furniture-card-icon" aria-hidden="true">${item.icon}</span>
+              <svg
+                class="furniture-card-preview"
+                width=${PREVIEW_WIDTH}
+                height=${PREVIEW_HEIGHT}
+                viewBox="${-PREVIEW_WIDTH / 2} ${-PREVIEW_HEIGHT / 2} ${PREVIEW_WIDTH} ${PREVIEW_HEIGHT}"
+                aria-hidden="true"
+              >${renderFurnitureSymbol({ type: item.type }, { pixelsPerMeter: previewPixelsPerMeter(item) })}</svg>
               <span class="furniture-card-name">${item.name}</span>
               <span class="furniture-card-dim">${item.width.toFixed(2)} × ${item.length.toFixed(2)} m</span>
             </div>

@@ -76,7 +76,8 @@ export interface DraftsDialogHandlers {
   onClose: () => void;
 }
 
-function formatDate(iso: string): string {
+/** Date et heure locales d'un horodatage ISO (copies locales). */
+export function formatDate(iso: string): string {
   const t = Date.parse(iso);
   if (!Number.isFinite(t)) return 'date inconnue';
   return new Date(t).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });

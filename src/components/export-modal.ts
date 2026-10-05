@@ -896,6 +896,9 @@ export class HomeArchitectExportModal extends LitElement {
       const backgroundDataUrl = includeBackground ? await this.loadBackgroundDataUrl() : undefined;
       const svg = SvgExporter.exportToSvg(project, { ...SVG_RENDER_OPTIONS, includeBackground, backgroundDataUrl, frame });
       const info = await publishSvg(this.hass, project.id, svg, { includeBackground });
+      // Un autre plan a été ouvert pendant l'envoi : son cadre et sa publication ne doivent pas
+      // recevoir ceux du plan publié (les événements ne portent pas d'identifiant de projet).
+      if (this.project?.id !== project.id) return;
       if (adoptFrame) {
         this.localFrame = { ...frame };
         this.emit('export-frame-changed', { frame: { ...frame } });
@@ -925,11 +928,14 @@ export class HomeArchitectExportModal extends LitElement {
     this.confirmAction = null;
     this.busy = 'unpublish';
     this.publishError = '';
+    const projectId = this.project.id;
     try {
-      await unpublish(this.hass, this.project.id);
+      await unpublish(this.hass, projectId);
+      this.emit('project-unpublished', { projectId });
+      // Autre plan ouvert pendant l'envoi : son état de publication n'est pas concerné.
+      if (this.project?.id !== projectId) return;
       this.publishInfo = null;
       this.frameStale = false;
-      this.emit('project-unpublished', { projectId: this.project.id });
       this.showNotice('info', "Plan dépublié : l'ancienne URL ne fonctionne plus.");
     } catch (err) {
       console.warn('[home-architect] Dépublication impossible :', err);
@@ -1053,8 +1059,13 @@ export class HomeArchitectExportModal extends LitElement {
       if (bg?.assetId) {
         try {
           const blob = await this.loadBackgroundBlob();
-          bg.imageUrl = await blobToDataUrl(blob);
-          if (blob.type) bg.mimeType = blob.type;
+          const dataUrl = await blobToDataUrl(blob);
+          // À la réimportation, normalizeProject n'accepte qu'une data-URL d'image (data:image/…).
+          if (!DATA_IMAGE_URL.test(dataUrl)) throw new Error("Type de l'image de fond inconnu.");
+          bg.imageUrl = dataUrl;
+          // Type MIME sans paramètre (« image/svg+xml;charset=utf-8 » serait écarté à la réimportation).
+          const mimeType = blob.type.split(';')[0].trim();
+          if (mimeType) bg.mimeType = mimeType;
           delete bg.assetId;
         } catch (err) {
           // L'asset reste référencé : il est encore lisible tant que le plan d'origine existe.

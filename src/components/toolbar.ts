@@ -2,6 +2,7 @@ import { LitElement, html, css, nothing, svg, PropertyValues, TemplateResult } f
 import { property, state } from 'lit/decorators.js';
 import { live } from 'lit/directives/live.js';
 import { defineElement } from '../core/define';
+import { GRID_SIZE_PRESETS } from '../core/snapping';
 import { ActiveTool, GridConfig } from '../core/types';
 
 /**
@@ -15,15 +16,6 @@ export const TOOL_SHORTCUTS: Readonly<Partial<Record<ActiveTool, string>>> = Obj
   door: 'd',
   rescale: 's',
 });
-
-/** Tailles de grille proposées (mètres), dans la plage acceptée par normalizeProject. */
-const GRID_SIZES: ReadonlyArray<{ value: number; label: string }> = [
-  { value: 0.05, label: '5 cm' },
-  { value: 0.10, label: '10 cm' },
-  { value: 0.25, label: '25 cm' },
-  { value: 0.50, label: '50 cm' },
-  { value: 1, label: '1 m' },
-];
 
 const DEFAULT_GRID: GridConfig = { size: 0.5, subdivisions: 2, snapToGrid: true, snapToAngles: true, snapToElements: true };
 
@@ -46,6 +38,11 @@ function sameMeasure(a: number, b: number): boolean {
 
 function clamp(v: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, v));
+}
+
+/** Libellé d'un pas de grille : centimètres sous 1 m (« 5 cm », « 12.5 cm »), mètres au-delà (« 1 m »). */
+function gridSizeLabel(size: number): string {
+  return size < 1 ? `${Number((size * 100).toFixed(1))} cm` : `${Number(size.toFixed(2))} m`;
 }
 
 function readStoredPosition(): Position | null {
@@ -364,7 +361,7 @@ export class HomeArchitectToolbar extends LitElement {
 
     .grid-sizes {
       display: grid;
-      grid-template-columns: repeat(5, 1fr);
+      grid-template-columns: repeat(auto-fit, minmax(48px, 1fr));
       gap: 5px;
     }
 
@@ -1032,13 +1029,13 @@ export class HomeArchitectToolbar extends LitElement {
     return html`
       <div class="flyout-section-label">Taille de la grille</div>
       <div class="grid-sizes" role="group" aria-label="Taille de la grille">
-        ${GRID_SIZES.map(size => html`
+        ${GRID_SIZE_PRESETS.map(size => html`
           <button
             type="button"
-            class="grid-size-btn ${sameMeasure(grid.size, size.value) ? 'active' : ''}"
-            aria-pressed=${sameMeasure(grid.size, size.value) ? 'true' : 'false'}
-            @click=${() => this.changeGrid({ size: size.value })}
-          >${size.label}</button>
+            class="grid-size-btn ${sameMeasure(grid.size, size) ? 'active' : ''}"
+            aria-pressed=${sameMeasure(grid.size, size) ? 'true' : 'false'}
+            @click=${() => this.changeGrid({ size })}
+          >${gridSizeLabel(size)}</button>
         `)}
       </div>
 
@@ -1056,6 +1053,7 @@ export class HomeArchitectToolbar extends LitElement {
           </div>
         </label>
       `)}
+      <div class="flyout-hint">Maintenez Alt pendant un tracé ou un glisser pour désactiver temporairement l'accrochage.</div>
     `;
   }
 
@@ -1080,7 +1078,7 @@ export class HomeArchitectToolbar extends LitElement {
     const ro = this.readOnly;
     const grid = this.grid ?? DEFAULT_GRID;
     const isRoomTool = this.activeTool === 'room' || this.activeTool === 'rect_room';
-    const gridSize = GRID_SIZES.find(s => sameMeasure(s.value, grid.size))?.label ?? `${Math.round(grid.size * 100)} cm`;
+    const gridSize = gridSizeLabel(grid.size);
 
     return html`
       <!-- Poignée de déplacement de la boîte à outils -->
@@ -1242,7 +1240,7 @@ export class HomeArchitectToolbar extends LitElement {
           data-submenu="grid"
           ?disabled=${ro}
           @click=${(e: MouseEvent) => this.toggleSubmenu('grid', e)} 
-          title="Grille et accrochages (grille ${gridSize}, accrochage ${grid.snapToGrid ? 'activé' : 'désactivé'})"
+          title="Grille et accrochages (grille ${gridSize}, accrochage ${grid.snapToGrid ? 'activé' : 'désactivé'} ; Alt : sans accrochage)"
         >
           <svg viewBox="0 0 24 24" aria-hidden="true" style="opacity: ${grid.snapToGrid ? 1 : 0.45}">${GRID_ICON}</svg>
           <span class="submenu-indicator">▾</span>

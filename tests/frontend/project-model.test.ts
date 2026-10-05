@@ -344,6 +344,24 @@ describe('normalizeProject', () => {
     expect(p.furniture?.[0]).toMatchObject({ type: 'inconnu', name: 'inconnu', category: 'other', width: 1, length: 1, rotation: 0 });
   });
 
+  it('remplace un ancien nom par défaut du modèle par son nom actuel, garde un nom choisi (F172)', () => {
+    const chair = (id: string, name: unknown) => ({ id, type: 'chair_starck', name, position: { x: 0, y: 0 } });
+    const p = normalizeProject({
+      furniture: [
+        chair('a', 'Chaise Starck (Ghost)'),
+        chair('b', 'Ma chaise'),
+        chair('c', ''),
+        chair('d', undefined),
+        { id: 'e', type: 'inconnu', name: 'Chaise Starck (Ghost)', position: { x: 0, y: 0 } },
+      ],
+    });
+    expect(p.furniture?.map(f => f.name)).toEqual([
+      'Chaise médaillon transparente', 'Ma chaise', 'Chaise médaillon transparente', 'Chaise médaillon transparente',
+      'Chaise Starck (Ghost)',
+    ]);
+    expect(normalizeProject(p).furniture).toEqual(p.furniture);
+  });
+
   it('régénère les identifiants manquants ou dupliqués', () => {
     const p = normalizeProject({ walls: [wall('w'), wall('w', 0, 1, 4, 1), { ...wall(''), id: undefined }] });
     const ids = p.walls.map(w => w.id);

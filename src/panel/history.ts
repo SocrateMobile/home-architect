@@ -15,12 +15,14 @@ export const MAX_HISTORY = 40;
 const COALESCE_WINDOW_MS = 1500;
 
 /**
- * Champs d'identité et champs possédés par le serveur : jamais restaurés par Annuler / Rétablir.
- * Un instantané antérieur à une sauvegarde porte une ancienne révision, qui provoquerait un faux
- * conflit à la sauvegarde suivante ; le nom et la catégorie ne changent que via la sauvegarde.
+ * Champs d'identité, champs possédés par le serveur et cadre du plan publié : jamais restaurés
+ * par Annuler / Rétablir. Un instantané antérieur à une sauvegarde porte une ancienne révision, qui
+ * provoquerait un faux conflit à la sauvegarde suivante ; le nom et la catégorie ne changent que
+ * via la sauvegarde ; le cadre d'export décrit le SVG déjà publié (le restaurer décalerait
+ * silencieusement les entités du YAML picture-elements).
  */
 const IDENTITY_KEYS = [
-  'id', 'name', 'category', 'revision', 'publish', 'created_at', 'updated_at', 'schema_version'
+  'id', 'name', 'category', 'revision', 'publish', 'created_at', 'updated_at', 'schema_version', 'exportFrame'
 ] as const;
 
 interface Stacks {

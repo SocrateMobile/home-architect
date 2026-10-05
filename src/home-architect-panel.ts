@@ -1427,6 +1427,13 @@ export class HomeArchitectPanel extends LitElement {
     }
   }
 
+  /** Sens d'ouverture inversé au clavier pendant la pose (Espace / F) : le canevas le signale au panneau (SPEC §6). */
+  private handleOpeningConfigChanged(e: CustomEvent<{ flipSide: boolean; flipDirection: boolean }>) {
+    const { flipSide, flipDirection } = e.detail ?? {};
+    if (typeof flipSide === 'boolean') this.doorFlipSide = flipSide;
+    if (typeof flipDirection === 'boolean') this.doorFlipDirection = flipDirection;
+  }
+
   private handleWindowConfigChanged(e: CustomEvent<{ type: 'window' | 'french_window'; sashCount: number; width: number }>) {
     this.activeTool = e.detail.type;
     this.currentOpeningWidth = e.detail.width;
@@ -1789,6 +1796,8 @@ export class HomeArchitectPanel extends LitElement {
 
   willUpdate(changedProps: PropertyValues<this>) {
     super.willUpdate(changedProps);
+    // Lecture seule (constat F11) : aucun outil de tracé actif, seule la sélection reste possible.
+    if (this.readOnly && this.activeTool !== 'select') this.activeTool = 'select';
     if (this.isConnected) this.persistence.prefetchGhost(this.ghostLevel());
   }
 
@@ -2422,7 +2431,7 @@ export class HomeArchitectPanel extends LitElement {
 
   private handleKeyDown(e: KeyboardEvent) {
     // Ctrl/Cmd+S : sauvegarde du plan actif, y compris depuis un champ du studio (constat F2).
-    if (hasPrimaryModifier(e) && !e.shiftKey && e.key.toLowerCase() === 's') {
+    if (hasPrimaryModifier(e) && !e.shiftKey && typeof e.key === 'string' && e.key.toLowerCase() === 's') {
       if (!isEventFromHost(e, this) && !shouldHandleShortcut(e, { host: this })) return;
       e.preventDefault();
       if (!this.isModalOpen()) void this.quickSave();
@@ -2629,11 +2638,15 @@ export class HomeArchitectPanel extends LitElement {
   // PERSISTANCE (src/panel/persistence-controller.ts)
   // ==========================================
 
+  /**
+   * Modale « Ouvrir » : la modale a déjà averti des modifications non sauvegardées (dirtyProjectIds)
+   * et l'utilisateur a confirmé : un plan déjà ouvert est rechargé depuis le serveur sans nouvelle question.
+   */
   private async handleLoadProject(e: CustomEvent<{ projectId: string }>) {
     this.isSaveLoadModalOpen = false;
     const id = e.detail?.projectId;
     if (typeof id !== 'string' || id === '') return;
-    await this.persistence.openPlan(id, { refresh: true });
+    await this.persistence.openPlan(id, { reload: true });
   }
 
   /** Modale « Sauvegarder » : nom, catégorie et « Enregistrer sous… » (nouvel identifiant). */
@@ -2667,6 +2680,25 @@ export class HomeArchitectPanel extends LitElement {
 
   private handleProjectPublished(e: CustomEvent<{ publish: PublishInfo }>) {
     this.persistence.setPublish(e.detail?.publish);
+  }
+
+  private handleProjectUnpublished(e: CustomEvent<{ projectId: string }>) {
+    const id = e.detail?.projectId;
+    if (typeof id === 'string') this.persistence.clearPublish(id);
+  }
+
+  /**
+   * Modale d'export : « Sauvegarder le plan » (nécessaire avant de publier). Un plan jamais
+   * sauvegardé passe par la modale de sauvegarde (nom, niveau) ; les autres sont sauvegardés
+   * directement, la modale d'export restant ouverte.
+   */
+  private handleExportSaveRequested() {
+    if (this.project.revision === undefined) {
+      this.isExportModalOpen = false;
+      this.openSaveModal();
+      return;
+    }
+    void this.persistence.save(this.project.id);
   }
 
   /** Au moins une modale ou un dialogue du studio est ouvert. */
@@ -3079,6 +3111,7 @@ export class HomeArchitectPanel extends LitElement {
             }}
             @request-delete-selected=${this.handleDeleteSelected}
             @toggle-3d=${(e: any) => this.is3DMode = e.detail.is3DMode}
+            @opening-config-changed=${this.handleOpeningConfigChanged}
             @room-selected=${(e: any) => this.selectedRoomForEdit = e.detail.room}
             @project-changed=${this.handleProjectChanged}
             @request-calibration=${this.handleRequestCalibration}
@@ -3294,8 +3327,11 @@ export class HomeArchitectPanel extends LitElement {
           .hass=${this.hass}
           .backgroundSrc=${this.persistence.background.src}
           .readOnly=${this.readOnly}
+          .dirty=${activeDirty}
           @export-frame-changed=${this.handleExportFrameChanged}
           @project-published=${this.handleProjectPublished}
+          @project-unpublished=${this.handleProjectUnpublished}
+          @save-requested=${this.handleExportSaveRequested}
           @close=${() => this.isExportModalOpen = false}
         ></home-architect-export-modal>
       ` : null}

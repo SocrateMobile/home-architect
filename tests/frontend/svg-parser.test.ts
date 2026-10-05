@@ -18,8 +18,6 @@ const isHorizontal = (w: Wall) => Math.abs(w.start.y - w.end.y) < 0.02;
 const isVertical = (w: Wall) => Math.abs(w.start.x - w.end.x) < 0.02;
 const sortedLengths = (walls: Wall[]) => walls.map(len).sort((a, b) => a - b).map(v => Math.round(v * 100) / 100);
 
-/** Rectangle de 10 × 8 m dessiné au trait (1 unité = 1 cm). */
-const SQUARE_PATH = 'M0,0 L1000,0 L1000,800 L0,800 Z';
 const STROKE = 'fill="none" stroke="#000" stroke-width="2"';
 
 describe('lecture des chemins (attribut d)', () => {
@@ -390,6 +388,28 @@ describe('pièces (F149, F153)', () => {
     expect(r.stats.textLabelCount).toBe(2);
   });
 
+  it('ne fait pas du contour du bâtiment une pièce quand les cloisons sont de simples traits', () => {
+    // Enveloppe 10 × 8 m recoupée par une cloison : deux pièces nommées, pas un « Salon » de 80 m².
+    const r = parse(svg(`
+      <rect x="0" y="0" width="1000" height="800" ${STROKE}/>
+      <path ${STROKE} d="M500,0 L500,800"/>
+      <text x="250" y="400" text-anchor="middle">Salon</text>
+      <text x="750" y="400" text-anchor="middle">Chambre</text>
+    `, 'viewBox="-50 -50 1100 900"'), { totalWidthMeters: 10.2 });
+    expect(r.rooms.map(room => room.name).sort()).toEqual(['Chambre', 'Salon']);
+    expect(r.rooms.every(room => room.areaM2 < 20)).toBe(true);
+  });
+
+  it('garde une pièce ouverte qui porte deux étiquettes sans cloison intérieure', () => {
+    const r = parse(svg(`
+      <rect x="0" y="0" width="1000" height="600" fill="#eef" ${STROKE}/>
+      <text x="250" y="300">Cuisine</text>
+      <text x="750" y="300">Séjour</text>
+    `), { totalWidthMeters: 10.2 });
+    expect(r.rooms.length).toBe(1);
+    expect(r.rooms[0].areaM2).toBeGreaterThan(55);
+  });
+
   it('accepte un WC étiqueté de 1,08 m² et un garage de 350 m², signale les formes hors bornes', () => {
     const r = parse(svg(`
       <rect x="0" y="0" width="120" height="90" ${STROKE}/>
@@ -412,6 +432,30 @@ describe('pièces (F149, F153)', () => {
       <rect x="500" y="0" width="400" height="300" ${STROKE}/>
     `), { totalWidthMeters: 9 });
     expect(r.rooms.length).toBe(0);
+  });
+
+  it('écarte et signale un contour qui se recoupe au lieu de lui attribuer une surface fausse (F170)', () => {
+    // Nœud papillon asymétrique (les arêtes 0,0→400,300 et 400,100→0,300 se croisent) et une vraie pièce.
+    const r = parse(svg(`
+      <polygon points="0,0 400,300 400,100 0,300" ${STROKE}/>
+      <text x="60" y="150">Salon</text>
+      <rect x="500" y="0" width="400" height="300" ${STROKE}/>
+      <text x="650" y="150">Bureau</text>
+      <polygon points="0,400 400,780 400,500 0,780" fill="#cde" stroke="none"/>
+    `), { totalWidthMeters: 9 });
+    expect(r.rooms.map(room => room.name)).toEqual(['Bureau']);
+    const ignored = r.ignoredRooms.map(i => `${i.name}:${i.reason}`).sort();
+    expect(ignored).toEqual([':self_intersecting', 'Salon:self_intersecting']);
+    expect(r.ignoredRooms.every(i => i.areaM2 > 0)).toBe(true);
+  });
+
+  it('signale le motif d\'une forme étiquetée hors bornes, sans pièce approximative à sa place', () => {
+    const r = parse(svg(`
+      <rect x="0" y="0" width="400" height="300" ${STROKE}/>
+      <text x="150" y="150">Cellier</text>
+    `), { totalWidthMeters: 4, minRoomAreaM2: 20 });
+    expect(r.rooms.length).toBe(0);
+    expect(r.ignoredRooms).toEqual([{ name: 'Cellier', areaM2: expect.any(Number), reason: 'area' }]);
   });
 
   it('renomme « Pièce N » quand les noms ne sont pas importés', () => {

@@ -2,8 +2,10 @@
 /**
  * Vérifie le frontend construit par `vite build` (constats F32 et F164) :
  *  - les deux entrées existent (home_architect-card.js et home_architect-panel.js) ;
- *  - la carte, injectée sur TOUTES les pages HA, ne contient que des éléments de la carte
+ *  - la carte, injectée sur TOUTES les pages HA, ne définit que des éléments de la carte
  *    (aucun élément du studio dans ses imports statiques) et respecte un budget gzip ;
+ *  - aucun chunk n'importe une entrée : HA les charge avec ?v=<version>, un chunk qui importerait
+ *    l'URL sans ?v en évaluerait une seconde copie (ou une ancienne version en cache HTTP) ;
  *  - aucun chunk orphelin ni sourcemap n'est livré.
  *
  * Usage : node .github/scripts/check-bundle.mjs [dossier]
@@ -19,6 +21,8 @@ const OUT_DIR = path.resolve(process.argv[2] ?? path.join(ROOT_DIR, 'custom_comp
 
 const CARD_ENTRY = 'home_architect-card.js';
 const PANEL_ENTRY = 'home_architect-panel.js';
+const ENTRIES = [CARD_ENTRY, PANEL_ENTRY];
+const CHUNKS_DIR = 'chunks/';
 // Budget du bundle carte (entrée + chunks importés statiquement), compressé gzip.
 // L'ancien bundle unique pesait ~100 kB gzip ; la carte seule en pèse environ le tiers.
 const CARD_GZIP_BUDGET = 80 * 1024;
@@ -27,8 +31,20 @@ const CARD_ALLOWED_TAG = /^home-architect-(card|canvas)(-[a-z0-9-]+)?$/;
 
 const STATIC_IMPORT_RE = /(?:\bfrom|\bimport)\s*["'](\.{1,2}\/[^"']+)["']/g;
 const DYNAMIC_IMPORT_RE = /\bimport\(\s*["'](\.{1,2}\/[^"']+)["']\s*\)/g;
+// Définition d'un élément : defineElement('tag', Classe) ou décorateur customElement('tag'), dont le
+// nom est minifié (appel de fonction, pas de méthode), ou customElements.define('tag', …). Une simple
+// mention du nom (customElements.get, querySelector, registre des bundles) n'en est pas une.
+const ELEMENT_DEFINITION_RE = /(?:\bcustomElements\.define|(?<![.\w$])[\w$]+)\(\s*(["'`])(home-architect-[a-z0-9-]+)\1/g;
 
 const errors = new Set();
+
+/** Imports relatifs de `file` (statiques, et dynamiques si demandé), en chemins du dossier de sortie. */
+function relativeImports(file, code, { followDynamic }) {
+  const patterns = followDynamic ? [STATIC_IMPORT_RE, DYNAMIC_IMPORT_RE] : [STATIC_IMPORT_RE];
+  return patterns.flatMap((pattern) =>
+    [...code.matchAll(pattern)].map((match) => path.posix.normalize(path.posix.join(path.posix.dirname(file), match[1])))
+  );
+}
 
 /** Fichiers atteints depuis `entry` par imports relatifs (statiques, et dynamiques si demandé). */
 function closure(entry, { followDynamic }) {
@@ -43,13 +59,7 @@ function closure(entry, { followDynamic }) {
       errors.add(`${file} est importé mais absent du dossier de sortie.`);
       continue;
     }
-    const code = fs.readFileSync(absolute, 'utf-8');
-    const patterns = followDynamic ? [STATIC_IMPORT_RE, DYNAMIC_IMPORT_RE] : [STATIC_IMPORT_RE];
-    for (const pattern of patterns) {
-      for (const match of code.matchAll(pattern)) {
-        stack.push(path.posix.normalize(path.posix.join(path.posix.dirname(file), match[1])));
-      }
-    }
+    stack.push(...relativeImports(file, fs.readFileSync(absolute, 'utf-8'), { followDynamic }));
   }
   return seen;
 }
@@ -85,7 +95,7 @@ if (!fs.existsSync(OUT_DIR)) {
   process.exit(1);
 }
 
-const missingEntries = [CARD_ENTRY, PANEL_ENTRY].filter((entry) => !fs.existsSync(path.join(OUT_DIR, entry)));
+const missingEntries = ENTRIES.filter((entry) => !fs.existsSync(path.join(OUT_DIR, entry)));
 if (missingEntries.length > 0) {
   console.error(`✗ Entrée(s) manquante(s) : ${missingEntries.join(', ')}`);
   process.exit(1);
@@ -94,10 +104,21 @@ if (missingEntries.length > 0) {
 const cardFiles = closure(CARD_ENTRY, { followDynamic: false });
 const cardCode = readExisting(cardFiles).join('\n');
 const foreignTags = new Set(
-  [...cardCode.matchAll(/["'`](home-architect-[a-z0-9-]+)/g)].map((match) => match[1]).filter((tag) => !CARD_ALLOWED_TAG.test(tag))
+  [...cardCode.matchAll(ELEMENT_DEFINITION_RE)].map((match) => match[2]).filter((tag) => !CARD_ALLOWED_TAG.test(tag))
 );
 if (foreignTags.size > 0) {
   errors.add(`Le bundle carte embarque des éléments du studio : ${[...foreignTags].sort().join(', ')}.`);
+}
+
+// Un module placé par Rollup dans le chunk d'entrée et importé par un chunk à la demande produit
+// `import { … } from '../home_architect-card.js'` : URL sans ?v, donc seconde copie du bundle.
+for (const file of listFiles(OUT_DIR).filter((name) => name.startsWith(CHUNKS_DIR) && name.endsWith('.js'))) {
+  const code = fs.readFileSync(path.join(OUT_DIR, file), 'utf-8');
+  for (const entry of new Set(relativeImports(file, code, { followDynamic: true }).filter((target) => ENTRIES.includes(target)))) {
+    errors.add(
+      `${file} importe l'entrée ${entry} : les entrées sont chargées avec ?v=, ce chunk en évaluerait une seconde copie (ou une version en cache)`
+    );
+  }
 }
 
 const card = measure(cardFiles);
