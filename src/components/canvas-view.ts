@@ -88,6 +88,8 @@ export class HomeArchitectCanvas extends LitElement {
   private isPanning: boolean = false;
 
   private panStart: Point = { x: 0, y: 0 };
+  private panStartPointer: Point = { x: 0, y: 0 };
+  private panStartViewport: Point = { x: 0, y: 0 };
 
   // État de dessin de mur en cours
   @state()
@@ -224,24 +226,9 @@ export class HomeArchitectCanvas extends LitElement {
 
   public worldToScreen(worldPoint: Point): Point {
     const ppm = this.project.pixelsPerMeter * this.viewport.zoom;
-    let sx = worldPoint.x * ppm + this.viewport.x;
-    let sy = worldPoint.y * ppm + this.viewport.y;
-
-    // Prise en compte de la rotation de vue 2D par rapport au centre du canvas
-    if (!this.is3DMode && this.viewRotation !== 0) {
-      const rect = this.getBoundingClientRect();
-      const cx = (rect.width || 800) / 2;
-      const cy = (rect.height || 600) / 2;
-      const dx = sx - cx;
-      const dy = sy - cy;
-      const rad = (this.viewRotation * Math.PI) / 180;
-      sx = cx + (dx * Math.cos(rad) - dy * Math.sin(rad));
-      sy = cy + (dx * Math.sin(rad) + dy * Math.cos(rad));
-    }
-
     return {
-      x: sx,
-      y: sy
+      x: worldPoint.x * ppm + this.viewport.x,
+      y: worldPoint.y * ppm + this.viewport.y
     };
   }
 
@@ -256,11 +243,23 @@ export class HomeArchitectCanvas extends LitElement {
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
 
+    let localMouseX = mouseX;
+    let localMouseY = mouseY;
+    if (!this.is3DMode && this.viewRotation !== 0) {
+      const cx = (rect.width || 800) / 2;
+      const cy = (rect.height || 600) / 2;
+      const dx = mouseX - cx;
+      const dy = mouseY - cy;
+      const rad = (-this.viewRotation * Math.PI) / 180;
+      localMouseX = cx + (dx * Math.cos(rad) - dy * Math.sin(rad));
+      localMouseY = cy + (dx * Math.sin(rad) + dy * Math.cos(rad));
+    }
+
     const zoomFactor = e.deltaY < 0 ? 1.12 : 0.89;
     const newZoom = Math.min(Math.max(this.viewport.zoom * zoomFactor, 0.15), 8.0);
 
-    const newX = mouseX - (mouseX - this.viewport.x) * (newZoom / this.viewport.zoom);
-    const newY = mouseY - (mouseY - this.viewport.y) * (newZoom / this.viewport.zoom);
+    const newX = localMouseX - (localMouseX - this.viewport.x) * (newZoom / this.viewport.zoom);
+    const newY = localMouseY - (localMouseY - this.viewport.y) * (newZoom / this.viewport.zoom);
 
     this.viewport = { x: newX, y: newY, zoom: newZoom };
   }
@@ -271,6 +270,8 @@ export class HomeArchitectCanvas extends LitElement {
       if (e.button === 1 || (e.button === 0 && e.shiftKey)) {
         this.isPanning = true;
         this.panStart = { x: e.clientX - this.viewport.x, y: e.clientY - this.viewport.y };
+        this.panStartPointer = { x: e.clientX, y: e.clientY };
+        this.panStartViewport = { x: this.viewport.x, y: this.viewport.y };
         (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
         return;
       }
@@ -306,6 +307,8 @@ export class HomeArchitectCanvas extends LitElement {
     if (e.button === 1) {
       this.isPanning = true;
       this.panStart = { x: e.clientX - this.viewport.x, y: e.clientY - this.viewport.y };
+      this.panStartPointer = { x: e.clientX, y: e.clientY };
+      this.panStartViewport = { x: this.viewport.x, y: this.viewport.y };
       (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
       return;
     }
@@ -351,6 +354,8 @@ export class HomeArchitectCanvas extends LitElement {
 
       this.isPanning = true;
       this.panStart = { x: e.clientX - this.viewport.x, y: e.clientY - this.viewport.y };
+      this.panStartPointer = { x: e.clientX, y: e.clientY };
+      this.panStartViewport = { x: this.viewport.x, y: this.viewport.y };
       (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
       return;
     }
@@ -358,6 +363,8 @@ export class HomeArchitectCanvas extends LitElement {
     if (e.shiftKey) {
       this.isPanning = true;
       this.panStart = { x: e.clientX - this.viewport.x, y: e.clientY - this.viewport.y };
+      this.panStartPointer = { x: e.clientX, y: e.clientY };
+      this.panStartViewport = { x: this.viewport.x, y: this.viewport.y };
       (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
       return;
     }
@@ -510,22 +517,19 @@ export class HomeArchitectCanvas extends LitElement {
       this.resizeFurnitureMoved = true;
       const item = (this.project.furniture || []).find(f => f.id === this.resizingFurnitureId);
       if (item) {
-        const ppm = this.project.pixelsPerMeter * this.viewport.zoom;
-        const dxScreen = e.clientX - this.resizeFurnitureStartPointer.x;
-        const dyScreen = e.clientY - this.resizeFurnitureStartPointer.y;
+        const currentWorld = this.screenToWorld(e.clientX, e.clientY);
+        const startWorld = this.screenToWorld(this.resizeFurnitureStartPointer.x, this.resizeFurnitureStartPointer.y);
+        const dxWorld = currentWorld.x - startWorld.x;
+        const dyWorld = currentWorld.y - startWorld.y;
 
-        // Angle total appliqué au meuble dans le canvas (rotation meuble + rotation de vue 2D)
-        const totalAngleDeg = (item.rotation || 0) + (!this.is3DMode ? this.viewRotation : 0);
-        const rad = (totalAngleDeg * Math.PI) / 180;
+        // Angle du meuble dans l'espace monde
+        const rad = ((item.rotation || 0) * Math.PI) / 180;
         const cos = Math.cos(rad);
         const sin = Math.sin(rad);
 
-        // Projection du vecteur de déplacement de la souris dans le repère local du meuble (axe X = largeur, axe Y = longueur)
-        const dxLocalPx = dxScreen * cos + dyScreen * sin;
-        const dyLocalPx = -dxScreen * sin + dyScreen * cos;
-
-        const dWidthMeters = dxLocalPx / ppm;
-        const dLengthMeters = dyLocalPx / ppm;
+        // Projection du vecteur de déplacement dans le repère local du meuble (axe X = largeur, axe Y = longueur)
+        const dWidthMeters = dxWorld * cos + dyWorld * sin;
+        const dLengthMeters = -dxWorld * sin + dyWorld * cos;
 
         let newWidth = Math.max(0.20, this.resizeFurnitureInitialWidth + dWidthMeters);
         let newLength = Math.max(0.20, this.resizeFurnitureInitialLength + dLengthMeters);
@@ -563,8 +567,8 @@ export class HomeArchitectCanvas extends LitElement {
       this.rotateFurnitureMoved = true;
       const item = (this.project.furniture || []).find(f => f.id === this.rotatingFurnitureId);
       if (item) {
-        const sCenter = this.worldToScreen(item.position);
-        const currentAngle = Math.atan2(e.clientY - sCenter.y, e.clientX - sCenter.x) * (180 / Math.PI);
+        const mouseWorld = this.screenToWorld(e.clientX, e.clientY);
+        const currentAngle = Math.atan2(mouseWorld.y - item.position.y, mouseWorld.x - item.position.x) * (180 / Math.PI);
         const deltaAngle = currentAngle - this.rotateFurnitureStartAngle;
         let newAngle = Math.round(this.rotateFurnitureInitialAngle + deltaAngle);
         // Normalize angle between 0 and 359 degrees
@@ -596,9 +600,10 @@ export class HomeArchitectCanvas extends LitElement {
       const dist = Math.hypot(e.clientX - this.dragFurnitureStartPos.x, e.clientY - this.dragFurnitureStartPos.y);
       if (dist > 3) {
         this.dragFurnitureMoved = true;
-        const ppm = this.project.pixelsPerMeter * this.viewport.zoom;
-        const dx = (e.clientX - this.dragFurnitureStartPos.x) / ppm;
-        const dy = (e.clientY - this.dragFurnitureStartPos.y) / ppm;
+        const currentWorld = this.screenToWorld(e.clientX, e.clientY);
+        const startWorld = this.screenToWorld(this.dragFurnitureStartPos.x, this.dragFurnitureStartPos.y);
+        const dx = currentWorld.x - startWorld.x;
+        const dy = currentWorld.y - startWorld.y;
         let newX = this.dragFurnitureItemStartPos.x + dx;
         let newY = this.dragFurnitureItemStartPos.y + dy;
 
@@ -636,9 +641,10 @@ export class HomeArchitectCanvas extends LitElement {
       const dist = Math.hypot(e.clientX - this.dragWallStartPointer.x, e.clientY - this.dragWallStartPointer.y);
       if (dist > 3) {
         this.dragWallMoved = true;
-        const ppm = this.project.pixelsPerMeter * this.viewport.zoom;
-        let dx = (e.clientX - this.dragWallStartPointer.x) / ppm;
-        let dy = (e.clientY - this.dragWallStartPointer.y) / ppm;
+        const currentWorld = this.screenToWorld(e.clientX, e.clientY);
+        const startWorld = this.screenToWorld(this.dragWallStartPointer.x, this.dragWallStartPointer.y);
+        let dx = currentWorld.x - startWorld.x;
+        let dy = currentWorld.y - startWorld.y;
 
         if (this.project.grid.snapToGrid) {
           const gSize = this.project.grid.size || 0.5;
@@ -701,10 +707,21 @@ export class HomeArchitectCanvas extends LitElement {
     }
 
     if (this.isPanning) {
+      let dx = e.clientX - this.panStartPointer.x;
+      let dy = e.clientY - this.panStartPointer.y;
+
+      if (!this.is3DMode && this.viewRotation !== 0) {
+        const rad = (-this.viewRotation * Math.PI) / 180;
+        const rdx = dx * Math.cos(rad) - dy * Math.sin(rad);
+        const rdy = dx * Math.sin(rad) + dy * Math.cos(rad);
+        dx = rdx;
+        dy = rdy;
+      }
+
       this.viewport = {
         ...this.viewport,
-        x: e.clientX - this.panStart.x,
-        y: e.clientY - this.panStart.y
+        x: this.panStartViewport.x + dx,
+        y: this.panStartViewport.y + dy
       };
       return;
     }
@@ -1105,9 +1122,9 @@ export class HomeArchitectCanvas extends LitElement {
     this.rotatingFurnitureId = item.id;
     this.rotateFurnitureMoved = false;
 
-    // Calcul de l'angle initial du curseur par rapport au centre du meuble en pixels écran
-    const sCenter = this.worldToScreen(item.position);
-    this.rotateFurnitureStartAngle = Math.atan2(e.clientY - sCenter.y, e.clientX - sCenter.x) * (180 / Math.PI);
+    // Calcul de l'angle initial du curseur par rapport au centre du meuble en coordonnées monde
+    const mouseWorld = this.screenToWorld(e.clientX, e.clientY);
+    this.rotateFurnitureStartAngle = Math.atan2(mouseWorld.y - item.position.y, mouseWorld.x - item.position.x) * (180 / Math.PI);
     this.rotateFurnitureInitialAngle = item.rotation || 0;
 
     // Assurer que le meuble est sélectionné
@@ -2365,8 +2382,8 @@ export class HomeArchitectCanvas extends LitElement {
       // En 3D : pivoter l'angle d'orbite de 90°
       this.orbitYaw = (this.orbitYaw - 90) % 360;
     } else {
-      // En 2D : pivoter l'angle de vue de 90° dans le sens anti-horaire
-      this.viewRotation = (this.viewRotation + 270) % 360;
+      // En 2D : pivoter l'angle de vue d'un quart de tour à gauche (↺ -90°)
+      this.viewRotation -= 90;
       this.fitToScreen();
     }
     this.requestUpdate();
@@ -2392,7 +2409,8 @@ export class HomeArchitectCanvas extends LitElement {
     const ppm = bbox.ppm;
     
     // Si la vue est tournée de 90° ou 270°, inverser largeur et hauteur pour le cadrage
-    const isTransposed = (!this.is3DMode && (this.viewRotation === 90 || this.viewRotation === 270));
+    const normRot = ((this.viewRotation % 360) + 360) % 360;
+    const isTransposed = (!this.is3DMode && (normRot === 90 || normRot === 270));
     const rawPlanW = bbox.width * ppm;
     const rawPlanH = bbox.height * ppm;
     const planW = isTransposed ? rawPlanH : rawPlanW;
@@ -2416,6 +2434,7 @@ export class HomeArchitectCanvas extends LitElement {
   }
 
   private resetView(): void {
+    this.viewRotation = 0;
     this.fitToScreen();
   }
 
@@ -2474,7 +2493,7 @@ export class HomeArchitectCanvas extends LitElement {
           class="viewport-3d-wrapper ${this.is3DMode ? 'mode-3d' : ''}"
           style="${this.is3DMode 
             ? `transform: rotateX(${this.orbitPitch}deg) rotateZ(${this.orbitYaw}deg); transition: ${this.isOrbiting ? 'none' : 'transform 0.4s cubic-bezier(0.16, 1, 0.3, 1)'};` 
-            : (this.viewRotation !== 0 ? `transform: rotate(${this.viewRotation}deg); transform-origin: center center; transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);` : '')}"
+            : `transform: rotate(${this.viewRotation}deg); transform-origin: center center; transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);`}"
         >
           <svg class="main-viewport">
             ${this.renderBackgroundLayer()}
