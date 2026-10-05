@@ -73,7 +73,7 @@ async def test_upload_rejections(
     assert response.status == 415
     response = await client.post(UPLOAD_URL, data=b"not a png", headers={"Content-Type": "image/png"})
     assert response.status == 400
-    response = await client.post(UPLOAD_URL, data=b"<!DOCTYPE svg><svg/>", headers={"Content-Type": "image/svg+xml"})
+    response = await client.post(UPLOAD_URL, data=b'<!DOCTYPE svg [<!ENTITY x "y">]><svg>&x;</svg>', headers={"Content-Type": "image/svg+xml"})
     assert response.status == 400
     response = await client.post(
         UPLOAD_URL, data=b"\x89PNG\r\n\x1a\n" + b"0" * (MAX_UPLOAD_BYTES + 1), headers={"Content-Type": "image/png"}

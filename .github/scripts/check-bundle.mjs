@@ -54,10 +54,16 @@ function closure(entry, { followDynamic }) {
   return seen;
 }
 
+// Métadonnées locales de macOS (ignorées par git, donc jamais livrées).
+const IGNORED_FILES = new Set(['.DS_Store']);
+
 function listFiles(dir, prefix = '') {
-  return fs.readdirSync(dir, { withFileTypes: true }).flatMap((dirent) =>
-    dirent.isDirectory() ? listFiles(path.join(dir, dirent.name), `${prefix}${dirent.name}/`) : [`${prefix}${dirent.name}`]
-  );
+  return fs
+    .readdirSync(dir, { withFileTypes: true })
+    .filter((dirent) => !IGNORED_FILES.has(dirent.name))
+    .flatMap((dirent) =>
+      dirent.isDirectory() ? listFiles(path.join(dir, dirent.name), `${prefix}${dirent.name}/`) : [`${prefix}${dirent.name}`]
+    );
 }
 
 function readExisting(files) {

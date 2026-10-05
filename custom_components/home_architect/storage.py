@@ -511,7 +511,10 @@ class HomeArchitectStorage:
             )
             asset_id = _asset_id_of(prepared)
             await self._async_remove_backgrounds(
-                project_id, {asset_id} if asset_id else set(), ASSET_GRACE_PERIOD.total_seconds()
+                project_id,
+                {asset_id} if asset_id else set(),
+                ASSET_GRACE_PERIOD.total_seconds(),
+                released=_asset_id_of(existing) if existing is not None else None,
             )
         self._async_notify(project_id, prepared["revision"])
         return {"id": project_id, "revision": prepared["revision"], "updated_at": now, "asset_id": asset_id}
@@ -596,9 +599,12 @@ class HomeArchitectStorage:
     async def async_store_background(self, project_id: str, data: bytes, mime: str) -> dict[str, Any]:
         """Stocke une image de fond téléversée ; retourne {asset_id, mime_type, size}."""
         try:
-            asset_id, size = await self.hass.async_add_executor_job(
-                self.files.store_background, project_id, data, mime, MAX_UPLOAD_BYTES
-            )
+            # Sous le verrou : un nettoyage concurrent ne peut pas supprimer un asset
+            # identique (même contenu, même nom) entre sa détection et son rafraîchissement.
+            async with self._lock:
+                asset_id, size = await self.hass.async_add_executor_job(
+                    self.files.store_background, project_id, data, mime, MAX_UPLOAD_BYTES
+                )
         except AssetError as err:
             raise InvalidImageError(str(err)) from err
         except OSError as err:
@@ -649,11 +655,15 @@ class HomeArchitectStorage:
         return removed
 
     async def _async_remove_backgrounds(
-        self, project_id: str | None, keep: set[str], min_age: float | None
+        self,
+        project_id: str | None,
+        keep: set[str],
+        min_age: float | None,
+        released: str | None = None,
     ) -> list[str]:
         try:
             return await self.hass.async_add_executor_job(
-                self.files.remove_backgrounds, project_id, keep, min_age
+                self.files.remove_backgrounds, project_id, keep, min_age, released
             )
         except OSError as err:
             _LOGGER.warning("Could not clean background images: %s", err)

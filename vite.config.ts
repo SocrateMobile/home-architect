@@ -21,7 +21,8 @@ function mockPublishedSvg(): Plugin {
     apply: 'serve',
     configureServer(server) {
       server.middlewares.use(PUBLISHED_PREFIX, (req, res) => {
-        const name = decodeURIComponent((req.url ?? '').split('?')[0].replace(/^\//, ''));
+        // Le motif n'admet que [A-Za-z0-9_.-] : aucun décodage d'URL nécessaire (ni d'URIError possible).
+        const name = (req.url ?? '').split('?')[0].replace(/^\//, '');
         if (!PUBLISHED_FILE_RE.test(name)) {
           res.statusCode = 404;
           res.end();

@@ -55,6 +55,29 @@ async def test_migration_v1_to_v2(
     assert data["projects"]["etage1"]["background"]["imageUrl"] == broken["imageUrl"]
 
 
+async def test_dereferenced_background_survives_grace_period(
+    hass: HomeAssistant, setup_integration: MockConfigEntry, hass_ws_client
+) -> None:
+    """Un ancien fond retiré par une sauvegarde reste disponible (annulation après sauvegarde)."""
+    client = await hass_ws_client(hass)
+    background = {"imageUrl": PNG_DATA_URL, "opacity": 1, "visible": True, "offset": {"x": 0, "y": 0}, "scale": 1, "rotation": 0}
+    await client.send_json_auto_id({"type": "home_architect/save_project", "project": make_project(background=background)})
+    asset_id = (await client.receive_json())["result"]["asset_id"]
+    asset = Path(hass.config.path("home_architect", "backgrounds", asset_id))
+    three_days_ago = time.time() - 3 * 86400
+    os.utime(asset, (three_days_ago, three_days_ago))  # téléversé il y a longtemps
+
+    await client.send_json_auto_id({"type": "home_architect/save_project", "project": make_project(), "expected_revision": 1})
+    assert (await client.receive_json())["success"] is True
+    assert asset.exists()  # le délai de grâce part du déréférencement
+
+    # Annulation : le fond est de nouveau référencé et toujours lisible
+    restored = make_project(background={**background, "imageUrl": "", "assetId": asset_id})
+    await client.send_json_auto_id({"type": "home_architect/save_project", "project": restored, "expected_revision": 2})
+    assert (await client.receive_json())["result"]["asset_id"] == asset_id
+    assert asset.exists()
+
+
 async def test_garbage_collection_at_startup(
     hass: HomeAssistant, hass_storage: dict[str, Any], config_entry: MockConfigEntry, mock_github
 ) -> None:

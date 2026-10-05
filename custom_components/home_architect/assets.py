@@ -192,12 +192,22 @@ class ProjectFiles:
         return target_id
 
     def remove_backgrounds(
-        self, project_id: str | None, keep: set[str], min_age: float | None
+        self,
+        project_id: str | None,
+        keep: set[str],
+        min_age: float | None,
+        released: str | None = None,
     ) -> list[str]:
         """Supprime les assets de `project_id` (tous projets si None) absents de `keep`.
 
         `min_age` (secondes) : seuls les fichiers non modifiés depuis ce délai sont supprimés.
+        `released` : asset qui vient d'être déréférencé ; sa date est rafraîchie pour que le
+        délai de grâce coure à partir de maintenant (annulation après sauvegarde), et non
+        depuis son téléversement.
         """
+        if released is not None and released not in keep and ASSET_ID_RE.match(released):
+            with suppress(FileNotFoundError):
+                os.utime(self.backgrounds / released)
         try:
             entries = list(self.backgrounds.iterdir())
         except FileNotFoundError:

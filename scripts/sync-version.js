@@ -46,7 +46,10 @@ function toJson(data) {
   return JSON.stringify(data, null, 2) + '\n';
 }
 
-/** Remplace l'unique occurrence de `pattern` ; échoue si elle est absente ou multiple. */
+/**
+ * Remplace l'unique occurrence de `pattern` ; échoue si elle est absente ou multiple.
+ * `replacement` est une fonction : aucun motif spécial (`$1`, `$&`…) n'est interprété.
+ */
 function replaceExactlyOnce(content, pattern, replacement, label) {
   const flags = pattern.flags.includes('g') ? pattern.flags : pattern.flags + 'g';
   const matches = content.match(new RegExp(pattern.source, flags)) ?? [];
@@ -94,7 +97,7 @@ function buildTargets(version) {
     content: replaceExactlyOnce(
       readFile(CONST_PY_PATH),
       /^(VERSION(?:\s*:\s*[\w.[\]]+)?\s*=\s*)(["'])[^"'\n]*\2[ \t]*$/m,
-      `$1$2${version}$2`,
+      (_match, prefix, quote) => `${prefix}${quote}${version}${quote}`,
       'const.py (VERSION)'
     )
   });
@@ -104,7 +107,7 @@ function buildTargets(version) {
     content: replaceExactlyOnce(
       readFile(VERSION_TS_PATH),
       /^(export const VERSION\s*=\s*)(['"])[^'"\n]*\2;?[ \t]*$/m,
-      `$1$2${version}$2;`,
+      (_match, prefix, quote) => `${prefix}${quote}${version}${quote};`,
       'src/version.ts (VERSION)'
     )
   });
@@ -113,10 +116,10 @@ function buildTargets(version) {
   readme = replaceExactlyOnce(
     readme,
     /(https:\/\/img\.shields\.io\/badge\/version-)(?:[^-\s"'/?]|--)+(-[0-9a-zA-Z]+(?:\.svg)?)(?=[?"'\s)]|$)/m,
-    `$1${shieldsEscape(version)}$2`,
+    (_match, prefix, color) => `${prefix}${shieldsEscape(version)}${color}`,
     'README.md (badge de version)'
   );
-  readme = replaceExactlyOnce(readme, /alt="Version [^"]*"/, `alt="Version ${version}"`, 'README.md (texte alternatif du badge)');
+  readme = replaceExactlyOnce(readme, /alt="Version [^"]*"/, () => `alt="Version ${version}"`, 'README.md (texte alternatif du badge)');
   targets.push({ filePath: README_PATH, content: readme });
 
   return targets;
