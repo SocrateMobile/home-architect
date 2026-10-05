@@ -1,0 +1,5 @@
+# Tests Python de l'intégration (pytest tests/python) — Python 3.14 requis.
+# Version épinglée = Home Assistant 2026.9.4 (dernière version stable testée).
+pytest-homeassistant-custom-component==0.13.367
+# Requis par la dépendance « frontend » du manifest (même version que HA 2026.9.4).
+home-assistant-frontend==20260826.7

@@ -1,0 +1,77 @@
+name: Validate
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  schedule:
+    # Hebdomadaire : détecte les nouvelles exigences de hassfest et de HACS.
+    - cron: '0 4 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  hassfest:
+    name: Hassfest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: home-assistant/actions/hassfest@master
+
+  hacs:
+    name: HACS
+    runs-on: ubuntu-latest
+    steps:
+      - uses: hacs/action@main
+        with:
+          category: integration
+
+  frontend:
+    name: Frontend (types, lint, tests, bundle)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Versions synchronisées (package, manifest, const.py, version.ts, README)
+        run: npm run version:check
+      - name: Le tag correspond à la version du paquet
+        if: startsWith(github.ref, 'refs/tags/')
+        run: test "${GITHUB_REF_NAME#v}" = "$(node -p "require('./package.json').version")"
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+      - run: npm run check:bundle
+      - name: Le bundle commité correspond aux sources
+        run: |
+          dir=custom_components/home_architect/frontend
+          # Fichiers modifiés ou supprimés, mais aussi nouveaux chunks non suivis.
+          if ! git diff --stat --exit-code -- "$dir" || [ -n "$(git ls-files --others --exclude-standard -- "$dir")" ]; then
+            git status --short -- "$dir"
+            echo "::error::Le bundle commité est obsolète : lancez « npm run build » puis commitez $dir."
+            exit 1
+          fi
+
+  python:
+    name: Backend (pytest)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.14'
+          cache: pip
+          cache-dependency-path: requirements_test.txt
+      - run: pip install -r requirements_test.txt
+      - run: pytest tests/python

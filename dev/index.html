@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Home Architect · harnais de développement</title>
+    <link rel="icon" href="data:," />
+    <style>
+      /* Variables de thème usuelles de Home Assistant (clair / sombre) pour tester l'intégration visuelle. */
+      :root {
+        color-scheme: light;
+        --primary-color: #03a9f4;
+        --accent-color: #ff9800;
+        --primary-text-color: #212121;
+        --secondary-text-color: #727272;
+        --disabled-text-color: #bdbdbd;
+        --text-primary-color: #ffffff;
+        --primary-background-color: #fafafa;
+        --secondary-background-color: #e5e5e5;
+        --card-background-color: #ffffff;
+        --ha-card-background: var(--card-background-color);
+        --ha-card-border-radius: 12px;
+        --ha-card-box-shadow: none;
+        --ha-card-border-color: #e0e0e0;
+        --divider-color: rgba(0, 0, 0, 0.12);
+        --error-color: #db4437;
+        --warning-color: #ffa600;
+        --success-color: #43a047;
+        --info-color: #039be5;
+        --state-icon-color: #44739e;
+        --app-header-background-color: #03a9f4;
+        --app-header-text-color: #ffffff;
+        --mdc-theme-primary: var(--primary-color);
+        --ha-font-family-body: Roboto, Noto, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        --harness-header-height: 96px;
+      }
+      :root[data-theme='dark'] {
+        color-scheme: dark;
+        --primary-text-color: #e1e1e1;
+        --secondary-text-color: #9b9b9b;
+        --disabled-text-color: #6f6f6f;
+        --primary-background-color: #111111;
+        --secondary-background-color: #282828;
+        --card-background-color: #1c1c1c;
+        --ha-card-border-color: #2b2b2b;
+        --divider-color: rgba(225, 225, 225, 0.12);
+        --state-icon-color: #44739e;
+        --app-header-background-color: #101e24;
+        --app-header-text-color: #e1e1e1;
+      }
+
+      * { box-sizing: border-box; }
+      html, body { margin: 0; height: 100%; }
+      body {
+        display: flex;
+        flex-direction: column;
+        background: var(--primary-background-color);
+        color: var(--primary-text-color);
+        font-family: var(--ha-font-family-body);
+        font-size: 14px;
+      }
+
+      header {
+        flex: none;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px 16px;
+        padding: 8px 16px;
+        min-height: var(--harness-header-height);
+        background: var(--app-header-background-color);
+        color: var(--app-header-text-color);
+      }
+      header h1 { margin: 0; font-size: 1rem; font-weight: 600; white-space: nowrap; }
+      header .version { opacity: 0.75; font-weight: 400; }
+      .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; }
+      .controls label { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+      .controls select, .controls button { font: inherit; }
+      .controls fieldset { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; max-width: 100%; margin: 0; padding: 2px 8px; border: 1px solid rgba(255, 255, 255, 0.35); border-radius: 6px; }
+      #ctl-project { min-width: 0; max-width: 18em; }
+      .controls legend { padding: 0 4px; font-size: 0.75rem; opacity: 0.85; }
+
+      nav[role='tablist'] { display: flex; gap: 4px; }
+      nav[role='tablist'] button {
+        font: inherit;
+        padding: 6px 14px;
+        border: 1px solid rgba(255, 255, 255, 0.5);
+        border-radius: 999px;
+        background: transparent;
+        color: inherit;
+        cursor: pointer;
+      }
+      nav[role='tablist'] button[aria-selected='true'] { background: rgba(255, 255, 255, 0.95); color: #01579b; }
+
+      main { flex: 1 1 auto; min-height: 0; position: relative; }
+      .tab-panel { position: absolute; inset: 0; }
+      .tab-panel[hidden] { display: none; }
+
+      /* Studio : le panneau occupe toute la zone, comme dans ha-panel-custom. */
+      #studio-host { height: 100%; position: relative; }
+      #studio-host > * { display: block; height: 100%; }
+
+      /* Carte : éditeur YAML à gauche, tableau de bord simulé à droite. */
+      #card-tab { display: grid; grid-template-columns: minmax(280px, 380px) 1fr; }
+      #card-tab[hidden] { display: none; }
+      .card-editor { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-right: 1px solid var(--divider-color); min-height: 0; }
+      .card-editor textarea {
+        flex: 1;
+        min-height: 200px;
+        font: 13px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace;
+        padding: 8px;
+        border: 1px solid var(--divider-color);
+        border-radius: 8px;
+        background: var(--card-background-color);
+        color: var(--primary-text-color);
+        resize: none;
+      }
+      .card-editor .row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+      .card-editor .hint { margin: 0; color: var(--secondary-text-color); font-size: 0.8rem; }
+      .dashboard { overflow: auto; padding: 16px; display: flex; flex-wrap: wrap; align-content: flex-start; gap: 16px; }
+      .card-slot { width: var(--harness-card-width, 500px); max-width: 100%; }
+      .card-error {
+        padding: 12px;
+        border-radius: var(--ha-card-border-radius);
+        border: 1px solid var(--error-color);
+        color: var(--error-color);
+        background: var(--card-background-color);
+        white-space: pre-wrap;
+      }
+
+      /* Journal des appels (WS, services, HTTP, événements). */
+      #log { flex: none; max-height: 34vh; display: flex; flex-direction: column; border-top: 1px solid var(--divider-color); background: var(--card-background-color); }
+      #log > summary { padding: 6px 16px; cursor: pointer; user-select: none; font-weight: 600; }
+      #log[open] { height: 34vh; }
+      .log-toolbar { display: flex; gap: 8px; align-items: center; padding: 0 16px 6px; }
+      #log-list { flex: 1; overflow: auto; margin: 0; padding: 0 16px 8px; list-style: none; font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
+      #log-list li { border-bottom: 1px solid var(--divider-color); padding: 2px 0; }
+      #log-list li[data-kind='error'] { color: var(--error-color); }
+      #log-list time { color: var(--secondary-text-color); margin-right: 6px; }
+      #log-list .kind { display: inline-block; min-width: 4.5em; font-weight: 700; }
+      #log-list details > summary { cursor: pointer; }
+      #log-list pre { margin: 2px 0 4px 1.5em; white-space: pre-wrap; word-break: break-word; color: var(--secondary-text-color); }
+
+      dialog { border: 1px solid var(--divider-color); border-radius: 12px; background: var(--card-background-color); color: var(--primary-text-color); max-width: min(560px, 92vw); }
+      dialog pre { max-height: 50vh; overflow: auto; font-size: 12px; }
+      dialog::backdrop { background: rgba(0, 0, 0, 0.45); }
+
+      @media (max-width: 870px) {
+        #card-tab { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+        .card-editor { border-right: none; border-bottom: 1px solid var(--divider-color); }
+        .card-editor textarea { min-height: 96px; }
+        #log { max-height: 24vh; }
+        #log[open] { height: 24vh; }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Home Architect <span class="version" id="harness-version"></span></h1>
+      <nav role="tablist" aria-label="Vue">
+        <button role="tab" id="tab-studio" aria-controls="studio-tab" aria-selected="true">Studio</button>
+        <button role="tab" id="tab-card" aria-controls="card-tab" aria-selected="false">Carte</button>
+      </nav>
+      <div class="controls">
+        <label><input type="checkbox" id="ctl-admin" /> Administrateur</label>
+        <label>Langue
+          <select id="ctl-language">
+            <option value="fr">fr</option>
+            <option value="en">en</option>
+          </select>
+        </label>
+        <label><input type="checkbox" id="ctl-dark" /> Thème sombre</label>
+        <label><input type="checkbox" id="ctl-update" /> Mise à jour disponible</label>
+        <label>Latence
+          <select id="ctl-latency">
+            <option value="0">0 ms</option>
+            <option value="300">300 ms</option>
+            <option value="1500">1,5 s</option>
+          </select>
+        </label>
+        <label><input type="checkbox" id="ctl-offline" /> Hors ligne</label>
+        <fieldset>
+          <legend>Autre appareil</legend>
+          <select id="ctl-project" aria-label="Projet"></select>
+          <button type="button" id="btn-external-edit" title="Sauvegarde du projet depuis un autre client : révision +1">Modifier</button>
+          <button type="button" id="btn-external-delete" title="Suppression du projet depuis un autre client">Supprimer</button>
+        </fieldset>
+      </div>
+    </header>
+
+    <main>
+      <section class="tab-panel" id="studio-tab" role="tabpanel" aria-labelledby="tab-studio">
+        <div id="studio-host"></div>
+      </section>
+      <section class="tab-panel" id="card-tab" role="tabpanel" aria-labelledby="tab-card" hidden>
+        <div class="card-editor">
+          <label for="card-yaml"><strong>Configuration de la carte (YAML)</strong></label>
+          <textarea id="card-yaml" spellcheck="false"></textarea>
+          <p class="hint">Un objet pour une carte, une liste pour plusieurs. Ctrl/⌘ + Entrée pour appliquer.</p>
+          <div class="row">
+            <button type="button" id="btn-apply-card">Appliquer</button>
+            <label>Largeur
+              <select id="ctl-card-width">
+                <option value="360px">360 px (mobile)</option>
+                <option value="500px">500 px (colonne)</option>
+                <option value="800px">800 px</option>
+                <option value="100%">Pleine largeur</option>
+              </select>
+            </label>
+          </div>
+        </div>
+        <div class="dashboard" id="card-host"></div>
+      </section>
+    </main>
+
+    <details id="log" open>
+      <summary>Journal <span id="log-count"></span></summary>
+      <div class="log-toolbar">
+        <label>Filtrer
+          <select id="log-filter">
+            <option value="">Tout</option>
+            <option value="ws">WebSocket</option>
+            <option value="service">Services</option>
+            <option value="http">HTTP</option>
+            <option value="event">Événements</option>
+            <option value="error">Erreurs</option>
+          </select>
+        </label>
+        <button type="button" id="btn-clear-log">Effacer</button>
+      </div>
+      <ol id="log-list"></ol>
+    </details>
+
+    <dialog id="more-info">
+      <h2 id="more-info-title"></h2>
+      <pre id="more-info-state"></pre>
+      <form method="dialog" class="row">
+        <button type="button" id="more-info-toggle">Basculer (homeassistant.toggle)</button>
+        <button>Fermer</button>
+      </form>
+    </dialog>
+
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>
