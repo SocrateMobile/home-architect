@@ -214,6 +214,13 @@ def _migrate_v1_projects(projects: dict[str, dict[str, Any]], files: ProjectFile
         if _revision_of(project) < 1:
             project["revision"] = 1
         project["schema_version"] = PROJECT_SCHEMA_VERSION
+        # En v1, le canevas figeait tapAction='toggle' au dépôt : ce n'était pas un
+        # choix de l'utilisateur, on revient à l'action par défaut du domaine.
+        bindings = project.get("bindings")
+        if isinstance(bindings, list):
+            for binding in bindings:
+                if isinstance(binding, dict) and binding.get("tapAction") == "toggle":
+                    del binding["tapAction"]
         background = project.get("background")
         if not isinstance(background, dict):
             continue

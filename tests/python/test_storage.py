@@ -26,7 +26,13 @@ async def test_migration_v1_to_v2(
         "key": STORAGE_KEY,
         "data": {
             "projects": {
-                "rdc": make_project("rdc", background=background),
+                "rdc": {
+                    **make_project("rdc", background=background),
+                    "bindings": [
+                        {"id": "b1", "entityId": "cover.garage", "position": {"x": 1, "y": 1}, "tapAction": "toggle"},
+                        {"id": "b2", "entityId": "light.salon", "position": {"x": 2, "y": 1}, "tapAction": "more-info"},
+                    ],
+                },
                 "etage1": make_project("etage1", background=broken),
                 "../bad": make_project("../bad"),
             }
@@ -50,6 +56,9 @@ async def test_migration_v1_to_v2(
     asset_id = rdc["background"]["assetId"]
     assert asset_id.startswith("rdc-")
     assert Path(hass.config.path("home_architect", "backgrounds", asset_id)).is_file()
+    # tapAction 'toggle' figé par la v1 retiré (action par défaut du domaine), choix explicite conservé
+    assert "tapAction" not in rdc["bindings"][0]
+    assert rdc["bindings"][1]["tapAction"] == "more-info"
 
     # Image illisible : conservée telle quelle plutôt que perdue
     assert data["projects"]["etage1"]["background"]["imageUrl"] == broken["imageUrl"]

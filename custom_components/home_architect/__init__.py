@@ -32,7 +32,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 
     if await hass.async_add_executor_job(_FRONTEND_DIR.is_dir):
         await hass.http.async_register_static_paths(
-            [StaticPathConfig(FRONTEND_URL_PATH, str(_FRONTEND_DIR), cache_headers=False)]
+            [StaticPathConfig(FRONTEND_URL_PATH, str(_FRONTEND_DIR), cache_headers=True)]
         )
     else:
         _LOGGER.error("Home Architect frontend bundle is missing (%s)", _FRONTEND_DIR)
