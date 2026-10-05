@@ -79,6 +79,24 @@ describe('primitives en mètres (F139)', () => {
     }
   });
 
+  it('meubles rembourrés très petits : dossier et accoudoirs restent dans l’emprise', () => {
+    for (const type of ['sofa_3p', 'sofa_2p', 'divan', 'divan_right', 'armchair']) {
+      const t = findFurnitureTemplate(type);
+      for (const w of SIZES) {
+        for (const l of SIZES) {
+          for (const s of t?.shapes(w, l) ?? []) {
+            if (s.kind !== 'rect') continue;
+            const where = `${type} ${w}×${l}`;
+            expect(s.x, where).toBeGreaterThanOrEqual(-w / 2 - 1e-9);
+            expect(s.x + s.w, where).toBeLessThanOrEqual(w / 2 + 1e-9);
+            expect(s.y, where).toBeGreaterThanOrEqual(-l / 2 - 1e-9);
+            expect(s.y + s.h, where).toBeLessThanOrEqual(l / 2 + 1e-9);
+          }
+        }
+      }
+    }
+  });
+
   it('décors proportionnels : le symbole ne dépend pas de l’échelle d’affichage', () => {
     const sofa = findFurnitureTemplate('sofa_3p');
     const at = (ppm: number) => renderToSvg(furnitureSymbolMarkup({ type: 'sofa_3p' }, { pixelsPerMeter: ppm }));
@@ -146,6 +164,13 @@ describe('rendu SVG (markup)', () => {
     const root = renderToSvg(markup);
     expect(root.querySelectorAll('rect')).toHaveLength(1);
     expect(root.querySelector('text')?.textContent).toBe('<b>&"');
+  });
+
+  it('type inconnu sans icône : 📦 comme l’ancien rendu du canevas ; pas d’icône sous MIN_SYMBOL_DETAIL_PX', () => {
+    const root = renderToSvg(furnitureSymbolMarkup({ type: 'inconnu', width: 1, length: 1 }, { pixelsPerMeter: 50 }));
+    expect(root.querySelector('text')?.textContent).toBe('📦');
+    const tiny = renderToSvg(furnitureSymbolMarkup({ type: 'inconnu', width: 0.1, length: 0.1 }, { pixelsPerMeter: 50 }));
+    expect(tiny.querySelector('text')).toBeNull();
   });
 
   it('couleur échappée dans le balisage', () => {

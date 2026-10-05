@@ -24,6 +24,9 @@ export const OPENING_END_MARGIN = 0.05;
 /** Distance (m) sous laquelle une extrémité de mur est considérée comme jointe à un autre mur. */
 const JOIN_TOLERANCE = 0.02;
 
+/** Sinus de l'angle (≈ 15°) sous lequel un mur joint est traité comme le prolongement du mur de l'ouverture. */
+const CONTINUATION_SIN = 0.26;
+
 export type SnapKind = 'vertex' | 'midpoint' | 'wall' | 'smart_guide' | 'angle' | 'grid' | 'none';
 
 export interface SnapOptions {
@@ -83,7 +86,7 @@ export interface OpeningFit {
 }
 
 export interface OpeningFitContext {
-  /** Murs du projet : la demi-épaisseur des murs joints à chaque extrémité est réservée. */
+  /** Murs du projet : la demi-épaisseur des murs sécants joints à chaque extrémité est réservée. */
   walls?: Wall[];
   /** Ouvertures existantes (seules celles du même mur sont examinées). */
   openings?: Opening[];
@@ -131,6 +134,14 @@ function projectOnLine(p: Point, line: SnapLine): Point {
   return { x: line.origin.x + t * line.dir.x, y: line.origin.y + t * line.dir.y };
 }
 
+/** Pour une contrainte « mur » : le point se projette-t-il sur le segment du mur ? (toujours vrai sinon) */
+function isOnWallSegment(p: Point, line: SnapLine): boolean {
+  if (line.kind !== 'wall' || !line.wall) return true;
+  const w = line.wall;
+  const t = (p.x - w.start.x) * line.dir.x + (p.y - w.start.y) * line.dir.y;
+  return t >= -1e-9 && t <= Math.hypot(w.end.x - w.start.x, w.end.y - w.start.y) + 1e-9;
+}
+
 function intersectLines(a: SnapLine, b: SnapLine): Point | null {
   const denom = a.dir.x * b.dir.y - a.dir.y * b.dir.x;
   if (Math.abs(denom) < 1e-9) return null; // parallèles
@@ -154,9 +165,11 @@ export class SnappingEngine {
    *  1. sommet le plus proche (le point d'origine et `excludePoints` exclus) ;
    *  2. milieu d'un mur, puis axe d'un mur survolé (jonction en T) ;
    *  3. contraintes linéaires combinées : axe de mur > guide X/Y (sommet aligné le plus proche) > rayon
-   *     angulaire depuis l'origine. Deux contraintes non parallèles sont intersectées (ex. guide X + angle 0°) ;
-   *     une contrainte seule est complétée par la grille sur l'axe libre (ou la longueur le long du rayon) ;
-   *  4. sans contrainte : grille sur les deux axes.
+   *     angulaire depuis l'origine. Deux contraintes non parallèles sont intersectées (ex. guide X + angle 0°),
+   *     sans sortir du segment d'un mur ; un guide parallèle au rayon angulaire est écarté (l'angle garde le
+   *     segment droit) ; une contrainte seule est complétée par la grille sur l'axe libre (ou la longueur le
+   *     long du rayon) ;
+   *  4. sans contrainte : grille sur les deux axes (ou point brut si la grille est désactivée).
    * Le point final est arrondi au millimètre (sauf sommet existant, renvoyé tel quel).
    *
    * Le 5e paramètre accepte l'ancien rayon d'accrochage aux sommets (mètres) ou des SnapOptions ;
@@ -239,11 +252,22 @@ export class SnappingEngine {
     // 3b. Rayon angulaire depuis l'origine
     if (grid.snapToAngles && originPoint) {
       const angleLine = this.findAngleLine(rawPoint, originPoint, opts);
-      if (angleLine) lines.push(angleLine);
+      if (angleLine) {
+        // Un guide parallèle au rayon (et ne passant pas par l'origine, ceux-là sont déjà exclus) est
+        // incompatible avec lui : le suivre rendrait le segment légèrement oblique (cloison accrochée
+        // au guide Y du mur opposé, constat F48). L'angle l'emporte.
+        for (let i = lines.length - 1; i >= 0; i--) {
+          const line = lines[i];
+          if (line.kind === 'smart_guide' && Math.abs(line.dir.x * angleLine.dir.y - line.dir.y * angleLine.dir.x) < 1e-9) {
+            lines.splice(i, 1);
+          }
+        }
+        lines.push(angleLine);
+      }
     }
 
     if (lines.length === 0) {
-      if (!grid.snapToGrid) return { point: { ...rawPoint }, snappedTo: 'none', constraints: [] };
+      if (!grid.snapToGrid) return { point: roundPoint(rawPoint), snappedTo: 'none', constraints: [] };
       return {
         point: roundPoint({ x: this.quantize(rawPoint.x, gridSize), y: this.quantize(rawPoint.y, gridSize) }),
         snappedTo: 'grid',
@@ -258,6 +282,7 @@ export class SnappingEngine {
     for (const candidate of lines.slice(1)) {
       const p = intersectLines(primary, candidate);
       if (!p || (originPoint && samePoint(p, originPoint))) continue; // segment de longueur nulle
+      if (!isOnWallSegment(p, primary) || !isOnWallSegment(p, candidate)) continue; // au-delà de l'extrémité du mur
       if (this.distance(p, rawPoint) <= 2 * (primary.offset + candidate.offset) + 1e-9) {
         secondary = candidate;
         point = p;
@@ -335,14 +360,23 @@ export class SnappingEngine {
 
   /**
    * Borne une ouverture à son mur : la largeur est réduite à la longueur utile (longueur du mur
-   * moins, à chaque extrémité, la demi-épaisseur du plus épais mur joint et `endMargin`), le centre
+   * moins, à chaque extrémité, la demi-épaisseur du plus épais mur sécant qui y est joint — un mur
+   * dans le prolongement ne compte pas — et `endMargin`), le centre
    * est borné pour que l'ouverture reste entièrement dans cette zone, et les chevauchements avec les
    * autres ouvertures du même mur sont signalés.
    */
   public static fitOpening(wall: Wall, offset: number, width: number, context: OpeningFitContext = {}): OpeningFit {
     const length = this.wallLength(wall);
     const endMargin = context.endMargin ?? OPENING_END_MARGIN;
-    const others = (context.walls ?? []).filter(w => w.id !== wall.id);
+    // Un mur dans le prolongement (façade coupée en deux tronçons, mur quasi colinéaire) n'empiète
+    // pas sur la zone utile : seuls les murs sécants (angle, jonction en T) réservent leur demi-épaisseur.
+    const ux = length > 0 ? (wall.end.x - wall.start.x) / length : 0;
+    const uy = length > 0 ? (wall.end.y - wall.start.y) / length : 0;
+    const crosses = (w: Wall) => {
+      const len = this.wallLength(w);
+      return len > 0 && Math.abs(ux * (w.end.y - w.start.y) - uy * (w.end.x - w.start.x)) / len >= CONTINUATION_SIN;
+    };
+    const others = (context.walls ?? []).filter(w => w.id !== wall.id && crosses(w));
     const joinedHalfThickness = (p: Point) => others.reduce((max, w) =>
       this.distanceToSegment(p, w.start, w.end) <= JOIN_TOLERANCE ? Math.max(max, (w.thickness || 0) / 2) : max, 0);
 

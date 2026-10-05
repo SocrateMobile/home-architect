@@ -5,7 +5,7 @@
  */
 import '../src/card-entry';
 import '../src/panel-entry';
-import { parse as parseYaml } from 'yaml';
+import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
 import { VERSION } from '../src/version';
 import { MockHomeAssistant, type Language, type LogEntry, type LogKind, type MockHass } from './mock-hass';
 
@@ -23,6 +23,13 @@ interface CardElement extends HassElement {
   setConfig(config: Record<string, unknown>): void;
 }
 
+/** Éditeur visuel renvoyé par getConfigElement (même contrat que dans Home Assistant). */
+type CardEditorElement = CardElement;
+
+interface CardConstructor extends CustomElementConstructor {
+  getConfigElement(): Promise<HTMLElement>;
+}
+
 type Tab = 'studio' | 'card';
 
 interface Prefs {
@@ -38,11 +45,13 @@ interface Prefs {
 // Hors du préfixe « home_architect_ », réservé aux anciennes copies locales de projets.
 const PREFS_KEY = 'home-architect-dev-harness';
 const MAX_LOG_ENTRIES = 300;
-const DEFAULT_CARD_YAML = `# Carte telle que saisie dans un tableau de bord (une liste pour plusieurs cartes).
+const DEFAULT_CARD_YAML = `# Carte telle que générée par la fenêtre d'export (une liste pour plusieurs cartes).
+# Sans title : l'en-tête affiche le nom du plan enregistré.
 type: custom:home-architect-card
 project_id: rdc
-title: Rez-de-chaussée
-height: 480px
+view_mode: 2d
+show_header: true
+height: 520px
 `;
 const DEFAULT_PREFS: Prefs = {
   tab: 'studio',
@@ -245,6 +254,7 @@ function applyCardYaml(): void {
   savePrefs();
   buildCards(cardYaml.value);
   mountActiveTab();
+  syncVisualEditor();
 }
 
 for (const tab of ['studio', 'card'] as const) {
@@ -273,6 +283,82 @@ cardWidth.addEventListener('change', () => {
   document.documentElement.style.setProperty('--harness-card-width', cardWidth.value);
 });
 
+// --- Éditeur visuel de la carte ---------------------------------------------------------------
+
+const visualEditorHost = byId('visual-editor');
+const visualEditorButton = byId<HTMLButtonElement>('btn-visual-editor');
+let visualEditor: CardEditorElement | null = null;
+
+function parseYamlOrNull(yamlText: string): unknown {
+  try {
+    return parseYaml(yamlText);
+  } catch {
+    return null;
+  }
+}
+
+/** Configuration de la première carte du YAML (celle que modifie l'éditeur visuel), ou null. */
+function firstCardConfig(): Record<string, unknown> | null {
+  const parsed = parseYamlOrNull(cardYaml.value);
+  const config: unknown = Array.isArray(parsed) ? parsed[0] : parsed;
+  return isRecord(config) && config.type === 'custom:home-architect-card' ? config : null;
+}
+
+/** Comme Home Assistant, renvoie à l'éditeur la configuration courante après chaque changement du YAML. */
+function syncVisualEditor(): void {
+  if (!visualEditor || visualEditorHost.hidden) return;
+  const config = firstCardConfig();
+  if (!config) {
+    visualEditorHost.replaceChildren(errorBox("L'éditeur visuel modifie la première carte du YAML : corrigez d'abord le YAML."));
+    return;
+  }
+  visualEditor.setConfig(config);
+  if (visualEditor.parentNode !== visualEditorHost) visualEditorHost.replaceChildren(visualEditor);
+}
+
+/** config-changed : réécrit le YAML (la première carte) puis recrée les cartes, comme un tableau de bord. */
+function onVisualEditorChange(event: Event): void {
+  const config: unknown = event instanceof CustomEvent && isRecord(event.detail) ? event.detail.config : undefined;
+  if (!isRecord(config)) return;
+  const parsed = parseYamlOrNull(cardYaml.value);
+  cardYaml.value = stringifyYaml(Array.isArray(parsed) && parsed.length > 0 ? [config, ...parsed.slice(1)] : config);
+  applyCardYaml();
+}
+
+/**
+ * Crée l'éditeur comme Home Assistant, par getConfigElement() de la carte (jamais par
+ * createElement) : la carte y injecte la validation de la hauteur (parseHeight).
+ */
+async function createVisualEditor(): Promise<CardEditorElement> {
+  const card = customElements.get('home-architect-card') as CardConstructor | undefined;
+  if (!card) throw new Error('home-architect-card n’est pas défini.');
+  const editor = (await card.getConfigElement()) as CardEditorElement;
+  editor.hass = mock.hass;
+  editor.addEventListener('config-changed', onVisualEditorChange);
+  return editor;
+}
+
+visualEditorButton.addEventListener('click', () => {
+  const open = visualEditorHost.hidden;
+  visualEditorHost.hidden = !open;
+  visualEditorButton.setAttribute('aria-expanded', String(open));
+  if (!open) return;
+  if (visualEditor) {
+    syncVisualEditor();
+    return;
+  }
+  visualEditorButton.disabled = true;
+  createVisualEditor()
+    .then((editor) => {
+      visualEditor = editor;
+      syncVisualEditor();
+    })
+    .catch((error: unknown) => visualEditorHost.replaceChildren(errorBox(`Éditeur visuel indisponible : ${errorMessage(error)}`)))
+    .finally(() => {
+      visualEditorButton.disabled = false;
+    });
+});
+
 // --- Réglages simulés -------------------------------------------------------------------------
 
 function applyDocumentTheme(hass: MockHass): void {
@@ -283,6 +369,7 @@ function applyDocumentTheme(hass: MockHass): void {
 mock.onHassChanged((hass) => {
   panel.hass = hass;
   for (const card of cards) card.hass = hass;
+  if (visualEditor) visualEditor.hass = hass;
   applyDocumentTheme(hass);
   refreshMoreInfo();
 });

@@ -192,7 +192,10 @@ export class ProjectWorkspace {
     this.onChange();
   }
 
-  /** Met à jour (ou ajoute) le résumé d'un projet après une sauvegarde ou une publication. */
+  /**
+   * Met à jour (ou ajoute) le résumé d'un projet après un chargement, une sauvegarde ou une
+   * (dé)publication. La publication est celle du projet ouvert, toujours alignée sur le serveur.
+   */
   upsertSummary(project: HomeArchitectProject): void {
     const previous = this._summaries.find(s => s.id === project.id);
     const summary: ProjectSummary = {
@@ -203,7 +206,7 @@ export class ProjectWorkspace {
       updated_at: project.updated_at,
       revision: project.revision ?? 0,
       has_background: !!project.background,
-      publish: project.publish ?? previous?.publish ?? null,
+      publish: project.publish ?? null,
       counts: {
         walls: project.walls.length,
         rooms: project.rooms.length,

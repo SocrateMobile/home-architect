@@ -70,10 +70,13 @@ export interface SvgLayerInfo {
   elementCount: number;
 }
 
-/** Forme étiquetée écartée par les bornes de surface (signalée à l'utilisateur). */
+/** Pièce candidate écartée (signalée à l'utilisateur dans l'aperçu). */
 export interface SvgIgnoredRoom {
+  /** Nom issu d'un texte du plan ; '' pour une forme remplie sans étiquette. */
   name: string;
   areaM2: number;
+  /** Surface hors des bornes, ou contour qui se recoupe (surface et rendu faux). */
+  reason: 'area' | 'self_intersecting';
 }
 
 /** Origine de la viewBox retenue : attribut, taille absolue (width/height), emprise du contenu ou défaut. */
@@ -250,6 +253,8 @@ const PRESENTATION_PROPS = new Set([
 const MAX_ELEMENTS = 250_000;
 const MAX_SEGMENTS = 150_000;
 const MAX_USE_DEPTH = 8;
+/** Au-delà, une forme fermée n'est pas une pièce plausible (et le test d'auto-intersection est en O(n²)). */
+const MAX_ROOM_VERTICES = 2000;
 
 /** Mots-clés des identifiants, classes et calques (comparés mot à mot, sans accents ni pluriel). */
 const ROLE_WORDS: Record<string, SemanticRole> = {
@@ -310,6 +315,9 @@ const TOL = {
   openingSpanMin: 0.4,
   openingSpanMax: 3.0,
   bridgeParallelDeg: 3.0,
+  dividerMin: 1.0,
+  dividerMargin: 0.3,
+  dividerCell: 3.0,
   unlabeledRoomMin: 1.5,
   scaleRetry: 0.02
 };
@@ -2420,20 +2428,25 @@ function roomStyle(name: string): { color: string; icon: string } {
 /**
  * Pièces : chaque étiquette va au plus petit contour qui la contient ; une forme sans étiquette n'est une
  * pièce que si elle est explicitement remplie (couleur claire) ou balisée « pièce », et qu'elle n'englobe
- * ni étiquette ni autre pièce (contour du bâtiment). Les bornes de surface sont configurables et les
- * formes étiquetées écartées sont signalées (constats F149, F153).
+ * ni étiquette ni autre pièce (contour du bâtiment). Un contour recoupé par des murs intérieurs regroupe
+ * plusieurs pièces (enveloppe du bâtiment dont les cloisons sont de simples traits) : ce n'est pas une
+ * pièce et il ne reçoit aucune étiquette. Les bornes de surface sont configurables ; les formes étiquetées
+ * hors bornes et les contours qui se recoupent sont signalés (constats F149, F153, F170).
+ *
+ * `wallLines` : murs reconnus, en unités racine ; `wallCount` : murs créés (après conversion en mètres).
  */
 function detectRooms(
   prims: SvgPrimitives,
   vb: SvgBox,
   mpu: number,
   o: ResolvedOptions,
+  wallLines: WallLine[],
   wallCount: number
 ): { rooms: DetectedRoom[]; ignored: SvgIgnoredRoom[] } {
   const toWorld = (p: Point): Point => ({ x: round2((p.x - vb.x) * mpu), y: round2((p.y - vb.y) * mpu) });
   const candidates: RoomCandidate[] = [];
   prims.shapes.forEach((shape, index) => {
-    if (shape.role !== 'wall') return;
+    if (shape.role !== 'wall' || shape.points.length > MAX_ROOM_VERTICES) return;
     // Fond ou cadre de page : jamais une pièce.
     if (coversPage(shape, vb)) return;
     const areaM2 = polygonAreaAbs(shape.points) * mpu * mpu;
@@ -2458,30 +2471,65 @@ function detectRooms(
   const inside = (c: RoomCandidate, x: number, y: number) =>
     x >= c.shape.minX && x <= c.shape.maxX && y >= c.shape.minY && y <= c.shape.maxY && PolygonUtils.isPointInPolygon({ x, y }, c.points);
 
+  // Murs intérieurs : axe d'au moins TOL.dividerMin, milieu à plus de TOL.dividerMargin (plus la
+  // demi-épaisseur) du contour. Les murs posés sur le contour lui-même ne comptent pas.
+  const k = 1 / mpu;
+  const dividers = wallLines.filter(w => lineLength(w) >= TOL.dividerMin * k);
+  const dividerGrid = new SpatialGrid<WallLine>(gridSize(TOL.dividerCell * k, Math.max(vb.width, vb.height)));
+  for (const w of dividers) {
+    const mx = (w.ax + w.bx) / 2, my = (w.ay + w.by) / 2;
+    dividerGrid.insertBox(mx, my, mx, my, w);
+  }
+  const subdividedCache = new Map<RoomCandidate, boolean>();
+  const subdivided = (c: RoomCandidate): boolean => {
+    let result = subdividedCache.get(c);
+    if (result !== undefined) return result;
+    result = false;
+    dividerGrid.query(c.shape.minX, c.shape.minY, c.shape.maxX, c.shape.maxY, w => {
+      if (result) return;
+      const mid = { x: (w.ax + w.bx) / 2, y: (w.ay + w.by) / 2 };
+      if (!inside(c, mid.x, mid.y)) return;
+      if (PolygonUtils.distanceToBoundary(mid, c.points) > w.thick / 2 + TOL.dividerMargin * k) result = true;
+    });
+    subdividedCache.set(c, result);
+    return result;
+  };
+
+  /** Étiquettes posées dans un contour candidat (retenu ou écarté) : jamais de pièce approximative pour elles. */
+  const enclosedLabels = new Set<RawLabel>();
   for (const label of prims.labels) {
-    const owner = unique.find(c => inside(c, label.x, label.y));
-    if (owner && owner.label === null) owner.label = label.text;
+    const owner = unique.find(c => inside(c, label.x, label.y) && !subdivided(c));
+    if (!owner) continue;
+    enclosedLabels.add(label);
+    if (owner.label === null) owner.label = label.text;
   }
 
   const ignored: SvgIgnoredRoom[] = [];
   const accepted: Array<{ candidate: RoomCandidate; worldPolygon: Point[]; areaM2: number; centroid: Point }> = [];
+  /**
+   * Un contour qui se recoupe (« nœud papillon ») n'est pas une pièce : sa surface calculée est fausse
+   * (les lobes s'annulent) et son rendu aussi. Il est écarté et signalé (constat F170).
+   */
+  const accept = (c: RoomCandidate): void => {
+    if (PolygonUtils.isSelfIntersecting(c.points)) {
+      ignored.push({ name: c.label ?? '', areaM2: round2(c.areaM2), reason: 'self_intersecting' });
+      return;
+    }
+    const worldPolygon = c.points.map(toWorld);
+    accepted.push({ candidate: c, worldPolygon, areaM2: PolygonUtils.computeArea(worldPolygon), centroid: PolygonUtils.calculateCentroid(c.points) });
+  };
   const minUnlabeled = Math.max(o.minRoomAreaM2, TOL.unlabeledRoomMin);
   for (const c of unique) {
     if (c.label !== null) {
-      if (c.areaM2 >= o.minRoomAreaM2 && c.areaM2 <= o.maxRoomAreaM2) {
-        const worldPolygon = c.points.map(toWorld);
-        accepted.push({ candidate: c, worldPolygon, areaM2: PolygonUtils.computeArea(worldPolygon), centroid: PolygonUtils.calculateCentroid(c.points) });
-      } else {
-        ignored.push({ name: c.label, areaM2: round2(c.areaM2) });
-      }
+      if (c.areaM2 >= o.minRoomAreaM2 && c.areaM2 <= o.maxRoomAreaM2) accept(c);
+      else ignored.push({ name: c.label, areaM2: round2(c.areaM2), reason: 'area' });
       continue;
     }
     const filled = (c.shape.fillExplicit && c.shape.fill === 'light') || c.shape.roomHint;
     if (!filled || c.areaM2 < minUnlabeled || c.areaM2 > o.maxRoomAreaM2) continue;
-    if (prims.labels.some(l => inside(c, l.x, l.y))) continue;
+    if (prims.labels.some(l => inside(c, l.x, l.y)) || subdivided(c)) continue;
     if (accepted.some(a => inside(c, a.centroid.x, a.centroid.y))) continue;
-    const worldPolygon = c.points.map(toWorld);
-    accepted.push({ candidate: c, worldPolygon, areaM2: PolygonUtils.computeArea(worldPolygon), centroid: PolygonUtils.calculateCentroid(c.points) });
+    accept(c);
   }
   accepted.sort((a, b) => a.candidate.index - b.candidate.index);
 
@@ -2506,7 +2554,7 @@ function detectRooms(
   // Aucun contour exploitable : pièces approximatives (3,6 m de côté) autour des étiquettes de pièces.
   if (rooms.length === 0 && wallCount >= 4) {
     for (const label of prims.labels) {
-      if (!ROOM_NAME_RE.test(normalizeText(label.text))) continue;
+      if (enclosedLabels.has(label) || !ROOM_NAME_RE.test(normalizeText(label.text))) continue;
       const c = toWorld({ x: label.x, y: label.y });
       const half = 1.8;
       const polygon: Point[] = [
@@ -2778,7 +2826,7 @@ export class SvgPlanParser {
         openings.push(opening);
       }
 
-      const { rooms, ignored } = detectRooms(prims, vb, mpu, o, walls.length);
+      const { rooms, ignored } = detectRooms(prims, vb, mpu, o, alive, walls.length);
       const footprint = refBox ? { width: round2(refBox.width * mpu), height: round2(refBox.height * mpu) } : null;
       return {
         ...base,

@@ -101,6 +101,7 @@ export const FURNITURE_CATEGORY_LABELS: Record<FurnitureCategory, string> = {
 const CATEGORY_ORDER: FurnitureCategory[] = ['seating', 'bed', 'table', 'storage', 'bathroom', 'kitchen', 'other'];
 
 const DEFAULT_STROKE_WIDTH = 1.5;
+const UNKNOWN_FURNITURE_ICON = '📦';
 const STROKE = '#94a3b8';
 const STROKE_SELECTED = '#38bdf8';
 const BODY_FILL = 'rgba(30, 41, 59, 0.85)';
@@ -111,8 +112,13 @@ const ACCENT_FILL = 'rgba(51, 65, 85, 0.9)';
 // Aides de construction (toutes les dimensions sont bornées à ≥ 0)
 // ------------------------------------------------------------------
 
+/**
+ * Borne v à [min, max]. Si les bornes se croisent (meuble plus petit que le minimum absolu d'un
+ * décor), la borne haute l'emporte : elle est proportionnelle au meuble, le décor reste donc dans
+ * son emprise (ex. dossier de 12 cm sur un canapé de 10 cm de profondeur).
+ */
 function clamp(v: number, min: number, max: number): number {
-  return Math.min(Math.max(v, min), Math.max(min, max));
+  return Math.min(Math.max(v, min), max);
 }
 
 function rect(x: number, y: number, w: number, h: number, paint: SymbolPaint, r = 0, style: Partial<SymbolShapeStyle> = {}): SymbolShape {
@@ -690,8 +696,9 @@ function resolveSymbol(
     bodyFill,
     selected
   };
-  if (!template && icon && Math.min(w, l) * scale >= MIN_SYMBOL_DETAIL_PX) {
-    resolved.icon = { text: icon, size: clamp(Math.min(w, l) * scale * 0.5, 8, 16) };
+  if (!template && Math.min(w, l) * scale >= MIN_SYMBOL_DETAIL_PX) {
+    // Même repli que l'ancien rendu du canevas pour un type inconnu : 📦 sans icône propre.
+    resolved.icon = { text: icon || UNKNOWN_FURNITURE_ICON, size: clamp(Math.min(w, l) * scale * 0.5, 8, 16) };
   }
   return resolved;
 }

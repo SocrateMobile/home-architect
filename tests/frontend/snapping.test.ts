@@ -112,9 +112,27 @@ describe('snapPoint : cascade non exclusive (F48)', () => {
     expect(r).toMatchObject({ point: { x: 0.3, y: 0.7 }, snappedTo: 'grid' });
   });
 
-  it('tout désactivé : point brut', () => {
+  it('tout désactivé : point brut, arrondi au millimètre', () => {
     const r = SnappingEngine.snapPoint({ x: 1.234567, y: 2.5 }, grid({ snapToGrid: false, snapToAngles: false, snapToElements: false }), [wall('a', 1.2, 2.5, 5, 2.5)], { x: 0, y: 0 });
-    expect(r).toMatchObject({ point: { x: 1.234567, y: 2.5 }, snappedTo: 'none' });
+    expect(r).toMatchObject({ point: { x: 1.235, y: 2.5 }, snappedTo: 'none', constraints: [] });
+  });
+
+  it('guide parallèle au rayon angulaire : l’angle l’emporte, la cloison reste droite (F48)', () => {
+    // Cloison partie de (0 ; 0,07) vers la droite ; le sommet (4 ; 0) du mur opposé donne un guide Y à 0.
+    const walls = [wall('opp', 4, 0, 4, -3)];
+    const r = SnappingEngine.snapPoint({ x: 3, y: 0.03 }, grid({ snapToGrid: false }), walls, { x: 0, y: 0.07 });
+    expect(r.point).toEqual({ x: 3, y: 0.07 });
+    expect(r.snappedTo).toBe('angle');
+    expect(r.smartGuideY).toBeUndefined();
+    // Le guide perpendiculaire (X = 4) se combine toujours avec l'angle.
+    const r2 = SnappingEngine.snapPoint({ x: 3.9, y: 0.35 }, grid({ snapToGrid: false }), walls, { x: 0, y: 0.07 }, { screenPixelsPerMeter: 50 });
+    expect(r2.point).toEqual({ x: 4, y: 0.07 });
+    expect(r2.constraints).toEqual(['smart_guide', 'angle']);
+  });
+
+  it('sans angle (désactivé), le guide parallèle s’applique', () => {
+    const r = SnappingEngine.snapPoint({ x: 3, y: 0.03 }, grid({ snapToGrid: false, snapToAngles: false }), [wall('opp', 4, 0, 4, -3)], { x: 0, y: 0.07 });
+    expect(r).toMatchObject({ point: { x: 3, y: 0 }, snappedTo: 'smart_guide', smartGuideY: 0 });
   });
 
   it('un point proche d’un guide mais loin de l’intersection ne saute pas', () => {
@@ -173,6 +191,22 @@ describe('snapPoint : jonction en T sur un mur (F145)', () => {
     expect(r.point).toEqual({ x: 2, y: 0.12 });
   });
 
+  it('mur + guide : l’intersection ne sort pas du segment du mur', () => {
+    // Mur oblique épais (0 ; 0) → (6 ; 3) ; un sommet en x = 6,1 donne un guide X qui coupe l'axe du
+    // mur au-delà de son extrémité. Curseur dans le corps du mur, 5 cm avant l'extrémité.
+    const obl = wall('obl', 0, 0, 6, 3, 0.5);
+    const len = Math.hypot(6, 3);
+    const u = { x: 6 / len, y: 3 / len };
+    const s = len - 0.05;
+    const raw = { x: u.x * s + 0.3 * u.y, y: u.y * s - 0.3 * u.x }; // 30 cm de l'axe, côté x croissant
+    const walls = [obl, wall('loin', 6.1, 10, 6.1, 11)];
+    const r = SnappingEngine.snapPoint(raw, grid({ snapToGrid: false }), walls, undefined, { screenPixelsPerMeter: 50 });
+    expect(r.snappedTo).toBe('wall');
+    expect(r.smartGuideX).toBeUndefined();
+    expect(r.point.x).toBeCloseTo(u.x * s, 3);
+    expect(r.point.y).toBeCloseTo(u.y * s, 3);
+  });
+
   it('hors du corps du mur au-delà de la tolérance : pas d’accrochage', () => {
     const r = SnappingEngine.snapPoint({ x: 2.2, y: 1 }, grid({ snapToGrid: false }), [wall('a', 0, 0, 6, 0)], undefined, { screenPixelsPerMeter: 50 });
     expect(r.snappedTo).toBe('none');
@@ -213,6 +247,17 @@ describe('fitOpening (F44)', () => {
     const side = wall('side', 1, 0, 1, 4, 0.1);
     const fit = SnappingEngine.fitOpening(side, 3.9, 0.8, { walls: [...walls, side] });
     expect(fit.offset).toBeCloseTo(4 - 0.2 - OPENING_END_MARGIN - 0.4, 9);
+  });
+
+  it('mur dans le prolongement (façade en deux tronçons) : rien de réservé à la jonction', () => {
+    const left = wall('g', 0, 0, 4, 0, 0.2);
+    const right = wall('d', 4, 0, 8, 0, 0.2);
+    const fit = SnappingEngine.fitOpening(left, 3.6, 0.9, { walls: [left, right] });
+    expect(fit.usableEnd).toBeCloseTo(4 - OPENING_END_MARGIN, 9);
+    expect(fit.offset).toBeCloseTo(4 - OPENING_END_MARGIN - 0.45, 9);
+    // Un mur sécant à la même extrémité réserve toujours sa demi-épaisseur.
+    const withCorner = SnappingEngine.fitOpening(left, 3.6, 0.9, { walls: [left, right, wall('p', 4, 0, 4, 3, 0.3)] });
+    expect(withCorner.usableEnd).toBeCloseTo(4 - 0.15 - OPENING_END_MARGIN, 9);
   });
 
   it('porte-fenêtre de 2 m sur un mur de 0,6 m : largeur réduite', () => {

@@ -28,10 +28,10 @@ import {
   BackgroundRejectedError, BackgroundSource, ImportedBackground, isInlineDataUrl, prepareBackgroundBlob,
   svgWithoutDoctype, uploadInlineBackground, uploadPreparedBackground
 } from './background';
-import { DraftReview, projectFromDraft, reviewDrafts } from './draft-review';
+import { DRAFT_STATUS_LABELS, DraftReview, projectFromDraft, reviewDraft, reviewDrafts } from './draft-review';
 import {
-  ChoiceDialogOptions, PanelNotice, renderChoiceDialog, renderDraftsDialog, renderLoadError, renderLoadingOverlay,
-  renderNotices
+  ChoiceDialogOptions, PanelNotice, formatDate, renderChoiceDialog, renderDraftsDialog, renderLoadError,
+  renderLoadingOverlay, renderNotices
 } from './dialogs';
 
 /** Délai d'écriture du brouillon local après la dernière modification d'un plan. */
@@ -56,7 +56,7 @@ export interface PersistenceUi {
 }
 
 /** Message lisible d'une erreur quelconque (HaApiError, Error, valeur brute). */
-export function errorMessage(err: unknown): string {
+function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
@@ -258,14 +258,22 @@ export class PersistenceController implements ReactiveController {
     this.ui.toast('🔒 Lecture seule : seuls les administrateurs peuvent modifier les plans.');
   }
 
-  /** Cadre d'export figé (positions % de picture-elements) : enregistré dans le plan, qui devient modifié. */
+  /**
+   * Cadre d'export figé (positions % de picture-elements) : enregistré dans le plan, qui devient
+   * modifié. Il décrit le SVG publié : Annuler / Rétablir ne le restaurent pas (voir history.ts),
+   * d'où l'absence d'entrée d'historique.
+   */
   setExportFrame(frame: ExportFrame | undefined) {
-    if (!frame || this.readOnly) return;
+    if (!frame || this.readOnly || !this.ready) return;
     const { minX, minY, maxX, maxY } = frame;
     if (![minX, minY, maxX, maxY].every(Number.isFinite) || maxX <= minX || maxY <= minY) return;
-    const current = this.ws.active.exportFrame;
+    const project = this.ws.active;
+    const current = project.exportFrame;
     if (current && current.minX === minX && current.minY === minY && current.maxX === maxX && current.maxY === maxY) return;
-    this.commit({ ...this.ws.active, exportFrame: { minX, minY, maxX, maxY } });
+    this.ws.replace({ ...project, exportFrame: { minX, minY, maxX, maxY } });
+    this.ws.markDirty(project.id);
+    this.placeholderIds.delete(project.id);
+    this.scheduleDraft(project.id);
   }
 
   /** Publication du SVG : champ possédé par le serveur, mis à jour sans marquer le plan comme modifié. */
@@ -273,6 +281,16 @@ export class PersistenceController implements ReactiveController {
     const publish = normalizePublishInfo(raw);
     if (!publish) return;
     const next = { ...this.ws.active, publish };
+    this.ws.replace(next);
+    if (next.revision !== undefined) this.ws.upsertSummary(next);
+  }
+
+  /** Publication retirée (export) : champ serveur effacé sans marquer le plan comme modifié. */
+  clearPublish(projectId: string) {
+    const project = this.ws.get(projectId);
+    if (!project?.publish) return;
+    const next: HomeArchitectProject = { ...project };
+    delete next.publish;
     this.ws.replace(next);
     if (next.revision !== undefined) this.ws.upsertSummary(next);
   }
@@ -344,56 +362,96 @@ export class PersistenceController implements ReactiveController {
   }
 
   /**
-   * Affiche un plan. Déjà ouvert, il est repris tel quel ; avec `refresh` (« Ouvrir / Recharger »),
-   * il est rechargé depuis le serveur, après confirmation s'il a des modifications non sauvegardées.
-   * Sinon il est chargé depuis le serveur.
+   * Affiche un plan.
+   * - Déjà ouvert : il est repris tel quel. Avec `reload` (« Ouvrir / Recharger » de la modale, qui a
+   *   déjà averti des modifications non sauvegardées grâce à dirtyProjectIds), un plan déjà enregistré
+   *   est remplacé par la version du serveur.
+   * - Sinon il est chargé depuis le serveur, et une copie locale (brouillon) de ce plan est proposée.
+   *   Un plan absent du serveur (copie locale uniquement) ou un serveur injoignable ouvre la copie
+   *   locale s'il y en a une.
    */
-  async openPlan(id: string, opts: { refresh?: boolean } = {}) {
+  async openPlan(id: string, opts: { reload?: boolean } = {}) {
     if (!this.ready) return;
     const open = this.ws.get(id);
     if (open) {
-      if (opts.refresh && this.ws.isDirty(id)) {
-        const choice = await this.ask({
-          icon: '📂',
-          title: 'Plan déjà ouvert et modifié',
-          subtitle: `« ${open.name} »`,
-          message: 'Ce plan est déjà ouvert dans le studio avec des modifications non sauvegardées.',
-          details: [
-            "Continuer l'édition : affiche votre version en cours, modifications comprises.",
-            'Recharger : affiche la version du serveur ; vos modifications non sauvegardées sont perdues.'
-          ],
-          actions: [
-            { id: 'reload', label: 'Recharger depuis le serveur', icon: '🔄', kind: 'danger' },
-            { id: 'keep', label: "Continuer l'édition", icon: '✏️', kind: 'primary' }
-          ],
-          tone: 'warning'
-        });
-        if (choice === null || !this.ws.has(id)) return;
-        this.activateProject(id);
-        if (choice === 'reload') await this.reloadFromServer(id);
-        return;
-      }
       this.activateProject(id);
-      if (opts.refresh && open.revision !== undefined && !this.ws.isDirty(id)) await this.reloadFromServer(id);
+      // Plan jamais sauvegardé : il n'existe que dans le studio, rien à recharger.
+      if (opts.reload && open.revision !== undefined) await this.reloadFromServer(id);
       return;
     }
 
-    let project: HomeArchitectProject | null;
+    let project: HomeArchitectProject | null = null;
+    let failure: unknown = null;
     try {
       project = await this.withBusy('Chargement du plan…', () => getProject(this.host.hass, id));
     } catch (err) {
-      this.showError(`Impossible d'ouvrir le plan : ${describeFailure(err)}`);
+      failure = err;
+    }
+    // Lecture seule : une copie locale ne pourrait pas être sauvegardée, elle n'est pas proposée.
+    const draft = this.readOnly ? null : await loadDraft(id);
+    // Ouvert entre-temps (double clic, brouillon restauré…) : la version en mémoire fait foi.
+    if (this.ws.has(id)) {
+      this.activateProject(id);
       return;
     }
+
     if (!project) {
-      this.ws.removeSummary(id);
-      this.ui.toast('❌ Ce plan n\'existe plus sur le serveur.');
+      if (failure === null) this.ws.removeSummary(id);
+      if (draft) {
+        const review = reviewDraft(draft, failure === null ? null : this.ws.summary(id) ?? null);
+        let reason: string;
+        if (failure !== null) reason = `serveur injoignable : ${describeFailure(failure)}`;
+        else if (review.status === 'unsaved') reason = 'plan jamais enregistré sur le serveur';
+        else reason = 'plan supprimé du serveur';
+        this.openDraft(review);
+        this.ui.toast(`📂 Copie locale de « ${draft.project.name} » ouverte (${reason}) : sauvegardez-la pour l'envoyer au serveur.`);
+      } else if (failure !== null) {
+        this.showError(`Impossible d'ouvrir le plan : ${describeFailure(failure)}`);
+      } else {
+        this.ui.toast('❌ Ce plan n\'existe plus sur le serveur.');
+      }
       return;
+    }
+
+    if (draft) {
+      const review = reviewDraft(draft, { revision: project.revision ?? 0, publish: project.publish });
+      const choice = await this.askDraftOrServer(review);
+      if (choice === null) return;
+      if (this.ws.has(id)) {
+        this.activateProject(id);
+        return;
+      }
+      if (choice === 'draft') {
+        this.openDraft(review);
+        this.ui.toast('📂 Copie locale ouverte : sauvegardez-la pour l\'envoyer au serveur.');
+        return;
+      }
     }
     this.ws.open(this.adoptLoaded(project));
     this.ws.upsertSummary(project);
     this.activateProject(id);
     this.ui.toast(`📂 Plan "${project.name}" chargé avec succès !`);
+  }
+
+  /** Copie locale d'un plan du serveur trouvée à son ouverture : laquelle afficher ? (null : aucune). */
+  private async askDraftOrServer(review: DraftReview): Promise<'draft' | 'server' | null> {
+    const { draft } = review;
+    const choice = await this.ask({
+      icon: '🗂️',
+      title: 'Copie locale non sauvegardée',
+      subtitle: `« ${draft.project.name} »`,
+      message: `Ce navigateur conserve des modifications de ce plan qui n'ont pas été envoyées au serveur (copie du ${formatDate(draft.savedAt)}). ${DRAFT_STATUS_LABELS[review.status]}.`,
+      details: [
+        'Copie locale : reprend vos modifications ; sauvegardez ensuite le plan pour les envoyer au serveur.',
+        'Version du serveur : la copie locale est conservée, mais elle sera remplacée dès que vous modifierez ce plan.'
+      ],
+      actions: [
+        { id: 'server', label: 'Version du serveur', icon: '☁️', kind: 'secondary' },
+        { id: 'draft', label: 'Copie locale', icon: '📂', kind: 'primary' }
+      ],
+      tone: 'warning'
+    });
+    return choice === 'draft' || choice === 'server' ? choice : null;
   }
 
   /**
@@ -439,7 +497,9 @@ export class PersistenceController implements ReactiveController {
    */
   private async confirmAdditionalPlan(category: string, planName: string, excludeId?: string): Promise<boolean> {
     if (!isKnownLevel(category)) return true;
-    const others = this.ws.plansForCategory(category).filter(p => p.id !== excludeId);
+    // Un plan vierge ouvert en changeant de niveau, jamais modifié, sera oublié : il ne compte pas.
+    const others = this.ws.plansForCategory(category)
+      .filter(p => p.id !== excludeId && !(this.placeholderIds.has(p.id) && !p.dirty));
     if (others.length === 0) return true;
     const label = getLevelLabel(category);
     const choice = await this.ask({
@@ -1039,14 +1099,16 @@ export class PersistenceController implements ReactiveController {
     this.setDraftReviews(this.readOnly ? null : pending);
   }
 
-  private removeDraftReview(review: DraftReview) {
-    this.setDraftReviews((this.draftReviews ?? []).filter(r => r !== review));
+  /** Retire un plan des copies locales proposées (dialogue de démarrage), s'il y figure. */
+  private removeDraftReview(projectId: string) {
+    if (!this.draftReviews) return;
+    this.setDraftReviews(this.draftReviews.filter(r => r.draft.projectId !== projectId));
   }
 
   /** Rouvre un brouillon dans le studio (plan modifié, à sauvegarder). */
   private openDraft(review: DraftReview): string {
     const project = projectFromDraft(review);
-    this.removeDraftReview(review);
+    this.removeDraftReview(project.id);
     this.ws.open(project, { dirty: true });
     this.clearProjectNotices(project.id);
     this.placeholderIds.delete(project.id);
@@ -1065,7 +1127,7 @@ export class PersistenceController implements ReactiveController {
     });
     if (choice !== 'discard') return;
     await deleteDraft(review.draft.projectId);
-    this.removeDraftReview(review);
+    this.removeDraftReview(review.draft.projectId);
   }
 
   // --- Image de fond -------------------------------------------------------------------------------

@@ -4,7 +4,7 @@ import {
   PublishInfo, Room, TAP_ACTION_TYPES, TapActionType, WALL_TYPES, Wall, WallType
 } from './types';
 import { PolygonUtils } from './polygon';
-import { findFurnitureTemplate } from './furniture-catalog';
+import { findFurnitureTemplate, furnitureDisplayName } from './furniture-catalog';
 import { getLevel, isKnownLevel } from './levels';
 
 /** Taille maximale d'un projet sauvegardé (JSON UTF-8) ; le backend applique la même limite. */
@@ -396,7 +396,9 @@ function normalizeFurniture(list: unknown): FurnitureItem[] {
     const item: FurnitureItem = {
       id: uniqueId(f.id, 'furn', used),
       type,
-      name: typeof f.name === 'string' ? f.name : (template?.name ?? type),
+      // Un ancien nom par défaut du modèle (renommage du catalogue) devient son nom actuel ;
+      // un nom choisi par l'utilisateur est conservé.
+      name: typeof f.name === 'string' ? furnitureDisplayName({ type, name: f.name }) : (template?.name ?? type),
       category: oneOf<FurnitureCategory>(f.category, FURNITURE_CATEGORIES) ?? template?.category ?? 'other',
       position,
       width: width !== undefined && width > 0 ? Math.min(width, MAX_DIMENSION) : (template?.width ?? 1),
