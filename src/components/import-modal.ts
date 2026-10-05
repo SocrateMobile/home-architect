@@ -844,13 +844,12 @@ export class HomeArchitectImportModal extends LitElement {
 
   private computeSvgInterpretation() {
     if (!this.svgRawText) return;
-    this.svgInterpretResult = SvgPlanParser.parseSvg(
-      this.svgRawText,
-      this.totalWidthMeters,
-      0.20,
-      2.50,
-      this.importOptions
-    );
+    this.svgInterpretResult = SvgPlanParser.parseSvg(this.svgRawText, {
+      totalWidthMeters: this.totalWidthMeters,
+      defaultThickness: 0.20,
+      defaultHeight: 2.50,
+      ...this.importOptions
+    });
   }
 
   private toggleImportCategory(cat: 'importWalls' | 'importDoors' | 'importWindows' | 'importRooms' | 'importLabels', checked: boolean) {

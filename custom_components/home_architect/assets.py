@@ -294,6 +294,16 @@ class ProjectFiles:
         """Ancien emplacement public /config/www/plan_<id>.svg (servi sous /local/)."""
         return self._www / f"plan_{project_id}.svg"
 
+    def save_svg_to_www(self, filename: str, svg: str) -> str:
+        """Assainit et enregistre un fichier SVG directement dans www/ (ex: plan_rdc.svg)."""
+        safe_name = Path(filename).name
+        if not safe_name.endswith(".svg"):
+            safe_name += ".svg"
+        content = sanitize_svg(svg, drop_images=False).encode("utf-8")
+        target_path = self._www / safe_name
+        atomic_write(target_path, content)
+        return f"/local/{safe_name}"
+
     def existing_legacy(self, project_ids: list[str]) -> set[str]:
         """Projets dont l'ancien fichier www existe encore."""
         return {pid for pid in project_ids if self.legacy_path(pid).is_file()}

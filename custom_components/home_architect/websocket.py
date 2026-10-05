@@ -212,6 +212,31 @@ async def ws_unpublish(
 @websocket_api.require_admin
 @websocket_api.websocket_command(
     {
+        vol.Required("type"): "home_architect/save_svg_to_www",
+        vol.Required("filename"): str,
+        vol.Required("svg_content"): vol.All(str, vol.Length(min=1, max=MAX_PUBLISH_BYTES)),
+    }
+)
+@websocket_api.async_response
+@_with_storage
+async def ws_save_svg_to_www(
+    hass: HomeAssistant,
+    connection: websocket_api.ActiveConnection,
+    msg: dict[str, Any],
+    storage: HomeArchitectStorage,
+) -> None:
+    """Enregistre le SVG assaini directement dans /config/www/ pour Lovelace."""
+    try:
+        path = await storage.async_save_svg_to_www(msg["filename"], msg["svg_content"])
+    except (InvalidSvgError, StorageWriteError) as err:
+        connection.send_error(msg["id"], ERR_WRITE_FAILED, str(err))
+        return
+    connection.send_result(msg["id"], {"success": True, "path": path})
+
+
+@websocket_api.require_admin
+@websocket_api.websocket_command(
+    {
         vol.Required("type"): "home_architect/check_updates",
         vol.Optional("force", default=False): bool,
     }
@@ -268,6 +293,7 @@ def async_register_websocket_commands(hass: HomeAssistant) -> None:
         ws_delete_project,
         ws_publish_svg,
         ws_unpublish,
+        ws_save_svg_to_www,
         ws_check_updates,
         ws_subscribe_project,
     ):

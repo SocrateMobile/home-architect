@@ -313,8 +313,15 @@ export class HomeArchitectCanvas extends LitElement {
     if (e.button !== 0) return;
 
     const targetEl = e.target as Element;
+
+    // Clic sur l'interface HUD (zoom, centrage, rotation, presets 3D, coords...) :
+    // Ne jamais déclencher le traçage d'un mur ou d'un outil sur le canvas !
+    if (targetEl?.closest?.('.canvas-hud, .coords-hud, .help-hud, button')) {
+      return;
+    }
+
     const isClickOnObject = !!targetEl?.closest?.(
-      '.wall-element, .wall-element-3d, .room-group, .entity-pin, .opening-element, .furniture-group, .dimension-badge, .wall-dim-badge, .hud-btn'
+      '.wall-element, .wall-element-3d, .room-group, .entity-pin, .opening-element, .furniture-group, .dimension-badge, .wall-dim-badge'
     );
 
     // Clic direct sur une entité ou un meuble : laisser l'élément gérer son interaction et son glisser-déposer
