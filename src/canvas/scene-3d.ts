@@ -8,6 +8,7 @@ import { openingVerticalRange } from './opening-symbols';
  * écran (toujours vers le haut, quel que soit l'angle de la caméra), faces arrière éliminées, faces
  * triées de la plus lointaine à la plus proche (algorithme du peintre), puis chapeaux des murs triés de
  * même. Les portes et fenêtres sont reprojetées sur les faces de leur mur, dessinées juste après elles.
+ * C'est le rendu de repli de la vue WebGL (src/view3d), qui partage computeWallHeights avec lui.
  */
 
 const DEFAULT_CEILING_HEIGHT = 2.5;

@@ -6,6 +6,8 @@
  *    (aucun élément du studio dans ses imports statiques) et respecte un budget gzip ;
  *  - aucun chunk (ni l'autre entrée) n'importe une entrée : HA les charge avec ?v=<version>, un
  *    import de l'URL sans ?v en évaluerait une seconde copie (ou une ancienne version en cache HTTP) ;
+ *  - le moteur 3D (three) n'est livré que dans le chunk de la vue 3D (`chunks/view3d-*.js`), chargé
+ *    par import() au passage en 3D : il n'est ni dans les entrées ni dans leurs chunks statiques ;
  *  - aucun chunk orphelin ni sourcemap n'est livré.
  *
  * Usage : node .github/scripts/check-bundle.mjs [dossier]
@@ -24,8 +26,14 @@ const PANEL_ENTRY = 'home_architect-panel.js';
 const ENTRIES = [CARD_ENTRY, PANEL_ENTRY];
 const CHUNKS_DIR = 'chunks/';
 // Budget du bundle carte (entrée + chunks importés statiquement), compressé gzip.
-// L'ancien bundle unique pesait ~100 kB gzip ; la carte seule en pèse environ le tiers.
-const CARD_GZIP_BUDGET = 80 * 1024;
+// L'ancien bundle unique pesait ~100 kB gzip. La carte embarque le canevas, la vue 3D simplifiée (repli)
+// et le chargeur de la vue WebGL ; le moteur 3D lui-même reste hors budget, chargé à la demande.
+const CARD_GZIP_BUDGET = 84 * 1024;
+// Chunk(s) de la vue 3D WebGL (three compris), téléchargé(s) seulement au passage en 3D.
+const VIEW3D_CHUNK = /^chunks\/view3d-[\w-]+\.js$/;
+const VIEW3D_GZIP_BUDGET = 200 * 1024;
+// Signature de three dans le code minifié (marqueur global de la bibliothèque, messages du moteur WebGL).
+const THREE_SIGNATURE = /__THREE__|WebGLRenderer/;
 // Éléments autorisés dans le bundle carte : la carte (et son éditeur éventuel) et le canevas.
 const CARD_ALLOWED_TAG = /^home-architect-(card|canvas)(-[a-z0-9-]+)?$/;
 
@@ -124,13 +132,35 @@ for (const file of listFiles(OUT_DIR).filter((name) => (name.startsWith(CHUNKS_D
   }
 }
 
+// three : uniquement dans le chunk de la vue 3D, jamais dans ce que la carte ou le studio chargent d'emblée.
+const staticFiles = new Set([...cardFiles, ...closure(PANEL_ENTRY, { followDynamic: false })]);
+const jsFiles = listFiles(OUT_DIR).filter((name) => name.endsWith('.js'));
+const threeFiles = jsFiles.filter((file) => THREE_SIGNATURE.test(fs.readFileSync(path.join(OUT_DIR, file), 'utf-8')));
+for (const file of threeFiles) {
+  if (staticFiles.has(file)) {
+    errors.add(`${file} embarque three et fait partie du chargement initial de la carte ou du studio (la 3D doit rester à la demande).`);
+  } else if (!VIEW3D_CHUNK.test(file)) {
+    errors.add(`${file} embarque three hors du chunk de la vue 3D (chunks/view3d-*.js).`);
+  }
+}
+const view3dFiles = jsFiles.filter((file) => VIEW3D_CHUNK.test(file));
+const cardDynamic = closure(CARD_ENTRY, { followDynamic: true });
+if (view3dFiles.length === 0 || !view3dFiles.some((file) => cardDynamic.has(file))) {
+  errors.add('Chunk de la vue 3D introuvable ou non chargé par import() depuis la carte (chunks/view3d-*.js).');
+}
+
 const card = measure(cardFiles);
 const panelFiles = closure(PANEL_ENTRY, { followDynamic: true });
 const panel = measure(panelFiles);
+const view3d = measure(view3dFiles);
 console.log(`Carte  (${cardFiles.size} fichier(s), imports statiques) : ${kib(card.raw)} brut, ${kib(card.gzip)} gzip`);
 console.log(`Studio (${panelFiles.size} fichier(s), avec import())     : ${kib(panel.raw)} brut, ${kib(panel.gzip)} gzip`);
+console.log(`Vue 3D (${view3dFiles.length} fichier(s), à la demande)       : ${kib(view3d.raw)} brut, ${kib(view3d.gzip)} gzip`);
 if (card.gzip > CARD_GZIP_BUDGET) {
   errors.add(`Le bundle carte dépasse son budget : ${kib(card.gzip)} gzip > ${kib(CARD_GZIP_BUDGET)}.`);
+}
+if (view3d.gzip > VIEW3D_GZIP_BUDGET) {
+  errors.add(`La vue 3D dépasse son budget : ${kib(view3d.gzip)} gzip > ${kib(VIEW3D_GZIP_BUDGET)}.`);
 }
 
 const used = new Set([...closure(CARD_ENTRY, { followDynamic: true }), ...panelFiles]);

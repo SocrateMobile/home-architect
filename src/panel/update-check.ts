@@ -6,6 +6,8 @@
  * et renvoie vers la page des mises à jour de Home Assistant et vers la release.
  */
 import { PermissionDeniedError, checkUpdates } from '../core/ha-api';
+import { localize } from '../i18n';
+import '../i18n/locales/panel';
 import { getLoadedBundles, isReloadRequired } from '../version';
 
 /** Page des releases (repli quand le backend ne fournit pas d'URL fiable). */
@@ -30,8 +32,6 @@ export interface UpdateInfo {
   entityId: string | null;
   /** Le code chargé dans la page ne correspond plus à la version installée : il faut recharger. */
   reloadRequired: boolean;
-  /** Versions des bundles actifs, pour le bandeau de rechargement (« carte 1.0.25, studio 1.1.0 »). */
-  loadedBundles: string;
 }
 
 function cleanVersion(v: string | null): string | null {
@@ -39,10 +39,16 @@ function cleanVersion(v: string | null): string | null {
   return match ? match[1] : null;
 }
 
-function describeLoadedBundles(): string {
-  const labels: Record<string, string> = { card: 'carte', panel: 'studio' };
+/**
+ * Versions des bundles actifs dans la page, pour le bandeau de rechargement et le dialogue « À propos »
+ * (« carte 1.0.25, studio 1.1.0 ») ; libellés traduits au moment de l'affichage.
+ */
+export function describeLoadedBundles(): string {
   return Object.entries(getLoadedBundles())
-    .map(([bundle, version]) => `${labels[bundle] ?? bundle} ${version}`)
+    .map(([bundle, version]) => localize('panel.about.bundle_version', {
+      bundle: bundle === 'card' || bundle === 'panel' ? localize(`panel.about.bundle.${bundle}`) : bundle,
+      version
+    }))
     .join(', ');
 }
 
@@ -68,7 +74,6 @@ export async function fetchUpdateInfo(hass: any): Promise<UpdateInfo | null> {
     releaseNotes: status.release_notes.trim(),
     entityId: status.update_entity_id,
     reloadRequired: isReloadRequired(status.installed_version),
-    loadedBundles: describeLoadedBundles(),
   };
 }
 

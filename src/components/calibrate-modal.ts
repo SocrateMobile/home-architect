@@ -1,7 +1,10 @@
-import { LitElement, html, css, PropertyValues } from 'lit';
+import { LitElement, html, css, nothing, PropertyValues } from 'lit';
 import { property, state } from 'lit/decorators.js';
 import { defineElement } from '../core/define';
 import { getEventTarget } from '../core/keyboard';
+import { LocalizeController, formatNumber, localize } from '../i18n';
+import '../i18n/locales/import';
+import { applyColorScheme, uiThemeStyles } from '../styles/theme.styles';
 
 /**
  * Portée de l'étalonnage (SPEC §6, constat F51) :
@@ -31,6 +34,15 @@ const MAX_FACTOR = 100;
 /** Bornes de pixelsPerMeter appliquées par normalizeProject. */
 const MIN_PIXELS_PER_METER = 5;
 const MAX_PIXELS_PER_METER = 2000;
+/** Éléments atteignables au clavier (piège de focus de la modale). */
+const FOCUSABLE_SELECTOR = [
+  'button:not([disabled])',
+  'input:not([disabled]):not([type="hidden"])',
+  'select:not([disabled])',
+  'textarea:not([disabled])',
+  'a[href]',
+  '[tabindex]:not([tabindex="-1"])'
+].join(', ');
 
 /** Nombre décimal saisi (virgule ou point acceptés), ou null si la saisie n'est pas un nombre fini. */
 function parseDecimal(text: string): number | null {
@@ -40,8 +52,16 @@ function parseDecimal(text: string): number | null {
   return Number.isFinite(v) ? v : null;
 }
 
+/** Longueur affichée dans la langue courante (3 décimales au plus). */
 function formatMeters(v: number): string {
-  return v.toLocaleString('fr-FR', { maximumFractionDigits: 3 });
+  return formatNumber(v, { maximumFractionDigits: 3 });
+}
+
+/** Élément qui a le focus, en traversant les racines fantômes (canevas, bouton…). */
+function deepActiveElement(): HTMLElement | null {
+  let active: Element | null = document.activeElement;
+  while (active?.shadowRoot?.activeElement) active = active.shadowRoot.activeElement;
+  return active instanceof HTMLElement && active !== document.body ? active : null;
 }
 
 interface CalibrationEvaluation {
@@ -52,18 +72,28 @@ interface CalibrationEvaluation {
 }
 
 export class HomeArchitectCalibrateModal extends LitElement {
-  static styles = css`
+  static styles = [uiThemeStyles, css`
     :host {
+      --calibrate-accent-tint: rgba(3, 169, 244, 0.12);
+      --calibrate-shadow: 0 20px 50px rgba(0, 0, 0, 0.45);
+
       position: fixed;
       inset: 0;
-      background: rgba(15, 23, 42, 0.75);
+      background: var(--arch-ui-overlay);
       backdrop-filter: blur(8px);
       display: flex;
       align-items: center;
       justify-content: center;
       z-index: 100;
-      font-family: var(--ha-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
-      color: #f8fafc;
+      font-family: var(--arch-ui-font);
+      color: var(--arch-ui-text);
+    }
+
+    /* Teinte de sélection dérivée de la couleur principale du thème quand le navigateur sait la mélanger. */
+    @supports (color: color-mix(in srgb, red 50%, blue)) {
+      :host {
+        --calibrate-accent-tint: color-mix(in srgb, var(--arch-ui-accent) 12%, transparent);
+      }
     }
 
     .modal-card {
@@ -71,15 +101,22 @@ export class HomeArchitectCalibrateModal extends LitElement {
       max-width: 460px;
       max-height: 92vh;
       overflow-y: auto;
-      background: #1e293b;
-      border: 1px solid rgba(255, 255, 255, 0.15);
-      border-radius: 18px;
-      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+      background: var(--arch-ui-surface);
+      color: var(--arch-ui-text);
+      border: 1px solid var(--arch-ui-border);
+      border-radius: var(--arch-ui-radius);
+      box-shadow: var(--calibrate-shadow);
       padding: 24px;
       display: flex;
       flex-direction: column;
       gap: 16px;
       animation: popIn 0.2s ease-out;
+    }
+
+    .modal-card:focus,
+    .modal-card:focus-visible {
+      outline: none;
+      box-shadow: var(--calibrate-shadow);
     }
 
     @keyframes popIn {
@@ -91,7 +128,8 @@ export class HomeArchitectCalibrateModal extends LitElement {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      gap: 12px;
+      border-bottom: 1px solid var(--arch-ui-border);
       padding-bottom: 12px;
     }
 
@@ -101,34 +139,41 @@ export class HomeArchitectCalibrateModal extends LitElement {
       display: flex;
       align-items: center;
       gap: 10px;
-      color: #38bdf8;
+      color: var(--arch-ui-text);
       margin: 0;
     }
 
+    button {
+      font-family: inherit;
+    }
+
     .btn-close {
+      flex: none;
       border: none;
       background: transparent;
-      color: #cbd5e1;
+      color: var(--arch-ui-text-muted);
       font-size: 18px;
+      line-height: 1;
       cursor: pointer;
       border-radius: 6px;
-      padding: 4px;
+      padding: 6px;
     }
 
     .btn-close:hover {
-      color: #ffffff;
-      background: rgba(255, 255, 255, 0.1);
+      color: var(--arch-ui-text);
+      background: var(--arch-ui-surface-2);
     }
 
     .modal-desc {
       font-size: 0.85rem;
-      color: #94a3b8;
+      color: var(--arch-ui-text-muted);
       line-height: 1.4;
+      margin: 0;
     }
 
     .input-box {
-      background: rgba(15, 23, 42, 0.6);
-      border: 1px solid rgba(255, 255, 255, 0.1);
+      background: var(--arch-ui-bg);
+      border: 1px solid var(--arch-ui-border);
       border-radius: 12px;
       padding: 14px;
       display: flex;
@@ -147,7 +192,7 @@ export class HomeArchitectCalibrateModal extends LitElement {
     .input-label {
       font-size: 0.85rem;
       font-weight: 600;
-      color: #cbd5e1;
+      color: var(--arch-ui-text);
     }
 
     .input-field-wrapper {
@@ -158,37 +203,42 @@ export class HomeArchitectCalibrateModal extends LitElement {
 
     .unit-tag {
       font-weight: 600;
-      color: #38bdf8;
+      color: var(--arch-ui-text-muted);
     }
 
     .meters-input {
-      background: #0f172a;
-      border: 1px solid #38bdf8;
-      color: #f8fafc;
+      background: var(--arch-ui-surface);
+      border: 1px solid var(--arch-ui-accent);
+      color: var(--arch-ui-text);
       padding: 8px 12px;
       border-radius: 8px;
+      font: inherit;
       font-size: 1rem;
       font-weight: 700;
       width: 100px;
       text-align: center;
       outline: none;
-      box-shadow: 0 0 10px rgba(56, 189, 248, 0.25);
+    }
+
+    .meters-input:focus {
+      box-shadow: var(--arch-ui-focus-ring);
     }
 
     .meters-input.invalid {
-      border-color: #ef4444;
-      box-shadow: 0 0 10px rgba(239, 68, 68, 0.25);
+      border-color: var(--arch-ui-danger);
     }
 
     .field-error {
-      color: #f87171;
+      color: var(--arch-ui-text);
       font-size: 0.8rem;
       font-weight: 600;
+      padding-left: 8px;
+      border-left: 3px solid var(--arch-ui-danger);
     }
 
     .measured-info {
       font-size: 0.75rem;
-      color: #94a3b8;
+      color: var(--arch-ui-text-muted);
       font-family: ui-monospace, SFMono-Regular, monospace;
       line-height: 1.5;
     }
@@ -196,7 +246,7 @@ export class HomeArchitectCalibrateModal extends LitElement {
     .mode-title {
       font-size: 0.8rem;
       font-weight: 700;
-      color: #cbd5e1;
+      color: var(--arch-ui-text);
       text-transform: uppercase;
       letter-spacing: 0.4px;
     }
@@ -208,29 +258,30 @@ export class HomeArchitectCalibrateModal extends LitElement {
     }
 
     .mode-card {
-      background: rgba(15, 23, 42, 0.5);
-      border: 1px solid rgba(255, 255, 255, 0.1);
+      background: var(--arch-ui-bg);
+      border: 1px solid var(--arch-ui-border);
       border-radius: 10px;
       padding: 10px 12px;
       cursor: pointer;
       display: flex;
       gap: 10px;
       align-items: flex-start;
-      transition: all 0.2s ease;
+      transition: border-color 0.2s ease, background-color 0.2s ease;
     }
 
     .mode-card:hover {
-      border-color: rgba(56, 189, 248, 0.4);
+      border-color: var(--arch-ui-accent);
     }
 
     .mode-card.selected {
-      border-color: #38bdf8;
-      background: rgba(2, 132, 199, 0.15);
+      border-color: var(--arch-ui-accent);
+      background: var(--calibrate-accent-tint);
+      box-shadow: inset 0 0 0 1px var(--arch-ui-accent);
     }
 
     .mode-card input {
       margin-top: 3px;
-      accent-color: #38bdf8;
+      accent-color: var(--arch-ui-accent);
       cursor: pointer;
     }
 
@@ -243,13 +294,13 @@ export class HomeArchitectCalibrateModal extends LitElement {
     .mode-name {
       font-size: 0.88rem;
       font-weight: 700;
-      color: #f1f5f9;
+      color: var(--arch-ui-text);
     }
 
     .mode-desc,
     .mode-note {
       font-size: 0.78rem;
-      color: #94a3b8;
+      color: var(--arch-ui-text-muted);
       line-height: 1.35;
     }
 
@@ -257,6 +308,7 @@ export class HomeArchitectCalibrateModal extends LitElement {
       display: flex;
       justify-content: flex-end;
       gap: 10px;
+      flex-wrap: wrap;
     }
 
     .btn {
@@ -265,38 +317,65 @@ export class HomeArchitectCalibrateModal extends LitElement {
       font-size: 0.85rem;
       font-weight: 600;
       cursor: pointer;
-      transition: all 0.2s ease;
-      border: none;
+      transition: background-color 0.2s ease, filter 0.2s ease;
+      border: 1px solid transparent;
     }
 
     .btn-cancel {
-      background: rgba(51, 65, 85, 0.7);
-      color: #cbd5e1;
+      background: transparent;
+      color: var(--arch-ui-text);
+      border-color: var(--arch-ui-border);
     }
 
     .btn-cancel:hover {
-      background: rgba(71, 85, 105, 0.9);
-      color: #ffffff;
+      background: var(--arch-ui-surface-2);
     }
 
     .btn-apply {
-      background: #0284c7;
-      color: #ffffff;
-      border: 1px solid #38bdf8;
-      box-shadow: 0 0 12px rgba(56, 189, 248, 0.35);
+      background: var(--arch-ui-accent);
+      color: var(--arch-ui-accent-text);
+      border-color: var(--arch-ui-accent);
     }
 
     .btn-apply:hover:not(:disabled) {
-      background: #0369a1;
-      transform: translateY(-1px);
+      filter: brightness(1.08);
     }
 
     .btn-apply:disabled {
       opacity: 0.4;
       cursor: not-allowed;
+    }
+
+    /*
+     * Région annoncée aux lecteurs d'écran, toujours présente : une région live insérée avec son texte
+     * n'est pas lue de façon fiable. Hors du flux (position absolue) : elle ne crée aucun espacement.
+     */
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      margin: -1px;
+      padding: 0;
+      border: 0;
+      overflow: hidden;
+      clip: rect(0 0 0 0);
+      clip-path: inset(50%);
+      white-space: nowrap;
+    }
+
+    /* Anneau de focus en contour pour les boutons radio natifs (certains navigateurs ignorent leur ombre). */
+    .mode-card input:focus-visible {
+      outline: 2px solid var(--arch-ui-accent);
+      outline-offset: 2px;
       box-shadow: none;
     }
-  `;
+
+    @media (prefers-reduced-motion: reduce) {
+      .modal-card {
+        animation: none;
+      }
+    }
+  `];
 
   /** Longueur du segment tracé, en mètres monde à l'échelle actuelle (`request-calibration`). */
   @property({ type: Number })
@@ -325,6 +404,19 @@ export class HomeArchitectCalibrateModal extends LitElement {
   @property({ type: Boolean })
   public hasBackground: boolean = true;
 
+  /**
+   * Objet hass (facultatif) : sert seulement à suivre le thème clair / sombre de Home Assistant.
+   * Ce n'est pas une propriété réactive : ses mises à jour fréquentes ne provoquent aucun rendu.
+   */
+  public get hass(): unknown {
+    return this.hassRef;
+  }
+
+  public set hass(hass: unknown) {
+    this.hassRef = hass;
+    if (hass) applyColorScheme(this, hass);
+  }
+
   /** Saisie brute : jamais réécrite pendant la frappe, validée à la confirmation. */
   @state()
   private metersText: string = '';
@@ -332,23 +424,33 @@ export class HomeArchitectCalibrateModal extends LitElement {
   @state()
   private mode: CalibrationMode = 'background';
 
+  /** Re-rendu au changement de langue. */
+  private readonly i18n = new LocalizeController(this);
+  private hassRef: unknown = undefined;
   /** Choix explicite de l'utilisateur (n'est plus écrasé par le choix par défaut). */
   private modeChosen = false;
+  /** Élément qui avait le focus à l'ouverture (canevas…) : il le retrouve à la fermeture. */
+  private returnFocusTo: HTMLElement | null = null;
 
   connectedCallback() {
     super.connectedCallback();
+    this.returnFocusTo = deepActiveElement();
     this.addEventListener('keydown', this.handleKeyDown);
   }
 
   disconnectedCallback() {
     this.removeEventListener('keydown', this.handleKeyDown);
     super.disconnectedCallback();
+    const returnTo = this.returnFocusTo;
+    this.returnFocusTo = null;
+    if (returnTo?.isConnected) returnTo.focus({ preventScroll: true });
   }
 
   protected willUpdate(changed: PropertyValues<this>) {
     if (changed.has('defaultMeters')) {
       const d = this.defaultMeters;
-      this.metersText = Number.isFinite(d) && d > 0 ? String(Math.round(d * 1000) / 1000) : '';
+      // Séparateur décimal de la langue (3,5 / 3.5) ; la saisie accepte la virgule comme le point.
+      this.metersText = Number.isFinite(d) && d > 0 ? formatNumber(d, { maximumFractionDigits: 3, useGrouping: false }) : '';
     }
     if (!this.modeChosen && (changed.has('hasGeometry') || changed.has('hasBackground'))) {
       this.mode = this.defaultMode();
@@ -383,8 +485,12 @@ export class HomeArchitectCalibrateModal extends LitElement {
   private handleKeyDown = (e: KeyboardEvent) => {
     e.stopPropagation();
     if (e.key === 'Escape') {
+      // Échap pendant une composition (IME) l'annule seulement.
+      if (e.isComposing) return;
       e.preventDefault();
       this.handleClose();
+    } else if (e.key === 'Tab') {
+      this.trapFocus(e);
     } else if (e.key === 'Enter' && !e.isComposing) {
       const target = getEventTarget(e);
       if (target instanceof HTMLInputElement && target.type === 'text') {
@@ -393,6 +499,28 @@ export class HomeArchitectCalibrateModal extends LitElement {
       }
     }
   };
+
+  /** Piège de focus : Tab et Maj+Tab bouclent sur les commandes de la boîte de dialogue. */
+  private trapFocus(e: KeyboardEvent) {
+    const card = this.renderRoot.querySelector<HTMLElement>('.modal-card');
+    if (!card) return;
+    const items = Array.from(card.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter(el => el.getClientRects().length > 0);
+    const active = (this.renderRoot as ShadowRoot).activeElement;
+    if (items.length === 0) {
+      e.preventDefault();
+      card.focus();
+      return;
+    }
+    const first = items[0];
+    const last = items[items.length - 1];
+    if (e.shiftKey && (active === first || active === card || !active)) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && (active === last || !active)) {
+      e.preventDefault();
+      first.focus();
+    }
+  }
 
   /** Longueur mesurée en mètres monde (worldDistance, sinon pixelDistance ÷ pixelsPerMeter), 0 si inconnue. */
   private get measuredMeters(): number {
@@ -405,20 +533,20 @@ export class HomeArchitectCalibrateModal extends LitElement {
   private evaluate(): CalibrationEvaluation {
     const measured = this.measuredMeters;
     if (!(Number.isFinite(measured) && measured > 0)) {
-      return { value: null, error: 'Le segment tracé est invalide : recommencez la mesure sur le plan.' };
+      return { value: null, error: localize('import.calibrate.error.segment') };
     }
     const ppm = this.pixelsPerMeter;
     if (!(Number.isFinite(ppm) && ppm > 0)) {
-      return { value: null, error: "L'échelle actuelle du plan est invalide." };
+      return { value: null, error: localize('import.calibrate.error.scale') };
     }
     const realMeters = parseDecimal(this.metersText);
     if (realMeters === null) {
-      return { value: null, error: this.metersText.trim() === '' ? '' : 'Saisissez une longueur en mètres (ex. 3,50).' };
+      return { value: null, error: this.metersText.trim() === '' ? '' : localize('import.calibrate.error.not_number') };
     }
     if (realMeters < MIN_REAL_METERS || realMeters > MAX_REAL_METERS) {
       return {
         value: null,
-        error: `La longueur doit être comprise entre ${formatMeters(MIN_REAL_METERS)} et ${formatMeters(MAX_REAL_METERS)} m.`
+        error: localize('import.calibrate.error.range', { min: formatMeters(MIN_REAL_METERS), max: formatMeters(MAX_REAL_METERS) })
       };
     }
     const factor = realMeters / measured;
@@ -426,7 +554,7 @@ export class HomeArchitectCalibrateModal extends LitElement {
     if (factor < MIN_FACTOR || factor > MAX_FACTOR || pixelsPerMeter < MIN_PIXELS_PER_METER || pixelsPerMeter > MAX_PIXELS_PER_METER) {
       return {
         value: null,
-        error: `Échelle hors limites (facteur ×${Number(factor.toPrecision(3))}) : la longueur est-elle bien en mètres ?`
+        error: localize('import.calibrate.error.out_of_bounds', { factor: formatNumber(factor, { maximumSignificantDigits: 3 }) })
       };
     }
     return { value: { realMeters, factor, pixelsPerMeter }, error: '' };
@@ -462,39 +590,33 @@ export class HomeArchitectCalibrateModal extends LitElement {
     if (!this.modeSelectable) {
       return html`
         <div class="mode-note">
-          ${this.hasGeometry
-            ? 'Le plan n\'a pas de calque de fond : tous ses éléments seront mis à l\'échelle.'
-            : 'Le plan ne contient encore aucun élément : seul le calque de fond est mis à l\'échelle.'}
+          ${localize(this.hasGeometry ? 'import.calibrate.mode.no_background' : 'import.calibrate.mode.empty_plan')}
         </div>
       `;
     }
-    const option = (mode: CalibrationMode, name: string, desc: string) => html`
+    const option = (mode: CalibrationMode, icon: string, nameKey: string, descKey: string) => html`
       <label class="mode-card ${this.mode === mode ? 'selected' : ''}">
         <input
           type="radio"
           name="calibration-mode"
+          aria-labelledby="calibrate-mode-${mode}-name"
+          aria-describedby="calibrate-mode-${mode}-desc"
           .checked=${this.mode === mode}
           @change=${() => this.selectMode(mode)}
         />
         <span class="mode-content">
-          <span class="mode-name">${name}</span>
-          <span class="mode-desc">${desc}</span>
+          <span class="mode-name" id="calibrate-mode-${mode}-name">
+            <span aria-hidden="true">${icon}</span> ${localize(nameKey)}
+          </span>
+          <span class="mode-desc" id="calibrate-mode-${mode}-desc">${localize(descKey)}</span>
         </span>
       </label>
     `;
     return html`
-      <div class="mode-title">Que faut-il mettre à l'échelle ?</div>
-      <div class="mode-options">
-        ${option(
-          'project',
-          '📐 Tout le plan',
-          'Murs, pièces, ouvertures, meubles, entités et calque de fond changent d\'échelle ensemble : ce qui a été décalqué reste superposé au fond.'
-        )}
-        ${option(
-          'background',
-          '🖼️ Le calque de fond seulement',
-          'Les éléments déjà tracés gardent leurs dimensions ; seule l\'image de fond est agrandie ou réduite.'
-        )}
+      <div class="mode-title" id="calibrate-mode-title">${localize('import.calibrate.mode.title')}</div>
+      <div class="mode-options" role="radiogroup" aria-labelledby="calibrate-mode-title">
+        ${option('project', '📐', 'import.calibrate.mode.project', 'import.calibrate.mode.project_desc')}
+        ${option('background', '🖼️', 'import.calibrate.mode.background', 'import.calibrate.mode.background_desc')}
       </div>
     `;
   }
@@ -503,24 +625,32 @@ export class HomeArchitectCalibrateModal extends LitElement {
     const ev = this.evaluate();
     const measured = this.measuredMeters;
     const measuredValid = measured > 0;
+    const closeLabel = localize('import.common.close');
 
     return html`
-      <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="calibrate-title">
+      <div
+        class="modal-card"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="calibrate-title"
+        aria-describedby="calibrate-desc"
+        tabindex="-1"
+      >
         <div class="modal-header">
-          <h3 class="modal-title" id="calibrate-title">
-            <span>📏</span>
-            <span>Étalonnage de l'Échelle</span>
-          </h3>
-          <button class="btn-close" title="Fermer" @click=${this.handleClose}>✕</button>
+          <h2 class="modal-title" id="calibrate-title">
+            <span aria-hidden="true">📏</span>
+            <span>${localize('import.calibrate.title')}</span>
+          </h2>
+          <button type="button" class="btn-close" title=${closeLabel} aria-label=${closeLabel} @click=${this.handleClose}>
+            <span aria-hidden="true">✕</span>
+          </button>
         </div>
 
-        <div class="modal-desc">
-          Indiquez la longueur réelle exacte du segment que vous venez de tracer sur votre plan.
-        </div>
+        <p class="modal-desc" id="calibrate-desc">${localize('import.calibrate.desc')}</p>
 
         <div class="input-box">
           <div class="input-row">
-            <label class="input-label" for="calibrate-meters">Longueur réelle mesurée :</label>
+            <label class="input-label" for="calibrate-meters">${localize('import.calibrate.length_label')}</label>
             <div class="input-field-wrapper">
               <input
                 id="calibrate-meters"
@@ -529,28 +659,36 @@ export class HomeArchitectCalibrateModal extends LitElement {
                 autocomplete="off"
                 class="meters-input ${ev.error ? 'invalid' : ''}"
                 aria-invalid=${ev.error ? 'true' : 'false'}
+                aria-describedby=${ev.error ? 'calibrate-unit calibrate-error' : 'calibrate-unit'}
                 .value=${this.metersText}
                 @input=${(e: Event) => this.metersText = (e.target as HTMLInputElement).value}
               />
-              <span class="unit-tag">mètres</span>
+              <span class="unit-tag" id="calibrate-unit">${localize('import.common.meters')}</span>
             </div>
           </div>
-          ${ev.error ? html`<span class="field-error" role="alert">${ev.error}</span>` : null}
+          ${ev.error ? html`<span class="field-error" id="calibrate-error">${ev.error}</span>` : nothing}
 
           <div class="measured-info">
-            Segment tracé : ${measuredValid ? `${formatMeters(measured)} m à l'échelle actuelle` : '--'}
-            ${ev.value ? html`<br />Facteur appliqué : × ${ev.value.factor.toFixed(3)}` : null}
+            ${measuredValid
+              ? localize('import.calibrate.segment', { length: formatMeters(measured) })
+              : localize('import.calibrate.segment_unknown')}
+            ${ev.value ? html`<br />${localize('import.calibrate.factor', {
+              factor: formatNumber(ev.value.factor, { minimumFractionDigits: 3, maximumFractionDigits: 3 })
+            })}` : nothing}
           </div>
         </div>
 
         ${this.renderModeChoice()}
 
         <div class="modal-actions">
-          <button class="btn btn-cancel" @click=${this.handleClose}>Annuler</button>
-          <button class="btn btn-apply" ?disabled=${!ev.value} @click=${this.handleApply}>
-            Appliquer l'échelle
+          <button type="button" class="btn btn-cancel" @click=${this.handleClose}>${localize('import.common.cancel')}</button>
+          <button type="button" class="btn btn-apply" ?disabled=${!ev.value} @click=${this.handleApply}>
+            ${localize('import.calibrate.apply')}
           </button>
         </div>
+
+        <!-- Erreur de saisie lue par les lecteurs d'écran (région persistante) -->
+        <div class="sr-only" role="status" aria-live="polite">${ev.error}</div>
       </div>
     `;
   }

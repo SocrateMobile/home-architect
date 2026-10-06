@@ -22,6 +22,8 @@ import {
 import { deleteDraft, listDrafts, loadDraft, saveDraft } from '../core/drafts';
 import { blobToDataUrl } from '../core/image-utils';
 import { DEFAULT_LEVEL, getLevelLabel, isKnownLevel } from '../core/levels';
+import { localize } from '../i18n';
+import '../i18n/locales/panel';
 import {
   clearRedundantCustomNames, cloneProject, createEmptyProject, generateProjectId, normalizeProject, normalizePublishInfo
 } from '../core/project-model';
@@ -30,11 +32,12 @@ import {
   BackgroundRejectedError, BackgroundSource, ImportedBackground, isInlineDataUrl, svgWithoutDoctype,
   uploadInlineBackground, uploadPreparedBackground
 } from './background';
-import { DRAFT_STATUS_LABELS, DraftReview, projectFromDraft, reviewDraft, reviewDrafts } from './draft-review';
+import { DraftReview, draftStatusLabel, projectFromDraft, reviewDraft, reviewDrafts } from './draft-review';
 import {
-  ChoiceDialogOptions, PanelNotice, formatDate, renderChoiceDialog, renderDraftsDialog, renderLoadError,
+  ChoiceDialogOptions, DisplayText, PanelNotice, renderChoiceDialog, renderDraftsDialog, renderLoadError,
   renderLoadingOverlay, renderNotices
 } from './dialogs';
+import { formatDateTime } from './format';
 
 /** Délai d'écriture du brouillon local après la dernière modification d'un plan. */
 const DRAFT_DEBOUNCE_MS = 2000;
@@ -68,23 +71,28 @@ function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
-/** Raison lisible d'un échec de communication avec le serveur. */
+/** Raison lisible (traduite) d'un échec de communication avec le serveur. */
 function describeFailure(err: unknown): string {
   if (err instanceof HaApiError) {
     switch (err.code) {
       case 'connection_lost':
       case 'not_connected':
       case 'network_error':
-        return 'connexion à Home Assistant perdue';
+        return localize('panel.error.connection_lost');
       case 'not_ready':
-        return "Home Architect n'est pas chargé sur le serveur";
+        return localize('panel.error.not_ready');
       case 'save_failed':
-        return "échec d'écriture sur le serveur";
+        return localize('panel.error.save_failed');
       case 'unknown_command':
-        return 'intégration Home Architect à redémarrer après sa mise à jour';
+        return localize('panel.error.unknown_command');
     }
   }
   return errorMessage(err);
+}
+
+/** Nom de plan entre guillemets de la langue courante (« … » / “…”). */
+function quoted(name: string): string {
+  return localize('panel.common.quoted', { name });
 }
 
 /** Champs possédés par le serveur, absents de la comparaison des modifications de l'utilisateur. */
@@ -118,7 +126,8 @@ export class PersistenceController implements ReactiveController {
   readonly background: BackgroundSource;
 
   private loadStateValue: LoadState = 'idle';
-  private loadError = '';
+  /** Erreur du chargement initial (raison décrite au rendu, dans la langue courante). */
+  private loadFailure: unknown = null;
   /** Opération bloquante en cours (chargement d'un plan, téléversement d'une image). */
   private busyMessage: string | null = null;
   private savingIds = new Set<string>();
@@ -224,9 +233,9 @@ export class PersistenceController implements ReactiveController {
     return true;
   }
 
-  private setLoadState(state: LoadState, error = '') {
+  private setLoadState(state: LoadState, failure: unknown = null) {
     this.loadStateValue = state;
-    this.loadError = error;
+    this.loadFailure = failure;
     this.host.requestUpdate();
   }
 
@@ -286,7 +295,7 @@ export class PersistenceController implements ReactiveController {
     const now = Date.now();
     if (now - this.readOnlyToastAt < 4000) return;
     this.readOnlyToastAt = now;
-    this.ui.toast('🔒 Lecture seule : seuls les administrateurs peuvent modifier les plans.');
+    this.ui.toast(localize('panel.persist.read_only_toast'));
   }
 
   /**
@@ -380,7 +389,7 @@ export class PersistenceController implements ReactiveController {
       this.syncActiveResources();
       void this.reviewLocalDrafts();
     } catch (err) {
-      this.setLoadState('error', describeFailure(err));
+      this.setLoadState('error', err);
     }
   }
 
@@ -436,7 +445,7 @@ export class PersistenceController implements ReactiveController {
     let project: HomeArchitectProject | null = null;
     let failure: unknown = null;
     try {
-      project = await this.withBusy('Chargement du plan…', () => getProject(this.host.hass, id));
+      project = await this.withBusy(localize('panel.persist.loading_plan'), () => getProject(this.host.hass, id));
     } catch (err) {
       failure = err;
     }
@@ -453,15 +462,16 @@ export class PersistenceController implements ReactiveController {
       if (draft) {
         const review = reviewDraft(draft, failure === null ? null : this.ws.summary(id) ?? null);
         let reason: string;
-        if (failure !== null) reason = `serveur injoignable : ${describeFailure(failure)}`;
-        else if (review.status === 'unsaved') reason = 'plan jamais enregistré sur le serveur';
-        else reason = 'plan supprimé du serveur';
+        if (failure !== null) reason = localize('panel.persist.draft_reason.unreachable', { reason: describeFailure(failure) });
+        else if (review.status === 'unsaved') reason = localize('panel.persist.draft_reason.unsaved');
+        else reason = localize('panel.persist.draft_reason.deleted');
         this.openDraft(review);
-        this.ui.toast(`📂 Copie locale de « ${draft.project.name} » ouverte (${reason}) : sauvegardez-la pour l'envoyer au serveur.`);
+        this.ui.toast(localize('panel.persist.draft_opened_reason', { name: draft.project.name, reason }));
       } else if (failure !== null) {
-        this.showError(`Impossible d'ouvrir le plan : ${describeFailure(failure)}`);
+        const reason = describeFailure(failure);
+        this.showError(() => localize('panel.persist.open_failed', { reason }));
       } else {
-        this.ui.toast('❌ Ce plan n\'existe plus sur le serveur.');
+        this.ui.toast(localize('panel.persist.plan_missing'));
       }
       return;
     }
@@ -476,14 +486,14 @@ export class PersistenceController implements ReactiveController {
       }
       if (choice === 'draft') {
         this.openDraft(review);
-        this.ui.toast('📂 Copie locale ouverte : sauvegardez-la pour l\'envoyer au serveur.');
+        this.ui.toast(localize('panel.persist.draft_opened'));
         return;
       }
     }
     this.ws.open(this.adoptLoaded(project));
     this.ws.upsertSummary(project);
     this.activateProject(id);
-    this.ui.toast(`📂 Plan "${project.name}" chargé avec succès !`);
+    this.ui.toast(localize('panel.persist.plan_loaded', { name: project.name }));
   }
 
   /** Copie locale d'un plan du serveur trouvée à son ouverture : laquelle afficher ? (null : aucune). */
@@ -491,16 +501,19 @@ export class PersistenceController implements ReactiveController {
     const { draft } = review;
     const choice = await this.ask({
       icon: '🗂️',
-      title: 'Copie locale non sauvegardée',
-      subtitle: `« ${draft.project.name} »`,
-      message: `Ce navigateur conserve des modifications de ce plan qui n'ont pas été envoyées au serveur (copie du ${formatDate(draft.savedAt)}). ${DRAFT_STATUS_LABELS[review.status]}.`,
+      title: localize('panel.persist.draft_choice.title'),
+      subtitle: quoted(draft.project.name),
+      message: localize('panel.persist.draft_choice.message', {
+        date: formatDateTime(draft.savedAt),
+        status: draftStatusLabel(review.status)
+      }),
       details: [
-        'Copie locale : reprend vos modifications ; sauvegardez ensuite le plan pour les envoyer au serveur.',
-        'Version du serveur : la copie locale est conservée, mais elle sera remplacée dès que vous modifierez ce plan.'
+        localize('panel.persist.draft_choice.detail_draft'),
+        localize('panel.persist.draft_choice.detail_server')
       ],
       actions: [
-        { id: 'server', label: 'Version du serveur', icon: '☁️', kind: 'secondary' },
-        { id: 'draft', label: 'Copie locale', icon: '📂', kind: 'primary' }
+        { id: 'server', label: localize('panel.persist.draft_choice.server'), icon: '☁️', kind: 'secondary' },
+        { id: 'draft', label: localize('panel.persist.draft_choice.draft'), icon: '📂', kind: 'primary' }
       ],
       tone: 'warning'
     });
@@ -519,14 +532,14 @@ export class PersistenceController implements ReactiveController {
       return;
     }
     if (this.readOnly) {
-      this.ui.toast(`Aucun plan enregistré pour le niveau ${getLevelLabel(level)}.`);
+      this.ui.toast(localize('panel.persist.no_plan_for_level', { level: getLevelLabel(level) }));
       return;
     }
     const project = createEmptyProject({ category: level });
     this.ws.open(project);
     this.placeholderIds.add(project.id);
     this.activateProject(project.id);
-    this.ui.toast(`Étage sélectionné : ${project.name} (plan vierge)`);
+    this.ui.toast(localize('panel.persist.level_blank', { name: project.name }));
   }
 
   /**
@@ -541,7 +554,7 @@ export class PersistenceController implements ReactiveController {
     const project = createEmptyProject({ name, category });
     this.ws.open(project);
     this.activateProject(project.id);
-    this.ui.toast(`📄 Nouveau plan "${project.name}" créé : pensez à le sauvegarder.`);
+    this.ui.toast(localize('panel.persist.plan_created', { name: project.name }));
     return true;
   }
 
@@ -568,7 +581,7 @@ export class PersistenceController implements ReactiveController {
     this.activateProject(project.id);
     this.scheduleDraft(project.id);
     if (isInlineDataUrl(project.background?.imageUrl)) await this.uploadInlineBackgroundNow(project.id);
-    this.ui.toast(`📥 « ${project.name} » importé comme nouveau plan : sauvegardez-le pour le conserver sur le serveur.`);
+    this.ui.toast(localize('panel.persist.backup_imported', { name: project.name }));
     return true;
   }
 
@@ -582,16 +595,17 @@ export class PersistenceController implements ReactiveController {
     const others = this.ws.plansForCategory(category)
       .filter(p => p.id !== excludeId && !(this.placeholderIds.has(p.id) && !p.dirty));
     if (others.length === 0) return true;
-    const label = getLevelLabel(category);
+    const level = getLevelLabel(category);
     const choice = await this.ask({
       icon: '🏢',
-      title: `Le niveau ${label} a déjà un plan`,
-      message: `Le niveau ${label} contient déjà ${others.map(p => `« ${p.name} »`).join(', ')}. ` +
-        `« ${planName} » y sera ajouté comme plan distinct et deviendra le plan affiché pour ce niveau.`,
-      details: [
-        "Rien n'est écrasé : les plans existants restent enregistrés et se rouvrent depuis le sélecteur de niveau ou « Ouvrir »."
-      ],
-      actions: [{ id: 'confirm', label: 'Continuer', icon: '✨', kind: 'primary' }],
+      title: localize('panel.persist.additional.title', { level }),
+      message: localize('panel.persist.additional.message', {
+        level,
+        plans: others.map(p => quoted(p.name)).join(', '),
+        name: planName
+      }),
+      details: [localize('panel.persist.additional.detail')],
+      actions: [{ id: 'confirm', label: localize('panel.common.continue'), icon: '✨', kind: 'primary' }],
       tone: 'warning'
     });
     return choice === 'confirm';
@@ -627,9 +641,10 @@ export class PersistenceController implements ReactiveController {
   private async reloadFromServer(id: string): Promise<boolean> {
     let fresh: HomeArchitectProject | null;
     try {
-      fresh = await this.withBusy('Chargement du plan…', () => getProject(this.host.hass, id));
+      fresh = await this.withBusy(localize('panel.persist.loading_plan'), () => getProject(this.host.hass, id));
     } catch (err) {
-      this.showError(`Impossible de recharger le plan : ${describeFailure(err)}`);
+      const reason = describeFailure(err);
+      this.showError(() => localize('panel.persist.reload_failed', { reason }));
       return false;
     }
     if (!fresh) {
@@ -813,7 +828,7 @@ export class PersistenceController implements ReactiveController {
    */
   private async uploadPendingBackground(id: string): Promise<HomeArchitectProject> {
     const project = this.ws.get(id);
-    if (!project) throw new HaApiError('not_found', 'Plan fermé pendant la sauvegarde.');
+    if (!project) throw new HaApiError('not_found', localize('panel.persist.closed_during_save'));
     const dataUrl = project.background?.imageUrl;
     if (!isInlineDataUrl(dataUrl)) return project;
     const uploaded = await uploadInlineBackground(this.host.hass, project);
@@ -824,7 +839,7 @@ export class PersistenceController implements ReactiveController {
         : p;
     this.ws.history.rewrite(id, swap);
     const latest = this.ws.get(id);
-    if (!latest) throw new HaApiError('not_found', 'Plan fermé pendant la sauvegarde.');
+    if (!latest) throw new HaApiError('not_found', localize('panel.persist.closed_during_save'));
     const next = swap(latest);
     if (next !== latest) this.ws.replace(next);
     return next;
@@ -858,7 +873,7 @@ export class PersistenceController implements ReactiveController {
       void deleteDraft(id);
     }
     if (id === this.ws.activeId) void this.subscribeActive();
-    this.ui.toast(`💾 Plan "${next.name}" (${getLevelLabel(next.category)}) sauvegardé dans Home Assistant !`);
+    this.ui.toast(localize('panel.persist.saved', { name: next.name, level: getLevelLabel(next.category) }));
   }
 
   private async handleSaveError(id: string, err: unknown): Promise<boolean> {
@@ -874,24 +889,26 @@ export class PersistenceController implements ReactiveController {
     }
     if (err instanceof PayloadTooLargeError) {
       this.flushDraft(id);
-      this.showError(`💾 « ${name} » n'a pas été sauvegardé : ${err.message} Réduisez l'image de fond ou le nombre d'éléments.`, `save:${id}`);
+      const reason = err.message;
+      this.showError(() => localize('panel.persist.save_too_large', { name, reason }), `save:${id}`);
       return false;
     }
     if (err instanceof HaApiError && err.code === 'too_many_projects') {
       this.flushDraft(id);
-      this.showError(`💾 « ${name} » n'a pas été sauvegardé : nombre maximal de plans atteint (100). Supprimez des plans inutilisés depuis « Ouvrir ».`, `save:${id}`);
+      this.showError(() => localize('panel.persist.save_too_many', { name, max: 100 }), `save:${id}`);
       return false;
     }
     if (err instanceof HaApiError && !TRANSIENT_ERROR_CODES.has(err.code)) {
       // Plan refusé par le serveur (invalid_project…) : un nouvel essai à l'identique échouerait.
       this.flushDraft(id);
-      this.showError(`💾 « ${name} » n'a pas été sauvegardé : ${err.message}`, `save:${id}`);
+      const reason = err.message;
+      this.showError(() => localize('panel.persist.save_refused', { name, reason }), `save:${id}`);
       return false;
     }
     // Coupure ou erreur du serveur : copie locale et bandeau persistant, jamais de faux succès.
-    const reason = describeFailure(err);
+    const reason = () => describeFailure(err);
     if (!this.ws.isDirty(id)) {
-      this.showError(`💾 « ${name} » n'a pas été sauvegardé (${reason}).`, `save:${id}`);
+      this.showError(() => localize('panel.persist.save_failed', { name, reason: reason() }), `save:${id}`);
       return false;
     }
     this.cancelDraft(id);
@@ -899,11 +916,11 @@ export class PersistenceController implements ReactiveController {
       this.setNotice({
         key: `unsynced:${id}`,
         kind: 'warning',
-        message: `💾 Copie locale non synchronisée : « ${name} » n'a pas pu être envoyé au serveur (${reason}). Vos modifications sont conservées dans ce navigateur.`,
-        actions: [{ label: 'Réessayer', run: () => void this.save(id) }]
+        message: () => localize('panel.persist.unsynced', { name, reason: reason() }),
+        actions: [{ label: () => localize('panel.common.retry'), run: () => void this.save(id) }]
       });
     } else {
-      this.showError(`💾 Échec de la sauvegarde de « ${name} » (${reason}) et copie locale impossible : ne fermez pas cette page.`, `save:${id}`);
+      this.showError(() => localize('panel.persist.save_failed_no_draft', { name, reason: reason() }), `save:${id}`);
     }
     return false;
   }
@@ -915,26 +932,24 @@ export class PersistenceController implements ReactiveController {
     const deleted = err.serverRevision === 0;
     const serverRevision = err.serverRevision ?? '?';
     let message: string;
-    if (deleted) message = "Ce plan n'existe plus sur le serveur : il a été supprimé depuis un autre appareil ou un autre onglet.";
-    else if (project.revision === undefined) message = `Un plan portant le même identifiant existe déjà sur le serveur (révision ${serverRevision}).`;
-    else message = `Ce plan a été modifié ailleurs depuis son ouverture (révision ${serverRevision} sur le serveur, votre version part de la révision ${project.revision}).`;
+    if (deleted) message = localize('panel.persist.conflict.deleted_message');
+    else if (project.revision === undefined) message = localize('panel.persist.conflict.same_id', { revision: serverRevision });
+    else message = localize('panel.persist.conflict.modified', { server: serverRevision, local: project.revision });
 
     const choice = await this.ask({
       icon: '⚠️',
-      title: deleted ? 'Plan supprimé sur le serveur' : 'Conflit de modification',
-      subtitle: `« ${project.name} »`,
+      title: localize(deleted ? 'panel.persist.conflict.deleted_title' : 'panel.persist.conflict.title'),
+      subtitle: quoted(project.name),
       message,
       details: [
-        ...(deleted ? [] : ['Recharger : affiche la version du serveur ; vos modifications locales sont abandonnées.']),
-        deleted
-          ? 'Recréer : enregistre votre version sous le même identifiant.'
-          : 'Écraser : remplace la version du serveur par la vôtre ; les modifications faites ailleurs sont perdues.',
-        'Enregistrer une copie : crée un nouveau plan avec votre version, sans toucher au serveur.'
+        ...(deleted ? [] : [localize('panel.persist.conflict.detail_reload')]),
+        localize(deleted ? 'panel.persist.conflict.detail_recreate' : 'panel.persist.conflict.detail_overwrite'),
+        localize('panel.persist.conflict.detail_copy')
       ],
       actions: [
-        ...(deleted ? [] : [{ id: 'reload', label: 'Recharger', icon: '🔄', kind: 'secondary' as const }]),
-        { id: 'copy', label: 'Enregistrer une copie', icon: '📄', kind: 'secondary' },
-        { id: 'overwrite', label: deleted ? 'Recréer' : 'Écraser', icon: '⚠️', kind: 'danger' }
+        ...(deleted ? [] : [{ id: 'reload', label: localize('panel.common.reload'), icon: '🔄', kind: 'secondary' as const }]),
+        { id: 'copy', label: localize('panel.persist.conflict.copy'), icon: '📄', kind: 'secondary' },
+        { id: 'overwrite', label: localize(deleted ? 'panel.persist.conflict.recreate' : 'panel.persist.conflict.overwrite'), icon: '⚠️', kind: 'danger' }
       ],
       tone: 'warning'
     });
@@ -947,16 +962,18 @@ export class PersistenceController implements ReactiveController {
       case 'overwrite':
         return this.save(id, { force: true });
       case 'copy':
-        return this.saveAsCopy(id, `${latest.name} (copie)`, latest.category);
-      default:
+        return this.saveAsCopy(id, localize('panel.persist.copy_name', { name: latest.name }), latest.category);
+      default: {
         this.flushDraft(id);
+        const name = latest.name;
         this.setNotice({
           key: `save:${id}`,
           kind: 'warning',
-          message: `⚠️ « ${latest.name} » n'est pas sauvegardé : sa version entre en conflit avec celle du serveur. Vos modifications sont conservées dans ce navigateur.`,
-          actions: [{ label: 'Résoudre…', run: () => void this.save(id) }]
+          message: () => localize('panel.persist.conflict.pending', { name }),
+          actions: [{ label: () => localize('panel.persist.conflict.resolve'), run: () => void this.save(id) }]
         });
         return false;
+      }
     }
   }
 
@@ -966,21 +983,22 @@ export class PersistenceController implements ReactiveController {
     if (!project) return false;
     const choice = await this.ask({
       icon: '🖼️',
-      title: 'Image de fond refusée',
-      subtitle: `« ${project.name} »`,
-      message: `L'image de fond de ce plan ne peut pas être enregistrée sur le serveur. ${reason}`,
+      title: localize('panel.persist.bg_refused.title'),
+      subtitle: quoted(project.name),
+      message: localize('panel.persist.bg_refused.message', { reason }),
       details: [
-        'Retirer l\'image de fond permet de sauvegarder le reste du plan (murs, pièces, entités, meubles).',
-        'Vous pourrez ensuite réimporter une image PNG, JPEG, WebP ou un SVG simple.'
+        localize('panel.persist.bg_refused.detail_remove'),
+        localize('panel.persist.bg_refused.detail_reimport')
       ],
-      actions: [{ id: 'remove', label: 'Retirer l\'image et sauvegarder', icon: '🗑️', kind: 'danger' }],
+      actions: [{ id: 'remove', label: localize('panel.persist.bg_refused.remove'), icon: '🗑️', kind: 'danger' }],
       tone: 'warning'
     });
     const latest = this.ws.get(id);
     if (!latest) return false;
     if (choice !== 'remove') {
       this.flushDraft(id);
-      this.showError(`💾 « ${latest.name} » n'a pas été sauvegardé : son image de fond est refusée par le serveur.`, `save:${id}`);
+      const name = latest.name;
+      this.showError(() => localize('panel.persist.bg_refused.not_saved', { name }), `save:${id}`);
       return false;
     }
     if (latest.background) {
@@ -1021,12 +1039,11 @@ export class PersistenceController implements ReactiveController {
     if (id === this.ws.activeId) this.unsubscribeActive();
     if (next.background?.assetId) void this.keepDeletedBackground(id, next.background.assetId);
     this.clearProjectNotices(id);
+    const name = project.name;
     this.setNotice({
       key: `deleted:${id}`,
       kind: 'warning',
-      message: opts.remote
-        ? `🗑️ « ${project.name} » a été supprimé depuis un autre appareil. Il reste ouvert ici comme plan non sauvegardé : sauvegardez-le pour le recréer.`
-        : `🗑️ « ${project.name} » a été supprimé du serveur. Il reste ouvert comme plan non sauvegardé : sauvegardez-le pour le recréer, ou ouvrez un autre plan.`
+      message: () => localize(opts.remote ? 'panel.persist.deleted_remote' : 'panel.persist.deleted_local', { name })
     });
   }
 
@@ -1056,7 +1073,7 @@ export class PersistenceController implements ReactiveController {
     this.ws.history.rewrite(id, detach);
     const next = detach(latest);
     if (next !== latest) this.ws.replace(next);
-    if (!dataUrl) this.ui.toast('⚠️ L\'image de fond du plan supprimé n\'a pas pu être conservée.');
+    if (!dataUrl) this.ui.toast(localize('panel.persist.deleted_background_lost'));
   }
 
   private async subscribeActive() {
@@ -1110,11 +1127,13 @@ export class PersistenceController implements ReactiveController {
       void this.refreshFromServer(id, project);
       return;
     }
+    const name = project.name;
+    const revision = ev.revision;
     this.setNotice({
       key: `remote:${id}`,
       kind: 'warning',
-      message: `⚠️ « ${project.name} » a été modifié sur un autre appareil (révision ${ev.revision}). Vos modifications locales entreront en conflit à la sauvegarde.`,
-      actions: [{ label: 'Recharger la version du serveur', run: () => void this.confirmReload(id) }]
+      message: () => localize('panel.persist.remote_changed', { name, revision }),
+      actions: [{ label: () => localize('panel.persist.reload_server'), run: () => void this.confirmReload(id) }]
     });
   }
 
@@ -1134,7 +1153,7 @@ export class PersistenceController implements ReactiveController {
     }
     if (fresh.revision === expected.revision) return;
     this.adoptServerVersion(fresh);
-    this.ui.toast(`🔄 Plan "${fresh.name}" mis à jour depuis un autre appareil.`);
+    this.ui.toast(localize('panel.persist.remote_refreshed', { name: fresh.name }));
   }
 
   private async confirmReload(id: string) {
@@ -1143,10 +1162,10 @@ export class PersistenceController implements ReactiveController {
     if (this.ws.isDirty(id)) {
       const choice = await this.ask({
         icon: '🔄',
-        title: 'Recharger la version du serveur ?',
-        subtitle: `« ${project.name} »`,
-        message: 'Vos modifications non sauvegardées de ce plan seront définitivement perdues.',
-        actions: [{ id: 'reload', label: 'Recharger', icon: '🔄', kind: 'danger' }],
+        title: localize('panel.persist.confirm_reload.title'),
+        subtitle: quoted(project.name),
+        message: localize('panel.persist.confirm_reload.message'),
+        actions: [{ id: 'reload', label: localize('panel.common.reload'), icon: '🔄', kind: 'danger' }],
         tone: 'warning'
       });
       if (choice !== 'reload') return;
@@ -1216,10 +1235,10 @@ export class PersistenceController implements ReactiveController {
   private async discardDraft(review: DraftReview) {
     const choice = await this.ask({
       icon: '🗑️',
-      title: 'Supprimer la copie locale ?',
-      subtitle: `« ${review.draft.project.name} »`,
-      message: 'Les modifications enregistrées dans ce navigateur pour ce plan seront définitivement perdues.',
-      actions: [{ id: 'discard', label: 'Supprimer', icon: '🗑️', kind: 'danger' }],
+      title: localize('panel.persist.discard_draft.title'),
+      subtitle: quoted(review.draft.project.name),
+      message: localize('panel.persist.discard_draft.message'),
+      actions: [{ id: 'discard', label: localize('panel.common.delete'), icon: '🗑️', kind: 'danger' }],
       tone: 'danger'
     });
     if (choice !== 'discard') return;
@@ -1235,17 +1254,17 @@ export class PersistenceController implements ReactiveController {
    */
   private async uploadInlineBackgroundNow(id: string) {
     try {
-      await this.withBusy('Téléversement de l\'image de fond…', () => this.uploadPendingBackground(id));
+      await this.withBusy(localize('panel.persist.uploading_background'), () => this.uploadPendingBackground(id));
     } catch (err) {
       if (err instanceof PermissionDeniedError) {
         this.enterReadOnly();
         return;
       }
-      const reason = err instanceof BackgroundRejectedError ? err.message : describeFailure(err);
+      const reason = () => (err instanceof BackgroundRejectedError ? err.message : describeFailure(err));
       this.setNotice({
         key: `background:${id}`,
         kind: 'warning',
-        message: `⚠️ Image de fond non téléversée (${reason}) : elle est gardée dans le plan et sera envoyée au serveur à la prochaine sauvegarde.`
+        message: () => localize('panel.persist.background_pending', { reason: reason() })
       });
     }
   }
@@ -1257,7 +1276,8 @@ export class PersistenceController implements ReactiveController {
       try {
         blob = await svgWithoutDoctype(blob);
       } catch (err) {
-        this.showError(`Image de fond illisible : ${errorMessage(err)}`);
+        const reason = errorMessage(err);
+        this.showError(() => localize('panel.background.unreadable', { reason }));
         return null;
       }
     }
@@ -1302,11 +1322,12 @@ export class PersistenceController implements ReactiveController {
         this.setNotice({
           key: `background:${projectId}`,
           kind: 'warning',
-          message: `⚠️ Image de fond non téléversée (${describeFailure(err)}) : elle est gardée dans le plan et sera envoyée au serveur à la prochaine sauvegarde.`
+          message: () => localize('panel.persist.background_pending', { reason: describeFailure(err) })
         });
         return { ...base, imageUrl: dataUrl, ...(blob.type ? { mimeType: blob.type } : {}) };
       } catch {
-        this.showError(`Téléversement de l'image de fond impossible : ${errorMessage(err)}`);
+        const reason = errorMessage(err);
+        this.showError(() => localize('panel.persist.upload_failed', { reason }));
         return null;
       }
     }
@@ -1365,7 +1386,7 @@ export class PersistenceController implements ReactiveController {
     this.host.requestUpdate();
   }
 
-  showError(message: string, key: string = 'error') {
+  showError(message: DisplayText, key: string = 'error') {
     this.setNotice({ key, kind: 'error', message });
   }
 
@@ -1377,9 +1398,7 @@ export class PersistenceController implements ReactiveController {
         key: 'read-only',
         kind: 'info',
         dismissible: false,
-        message: this.permissionDenied
-          ? '🔒 Lecture seule : le serveur a refusé la sauvegarde (action réservée aux administrateurs). Vos modifications non sauvegardées sont conservées dans ce navigateur.'
-          : '🔒 Lecture seule : seuls les administrateurs de Home Assistant peuvent modifier et sauvegarder les plans.'
+        message: localize(this.permissionDenied ? 'panel.persist.read_only_denied' : 'panel.persist.read_only')
       });
     }
     return renderNotices([...banners, ...extra, ...this.notices], key => this.dismissNotice(key));
@@ -1388,15 +1407,15 @@ export class PersistenceController implements ReactiveController {
   /** Écran de chargement / d'erreur / d'attente, brouillons à restaurer et dialogue de choix. */
   renderOverlays(): TemplateResult[] {
     const layers: TemplateResult[] = [];
-    if (this.loadStateValue === 'error') layers.push(renderLoadError(this.loadError, () => void this.loadInitial()));
-    else if (!this.ready) layers.push(renderLoadingOverlay('Chargement des plans…'));
+    if (this.loadStateValue === 'error') layers.push(renderLoadError(describeFailure(this.loadFailure), () => void this.loadInitial()));
+    else if (!this.ready) layers.push(renderLoadingOverlay(localize('panel.loading.plans')));
     else if (this.busyMessage !== null) layers.push(renderLoadingOverlay(this.busyMessage));
 
     if (this.draftReviews && this.ready) {
       layers.push(renderDraftsDialog(this.draftReviews, {
         onOpen: review => {
           this.openDraft(review);
-          this.ui.toast('📂 Copie locale ouverte : sauvegardez-la pour l\'envoyer au serveur.');
+          this.ui.toast(localize('panel.persist.draft_opened'));
         },
         onSend: review => void this.save(this.openDraft(review)),
         onDiscard: review => void this.discardDraft(review),

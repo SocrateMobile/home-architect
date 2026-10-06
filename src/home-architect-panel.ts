@@ -1,4 +1,4 @@
-import { LitElement, html, css, PropertyValues } from 'lit';
+import { LitElement, html, nothing, PropertyValues } from 'lit';
 import { property, state } from 'lit/decorators.js';
 import './components/canvas-view';
 import './components/toolbar';
@@ -31,13 +31,22 @@ import {
   Wall
 } from './core/types';
 import type { SvgParseResult } from './core/svg-parser';
+import { LANGUAGE_CHANGED_KEY, LocalizeController, formatNumber, localize, setLanguage } from './i18n';
+import './i18n/locales/panel';
+import { applyColorScheme, uiThemeStyles } from './styles/theme.styles';
 import { PlanEntry, isEmptyProject } from './panel/workspace';
 import { isInlineDataUrl } from './panel/background';
 import { PersistenceController, ProjectPreferences } from './panel/persistence-controller';
-import { HA_UPDATES_PATH, UpdateInfo, fetchUpdateInfo, navigateInHa, updateEntitySignature } from './panel/update-check';
+import { HA_UPDATES_PATH, UpdateInfo, describeLoadedBundles, fetchUpdateInfo, navigateInHa, updateEntitySignature } from './panel/update-check';
 import { PanelNotice, renderAboutDialog, renderUpdateDialog } from './panel/dialogs';
+import { panelBaseStyles } from './panel/base-styles';
 import { persistenceStyles } from './panel/styles';
 import { studioLayoutStyles } from './panel/layout-styles';
+import { ModalFocusController, focusMenuItem, handleMenuKeydown } from './panel/a11y';
+import { TYPOLOGY_ICONS, typologyIconLabel, typologyTabLabel, typologyTitle } from './panel/icon-palette';
+import {
+  formatArea, formatCentimeters, formatLength, formatMeters, formatScaleFactor, localizeCount
+} from './panel/format';
 import {
   PlanGeometry, assignRooms, buildWizardRoom, cleanImportedGeometry, contentBounds, countWithHeight,
   effectiveCeilingHeight, geometryStats, inheritDefaultHeight, mapChanged, parseWizardRequest, reshapeOpenings,
@@ -51,45 +60,55 @@ const MAX_EXTERNAL_IMAGE_URL_LENGTH = 2048;
 /** Préférence locale (par appareil) du volet des entités : replié ou non. Hors du préfixe des anciens projets. */
 const DRAWER_STORAGE_KEY = 'home-architect:drawer-collapsed';
 
-/** Éléments du studio qui reçoivent `hass` (propagé sans re-rendre le panneau, constat F34). */
+/**
+ * Éléments du studio qui reçoivent `hass` (propagé sans re-rendre le panneau, constat F34). Les
+ * modales d'import, d'étalonnage et de mise à l'échelle n'en lisent que le thème clair / sombre.
+ */
 const HASS_CONSUMERS = [
   'home-architect-canvas', 'home-architect-entity-drawer', 'home-architect-export-modal',
-  'home-architect-save-load-modal', 'home-architect-room-modal'
+  'home-architect-save-load-modal', 'home-architect-room-modal', 'home-architect-import-modal',
+  'home-architect-calibrate-modal', 'home-architect-rescale-modal'
 ].join(', ');
 
 /** Séquence secrète de l'easter egg. */
 const SECRET_WORD = 'socrate';
 
-/** Choix d'une liste de la barre supérieure (valeur en mètres). */
+/** Bornes du facteur de mise à l'échelle annoncées dans les messages de refus (isValidRescaleFactor). */
+const SCALE_FACTOR_LIMITS = { min: 0.01, max: 100 };
+
+/** Menus déroulants de la barre supérieure. */
+type DropdownName = 'file' | 'plan' | 'level';
+
+/** Choix d'une liste de la barre supérieure (valeur en mètres, libellé traduit `{size}`). */
 interface MeasureOption {
   value: number;
-  label: string;
+  key: string;
 }
 
 const THICKNESS_OPTIONS: readonly MeasureOption[] = [
-  { value: 0.10, label: 'Cloison 10 cm' },
-  { value: 0.15, label: 'Mur 15 cm' },
-  { value: 0.20, label: 'Porteur 20 cm' },
-  { value: 0.30, label: 'Extérieur 30 cm' }
+  { value: 0.10, key: 'panel.thickness.partition' },
+  { value: 0.15, key: 'panel.thickness.wall' },
+  { value: 0.20, key: 'panel.thickness.load_bearing' },
+  { value: 0.30, key: 'panel.thickness.exterior' }
 ];
 
 const OPENING_WIDTH_OPTIONS: readonly MeasureOption[] = [
-  { value: 0.73, label: '73 cm (Étroite)' },
-  { value: 0.83, label: '83 cm (Chambre)' },
-  { value: 0.90, label: '90 cm (Standard)' },
-  { value: 1.20, label: '1.20 m (Fenêtre)' },
-  { value: 1.40, label: '1.40 m (Double)' },
-  { value: 2.00, label: '2.00 m (Baie)' },
-  { value: 2.40, label: '2.40 m (Grande baie)' }
+  { value: 0.73, key: 'panel.opening_width.narrow' },
+  { value: 0.83, key: 'panel.opening_width.bedroom' },
+  { value: 0.90, key: 'panel.opening_width.standard' },
+  { value: 1.20, key: 'panel.opening_width.window' },
+  { value: 1.40, key: 'panel.opening_width.double' },
+  { value: 2.00, key: 'panel.opening_width.bay' },
+  { value: 2.40, key: 'panel.opening_width.large_bay' }
 ];
 
 const CEILING_OPTIONS: readonly MeasureOption[] = [
-  { value: 2.10, label: '2.10 m (Sous-sol)' },
-  { value: 2.30, label: '2.30 m (Combles)' },
-  { value: 2.50, label: '2.50 m (Standard)' },
-  { value: 2.70, label: '2.70 m (Élevé)' },
-  { value: 3.00, label: '3.00 m (Haussmann)' },
-  { value: 3.50, label: '3.50 m (Cathédrale)' }
+  { value: 2.10, key: 'panel.ceiling.basement' },
+  { value: 2.30, key: 'panel.ceiling.attic' },
+  { value: 2.50, key: 'panel.ceiling.standard' },
+  { value: 2.70, key: 'panel.ceiling.high' },
+  { value: 3.00, key: 'panel.ceiling.haussmann' },
+  { value: 3.50, key: 'panel.ceiling.cathedral' }
 ];
 
 /**
@@ -99,10 +118,12 @@ const CEILING_OPTIONS: readonly MeasureOption[] = [
  */
 function selectOptions(options: readonly MeasureOption[], value: number, format: (v: number) => string) {
   const same = (v: number) => Math.abs(v - value) < 1e-6;
-  const all = !Number.isFinite(value) || options.some(o => same(o.value))
-    ? options
-    : [...options, { value, label: `${format(value)} (actuelle)` }].sort((a, b) => a.value - b.value);
-  return all.map(o => html`<option value=${String(o.value)} .selected=${same(o.value)}>${o.label}</option>`);
+  const entries = options.map(o => ({ value: o.value, label: localize(o.key, { size: format(o.value) }) }));
+  if (Number.isFinite(value) && !options.some(o => same(o.value))) {
+    entries.push({ value, label: localize('panel.measure.current', { size: format(value) }) });
+    entries.sort((a, b) => a.value - b.value);
+  }
+  return entries.map(o => html`<option value=${String(o.value)} .selected=${same(o.value)}>${o.label}</option>`);
 }
 
 /** Couleur choisie dans le HUD (format du sélecteur de couleur natif, conservé par normalizeProject). */
@@ -138,6 +159,16 @@ function importMetersPerPixel(detail: ImportModalResult, background: BackgroundP
   return typeof width === 'number' && Number.isFinite(width) && width > 0 && background.widthPx ? width / background.widthPx : null;
 }
 
+/** Deux éléments d'une énumération reliés par « et » / « and ». */
+function joinPair(parts: string[]): string {
+  return parts.length === 2 ? localize('panel.common.pair', { first: parts[0], second: parts[1] }) : parts.join(', ');
+}
+
+/** Nom de plan ou d'élément entre guillemets de la langue courante. */
+function quoted(name: string): string {
+  return localize('panel.common.quoted', { name });
+}
+
 function readDrawerPreference(): boolean | null {
   try {
     const raw = localStorage.getItem(DRAWER_STORAGE_KEY);
@@ -155,1218 +186,9 @@ function writeDrawerPreference(collapsed: boolean): void {
   }
 }
 
-export interface TypologyIcon {
-  icon: string;
-  label: string;
-  mdi: string;
-}
-
-export const TYPOLOGY_ICONS: Record<string, { title: string; tabLabel: string; icons: TypologyIcon[] }> = {
-  light: {
-    title: 'Éclairage & Luminaires',
-    tabLabel: '💡 Éclairage',
-    icons: [
-      { icon: '💡', label: 'Ampoule standard', mdi: 'mdi:lightbulb' },
-      { icon: '🛋️', label: 'Lampe salon', mdi: 'mdi:lamp' },
-      { icon: '🌟', label: 'Spot encastré', mdi: 'mdi:ceiling-light' },
-      { icon: '🔆', label: 'Plafonnier', mdi: 'mdi:ceiling-light-outline' },
-      { icon: '🏮', label: 'Lanterne extérieure', mdi: 'mdi:outdoor-lamp' },
-      { icon: '🕯️', label: 'Bougie / Ambiance', mdi: 'mdi:candle' },
-      { icon: '🔦', label: 'Projecteur', mdi: 'mdi:spotlight-beam' },
-      { icon: '🪩', label: 'Bandeau LED RGB', mdi: 'mdi:led-strip-variant' },
-      { icon: '✨', label: 'Guirlande lumineuse', mdi: 'mdi:string-lights' },
-      { icon: '🛋', label: 'Applique murale', mdi: 'mdi:wall-sconce-flat' },
-    ]
-  },
-  switch: {
-    title: 'Prises & Interrupteurs',
-    tabLabel: '🔌 Prises',
-    icons: [
-      { icon: '🔌', label: 'Prise connectée', mdi: 'mdi:power-socket-fr' },
-      { icon: '⚡', label: 'Interrupteur mural', mdi: 'mdi:toggle-switch' },
-      { icon: '📺', label: 'Télévision', mdi: 'mdi:television' },
-      { icon: '☕', label: 'Cafetière / Électroménager', mdi: 'mdi:coffee-maker' },
-      { icon: '💻', label: 'PC / Bureau', mdi: 'mdi:laptop' },
-      { icon: '🔊', label: 'Enceinte / Chaîne Hi-Fi', mdi: 'mdi:speaker' },
-      { icon: '🖨️', label: 'Imprimante', mdi: 'mdi:printer' },
-      { icon: '🎮', label: 'Console de jeu', mdi: 'mdi:gamepad-variant' },
-      { icon: '🔋', label: 'Chargeur batterie', mdi: 'mdi:battery-charging' },
-      { icon: '🪭', label: 'Ventilateur mobile', mdi: 'mdi:fan' },
-    ]
-  },
-  binary_sensor: {
-    title: 'Détecteurs, Sécurité & Ouvrants',
-    tabLabel: '📡 Détecteurs',
-    icons: [
-      { icon: '🚶', label: 'Mouvement PIR', mdi: 'mdi:motion-sensor' },
-      { icon: '🏃', label: 'Passage rapide', mdi: 'mdi:walk' },
-      { icon: '👁️', label: 'Radar présence', mdi: 'mdi:radar' },
-      { icon: '🚪', label: 'Capteur porte', mdi: 'mdi:door' },
-      { icon: '🪟', label: 'Capteur fenêtre', mdi: 'mdi:window-closed' },
-      { icon: '🚗', label: 'Porte garage', mdi: 'mdi:garage' },
-      { icon: '🚨', label: 'Sirène / Alarme', mdi: 'mdi:alarm-light' },
-      { icon: '🔔', label: 'Sonnette / Carillon', mdi: 'mdi:doorbell' },
-      { icon: '🐾', label: 'Présence animale', mdi: 'mdi:paw' },
-      { icon: '💧', label: 'Fuite d\'eau', mdi: 'mdi:water-alert' },
-      { icon: '🔥', label: 'Détecteur fumée', mdi: 'mdi:smoke-detector' },
-      { icon: '📬', label: 'Boîte aux lettres', mdi: 'mdi:mailbox' },
-    ]
-  },
-  climate: {
-    title: 'Thermostats & Climatisation',
-    tabLabel: '🌡️ Climat',
-    icons: [
-      { icon: '🌡️', label: 'Thermostat principal', mdi: 'mdi:thermostat' },
-      { icon: '❄️', label: 'Climatiseur (Froid)', mdi: 'mdi:air-conditioner' },
-      { icon: '🔥', label: 'Radiateur (Chaud)', mdi: 'mdi:radiator' },
-      { icon: '♨️', label: 'Pompe à chaleur / ECS', mdi: 'mdi:water-boiler' },
-      { icon: '💨', label: 'VMC / Aération', mdi: 'mdi:fan' },
-    ]
-  },
-  sensor: {
-    title: 'Capteurs & Sondes',
-    tabLabel: '📊 Sondes',
-    icons: [
-      { icon: '🌡️', label: 'Sonde température', mdi: 'mdi:thermometer' },
-      { icon: '💧', label: 'Hygrométrie (Humidité)', mdi: 'mdi:water-percent' },
-      { icon: '☀️', label: 'Luminosité (Lux)', mdi: 'mdi:weather-sunny' },
-      { icon: '💨', label: 'Qualité d\'air (CO2/VOC)', mdi: 'mdi:air-filter' },
-      { icon: '⚡', label: 'Consommation électrique', mdi: 'mdi:flash' },
-      { icon: '🔋', label: 'Batterie restante', mdi: 'mdi:battery' },
-      { icon: '🔊', label: 'Bruit / Décibels', mdi: 'mdi:volume-high' },
-      { icon: '⚖️', label: 'Pression barométrique', mdi: 'mdi:gauge' },
-    ]
-  },
-  cover: {
-    title: 'Volets, Stores & Motorisations',
-    tabLabel: '🪟 Volets',
-    icons: [
-      { icon: '🪟', label: 'Volet roulant', mdi: 'mdi:window-shutter' },
-      { icon: '🚪', label: 'Store vénitien', mdi: 'mdi:blinds' },
-      { icon: '🚗', label: 'Porte garage motorisée', mdi: 'mdi:garage' },
-      { icon: '⛺', label: 'Store banne terrasse', mdi: 'mdi:awning' },
-      { icon: '↕️', label: 'Motorisation baie', mdi: 'mdi:arrow-up-down' },
-    ]
-  },
-  media_player: {
-    title: 'Multimédia & Enceintes',
-    tabLabel: '📺 Média',
-    icons: [
-      { icon: '📺', label: 'Téléviseur', mdi: 'mdi:television' },
-      { icon: '📻', label: 'Enceinte connectée', mdi: 'mdi:speaker' },
-      { icon: '🎵', label: 'Musique multiroom', mdi: 'mdi:music' },
-      { icon: '🔊', label: 'Ampli Home-Cinema', mdi: 'mdi:speaker-wireless' },
-      { icon: '🎬', label: 'Vidéoprojecteur', mdi: 'mdi:projector' },
-      { icon: '🎮', label: 'Console jeux vidéo', mdi: 'mdi:gamepad-variant' },
-    ]
-  },
-  camera: {
-    title: 'Caméras & Vidéosurveillance',
-    tabLabel: '📷 Caméras',
-    icons: [
-      { icon: '📷', label: 'Caméra intérieure fixe', mdi: 'mdi:camera' },
-      { icon: '📹', label: 'Caméra dôme PTZ extérieure', mdi: 'mdi:cctv' },
-      { icon: '👁️', label: 'Zone sous surveillance', mdi: 'mdi:eye' },
-      { icon: '🎥', label: 'Portier / Interphone vidéo', mdi: 'mdi:video' },
-    ]
-  },
-  fan: {
-    title: 'Ventilation & Brassage',
-    tabLabel: '💨 Ventilateur',
-    icons: [
-      { icon: '💨', label: 'Ventilateur colonne/pied', mdi: 'mdi:fan' },
-      { icon: '🌀', label: 'VMC extraction', mdi: 'mdi:fan-chevron-up' },
-      { icon: '🌪️', label: 'Plafonnier ventilateur', mdi: 'mdi:ceiling-fan' },
-    ]
-  },
-  vacuum: {
-    title: 'Robots Aspirateurs & Nettoyage',
-    tabLabel: '🤖 Robots',
-    icons: [
-      { icon: '🤖', label: 'Robot aspirateur', mdi: 'mdi:robot-vacuum' },
-      { icon: '🧹', label: 'Robot laveur de sol', mdi: 'mdi:broom' },
-    ]
-  },
-  lock: {
-    title: 'Serrures & Contrôle d\'accès',
-    tabLabel: '🔒 Serrures',
-    icons: [
-      { icon: '🔒', label: 'Serrure connectée', mdi: 'mdi:lock' },
-      { icon: '🛡️', label: 'Alarme intrusion', mdi: 'mdi:shield-home' },
-      { icon: '🗝️', label: 'Gâche électrique', mdi: 'mdi:key' },
-    ]
-  }
-};
-
 export class HomeArchitectPanel extends LitElement {
-  static styles = [css`
-    /* Dans le flux de la zone de contenu de HA, comme les panneaux natifs : HA place déjà cette zone
-       à côté de sa barre latérale (aucune lecture de son DOM interne, constats F37 et F135).
-       Hauteur : ha-panel-custom, parent du panneau, n'a pas de hauteur définie (HA donne lui-même
-       100vh / 100dvh à ses panneaux iframe) : un pourcentage n'y serait pas résolu et le studio
-       s'écraserait. Hauteur de la fenêtre, moins les marges de zone sûre que ha-panel-custom applique. */
-    :host {
-      display: flex;
-      flex-direction: column;
-      position: relative;
-      width: 100%;
-      height: 100vh;
-      height: calc(100dvh - var(--safe-area-inset-top, 0px) - var(--safe-area-inset-bottom, 0px));
-      min-height: 0;
-      overflow: hidden;
-      background: #0f172a;
-      color: #f8fafc;
-      font-family: var(--ha-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
-      box-sizing: border-box;
-      outline: none;
-    }
-
-    /* Plein écran de repli (API Fullscreen indisponible, ex. iPhone) : le studio recouvre la page. */
-    :host(.is-fullscreen) {
-      position: fixed !important;
-      inset: 0 !important;
-      width: 100vw !important;
-      height: 100vh !important;
-      height: 100dvh !important;
-      max-width: 100vw !important;
-      max-height: 100dvh !important;
-      z-index: 99999 !important;
-    }
-
-    /* Règles séparées : un sélecteur inconnu d'un navigateur invaliderait toute la liste. */
-    :host(:fullscreen) {
-      width: 100vw;
-      height: 100vh;
-      background: #0f172a;
-    }
-
-    :host(:-webkit-full-screen) {
-      width: 100vw;
-      height: 100vh;
-      background: #0f172a;
-    }
-
-    /* Colonne du studio : ne dépend pas du display imposé à l'hôte par la page qui l'insère. */
-    .studio {
-      display: flex;
-      flex-direction: column;
-      flex: 1 1 auto;
-      position: relative;
-      width: 100%;
-      height: 100%;
-      min-height: 0;
-      overflow: hidden;
-    }
-
-    header.top-bar {
-      min-height: 56px;
-      max-width: 100%;
-      background: rgba(30, 41, 59, 0.9);
-      backdrop-filter: blur(12px);
-      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      justify-content: space-between;
-      padding: 6px 14px;
-      position: relative;
-      z-index: 85;
-      flex-shrink: 0;
-      overflow: visible;
-      box-sizing: border-box;
-      gap: 8px 10px;
-    }
-
-    .brand {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      font-size: 1.15rem;
-      font-weight: 700;
-      color: #f1f5f9;
-    }
-
-    .brand-icon {
-      font-size: 1.4rem;
-    }
-
-    .brand-tag {
-      font-size: 0.75rem;
-      padding: 2px 8px;
-      background: rgba(56, 189, 248, 0.15);
-      color: #38bdf8;
-      border-radius: 9999px;
-      border: 1px solid rgba(56, 189, 248, 0.3);
-      font-weight: 600;
-    }
-
-    .brand-version {
-      font-size: 0.72rem;
-      padding: 2px 7px;
-      background: rgba(148, 163, 184, 0.15);
-      color: #94a3b8;
-      border-radius: 6px;
-      font-family: monospace;
-      font-weight: 600;
-      border: 1px solid rgba(148, 163, 184, 0.25);
-    }
-
-    .btn-update-auto {
-      display: inline-flex;
-      align-items: center;
-      gap: 7px;
-      background: linear-gradient(135deg, #f59e0b, #ef4444);
-      color: #ffffff;
-      border: 1px solid rgba(255, 255, 255, 0.3);
-      padding: 5px 12px;
-      border-radius: 9999px;
-      font-size: 0.82rem;
-      font-weight: 700;
-      cursor: pointer;
-      box-shadow: 0 2px 10px rgba(245, 158, 11, 0.45);
-      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-      animation: pulse-update-btn 2.2s infinite;
-      white-space: nowrap;
-    }
-
-    .btn-update-auto:hover {
-      transform: translateY(-1px) scale(1.02);
-      box-shadow: 0 4px 16px rgba(245, 158, 11, 0.65);
-    }
-
-    .btn-update-auto:active {
-      transform: translateY(1px);
-    }
-
-    .btn-update-auto .update-version-tag {
-      background: rgba(255, 255, 255, 0.25);
-      padding: 1px 6px;
-      border-radius: 6px;
-      font-size: 0.72rem;
-      font-weight: 800;
-    }
-
-    @keyframes pulse-update-btn {
-      0% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.6); }
-      70% { box-shadow: 0 0 0 9px rgba(245, 158, 11, 0); }
-      100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
-    }
-
-    .top-controls {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-
-    .control-group {
-      display: flex;
-      align-items: center;
-      background: rgba(15, 23, 42, 0.6);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      border-radius: 8px;
-      padding: 2px 8px;
-      gap: 6px;
-      font-size: 0.85rem;
-    }
-
-    .control-group label {
-      color: #94a3b8;
-      font-size: 0.8rem;
-    }
-
-    select, input[type="range"] {
-      background: transparent;
-      color: #f8fafc;
-      border: none;
-      outline: none;
-      font-size: 0.85rem;
-      cursor: pointer;
-    }
-
-    select option {
-      background: #1e293b;
-      color: #f8fafc;
-    }
-
-    button.btn-primary {
-      background: #0284c7;
-      color: #ffffff;
-      border: 1px solid #38bdf8;
-      border-radius: 8px;
-      padding: 6px 14px;
-      font-size: 0.85rem;
-      font-weight: 600;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      transition: all 0.2s ease;
-    }
-
-    button.btn-primary:hover {
-      background: #0369a1;
-      box-shadow: 0 0 12px rgba(56, 189, 248, 0.4);
-    }
-
-    button.btn-import {
-      background: rgba(16, 185, 129, 0.2);
-      color: #34d399;
-      border: 1px solid rgba(16, 185, 129, 0.4);
-      border-radius: 8px;
-      padding: 6px 13px;
-      font-size: 0.85rem;
-      font-weight: 600;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      transition: all 0.2s ease;
-    }
-
-    button.btn-import:hover {
-      background: #10b981;
-      color: #ffffff;
-      box-shadow: 0 0 14px rgba(16, 185, 129, 0.45);
-    }
-
-    button.btn-rescale {
-      background: rgba(56, 189, 248, 0.15);
-      color: #38bdf8;
-      border: 1px solid rgba(56, 189, 248, 0.35);
-      border-radius: 8px;
-      padding: 6px 13px;
-      font-size: 0.85rem;
-      font-weight: 600;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      transition: all 0.2s ease;
-    }
-
-    button.btn-rescale:hover, button.btn-rescale.active {
-      background: #0284c7;
-      color: #ffffff;
-      border-color: #38bdf8;
-      box-shadow: 0 0 14px rgba(56, 189, 248, 0.45);
-    }
-
-    button.btn-toggle-option {
-      background: rgba(15, 23, 42, 0.6);
-      color: #94a3b8;
-      border: 1px solid rgba(255, 255, 255, 0.12);
-      border-radius: 8px;
-      padding: 6px 11px;
-      font-size: 0.83rem;
-      font-weight: 600;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      gap: 5px;
-      transition: all 0.2s ease;
-    }
-
-    button.btn-toggle-option:hover {
-      background: rgba(51, 65, 85, 0.8);
-      color: #f1f5f9;
-      border-color: #38bdf8;
-    }
-
-    button.btn-toggle-option.active {
-      background: rgba(56, 189, 248, 0.18);
-      color: #38bdf8;
-      border-color: #38bdf8;
-      box-shadow: 0 0 10px rgba(56, 189, 248, 0.3);
-    }
-
-    button.btn-drawer {
-      background: rgba(56, 189, 248, 0.15);
-      color: #38bdf8;
-      border: 1px solid rgba(56, 189, 248, 0.3);
-      border-radius: 8px;
-      padding: 6px 12px;
-      font-size: 0.85rem;
-      font-weight: 600;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      transition: all 0.2s ease;
-    }
-
-    button.btn-drawer:hover, button.btn-drawer.active {
-      background: #0284c7;
-      color: #ffffff;
-      box-shadow: 0 0 12px rgba(56, 189, 248, 0.4);
-    }
-
-    button.btn-3d {
-      background: rgba(147, 51, 234, 0.15);
-      color: #c084fc;
-      border: 1px solid rgba(147, 51, 234, 0.3);
-      border-radius: 8px;
-      padding: 6px 12px;
-      font-size: 0.85rem;
-      font-weight: 600;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      transition: all 0.2s ease;
-    }
-
-    button.btn-3d.active {
-      background: #9333ea;
-      color: #ffffff;
-      box-shadow: 0 0 12px rgba(192, 132, 252, 0.5);
-    }
-
-    button.btn-wizard {
-      background: rgba(245, 158, 11, 0.2);
-      color: #f59e0b;
-      border: 1px solid rgba(245, 158, 11, 0.4);
-      border-radius: 8px;
-      padding: 6px 12px;
-      font-size: 0.85rem;
-      font-weight: 600;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      transition: all 0.2s ease;
-    }
-
-    button.btn-wizard:hover {
-      background: #f59e0b;
-      color: #ffffff;
-    }
-
-    button.btn-export {
-      background: rgba(168, 85, 247, 0.2);
-      color: #c084fc;
-      border: 1px solid rgba(168, 85, 247, 0.45);
-      border-radius: 8px;
-      padding: 6px 13px;
-      font-size: 0.85rem;
-      font-weight: 600;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      transition: all 0.2s ease;
-    }
-
-    button.btn-export:hover {
-      background: #9333ea;
-      color: #ffffff;
-      box-shadow: 0 0 14px rgba(168, 85, 247, 0.5);
-    }
-
-    button.btn-fullscreen {
-      background: rgba(14, 165, 233, 0.15);
-      color: #38bdf8;
-      border: 1px solid rgba(56, 189, 248, 0.35);
-      border-radius: 8px;
-      padding: 6px 12px;
-      font-size: 0.85rem;
-      font-weight: 600;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      transition: all 0.2s ease;
-      white-space: nowrap;
-    }
-
-    button.btn-fullscreen:hover {
-      background: #0284c7;
-      color: #ffffff;
-      border-color: #38bdf8;
-      box-shadow: 0 0 12px rgba(56, 189, 248, 0.45);
-    }
-
-    button.btn-fullscreen.active {
-      background: rgba(16, 185, 129, 0.2);
-      color: #34d399;
-      border-color: #10b981;
-      box-shadow: 0 0 12px rgba(16, 185, 129, 0.35);
-    }
-
-    button.btn-fullscreen.active:hover {
-      background: #059669;
-      color: #ffffff;
-      border-color: #34d399;
-      box-shadow: 0 0 14px rgba(16, 185, 129, 0.5);
-    }
-
-    .workspace {
-      flex: 1;
-      display: flex;
-      flex-direction: row;
-      width: 100%;
-      min-height: 0;
-      min-width: 0;
-      overflow: hidden;
-      position: relative;
-      box-sizing: border-box;
-      z-index: 1;
-    }
-
-    button.btn-history {
-      background: rgba(51, 65, 85, 0.6);
-      color: #f1f5f9;
-      border: 1px solid rgba(255, 255, 255, 0.12);
-      border-radius: 8px;
-      padding: 6px 10px;
-      font-size: 0.84rem;
-      font-weight: 600;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      gap: 5px;
-      transition: all 0.15s ease;
-      white-space: nowrap;
-    }
-
-    button.btn-history:hover:not(:disabled) {
-      background: #0284c7;
-      border-color: #38bdf8;
-      color: #ffffff;
-      box-shadow: 0 0 10px rgba(56, 189, 248, 0.35);
-    }
-
-    button.btn-history:disabled {
-      opacity: 0.35;
-      cursor: not-allowed;
-    }
-
-    .selection-hud {
-      position: absolute;
-      bottom: 24px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: rgba(15, 23, 42, 0.96);
-      backdrop-filter: blur(16px);
-      border: 1.5px solid #06b6d4;
-      border-radius: 14px;
-      padding: 8px 14px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 10px;
-      box-shadow: 0 12px 36px rgba(0, 0, 0, 0.65), 0 0 20px rgba(6, 182, 212, 0.35);
-      z-index: 60;
-      animation: popSelectionBottom 0.2s ease-out;
-      max-width: 92vw;
-      box-sizing: border-box;
-    }
-
-    @keyframes popSelectionBottom {
-      from { opacity: 0; transform: translate(-50%, 15px); }
-      to { opacity: 1; transform: translate(-50%, 0); }
-    }
-
-    .selection-hud-main {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      flex-wrap: wrap;
-      justify-content: center;
-      white-space: nowrap;
-    }
-
-    .selection-info {
-      font-size: 0.88rem;
-      font-weight: 700;
-      color: #e2e8f0;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-
-    .btn-delete-selection {
-      background: #ef4444;
-      color: #ffffff;
-      border: 1px solid #f87171;
-      border-radius: 8px;
-      padding: 6px 13px;
-      font-size: 0.84rem;
-      font-weight: 700;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      gap: 5px;
-      transition: all 0.15s ease;
-      box-shadow: 0 0 10px rgba(239, 68, 68, 0.4);
-    }
-
-    .btn-delete-selection:hover {
-      background: #dc2626;
-      transform: scale(1.03);
-    }
-
-    .btn-clear-selection {
-      background: transparent;
-      color: #94a3b8;
-      border: 1px solid rgba(255, 255, 255, 0.15);
-      border-radius: 8px;
-      padding: 6px 10px;
-      font-size: 0.84rem;
-      cursor: pointer;
-      transition: all 0.15s ease;
-    }
-
-    .btn-clear-selection:hover {
-      color: #ffffff;
-      background: rgba(255, 255, 255, 0.1);
-    }
-
-    .hud-options-group {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      padding-left: 8px;
-      border-left: 1px solid rgba(255, 255, 255, 0.15);
-    }
-
-    .hud-label {
-      font-size: 0.78rem;
-      color: #94a3b8;
-      font-weight: 600;
-    }
-
-    .hud-opt-btn {
-      background: rgba(30, 41, 59, 0.8);
-      color: #cbd5e1;
-      border: 1px solid rgba(255, 255, 255, 0.15);
-      border-radius: 6px;
-      padding: 4px 8px;
-      font-size: 0.78rem;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all 0.15s ease;
-      white-space: nowrap;
-      display: flex;
-      align-items: center;
-      gap: 5px;
-    }
-
-    .hud-opt-btn:hover {
-      background: rgba(56, 189, 248, 0.2);
-      border-color: #38bdf8;
-      color: #ffffff;
-    }
-
-    .hud-opt-btn.active {
-      background: #0284c7;
-      border-color: #38bdf8;
-      color: #ffffff;
-      box-shadow: 0 0 10px rgba(56, 189, 248, 0.4);
-    }
-
-    /* Panneau Choisir l'icône dans le HUD */
-    .hud-icon-picker-panel {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      padding-top: 8px;
-      border-top: 1px solid rgba(255, 255, 255, 0.12);
-      width: 100%;
-      max-width: 650px;
-      box-sizing: border-box;
-    }
-
-    .icon-category-tabs {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      overflow-x: auto;
-      scrollbar-width: none;
-      padding-bottom: 2px;
-      max-width: 100%;
-    }
-
-    .icon-category-tabs::-webkit-scrollbar {
-      display: none;
-    }
-
-    .icon-category-tab {
-      background: rgba(30, 41, 59, 0.7);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      color: #94a3b8;
-      border-radius: 6px;
-      padding: 3px 8px;
-      font-size: 0.75rem;
-      font-weight: 600;
-      cursor: pointer;
-      white-space: nowrap;
-      transition: all 0.15s ease;
-    }
-
-    .icon-category-tab:hover {
-      background: rgba(56, 189, 248, 0.15);
-      color: #f1f5f9;
-      border-color: #38bdf8;
-    }
-
-    .icon-category-tab.active {
-      background: #0284c7;
-      color: #ffffff;
-      border-color: #38bdf8;
-    }
-
-    .icon-grid {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-      max-height: 140px;
-      overflow-y: auto;
-      padding: 2px;
-      scrollbar-width: thin;
-    }
-
-    .icon-item-btn {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      background: rgba(30, 41, 59, 0.85);
-      border: 1px solid rgba(255, 255, 255, 0.12);
-      border-radius: 8px;
-      padding: 4px 8px;
-      color: #e2e8f0;
-      font-size: 0.78rem;
-      font-weight: 500;
-      cursor: pointer;
-      transition: all 0.15s ease;
-      white-space: nowrap;
-    }
-
-    .icon-item-btn:hover {
-      background: rgba(56, 189, 248, 0.2);
-      border-color: #38bdf8;
-      color: #ffffff;
-      transform: translateY(-1px);
-    }
-
-    .icon-item-btn.active {
-      background: rgba(6, 182, 212, 0.3);
-      border-color: #06b6d4;
-      color: #ffffff;
-      box-shadow: 0 0 10px rgba(6, 182, 212, 0.4);
-      font-weight: 700;
-    }
-
-    .icon-item-emoji {
-      font-size: 1.15rem;
-      line-height: 1;
-    }
-
-    /* Menus déroulants barre supérieure */
-    .dropdown-menu-wrapper {
-      position: relative;
-      display: inline-block;
-      z-index: 100;
-    }
-
-    .btn-dropdown-trigger {
-      background: rgba(15, 23, 42, 0.7);
-      color: #f1f5f9;
-      border: 1px solid rgba(255, 255, 255, 0.15);
-      border-radius: 8px;
-      padding: 6px 12px;
-      font-size: 0.85rem;
-      font-weight: 600;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      transition: all 0.2s ease;
-      user-select: none;
-      white-space: nowrap;
-    }
-
-    .btn-dropdown-trigger:hover, .btn-dropdown-trigger.active {
-      background: rgba(56, 189, 248, 0.2);
-      border-color: #38bdf8;
-      color: #ffffff;
-      box-shadow: 0 0 12px rgba(56, 189, 248, 0.35);
-    }
-
-    .btn-dropdown-trigger .chevron {
-      font-size: 0.75rem;
-      transition: transform 0.2s ease;
-      color: #94a3b8;
-    }
-
-    .btn-dropdown-trigger.active .chevron {
-      transform: rotate(180deg);
-      color: #38bdf8;
-    }
-
-    .dropdown-menu-popup {
-      position: absolute;
-      top: calc(100% + 8px);
-      left: 0;
-      background: rgba(15, 23, 42, 0.98);
-      backdrop-filter: blur(16px);
-      border: 1.5px solid rgba(56, 189, 248, 0.35);
-      border-radius: 12px;
-      padding: 6px;
-      min-width: 220px;
-      box-shadow: 0 12px 36px rgba(0, 0, 0, 0.65), 0 0 18px rgba(56, 189, 248, 0.25);
-      z-index: 1000;
-      display: flex;
-      flex-direction: column;
-      gap: 3px;
-      animation: popDropdown 0.15s ease-out;
-    }
-
-    @keyframes popDropdown {
-      from { opacity: 0; transform: translateY(-6px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-
-    .dropdown-item {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      padding: 8px 12px;
-      border-radius: 8px;
-      background: transparent;
-      border: none;
-      color: #e2e8f0;
-      font-size: 0.85rem;
-      font-weight: 500;
-      cursor: pointer;
-      text-align: left;
-      width: 100%;
-      box-sizing: border-box;
-      transition: all 0.15s ease;
-      white-space: nowrap;
-    }
-
-    .dropdown-item:hover {
-      background: rgba(56, 189, 248, 0.15);
-      color: #38bdf8;
-    }
-
-    .dropdown-item.active {
-      background: rgba(56, 189, 248, 0.25);
-      color: #38bdf8;
-      font-weight: 700;
-    }
-
-    .dropdown-divider {
-      height: 1px;
-      background: rgba(255, 255, 255, 0.1);
-      margin: 4px 6px;
-    }
-
-    .dropdown-item-check {
-      margin-left: auto;
-      font-size: 0.85rem;
-      color: #38bdf8;
-      font-weight: 700;
-    }
-
-    .canvas-area {
-      flex: 1;
-      min-width: 0;
-      height: 100%;
-      position: relative;
-      overflow: hidden;
-    }
-
-    .level-selector {
-      display: flex;
-      background: rgba(15, 23, 42, 0.7);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      border-radius: 8px;
-      overflow: hidden;
-    }
-
-    .level-btn {
-      padding: 5px 12px;
-      font-size: 0.8rem;
-      background: transparent;
-      color: #94a3b8;
-      border: none;
-      cursor: pointer;
-      transition: all 0.2s ease;
-    }
-
-    .level-btn.active {
-      background: rgba(56, 189, 248, 0.2);
-      color: #38bdf8;
-      font-weight: 600;
-    }
-
-    .scale-indicator {
-      font-size: 0.8rem;
-      color: #38bdf8;
-      font-family: ui-monospace, SFMono-Regular, monospace;
-      padding: 2px 6px;
-    }
-
-    .toast-notification {
-      position: absolute;
-      top: 20px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: rgba(15, 23, 42, 0.95);
-      backdrop-filter: blur(12px);
-      border: 1px solid #38bdf8;
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), 0 0 15px rgba(56, 189, 248, 0.35);
-      border-radius: 12px;
-      padding: 10px 22px;
-      font-size: 0.88rem;
-      font-weight: 600;
-      color: #f8fafc;
-      z-index: 80;
-      animation: popToast 0.25s ease-out;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      pointer-events: none;
-    }
-
-    @keyframes popToast {
-      from { transform: translate(-50%, -12px); opacity: 0; }
-      to { transform: translate(-50%, 0); opacity: 1; }
-    }
-
-    /* Modales Nouveau Plan & Reset */
-    .modal-backdrop {
-      position: fixed;
-      inset: 0;
-      background: rgba(15, 23, 42, 0.85);
-      backdrop-filter: blur(12px);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 120;
-      animation: modalFadeIn 0.2s ease-out;
-    }
-
-    @keyframes modalFadeIn {
-      from { opacity: 0; transform: scale(0.98); }
-      to { opacity: 1; transform: scale(1); }
-    }
-
-    .modal-dialog {
-      background: #1e293b;
-      border: 1px solid rgba(56, 189, 248, 0.35);
-      border-radius: 16px;
-      width: 520px;
-      max-width: 92vw;
-      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.75), 0 0 30px rgba(56, 189, 248, 0.2);
-      overflow: hidden;
-      display: flex;
-      flex-direction: column;
-    }
-
-    .modal-dialog.danger {
-      border-color: rgba(239, 68, 68, 0.4);
-      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.75), 0 0 30px rgba(239, 68, 68, 0.2);
-    }
-
-    .modal-dialog-header {
-      padding: 16px 20px;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      background: rgba(15, 23, 42, 0.6);
-    }
-
-    .modal-dialog-header.danger {
-      background: rgba(239, 68, 68, 0.08);
-      border-bottom-color: rgba(239, 68, 68, 0.2);
-    }
-
-    .modal-dialog-title-group {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-
-    .modal-dialog-icon {
-      font-size: 1.5rem;
-    }
-
-    .modal-dialog-title {
-      font-size: 1.15rem;
-      font-weight: 700;
-      color: #f1f5f9;
-      margin: 0;
-    }
-
-    .modal-dialog-subtitle {
-      font-size: 0.8rem;
-      color: #94a3b8;
-      margin: 2px 0 0 0;
-    }
-
-    .btn-dialog-close {
-      background: transparent;
-      border: none;
-      color: #94a3b8;
-      font-size: 1.2rem;
-      cursor: pointer;
-      padding: 4px;
-      border-radius: 6px;
-      transition: all 0.15s ease;
-    }
-
-    .btn-dialog-close:hover {
-      color: #ffffff;
-      background: rgba(255, 255, 255, 0.1);
-    }
-
-    .modal-dialog-body {
-      padding: 20px;
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-    }
-
-    .dialog-form-group {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-
-    .dialog-label {
-      font-size: 0.84rem;
-      font-weight: 600;
-      color: #cbd5e1;
-    }
-
-    .dialog-input {
-      background: rgba(15, 23, 42, 0.8);
-      border: 1px solid rgba(255, 255, 255, 0.15);
-      border-radius: 8px;
-      padding: 10px 14px;
-      font-size: 0.92rem;
-      color: #f8fafc;
-      outline: none;
-      transition: border-color 0.2s ease;
-    }
-
-    .dialog-input:focus {
-      border-color: #38bdf8;
-      box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.2);
-    }
-
-    .category-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
-      gap: 8px;
-    }
-
-    .category-btn {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 4px;
-      padding: 8px 6px;
-      background: rgba(15, 23, 42, 0.6);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      border-radius: 8px;
-      color: #94a3b8;
-      cursor: pointer;
-      transition: all 0.15s ease;
-      font-size: 0.8rem;
-    }
-
-    .category-btn:hover {
-      background: rgba(51, 65, 85, 0.5);
-      color: #f1f5f9;
-    }
-
-    .category-btn.active {
-      background: rgba(56, 189, 248, 0.2);
-      border-color: #38bdf8;
-      color: #38bdf8;
-      font-weight: 600;
-    }
-
-    .reset-summary-box {
-      background: rgba(15, 23, 42, 0.7);
-      border: 1px solid rgba(239, 68, 68, 0.2);
-      border-radius: 10px;
-      padding: 12px 16px;
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 8px;
-      font-size: 0.85rem;
-      color: #e2e8f0;
-    }
-
-    .modal-dialog-footer {
-      padding: 14px 20px;
-      border-top: 1px solid rgba(255, 255, 255, 0.1);
-      display: flex;
-      align-items: center;
-      justify-content: flex-end;
-      gap: 10px;
-      background: rgba(15, 23, 42, 0.4);
-    }
-
-    .btn-dialog-cancel {
-      padding: 8px 16px;
-      background: transparent;
-      border: 1px solid rgba(255, 255, 255, 0.15);
-      border-radius: 8px;
-      color: #cbd5e1;
-      font-size: 0.88rem;
-      cursor: pointer;
-      transition: all 0.15s ease;
-    }
-
-    .btn-dialog-cancel:hover {
-      background: rgba(255, 255, 255, 0.08);
-      color: #ffffff;
-    }
-
-    .btn-dialog-confirm {
-      padding: 8px 18px;
-      border: none;
-      border-radius: 8px;
-      font-size: 0.88rem;
-      font-weight: 600;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      transition: all 0.15s ease;
-    }
-
-    .btn-dialog-confirm.primary {
-      background: #0284c7;
-      color: #ffffff;
-      box-shadow: 0 4px 12px rgba(2, 132, 199, 0.35);
-    }
-
-    .btn-dialog-confirm.primary:hover {
-      background: #0369a1;
-    }
-
-    .btn-dialog-confirm.danger {
-      background: #ef4444;
-      color: #ffffff;
-      box-shadow: 0 4px 12px rgba(239, 68, 68, 0.35);
-    }
-
-    .btn-dialog-confirm.danger:hover {
-      background: #dc2626;
-    }
-
-    .dropdown-item.danger:hover {
-      background: rgba(239, 68, 68, 0.15);
-      color: #f87171;
-    }
-  `, persistenceStyles, studioLayoutStyles];
+  /** Jetons de thème d'abord (uiThemeStyles), puis styles du studio qui n'utilisent que ces jetons (constats F56, F169). */
+  static styles = [uiThemeStyles, panelBaseStyles, persistenceStyles, studioLayoutStyles];
 
   @property({ type: Object })
   public hass: any;
@@ -1432,8 +254,9 @@ export class HomeArchitectPanel extends LitElement {
   @state()
   private isNewPlanModalOpen: boolean = false;
 
+  /** Nom saisi dans le dialogue « Nouveau plan » (prérempli à l'ouverture). */
   @state()
-  private newPlanName: string = 'Nouveau Plan';
+  private newPlanName: string = '';
 
   @state()
   private newPlanCategory: string = DEFAULT_LEVEL;
@@ -1470,7 +293,10 @@ export class HomeArchitectPanel extends LitElement {
   };
 
   @state()
-  private activeDropdown: 'file' | 'plan' | 'level' | null = null;
+  private activeDropdown: DropdownName | null = null;
+
+  /** Élément du menu qui recevra le focus une fois le menu ouvert rendu (navigation clavier, constat F159). */
+  private pendingMenuFocus: 'first' | 'last' | 'checked' | null = null;
 
   @state()
   private selectedTypologyTab: string = '';
@@ -1496,6 +322,8 @@ export class HomeArchitectPanel extends LitElement {
   private drawerPreference: boolean | null = null;
   /** requestUpdate() appelé sans propriété depuis le dernier rendu (voir shouldUpdate). */
   private explicitUpdateRequested = false;
+  /** hass.themes.darkMode appliqué à l'attribut `scheme` (palette claire ou sombre). */
+  private appliedDarkMode: unknown = undefined;
 
   private readonly onDocumentKeyDown = (e: KeyboardEvent) => this.handleKeyDown(e);
   private readonly onDocumentPaste = (e: ClipboardEvent) => this.handlePaste(e);
@@ -1508,6 +336,12 @@ export class HomeArchitectPanel extends LitElement {
   private readonly onHostPointerDown = () => {
     if (!this.matches(':focus-within')) this.focus({ preventScroll: true });
   };
+
+  /** Re-rendu du panneau au changement de langue (traductions de l'espace `panel`, constat F110). */
+  private readonly i18n = new LocalizeController(this);
+
+  /** Focus des dialogues du panneau : initial, piégé, rendu à l'élément déclencheur (constat F159). */
+  private readonly modalFocus = new ModalFocusController(this);
 
   /**
    * Persistance (src/panel/persistence-controller.ts) : plans ouverts indexés par id, chargement,
@@ -1603,7 +437,7 @@ export class HomeArchitectPanel extends LitElement {
         return op;
       });
       if (newOpenings && this.commitProject({ ...this.project, openings: newOpenings })) {
-        this.showToast(`🚪 ${updated} porte(s) mise(s) à jour`);
+        this.showToast(localizeCount('panel.toast.doors_updated', updated));
       }
     }
   }
@@ -1637,12 +471,14 @@ export class HomeArchitectPanel extends LitElement {
     );
     const committed = !!reshape.openings && this.commitProject({ ...this.project, openings: reshape.openings });
     const notes: string[] = [];
-    if (reshape.adjusted > 0) notes.push(`${reshape.adjusted} réduite(s) pour tenir dans le mur`);
-    if (reshape.refused > 0) notes.push(`${reshape.refused} inchangée(s) : mur trop court ou ouverture voisine`);
+    if (reshape.adjusted > 0) notes.push(localizeCount('panel.toast.windows_adjusted', reshape.adjusted));
+    if (reshape.refused > 0) notes.push(localizeCount('panel.toast.windows_refused', reshape.refused));
     if (committed) {
-      this.showToast(`🪟 ${reshape.updated} fenêtre(s) mise(s) à jour${notes.length ? ` (${notes.join(', ')})` : ''}`);
+      this.showToast(localizeCount('panel.toast.windows_updated', reshape.updated, {
+        notes: notes.length ? localize('panel.common.parenthesized', { text: notes.join(', ') }) : ''
+      }));
     } else if (reshape.refused > 0) {
-      this.showToast(`⚠️ Format non appliqué : ${notes.join(', ')}.`);
+      this.showToast(localize('panel.toast.window_format_refused', { notes: notes.join(', ') }));
     }
   }
 
@@ -1654,7 +490,9 @@ export class HomeArchitectPanel extends LitElement {
     if (this.selectedElements.wallIds.length > 0 && !this.readOnly) {
       const newWalls = this.wallsWithThickness(e.detail.thickness);
       if (newWalls && this.commitProject({ ...this.project, walls: newWalls })) {
-        this.showToast(`🧱 Épaisseur de ${this.selectedElements.wallIds.length} mur(s) mise à jour (${Math.round(e.detail.thickness * 100)} cm)`);
+        this.showToast(localizeCount('panel.toast.walls_thickness', this.selectedElements.wallIds.length, {
+          size: formatCentimeters(e.detail.thickness)
+        }));
       }
     }
   }
@@ -1676,7 +514,7 @@ export class HomeArchitectPanel extends LitElement {
         : op
     );
     if (newOpenings && this.commitProject({ ...this.project, openings: newOpenings })) {
-      this.showToast('🚪 Sens d\'ouverture de porte mis à jour');
+      this.showToast(localize('panel.toast.door_direction'));
     }
   }
 
@@ -1690,7 +528,7 @@ export class HomeArchitectPanel extends LitElement {
     this.currentThickness = thickness;
     const newWalls = this.wallsWithThickness(thickness);
     if (newWalls && this.commitProject({ ...this.project, walls: newWalls })) {
-      this.showToast(`🧱 Épaisseur de mur mise à jour (${Math.round(thickness * 100)} cm)`);
+      this.showToast(localize('panel.toast.wall_thickness', { size: formatCentimeters(thickness) }));
     }
   }
 
@@ -1770,7 +608,7 @@ export class HomeArchitectPanel extends LitElement {
     }
     const request = parseWizardRequest(e.detail);
     if (!request) {
-      this.showToast('❌ Dimensions de pièce invalides : vérifiez la largeur, la longueur et la hauteur.');
+      this.showToast(localize('panel.toast.wizard_invalid'));
       return;
     }
     const origin = wizardRoomOrigin(this.project, request, this.viewCenter());
@@ -1785,8 +623,10 @@ export class HomeArchitectPanel extends LitElement {
     if (!committed) return;
     this.activeTool = 'select';
     const missing = (request.addDoor ? 1 : 0) + (request.addWindow ? 1 : 0) - openings.length;
-    this.showToast(`✨ Pièce « ${room.name} » créée (${room.areaM2.toLocaleString('fr-FR')} m²)` +
-      (missing > 0 ? ' : pièce trop petite pour y placer la porte ou la fenêtre.' : ''));
+    this.showToast(localize(missing > 0 ? 'panel.toast.room_created_too_small' : 'panel.toast.room_created', {
+      name: room.name,
+      area: formatArea(room.areaM2)
+    }));
     void this.fitCanvasAfterUpdate();
   }
 
@@ -1796,6 +636,8 @@ export class HomeArchitectPanel extends LitElement {
 
   connectedCallback() {
     super.connectedCallback();
+    // Langue et palette suivent HA dès l'insertion (hass peut précéder la connexion).
+    if (this.hass) this.applyHassEnvironment();
     // Hôte focalisable sans entrer dans l'ordre de tabulation : les raccourcis suivent le studio (constat F4).
     if (!this.hasAttribute('tabindex')) this.setAttribute('tabindex', '-1');
     this.addEventListener('pointerdown', this.onHostPointerDown);
@@ -1834,7 +676,11 @@ export class HomeArchitectPanel extends LitElement {
    * qui l'utilisent (canevas, volet, modales), qui ne se mettent à jour que pour ce qui les concerne.
    */
   protected shouldUpdate(changed: PropertyValues<this>): boolean {
-    if (this.hasUpdated && !this.explicitUpdateRequested && changed.size === 1 && changed.has('hass')) {
+    // Racine du studio : langue (setLanguage) et palette (attribut scheme) suivent hass (constats F56, F110).
+    // Un changement de langue ajoute LANGUAGE_CHANGED_KEY aux changements : le panneau est alors rendu.
+    if (changed.has('hass') && this.hass) this.applyHassEnvironment();
+    const languageChanged = (changed as Map<PropertyKey, unknown>).has(LANGUAGE_CHANGED_KEY);
+    if (this.hasUpdated && !this.explicitUpdateRequested && !languageChanged && changed.size === 1 && changed.has('hass')) {
       const previous = changed.get('hass');
       if (previous && this.hass && !this.hassAffectsPanel(previous, this.hass)) {
         this.propagateHass();
@@ -1855,6 +701,19 @@ export class HomeArchitectPanel extends LitElement {
   requestUpdate(...args: Parameters<LitElement['requestUpdate']>): void {
     if (args[0] === undefined) this.explicitUpdateRequested = true;
     super.requestUpdate(...args);
+  }
+
+  /**
+   * Langue de l'interface et palette claire / sombre d'après hass (le studio est une racine, comme la
+   * carte). La palette n'est reposée que si hass.themes.darkMode change (hass change à chaque état).
+   */
+  private applyHassEnvironment() {
+    setLanguage(this.hass.locale?.language ?? this.hass.language);
+    const darkMode: unknown = this.hass.themes?.darkMode;
+    if (darkMode !== this.appliedDarkMode || !this.hasAttribute('scheme')) {
+      this.appliedDarkMode = darkMode;
+      applyColorScheme(this, this.hass);
+    }
   }
 
   /** Changements de hass visibles dans le panneau lui-même (droits, barre latérale, langue, entité affichée dans le HUD). */
@@ -1895,6 +754,12 @@ export class HomeArchitectPanel extends LitElement {
   updated(changedProps: PropertyValues<this>) {
     super.updated(changedProps);
     if (changedProps.has('hass') && this.hass) this.handleHassChange();
+    // Menu ouvert : focus sur l'élément demandé (premier, dernier, ou plan affiché du sélecteur de niveau).
+    if (this.pendingMenuFocus && this.activeDropdown) {
+      const menu = this.renderRoot.querySelector<HTMLElement>(`#menu-${this.activeDropdown}`);
+      if (menu) focusMenuItem(menu, this.pendingMenuFocus);
+      this.pendingMenuFocus = null;
+    }
   }
 
   /** Plein écran natif quitté (Échap du navigateur, geste système) : état et classe synchronisés. */
@@ -1907,7 +772,7 @@ export class HomeArchitectPanel extends LitElement {
   private closeDropdownOnOutsideClick(e: MouseEvent) {
     if (!this.activeDropdown) return;
     const inside = e.composedPath().some(el => el instanceof HTMLElement && el.classList.contains('dropdown-menu-wrapper'));
-    if (!inside) this.activeDropdown = null;
+    if (!inside) this.closeDropdown({ restoreFocus: false });
   }
 
   // ==========================================
@@ -2005,7 +870,7 @@ export class HomeArchitectPanel extends LitElement {
   private openAbout(e: Event) {
     // Le badge de version fait partie du logo : ce clic ne compte pas pour l'easter egg.
     e.stopPropagation();
-    this.activeDropdown = null;
+    this.closeDropdown({ restoreFocus: false });
     this.isAboutOpen = true;
   }
 
@@ -2040,7 +905,6 @@ export class HomeArchitectPanel extends LitElement {
 
   /** Ouvre la modale d'import, éventuellement avec un fichier ou un code SVG venus d'ailleurs (dépôt, collage). */
   private openImportModal(initial: { file?: Blob; svg?: string } = {}) {
-    this.activeDropdown = null;
     if (this.readOnly) {
       this.notifyReadOnly();
       return;
@@ -2071,7 +935,7 @@ export class HomeArchitectPanel extends LitElement {
       }
     }
     if (blob) this.openImportModal({ file: blob });
-    else this.showToast('❌ Image illisible.');
+    else this.showToast(localize('panel.toast.image_unreadable'));
   }
 
   /** L'événement concerne le studio : il vient de son contenu, ou de la page sans focus particulier (studio affiché). */
@@ -2103,7 +967,7 @@ export class HomeArchitectPanel extends LitElement {
       try {
         this.openImportModal({ file: dataUrlToBlob(text) });
       } catch {
-        this.showToast('❌ Image collée illisible.');
+        this.showToast(localize('panel.toast.pasted_image_unreadable'));
       }
     } else if (/\.(png|jpe?g|gif|svg|webp)(\?.*)?$/i.test(text)) {
       e.preventDefault();
@@ -2123,7 +987,7 @@ export class HomeArchitectPanel extends LitElement {
     if (!background || this.project.id !== projectId) return;
     if (this.commitProject({ ...this.project, background })) {
       this.activeTool = 'calibrate';
-      this.showToast('📋 Image chargée depuis l\'URL collée ! Tracez un segment sur un mur mesuré pour étalonner l\'échelle (📏).');
+      this.showToast(localize('panel.toast.pasted_url_loaded'));
     }
   }
 
@@ -2134,7 +998,7 @@ export class HomeArchitectPanel extends LitElement {
    */
   private externalBackground(url: string): Promise<BackgroundPlan | null> {
     if (url.length > MAX_EXTERNAL_IMAGE_URL_LENGTH || !EXTERNAL_IMAGE_URL.test(url)) {
-      this.showToast('❌ Adresse d\'image non prise en charge : utilisez une URL http(s) ou importez le fichier.');
+      this.showToast(localize('panel.toast.image_url_unsupported'));
       return Promise.resolve(null);
     }
     return new Promise(resolve => {
@@ -2150,7 +1014,7 @@ export class HomeArchitectPanel extends LitElement {
         heightPx: img.naturalHeight
       });
       img.onerror = () => {
-        this.showToast('❌ Erreur lors du chargement de l\'image.');
+        this.showToast(localize('panel.toast.image_load_error'));
         resolve(null);
       };
       img.src = url;
@@ -2162,7 +1026,7 @@ export class HomeArchitectPanel extends LitElement {
     const imported = detail.background;
     if (!imported) return Promise.resolve(null);
     const opacity = Number.isFinite(detail.opacity) ? detail.opacity : defaultOpacity;
-    return this.persistence.withBusy('Téléversement de l\'image de fond…', () =>
+    return this.persistence.withBusy(localize('panel.persist.uploading_background'), () =>
       this.persistence.uploadImportedBackground(projectId, imported, opacity)
     );
   }
@@ -2195,10 +1059,10 @@ export class HomeArchitectPanel extends LitElement {
 
     if (metersPerPixel !== null) {
       this.activeTool = 'wall';
-      this.showToast('✅ Plan importé et mis à l\'échelle ! Vous pouvez tracer vos murs (🧱).');
+      this.showToast(localize('panel.toast.import_scaled'));
     } else {
       this.activeTool = 'calibrate';
-      this.showToast('📏 Plan importé ! Tracez un segment sur un mur mesuré pour étalonner l\'échelle.');
+      this.showToast(localize('panel.toast.import_calibrate'));
     }
     void this.fitCanvasAfterUpdate();
   }
@@ -2213,7 +1077,7 @@ export class HomeArchitectPanel extends LitElement {
     const geometry = cleanImportedGeometry(interpretation, effectiveCeilingHeight(this.project));
     const wantsBackground = !!detail.background && detail.keepSvgBackground !== false;
     if (geometry.walls.length + geometry.rooms.length === 0 && !wantsBackground) {
-      this.showToast('ℹ️ Aucun mur ni aucune pièce à importer.');
+      this.showToast(localize('panel.toast.import_empty'));
       return;
     }
 
@@ -2225,7 +1089,7 @@ export class HomeArchitectPanel extends LitElement {
     }
     if (mode === 'new') {
       const category = detail.targetLevel || this.project.category || DEFAULT_LEVEL;
-      if (!(await this.persistence.createPlan('Plan importé', category, { confirmed: true }))) return;
+      if (!(await this.persistence.createPlan(localize('panel.import.new_plan_name'), category, { confirmed: true }))) return;
     }
 
     const projectId = this.project.id;
@@ -2263,12 +1127,15 @@ export class HomeArchitectPanel extends LitElement {
 
     this.activeTool = 'select';
     const stats = geometryStats(placed);
-    const plural = (n: number, word: string) => `${n} ${word}${n > 1 ? 's' : ''}`;
-    let message = `✨ Plan SVG converti : ${plural(stats.walls, 'mur')}, ${plural(stats.doors, 'porte')}, ` +
-      `${plural(stats.windows, 'fenêtre')} et ${plural(stats.rooms, 'pièce')} ${mode === 'add' ? 'ajoutés à côté du plan' : 'importés'}.`;
-    if (wantsBackground && keepCurrentBackground) message += ' Le calque du SVG n\'a pas été repris : le plan a déjà une image de fond.';
-    else if (wantsBackground && !uploaded) message += ' Calque de fond non importé.';
-    this.showToast(message);
+    const parts = [localize(mode === 'add' ? 'panel.toast.svg_converted_added' : 'panel.toast.svg_converted', {
+      walls: localizeCount('panel.count.walls', stats.walls),
+      doors: localizeCount('panel.count.doors', stats.doors),
+      windows: localizeCount('panel.count.windows', stats.windows),
+      rooms: localizeCount('panel.count.rooms', stats.rooms)
+    })];
+    if (wantsBackground && keepCurrentBackground) parts.push(localize('panel.toast.svg_layer_kept_existing'));
+    else if (wantsBackground && !uploaded) parts.push(localize('panel.toast.svg_layer_not_imported'));
+    this.showToast(parts.join(' '));
     void this.fitCanvasAfterUpdate();
   }
 
@@ -2278,20 +1145,25 @@ export class HomeArchitectPanel extends LitElement {
     const level = getLevelLabel(targetLevel || this.project.category);
     const choice = await this.persistence.ask({
       icon: '📐',
-      title: 'Le plan contient déjà des éléments',
-      subtitle: `« ${this.project.name} »`,
-      message: `Le SVG apporte ${stats.walls} mur(s), ${stats.doors + stats.windows} ouverture(s) et ${stats.rooms} pièce(s). ` +
-        `Le plan actuel contient ${this.project.walls.length} mur(s) et ${this.project.rooms.length} pièce(s). Que faire ?`,
+      title: localize('panel.import.ask.title'),
+      subtitle: quoted(this.project.name),
+      message: localize('panel.import.ask.message', {
+        walls: localizeCount('panel.count.walls', stats.walls),
+        openings: localizeCount('panel.count.openings', stats.doors + stats.windows),
+        rooms: localizeCount('panel.count.rooms', stats.rooms),
+        current_walls: localizeCount('panel.count.walls', this.project.walls.length),
+        current_rooms: localizeCount('panel.count.rooms', this.project.rooms.length)
+      }),
       details: [
-        'Remplacer : les murs, ouvertures et pièces actuels sont remplacés ; entités, meubles et image de fond sont conservés (l\'image est remplacée si le SVG fournit son calque).',
-        'Ajouter à côté : le dessin importé est placé à droite du plan actuel, sans rien supprimer.',
-        `Nouveau plan : le dessin est ouvert dans un nouveau plan distinct du niveau ${level}, le plan actuel reste inchangé.`,
-        'Dans tous les cas, Annuler (Ctrl+Z) reste possible.'
+        localize('panel.import.ask.detail_replace'),
+        localize('panel.import.ask.detail_add'),
+        localize('panel.import.ask.detail_new', { level }),
+        localize('panel.import.ask.detail_undo')
       ],
       actions: [
-        { id: 'new', label: 'Nouveau plan', icon: '📄', kind: 'secondary' },
-        { id: 'add', label: 'Ajouter à côté', icon: '➕', kind: 'secondary' },
-        { id: 'replace', label: 'Remplacer', icon: '♻️', kind: 'danger' }
+        { id: 'new', label: localize('panel.import.ask.new'), icon: '📄', kind: 'secondary' },
+        { id: 'add', label: localize('panel.import.ask.add'), icon: '➕', kind: 'secondary' },
+        { id: 'replace', label: localize('panel.import.ask.replace'), icon: '♻️', kind: 'danger' }
       ],
       tone: 'warning'
     });
@@ -2337,20 +1209,20 @@ export class HomeArchitectPanel extends LitElement {
       ? detail.scaleFactor
       : this.project.pixelsPerMeter / detail.pixelsPerMeter;
     if (!isValidRescaleFactor(k)) {
-      this.showToast('❌ Étalonnage refusé : facteur d\'échelle hors limites (×0,01 à ×100).');
+      this.showToast(localize('panel.toast.calibration_refused', this.scaleLimits()));
       return;
     }
     if (Math.abs(k - 1) >= 1e-4) {
       if (detail.mode === 'project') {
-        if (!this.applyScale(k, true, 'Plan étalonné')) return;
+        if (!this.applyScale(k, true, localize('panel.scale.calibrated'))) return;
       } else {
         const bg = this.project.background;
         if (!bg) {
-          this.showToast('ℹ️ Aucun calque de fond à étalonner.');
+          this.showToast(localize('panel.toast.no_background_to_calibrate'));
           return;
         }
         if (!this.commitProject({ ...this.project, background: scaleBackgroundLayer(bg, k) })) return;
-        this.showToast(`📏 Calque de fond étalonné (×${k.toFixed(3)}) : le dessin existant n'est pas modifié.`);
+        this.showToast(localize('panel.toast.background_calibrated', { factor: formatScaleFactor(k) }));
       }
     }
     this.activeTool = 'wall';
@@ -2368,11 +1240,16 @@ export class HomeArchitectPanel extends LitElement {
     this.isRescaleModalOpen = false;
     // Revalidé avant toute modification : facteur fini et borné (constat F141).
     if (!isValidRescaleFactor(scaleFactor)) {
-      this.showToast('❌ Mise à l\'échelle refusée : facteur hors limites (×0,01 à ×100).');
+      this.showToast(localize('panel.toast.rescale_refused', this.scaleLimits()));
       return;
     }
     if (Math.abs(scaleFactor - 1) < 1e-4) return;
-    if (this.applyScale(scaleFactor, adjustBackground === true, 'Plan mis à l\'échelle')) this.activeTool = 'select';
+    if (this.applyScale(scaleFactor, adjustBackground === true, localize('panel.scale.rescaled'))) this.activeTool = 'select';
+  }
+
+  /** Bornes du facteur d'échelle, formatées pour les messages de refus. */
+  private scaleLimits(): { min: string; max: string } {
+    return { min: formatNumber(SCALE_FACTOR_LIMITS.min), max: formatNumber(SCALE_FACTOR_LIMITS.max) };
   }
 
   /**
@@ -2382,11 +1259,15 @@ export class HomeArchitectPanel extends LitElement {
   private applyScale(k: number, adjustBackground: boolean, label: string): boolean {
     const { project, openingConflicts } = scalePlan(this.project, k, { adjustBackground });
     if (!this.commitProject(project)) return false;
-    const conflicts = openingConflicts > 0
-      ? ` ⚠️ ${openingConflicts} ouverture(s) à vérifier (mur trop court ou chevauchement).`
-      : '';
-    this.showToast(`✅ ${label} (×${k.toFixed(3)}) : ${project.walls.length} murs et ${project.rooms.length} pièces recalculés ; ` +
-      `épaisseurs, ouvertures et meubles gardent leurs dimensions.${conflicts}`);
+    const message = localize('panel.toast.scaled', {
+      label,
+      factor: formatScaleFactor(k),
+      walls: localizeCount('panel.count.walls', project.walls.length),
+      rooms: localizeCount('panel.count.rooms', project.rooms.length)
+    });
+    this.showToast(openingConflicts > 0
+      ? `${message} ${localizeCount('panel.toast.scale_conflicts', openingConflicts)}`
+      : message);
     void this.fitCanvasAfterUpdate();
     return true;
   }
@@ -2410,26 +1291,25 @@ export class HomeArchitectPanel extends LitElement {
     const previous = effectiveCeilingHeight(this.project);
     if (!Number.isFinite(val) || val <= 0 || Math.abs(val - previous) < 1e-6) return;
     if (!this.commitProject({ ...this.project, defaultCeilingHeight: val })) return;
-    this.showToast(`📐 Hauteur plafond 3D par défaut : ${val.toFixed(2)} m`);
+    this.showToast(localize('panel.toast.default_ceiling', { height: formatMeters(val) }));
     // Pièces ET murs : les murs de l'ancien assistant portent la hauteur de leur pièce (3D cohérente).
     const count = countWithHeight(this.project, previous);
     if (count.rooms + count.walls === 0) return;
-    const parts = [
-      ...(count.rooms > 0 ? [`${count.rooms} pièce(s)`] : []),
-      ...(count.walls > 0 ? [`${count.walls} mur(s)`] : [])
-    ].join(' et ');
+    const items = joinPair([
+      ...(count.rooms > 0 ? [localizeCount('panel.count.rooms', count.rooms)] : []),
+      ...(count.walls > 0 ? [localizeCount('panel.count.walls', count.walls)] : [])
+    ]);
     const choice = await this.persistence.ask({
       icon: '📐',
-      title: 'Appliquer la nouvelle hauteur ?',
-      message: `${parts} ont une hauteur de ${previous.toFixed(2)} m, l'ancienne valeur par défaut. ` +
-        `Doivent-ils suivre la nouvelle hauteur par défaut (${val.toFixed(2)} m) ?`,
-      details: ['Les pièces et murs dont la hauteur a été réglée sur une autre valeur ne changent pas.'],
-      actions: [{ id: 'apply', label: 'Appliquer', icon: '✅', kind: 'primary' }],
-      cancelLabel: 'Conserver leur hauteur'
+      title: localize('panel.ceiling.ask.title'),
+      message: localize('panel.ceiling.ask.message', { items, previous: formatMeters(previous), next: formatMeters(val) }),
+      details: [localize('panel.ceiling.ask.detail')],
+      actions: [{ id: 'apply', label: localize('panel.common.apply'), icon: '✅', kind: 'primary' }],
+      cancelLabel: localize('panel.ceiling.ask.keep')
     });
     if (choice !== 'apply') return;
     const next = inheritDefaultHeight(this.project, previous);
-    if (next !== this.project && this.commitProject(next)) this.showToast(`📐 ${parts} suivent la hauteur par défaut.`);
+    if (next !== this.project && this.commitProject(next)) this.showToast(localize('panel.toast.ceiling_inherited', { items }));
   }
 
   /** Modale pièce : nom, couleur, hauteur (propre ou héritée du projet, constat F150) et zone HA. */
@@ -2448,7 +1328,7 @@ export class HomeArchitectPanel extends LitElement {
       return unchanged ? r : next;
     });
     if (updatedRooms && this.commitProject({ ...this.project, rooms: updatedRooms })) {
-      this.showToast(`✨ Pièce "${detail.name}" mise à jour (H: ${detail.height.toFixed(2)} m) !`);
+      this.showToast(localize('panel.toast.room_updated', { name: detail.name, height: formatMeters(detail.height) }));
     }
   }
 
@@ -2461,19 +1341,19 @@ export class HomeArchitectPanel extends LitElement {
     if (this.selectedElements.roomIds.includes(roomId)) {
       this.selectedElements = { ...this.selectedElements, roomIds: this.selectedElements.roomIds.filter(id => id !== roomId) };
     }
-    this.showToast('🗑️ Pièce supprimée');
+    this.showToast(localize('panel.toast.room_deleted'));
   }
 
   private handleUndo() {
     if (!this.persistence.undo()) return;
     this.clearSelection();
-    this.showToast('↩️ Action annulée');
+    this.showToast(localize('panel.toast.undone'));
   }
 
   private handleRedo() {
     if (!this.persistence.redo()) return;
     this.clearSelection();
-    this.showToast('↪️ Action rétablie');
+    this.showToast(localize('panel.toast.redone'));
   }
 
   /**
@@ -2494,7 +1374,7 @@ export class HomeArchitectPanel extends LitElement {
       furnIds.includes(f.id) ? { ...f, rotation: (((f.rotation || 0) % 360) + 450) % 360 } : f
     );
     if (furniture && this.commitProject({ ...this.project, furniture })) {
-      this.showToast('🔄 Meuble pivoté de 90°');
+      this.showToast(localize('panel.toast.furniture_rotated'));
     }
   }
 
@@ -2550,18 +1430,62 @@ export class HomeArchitectPanel extends LitElement {
     if (!committed) return;
 
     this.clearSelection();
-    this.showToast(`🗑️ ${total} élément${total > 1 ? 's' : ''} supprimé${total > 1 ? 's' : ''} !`);
+    this.showToast(localizeCount('panel.toast.elements_deleted', total));
   }
 
   private clearSelection() {
     this.selectedElements = { wallIds: [], openingIds: [], roomIds: [], bindingIds: [], furnitureIds: [] };
   }
 
-  private toggleDropdown(name: 'file' | 'plan' | 'level', e?: Event) {
-    if (e) e.stopPropagation();
-    this.activeDropdown = this.activeDropdown === name ? null : name;
+  /**
+   * Ouvre ou ferme un menu de la barre supérieure. À l'ouverture, le focus passe dans le menu
+   * (premier élément, dernier avec Flèche haut, plan affiché pour le sélecteur de niveau).
+   */
+  private toggleDropdown(name: DropdownName, e?: Event, focus: 'first' | 'last' = 'first') {
+    e?.stopPropagation();
+    if (this.activeDropdown === name) {
+      this.closeDropdown({ restoreFocus: false });
+      return;
+    }
+    this.activeDropdown = name;
+    this.pendingMenuFocus = name === 'level' && focus === 'first' ? 'checked' : focus;
     // Liste des plans à jour (autres appareils) à chaque ouverture du sélecteur de niveau.
-    if (this.activeDropdown === 'level') void this.persistence.refreshSummaries();
+    if (name === 'level') void this.persistence.refreshSummaries();
+  }
+
+  /** Ferme le menu ouvert ; `restoreFocus` rend le focus à son bouton (Échap, Tab, élément activé). */
+  private closeDropdown(opts: { restoreFocus: boolean }) {
+    const name = this.activeDropdown;
+    if (!name) return;
+    if (opts.restoreFocus) this.renderRoot.querySelector<HTMLElement>(`#menu-${name}-trigger`)?.focus();
+    this.activeDropdown = null;
+    this.pendingMenuFocus = null;
+  }
+
+  /** Action d'un élément de menu : le menu se ferme et rend le focus à son bouton, puis l'action s'exécute. */
+  private menuAction(action: () => void) {
+    return () => {
+      this.closeDropdown({ restoreFocus: true });
+      action();
+    };
+  }
+
+  /** Bouton d'un menu : Flèche bas / haut ouvre le menu sur son premier / dernier élément. */
+  private handleTriggerKeydown(e: KeyboardEvent, name: DropdownName) {
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+    e.preventDefault();
+    const focus = e.key === 'ArrowUp' ? 'last' : 'first';
+    if (this.activeDropdown !== name) {
+      this.toggleDropdown(name, undefined, focus);
+      return;
+    }
+    const menu = this.renderRoot.querySelector<HTMLElement>(`#menu-${name}`);
+    if (menu) focusMenuItem(menu, focus);
+  }
+
+  private handleMenuKeydown(e: KeyboardEvent) {
+    const menu = e.currentTarget as HTMLElement;
+    handleMenuKeydown(e, menu, opts => this.closeDropdown(opts));
   }
 
   private getActiveTypology(): string {
@@ -2586,29 +1510,28 @@ export class HomeArchitectPanel extends LitElement {
       b.id === bindingId && (b.icon !== icon || b.mdiIcon !== mdi) ? { ...b, icon, mdiIcon: mdi } : b
     );
     if (newBindings && this.commitProject({ ...this.project, bindings: newBindings })) {
-      this.showToast(`✨ Icône ${icon} appliquée !`);
+      this.showToast(localize('panel.toast.icon_applied', { icon }));
     }
   }
 
   /** Résumé du HUD : éléments existants seulement ; nom live des entités et nom actuel des meubles (constat F172). */
   private getSelectedSummary(selection: SelectedElements): string {
-    const plural = (n: number, one: string, many: string) => `${n} ${n > 1 ? many : one}`;
     const parts: string[] = [];
-    if (selection.wallIds.length > 0) parts.push(plural(selection.wallIds.length, 'mur', 'murs'));
-    if (selection.openingIds.length > 0) parts.push(plural(selection.openingIds.length, 'ouvrant', 'ouvrants'));
-    if (selection.roomIds.length > 0) parts.push(plural(selection.roomIds.length, 'pièce', 'pièces'));
+    if (selection.wallIds.length > 0) parts.push(localizeCount('panel.count.walls', selection.wallIds.length));
+    if (selection.openingIds.length > 0) parts.push(localizeCount('panel.count.sashes', selection.openingIds.length));
+    if (selection.roomIds.length > 0) parts.push(localizeCount('panel.count.rooms', selection.roomIds.length));
     if (selection.bindingIds.length === 1) {
       const b = this.project.bindings.find(item => item.id === selection.bindingIds[0]);
-      parts.push(b ? bindingDisplayName(b, this.hass?.states) : '1 entité');
+      parts.push(b ? bindingDisplayName(b, this.hass?.states) : localizeCount('panel.count.entities', 1));
     } else if (selection.bindingIds.length > 1) {
-      parts.push(`${selection.bindingIds.length} entités`);
+      parts.push(localizeCount('panel.count.entities', selection.bindingIds.length));
     }
     const furnitureIds = selection.furnitureIds ?? [];
     if (furnitureIds.length === 1) {
       const item = (this.project.furniture ?? []).find(f => f.id === furnitureIds[0]);
-      parts.push(item ? furnitureDisplayName(item) : '1 meuble');
+      parts.push(item ? furnitureDisplayName(item) : localizeCount('panel.count.furniture', 1));
     } else if (furnitureIds.length > 1) {
-      parts.push(`${furnitureIds.length} meubles`);
+      parts.push(localizeCount('panel.count.furniture', furnitureIds.length));
     }
     return parts.join(', ');
   }
@@ -2697,7 +1620,7 @@ export class HomeArchitectPanel extends LitElement {
     }
     if (this.activeDropdown) {
       e.preventDefault();
-      this.activeDropdown = null;
+      this.closeDropdown({ restoreFocus: true });
       return;
     }
     if (isEditableTarget(e)) return;
@@ -2743,11 +1666,11 @@ export class HomeArchitectPanel extends LitElement {
     // Le placement se fait sur le plan 2D ; en mode étroit, le volet superposé libère le plan.
     this.is3DMode = false;
     if (this.narrow) this.isDrawerCollapsed = true;
-    this.showToast(`📍 Touchez le plan pour placer « ${this.placementLabel(payload)} » (Échap pour annuler).`);
+    this.showToast(localize('panel.toast.tap_to_place', { name: this.placementLabel(payload) }));
   }
 
   private placementLabel(payload: DrawerItemPayload): string {
-    if (payload.kind === 'furniture') return findFurnitureTemplate(payload.furnitureType)?.name ?? payload.furnitureType;
+    if (payload.kind === 'furniture') return furnitureDisplayName({ type: payload.furnitureType, name: '' });
     return bindingDisplayName({ entityId: payload.entityId }, this.hass?.states);
   }
 
@@ -2780,7 +1703,7 @@ export class HomeArchitectPanel extends LitElement {
       }
       this.isFullscreen = true;
       this.classList.add('is-fullscreen');
-      this.showToast('⛶ Mode plein écran activé (Échap pour sortir)');
+      this.showToast(localize('panel.toast.fullscreen_on'));
     } else {
       try {
         const doc: any = document;
@@ -2800,18 +1723,17 @@ export class HomeArchitectPanel extends LitElement {
       }
       this.isFullscreen = false;
       this.classList.remove('is-fullscreen');
-      this.showToast('🗗 Sortie du plein écran');
+      this.showToast(localize('panel.toast.fullscreen_off'));
     }
   }
 
   private openNewPlanModal() {
-    this.activeDropdown = null;
     if (this.readOnly) {
       this.notifyReadOnly();
       return;
     }
     const level = this.activeLevel ?? DEFAULT_LEVEL;
-    this.newPlanName = `Plan ${getLevelLabel(level)}`;
+    this.newPlanName = localize('panel.new_plan.default_name', { level: getLevelLabel(level) });
     this.newPlanCategory = level;
     this.isNewPlanModalOpen = true;
   }
@@ -2821,13 +1743,12 @@ export class HomeArchitectPanel extends LitElement {
    * reste ouvert avec ses modifications et aucun plan existant n'est remplacé.
    */
   private async handleConfirmNewPlan() {
-    const name = this.newPlanName.trim() || 'Nouveau plan';
+    const name = this.newPlanName.trim() || localize('panel.new_plan.fallback_name');
     const category = this.newPlanCategory || DEFAULT_LEVEL;
     if (await this.persistence.createPlan(name, category)) this.isNewPlanModalOpen = false;
   }
 
   private openResetModal() {
-    this.activeDropdown = null;
     if (this.readOnly) {
       this.notifyReadOnly();
       return;
@@ -2849,12 +1770,11 @@ export class HomeArchitectPanel extends LitElement {
     });
     if (!committed) return;
     this.clearSelection();
-    this.showToast(`🗑️ Plan effacé (Réinitialisé). Annulez avec Ctrl+Z si besoin.`);
+    this.showToast(localize('panel.toast.plan_reset'));
     void this.fitCanvasAfterUpdate();
   }
 
   private openWizard() {
-    this.activeDropdown = null;
     if (this.readOnly) {
       this.notifyReadOnly();
       return;
@@ -2863,7 +1783,6 @@ export class HomeArchitectPanel extends LitElement {
   }
 
   private openSaveModal() {
-    this.activeDropdown = null;
     if (this.readOnly) {
       this.notifyReadOnly();
       return;
@@ -2875,7 +1794,6 @@ export class HomeArchitectPanel extends LitElement {
   private openLoadModal() {
     this.saveLoadModalTab = 'load';
     this.isSaveLoadModalOpen = true;
-    this.activeDropdown = null;
   }
 
   // ==========================================
@@ -2914,7 +1832,6 @@ export class HomeArchitectPanel extends LitElement {
   }
 
   private async saveAllDirty() {
-    this.activeDropdown = null;
     await this.persistence.saveAllDirty();
   }
 
@@ -2955,13 +1872,26 @@ export class HomeArchitectPanel extends LitElement {
   /** Bandeau « rechargez la page » quand une nouvelle version a été installée pendant la session (F106). */
   private updateBanners(): PanelNotice[] {
     if (!this.updateInfo?.reloadRequired) return [];
+    const version = this.updateInfo.installedVersion;
     return [{
       key: 'reload-required',
       kind: 'info',
       dismissible: false,
-      message: `🔁 Nouvelle version installée (v${this.updateInfo.installedVersion}) : rechargez la page pour l'utiliser. Versions chargées : ${this.updateInfo.loadedBundles || VERSION}.`,
-      actions: [{ label: 'Recharger', run: () => this.reloadPage() }]
+      message: () => localize('panel.notice.reload_required', { version, bundles: describeLoadedBundles() || VERSION }),
+      actions: [{ label: () => localize('panel.common.reload'), run: () => this.reloadPage() }]
     }];
+  }
+
+  /** Pastille « modifications non sauvegardées » (texte équivalent pour les lecteurs d'écran). */
+  private renderDirtyDot() {
+    const label = localize('panel.common.unsaved_changes');
+    return html`<span class="dirty-dot" title=${label}><span aria-hidden="true">●</span><span class="visually-hidden">${label}</span></span>`;
+  }
+
+  /** Nom d'un niveau dans le sélecteur : libellé court, et libellé long s'il apporte une précision. */
+  private levelMenuName(level: { id: string; fullLabel: string }): string {
+    const label = getLevelLabel(level.id);
+    return level.fullLabel && level.fullLabel !== label ? localize('panel.level.name_with_full', { label, full: level.fullLabel }) : label;
   }
 
   /** Sélecteur de niveau : les plans de chaque niveau (par catégorie), puis les plans « Autre ». */
@@ -2969,48 +1899,458 @@ export class HomeArchitectPanel extends LitElement {
     const activeId = this.project.id;
     const planButton = (plan: PlanEntry, opts: { sub: boolean; icon?: string; levelName?: string }) => html`
       <button
+        role="menuitemradio"
+        aria-checked=${plan.id === activeId ? 'true' : 'false'}
         class="dropdown-item ${opts.sub ? 'sub' : ''} ${plan.id === activeId ? 'active' : ''}"
-        @click=${() => { this.activeDropdown = null; void this.persistence.openPlan(plan.id); }}
+        @click=${this.menuAction(() => void this.persistence.openPlan(plan.id))}
       >
-        ${opts.icon ? html`<span>${opts.icon}</span>` : null}
-        ${opts.levelName ? html`<span>${opts.levelName}</span>` : null}
+        ${opts.icon ? html`<span aria-hidden="true">${opts.icon}</span>` : nothing}
+        ${opts.levelName ? html`<span>${opts.levelName}</span>` : nothing}
         <span class="level-plan-name" title=${plan.name}>${plan.name}</span>
-        ${plan.dirty ? html`<span class="dirty-dot" title="Modifications non sauvegardées">●</span>` : null}
-        ${plan.stored ? null : html`<span class="dropdown-item-meta">non sauvegardé</span>`}
-        ${plan.id === activeId ? html`<span class="dropdown-item-check">✓</span>` : null}
+        ${plan.dirty ? this.renderDirtyDot() : nothing}
+        ${plan.stored ? nothing : html`<span class="dropdown-item-meta">${localize('panel.level.not_saved')}</span>`}
+        ${plan.id === activeId ? html`<span class="dropdown-item-check" aria-hidden="true">✓</span>` : nothing}
       </button>
     `;
     const customPlans = this.persistence.ws.customPlans();
     return html`
-      <div class="dropdown-menu-popup level-menu">
+      <div id="menu-level" class="dropdown-menu-popup level-menu" role="menu" aria-labelledby="menu-level-trigger"
+        @keydown=${this.handleMenuKeydown}>
         ${KNOWN_LEVELS.map(level => {
-          const levelName = level.fullLabel !== level.label ? `${level.label} (${level.fullLabel})` : level.label;
+          const levelName = this.levelMenuName(level);
           const plans = this.persistence.ws.plansForCategory(level.id);
           if (plans.length === 0) {
             return html`
               <button
+                role="menuitem"
                 class="dropdown-item"
                 ?disabled=${this.readOnly}
-                title="Aucun plan pour ce niveau : un plan vierge sera créé"
-                @click=${() => { this.activeDropdown = null; void this.persistence.switchToLevel(level.id); }}
+                title=${localize('panel.level.empty_title')}
+                @click=${this.menuAction(() => void this.persistence.switchToLevel(level.id))}
               >
-                <span>${level.icon}</span>
+                <span aria-hidden="true">${level.icon}</span>
                 <span>${levelName}</span>
-                <span class="dropdown-item-meta">vide</span>
+                <span class="dropdown-item-meta">${localize('panel.level.empty')}</span>
               </button>
             `;
           }
           if (plans.length === 1) return planButton(plans[0], { sub: false, icon: level.icon, levelName });
           return html`
-            <div class="dropdown-group-label"><span>${level.icon}</span><span>${levelName}</span></div>
-            ${plans.map(plan => planButton(plan, { sub: true }))}
+            <div role="group" aria-labelledby="level-group-${level.id}">
+              <div class="dropdown-group-label" id="level-group-${level.id}">
+                <span aria-hidden="true">${level.icon}</span><span>${levelName}</span>
+              </div>
+              ${plans.map(plan => planButton(plan, { sub: true }))}
+            </div>
           `;
         })}
         ${customPlans.length > 0 ? html`
-          <div class="dropdown-divider"></div>
-          <div class="dropdown-group-label"><span>${CUSTOM_CATEGORY_DEF.icon}</span><span>Autres plans</span></div>
-          ${customPlans.map(plan => planButton(plan, { sub: true }))}
-        ` : null}
+          <div class="dropdown-divider" role="separator"></div>
+          <div role="group" aria-labelledby="level-group-custom">
+            <div class="dropdown-group-label" id="level-group-custom">
+              <span aria-hidden="true">${CUSTOM_CATEGORY_DEF.icon}</span><span>${localize('panel.level.other_plans')}</span>
+            </div>
+            ${customPlans.map(plan => planButton(plan, { sub: true }))}
+          </div>
+        ` : nothing}
+      </div>
+    `;
+  }
+
+  /** Bouton d'un menu de la barre supérieure (menu-button : aria-haspopup, aria-expanded, flèches). */
+  private renderMenuTrigger(name: DropdownName, icon: string, label: string, content?: unknown, ariaLabel?: string) {
+    const open = this.activeDropdown === name;
+    return html`
+      <button
+        id="menu-${name}-trigger"
+        class="btn-dropdown-trigger ${open ? 'active' : ''}"
+        aria-haspopup="menu"
+        aria-expanded=${open ? 'true' : 'false'}
+        aria-controls=${open ? `menu-${name}` : nothing}
+        aria-label=${ariaLabel ?? label}
+        title=${ariaLabel ?? label}
+        @click=${(e: Event) => this.toggleDropdown(name, e)}
+        @keydown=${(e: KeyboardEvent) => this.handleTriggerKeydown(e, name)}
+      >
+        <span aria-hidden="true">${icon}</span>
+        ${content ?? html`<span class="btn-label">${label}</span>`}
+        <span class="chevron" aria-hidden="true">▾</span>
+      </button>
+    `;
+  }
+
+  /** Élément d'un menu (icône décorative, libellé, coche pour les bascules). */
+  private renderMenuItem(opts: {
+    icon: string;
+    label: string;
+    run: () => void;
+    disabled?: boolean;
+    checked?: boolean;
+    danger?: boolean;
+  }) {
+    const checkable = opts.checked !== undefined;
+    return html`
+      <button
+        role=${checkable ? 'menuitemcheckbox' : 'menuitem'}
+        aria-checked=${checkable ? (opts.checked ? 'true' : 'false') : nothing}
+        class="dropdown-item ${opts.checked ? 'active' : ''} ${opts.danger ? 'danger' : ''}"
+        ?disabled=${opts.disabled === true}
+        @click=${this.menuAction(opts.run)}
+      >
+        <span aria-hidden="true">${opts.icon}</span>
+        <span>${opts.label}</span>
+        ${opts.checked ? html`<span class="dropdown-item-check" aria-hidden="true">✓</span>` : nothing}
+      </button>
+    `;
+  }
+
+  private renderFileMenu(ready: boolean, dirtyCount: number, activeDirty: boolean) {
+    return html`
+      <div id="menu-file" class="dropdown-menu-popup" role="menu" aria-labelledby="menu-file-trigger" @keydown=${this.handleMenuKeydown}>
+        ${this.renderMenuItem({ icon: '📄', label: localize('panel.menu.file.new'), disabled: this.readOnly, run: () => this.openNewPlanModal() })}
+        ${this.renderMenuItem({ icon: '📂', label: localize('panel.menu.file.open'), run: () => this.openLoadModal() })}
+        ${this.renderMenuItem({ icon: '💾', label: localize('panel.menu.file.save'), disabled: this.readOnly || !ready, run: () => this.openSaveModal() })}
+        ${dirtyCount > 1 || (dirtyCount === 1 && !activeDirty) ? this.renderMenuItem({
+          icon: '🗂️',
+          label: localize('panel.menu.file.save_all', { count: formatNumber(dirtyCount) }),
+          disabled: this.readOnly || !ready,
+          run: () => void this.saveAllDirty()
+        }) : nothing}
+        <div class="dropdown-divider" role="separator"></div>
+        ${this.renderMenuItem({ icon: '📥', label: localize('panel.menu.file.import'), disabled: this.readOnly, run: () => this.openImportModal() })}
+        ${this.renderMenuItem({ icon: '📤', label: localize('panel.menu.file.export'), run: () => { this.isExportModalOpen = true; } })}
+        <div class="dropdown-divider" role="separator"></div>
+        ${this.renderMenuItem({ icon: '🗑️', label: localize('panel.menu.reset'), danger: true, disabled: this.readOnly, run: () => this.openResetModal() })}
+      </div>
+    `;
+  }
+
+  private renderPlanMenu() {
+    return html`
+      <div id="menu-plan" class="dropdown-menu-popup wide" role="menu" aria-labelledby="menu-plan-trigger" @keydown=${this.handleMenuKeydown}>
+        ${this.renderMenuItem({
+          icon: '📐',
+          label: localize('panel.menu.plan.rescale'),
+          checked: this.activeTool === 'rescale',
+          disabled: this.readOnly,
+          run: () => { this.activeTool = 'rescale'; }
+        })}
+        ${this.renderMenuItem({
+          icon: this.is3DMode ? '🧊' : '📐',
+          label: localize(this.is3DMode ? 'panel.menu.plan.view_3d_active' : 'panel.menu.plan.view_2d_3d'),
+          checked: this.is3DMode,
+          run: () => { this.is3DMode = !this.is3DMode; }
+        })}
+        ${this.renderMenuItem({ icon: '🪄', label: localize('panel.menu.plan.wizard'), disabled: this.readOnly, run: () => this.openWizard() })}
+        <div class="dropdown-divider" role="separator"></div>
+        <!-- Préférences d'affichage enregistrées avec le plan (reprises par la carte, constat F104) -->
+        ${this.renderMenuItem({
+          icon: '📏',
+          label: localize('panel.menu.plan.dimensions'),
+          checked: this.showDimensions,
+          run: () => this.setPreferences({ showDimensions: !this.showDimensions })
+        })}
+        ${this.renderMenuItem({
+          icon: '🌡️',
+          label: localize('panel.menu.plan.heatmap'),
+          checked: this.showThermalHeatmap,
+          run: () => this.setPreferences({ showThermalHeatmap: !this.showThermalHeatmap })
+        })}
+        ${this.renderMenuItem({
+          icon: '👁️',
+          label: localize('panel.menu.plan.ghost'),
+          checked: this.showGhostLevel,
+          run: () => this.setPreferences({ showGhostLevel: !this.showGhostLevel })
+        })}
+        <div class="dropdown-divider" role="separator"></div>
+        ${this.renderMenuItem({ icon: '⛶', label: localize('panel.menu.plan.fit'), run: () => this.canvas?.fitToScreen() })}
+        <!-- Quart de tour de la vue 2D (acquis 1.0.28 / 1.0.29 : rotation gérée par le canevas) -->
+        ${this.renderMenuItem({ icon: '↺', label: localize('panel.menu.plan.rotate'), run: () => this.canvas?.rotateQuarterTurn() })}
+        ${this.renderMenuItem({
+          icon: this.isFullscreen ? '🗗' : '⛶',
+          label: localize(this.isFullscreen ? 'panel.fullscreen.exit' : 'panel.fullscreen.enter'),
+          checked: this.isFullscreen,
+          run: () => void this.toggleFullscreen()
+        })}
+        <div class="dropdown-divider" role="separator"></div>
+        ${this.renderMenuItem({ icon: '🗑️', label: localize('panel.menu.reset'), danger: true, disabled: this.readOnly, run: () => this.openResetModal() })}
+      </div>
+    `;
+  }
+
+  /** HUD de sélection (bas du canevas) : éléments encore présents dans le plan uniquement (constat F130). */
+  private renderSelectionHud(selection: SelectedElements) {
+    if (countSelection(selection) === 0) return nothing;
+    const selectedBinding = selection.bindingIds.length > 0
+      ? this.project.bindings.find(b => b.id === selection.bindingIds[0])
+      : null;
+    const selectedFurniture = (selection.furnitureIds ?? []).length > 0
+      ? (this.project.furniture ?? []).find(f => f.id === selection.furnitureIds?.[0])
+      : undefined;
+    const hasDoor = selection.openingIds.some(id => this.project.openings.find(op => op.id === id)?.type === 'door');
+    const hasWindow = selection.openingIds.some(id => {
+      const op = this.project.openings.find(o => o.id === id);
+      return op && (op.type === 'window' || op.type === 'french_window');
+    });
+    const option = (active: boolean, label: string, title: string, run: () => void) => html`
+      <button class="hud-opt-btn ${active ? 'active' : ''}" aria-pressed=${active ? 'true' : 'false'} title=${title} @click=${run}>${label}</button>
+    `;
+    const activeTypology = this.getActiveTypology();
+    const clearLabel = localize('panel.hud.clear_selection');
+
+    return html`
+      <div class="selection-hud" role="region" aria-label=${localize('panel.hud.region')}>
+        <div class="selection-hud-main">
+          <span class="selection-info">
+            <span aria-hidden="true">🎯</span>
+            <span>${this.getSelectedSummary(selection)}</span>
+          </span>
+
+          ${selection.wallIds.length > 0 ? html`
+            <div class="hud-options-group" role="group" aria-labelledby="hud-thickness-label">
+              <span class="hud-label" id="hud-thickness-label">${localize('panel.hud.thickness')}</span>
+              ${option(this.currentThickness === 0.10, localize('panel.hud.thin', { size: formatCentimeters(0.10) }), localize('panel.thickness.partition', { size: formatCentimeters(0.10) }), () => this.updateSelectedWallsThickness(0.10))}
+              ${option(this.currentThickness === 0.20, localize('panel.hud.medium', { size: formatCentimeters(0.20) }), localize('panel.hud.medium_title', { size: formatCentimeters(0.20) }), () => this.updateSelectedWallsThickness(0.20))}
+              ${option(this.currentThickness === 0.30, localize('panel.hud.thick', { size: formatCentimeters(0.30) }), localize('panel.thickness.load_bearing', { size: formatCentimeters(0.30) }), () => this.updateSelectedWallsThickness(0.30))}
+            </div>
+          ` : nothing}
+
+          ${hasDoor ? html`
+            <div class="hud-options-group" role="group" aria-labelledby="hud-door-label">
+              <span class="hud-label" id="hud-door-label">${localize('panel.hud.door')}</span>
+              ${option(!this.doorFlipSide && this.doorFlipDirection, localize('panel.hud.door_right_in'), localize('panel.hud.door_right_in_title'), () => this.updateSelectedDoorConfig(false, true))}
+              ${option(!this.doorFlipSide && !this.doorFlipDirection, localize('panel.hud.door_left_in'), localize('panel.hud.door_left_in_title'), () => this.updateSelectedDoorConfig(false, false))}
+              ${option(this.doorFlipSide && !this.doorFlipDirection, localize('panel.hud.door_left_out'), localize('panel.hud.door_left_out_title'), () => this.updateSelectedDoorConfig(true, false))}
+              ${option(this.doorFlipSide && this.doorFlipDirection, localize('panel.hud.door_right_out'), localize('panel.hud.door_right_out_title'), () => this.updateSelectedDoorConfig(true, true))}
+            </div>
+          ` : nothing}
+
+          ${hasWindow ? html`
+            <div class="hud-options-group" role="group" aria-labelledby="hud-window-label">
+              <span class="hud-label" id="hud-window-label">${localize('panel.hud.window')}</span>
+              ${option(this.windowSashCount === 1, localize('panel.hud.window_single'), localize('panel.hud.window_single_title', { size: formatLength(0.90) }), () => this.updateSelectedWindowConfig('window', 1, 0.90))}
+              ${option(this.windowSashCount === 2, localize('panel.hud.window_double'), localize('panel.hud.window_double_title', { size: formatLength(1.40) }), () => this.updateSelectedWindowConfig('window', 2, 1.40))}
+              ${option(false, localize('panel.hud.window_bay'), localize('panel.hud.window_bay_title', { size: formatLength(2.00) }), () => this.updateSelectedWindowConfig('french_window', 2, 2.00))}
+            </div>
+          ` : nothing}
+
+          ${selectedFurniture ? html`
+            <div class="hud-options-group" role="group" aria-labelledby="hud-furniture-label">
+              <span class="hud-label" id="hud-furniture-label">${localize('panel.hud.furniture')}</span>
+              <button class="hud-opt-btn" ?disabled=${this.readOnly} @click=${this.rotateSelectedFurniture} title=${localize('panel.hud.rotate_title')}>
+                <span aria-hidden="true">🔄</span> ${localize('panel.hud.rotate')}
+              </button>
+              <label class="hud-color" title=${localize('panel.hud.color_title')}>
+                <span class="hud-label">${localize('panel.hud.color')}</span>
+                <input
+                  type="color"
+                  .value=${furnitureColorValue(selectedFurniture)}
+                  ?disabled=${this.readOnly}
+                  @input=${(e: Event) => this.updateSelectedFurnitureColor((e.target as HTMLInputElement).value)}
+                />
+              </label>
+              ${selectedFurniture.color ? html`
+                <button class="hud-opt-btn" ?disabled=${this.readOnly} @click=${() => this.updateSelectedFurnitureColor(null)}
+                  title=${localize('panel.hud.color_reset')} aria-label=${localize('panel.hud.color_reset')}>
+                  <span aria-hidden="true">↺</span>
+                </button>
+              ` : nothing}
+            </div>
+          ` : nothing}
+
+          ${selectedBinding ? html`
+            <div class="hud-options-group">
+              <button
+                class="hud-opt-btn ${this.isIconPickerOpen ? 'active' : ''}"
+                aria-expanded=${this.isIconPickerOpen ? 'true' : 'false'}
+                aria-controls="hud-icon-picker"
+                @click=${() => { this.isIconPickerOpen = !this.isIconPickerOpen; }}
+                title=${localize('panel.hud.icon_picker_title')}
+              >
+                <span class="fullscreen-icon" aria-hidden="true">${selectedBinding.icon || '🎨'}</span>
+                <span>${localize('panel.hud.icon_picker')}</span>
+                <span aria-hidden="true">${this.isIconPickerOpen ? '▴' : '▾'}</span>
+              </button>
+            </div>
+          ` : nothing}
+
+          <button class="btn-delete-selection" ?disabled=${this.readOnly} @click=${this.handleDeleteSelected} title=${localize('panel.hud.delete_title')}>
+            <span aria-hidden="true">🗑️</span>
+            <span>${localize('panel.common.delete')}</span>
+          </button>
+          <button class="btn-clear-selection" @click=${this.clearSelection} title=${clearLabel} aria-label=${clearLabel}>
+            <span aria-hidden="true">✕</span>
+          </button>
+        </div>
+
+        <!-- Palette « Choisir l'icône » de l'entité sélectionnée -->
+        ${selectedBinding && this.isIconPickerOpen ? html`
+          <div class="hud-icon-picker-panel" id="hud-icon-picker">
+            <div class="icon-category-tabs" role="group" aria-label=${localize('panel.hud.icon_categories')}>
+              ${Object.entries(TYPOLOGY_ICONS).map(([key, group]) => html`
+                <button
+                  class="icon-category-tab ${activeTypology === key ? 'active' : ''}"
+                  aria-pressed=${activeTypology === key ? 'true' : 'false'}
+                  title=${typologyTitle(key)}
+                  @click=${() => { this.selectedTypologyTab = key; }}
+                >
+                  <span aria-hidden="true">${group.tabIcon}</span> ${typologyTabLabel(key)}
+                </button>
+              `)}
+            </div>
+
+            <div class="icon-grid" role="group" aria-label=${typologyTitle(activeTypology)}>
+              ${(TYPOLOGY_ICONS[activeTypology] ?? TYPOLOGY_ICONS.light).icons.map(item => {
+                const label = typologyIconLabel(activeTypology, item);
+                return html`
+                  <button
+                    class="icon-item-btn ${selectedBinding.icon === item.icon ? 'active' : ''}"
+                    aria-pressed=${selectedBinding.icon === item.icon ? 'true' : 'false'}
+                    @click=${() => this.updateSelectedBindingIcon(item.icon, item.mdi)}
+                    title="${label} (${item.mdi})"
+                  >
+                    <span class="icon-item-emoji" aria-hidden="true">${item.icon}</span>
+                    <span>${label}</span>
+                  </button>
+                `;
+              })}
+            </div>
+
+            <div class="icon-picker-footer">
+              <span>${localize('panel.hud.icon_active')} <strong>${selectedBinding.icon || localize('panel.hud.icon_default')}</strong>
+                (${selectedBinding.mdiIcon || localize('panel.hud.icon_automatic')})</span>
+              <label class="icon-free-input">
+                <span>${localize('panel.hud.icon_free')}</span>
+                <input
+                  type="text"
+                  placeholder=${localize('panel.hud.icon_free_placeholder')}
+                  maxlength="4"
+                  @keydown=${(e: KeyboardEvent) => {
+                    if (e.key === 'Enter') {
+                      const val = (e.target as HTMLInputElement).value.trim();
+                      if (val) this.updateSelectedBindingIcon(val);
+                    }
+                  }}
+                  @change=${(e: Event) => {
+                    const val = (e.target as HTMLInputElement).value.trim();
+                    if (val) this.updateSelectedBindingIcon(val);
+                  }}
+                />
+              </label>
+            </div>
+          </div>
+        ` : nothing}
+      </div>
+    `;
+  }
+
+  /** Dialogue « Nouveau plan » : nom et niveau (catégorie). */
+  private renderNewPlanDialog() {
+    const close = () => { this.isNewPlanModalOpen = false; };
+    const closeLabel = localize('panel.common.close');
+    return html`
+      <div class="modal-backdrop" @click=${(e: MouseEvent) => { if (e.target === e.currentTarget) close(); }}>
+        <div class="modal-dialog" data-modal tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="new-plan-title" aria-describedby="new-plan-subtitle">
+          <div class="modal-dialog-header">
+            <div class="modal-dialog-title-group">
+              <span class="modal-dialog-icon" aria-hidden="true">📄</span>
+              <div>
+                <h3 class="modal-dialog-title" id="new-plan-title">${localize('panel.new_plan.title')}</h3>
+                <p class="modal-dialog-subtitle" id="new-plan-subtitle">${localize('panel.new_plan.subtitle')}</p>
+              </div>
+            </div>
+            <button class="btn-dialog-close" title=${closeLabel} aria-label=${closeLabel} @click=${close}><span aria-hidden="true">✕</span></button>
+          </div>
+          <div class="modal-dialog-body">
+            <div class="dialog-form-group">
+              <label class="dialog-label" for="new-plan-name">${localize('panel.new_plan.name')}</label>
+              <input
+                id="new-plan-name"
+                type="text"
+                class="dialog-input"
+                data-initial-focus
+                .value=${this.newPlanName}
+                @input=${(e: Event) => { this.newPlanName = (e.target as HTMLInputElement).value; }}
+                @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter' && !e.isComposing) void this.handleConfirmNewPlan(); }}
+                placeholder=${localize('panel.new_plan.name_placeholder')}
+              />
+            </div>
+
+            <fieldset class="dialog-form-group">
+              <legend class="dialog-label">${localize('panel.new_plan.category')}</legend>
+              <div class="category-grid">
+                ${[...KNOWN_LEVELS, CUSTOM_CATEGORY_DEF].map(cat => html`
+                  <button
+                    type="button"
+                    class="category-btn ${this.newPlanCategory === cat.id ? 'active' : ''}"
+                    aria-pressed=${this.newPlanCategory === cat.id ? 'true' : 'false'}
+                    @click=${() => { this.newPlanCategory = cat.id; }}
+                  >
+                    <span aria-hidden="true">${cat.icon}</span>
+                    <span>${getLevelLabel(cat.id)}</span>
+                  </button>
+                `)}
+              </div>
+            </fieldset>
+          </div>
+          <div class="modal-dialog-footer">
+            <button class="btn-dialog-cancel" @click=${close}>${localize('panel.common.cancel')}</button>
+            <button class="btn-dialog-confirm primary" @click=${() => void this.handleConfirmNewPlan()}>
+              <span aria-hidden="true">✨</span>
+              <span>${localize('panel.new_plan.create')}</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  /** Dialogue « Effacer le plan » (réversible avec Annuler) ; focus initial sur « Annuler ». */
+  private renderResetDialog() {
+    const close = () => { this.isResetModalOpen = false; };
+    const closeLabel = localize('panel.common.close');
+    const p = this.project;
+    const row = (icon: string, labelKey: string, value: string | number) => html`
+      <div><dt><span aria-hidden="true">${icon}</span> ${localize(labelKey)}</dt><dd>${typeof value === 'number' ? formatNumber(value) : value}</dd></div>
+    `;
+    return html`
+      <div class="modal-backdrop" @click=${(e: MouseEvent) => { if (e.target === e.currentTarget) close(); }}>
+        <div class="modal-dialog danger" data-modal tabindex="-1" role="alertdialog" aria-modal="true" aria-labelledby="reset-title" aria-describedby="reset-message">
+          <div class="modal-dialog-header danger">
+            <div class="modal-dialog-title-group">
+              <span class="modal-dialog-icon" aria-hidden="true">🗑️</span>
+              <div>
+                <h3 class="modal-dialog-title danger" id="reset-title">${localize('panel.reset.title')}</h3>
+                <p class="modal-dialog-subtitle">${localize('panel.reset.subtitle')}</p>
+              </div>
+            </div>
+            <button class="btn-dialog-close" title=${closeLabel} aria-label=${closeLabel} @click=${close}><span aria-hidden="true">✕</span></button>
+          </div>
+          <div class="modal-dialog-body">
+            <p class="dialog-text" id="reset-message">
+              ${localize('panel.reset.confirm_before')}<strong>${localize('panel.reset.confirm_strong')}</strong>${localize('panel.reset.confirm_after')}
+              (<strong>${p.name || getLevelLabel(p.category)}</strong>)${localize('panel.reset.confirm_end')}
+            </p>
+
+            <dl class="reset-summary-box">
+              ${row('🧱', 'panel.reset.walls', p.walls.length)}
+              ${row('🚪', 'panel.reset.openings', p.openings.length)}
+              ${row('🏷️', 'panel.reset.rooms', p.rooms.length)}
+              ${row('⚡', 'panel.reset.entities', p.bindings.length)}
+              ${row('🛋️', 'panel.reset.furniture', p.furniture?.length || 0)}
+              ${row('🖼️', 'panel.reset.background', localize(p.background ? 'panel.common.yes' : 'panel.common.no'))}
+            </dl>
+
+            <p class="dialog-hint">${localize('panel.reset.undo_hint')}</p>
+          </div>
+          <div class="modal-dialog-footer">
+            <button class="btn-dialog-cancel" data-initial-focus @click=${close}>${localize('panel.common.cancel')}</button>
+            <button class="btn-dialog-confirm danger" @click=${() => this.handleConfirmResetPlan()}>
+              <span aria-hidden="true">🗑️</span>
+              <span>${localize('panel.reset.confirm')}</span>
+            </button>
+          </div>
+        </div>
       </div>
     `;
   }
@@ -3025,18 +2365,28 @@ export class HomeArchitectPanel extends LitElement {
     const saving = this.persistence.isSaving(this.project.id);
     const modalOpen = this.isModalOpen();
     const selection = this.liveSelection();
+    const levelLabel = getLevelLabel(this.project.category);
+    const undoLabel = localize('panel.history.undo');
+    const redoLabel = localize('panel.history.redo');
+    const fullscreenLabel = localize(this.isFullscreen ? 'panel.fullscreen.exit' : 'panel.fullscreen.enter');
+    const saveLabel = localize('panel.save.label');
+    const saveTitle = localize(activeDirty ? 'panel.save.title_dirty' : 'panel.save.title');
+    const drawerTitle = localize('panel.drawer.toggle_title');
+    const opacityLabel = localize('panel.controls.background_opacity');
 
     return html`
       <div class="studio">
         <header class="top-bar">
           ${this.showMenuButton ? html`
-            <button class="ha-menu-btn" title="Menu Home Assistant" aria-label="Ouvrir la barre latérale de Home Assistant" @click=${this.toggleHaSidebar}>
+            <button class="ha-menu-btn" title=${localize('panel.header.ha_menu')} aria-label=${localize('panel.header.ha_menu_aria')} @click=${this.toggleHaSidebar}>
               <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M3,6H21V8H3V6M3,11H21V13H3V11M3,16H21V18H3V16Z" /></svg>
             </button>
-          ` : null}
-          <div class="brand" @click=${this.handleLogoClick} style="cursor: pointer;" title="Home Architect Studio (Cliquez pour secret)">
-            <span class="brand-icon">
-              <svg viewBox="0 0 512 512" width="28" height="28" style="vertical-align: middle; border-radius: 7px; overflow: hidden; box-shadow: 0 2px 8px rgba(56, 189, 248, 0.25);">
+          ` : nothing}
+          <!-- Logo (5 clics : easter egg, aussi accessible au clavier en tapant le mot secret) -->
+          <div class="brand" title=${localize('panel.header.brand_title')} @click=${this.handleLogoClick}>
+            <span class="brand-icon" aria-hidden="true">
+              <!-- Logo de l'application : couleurs de la marque, identiques dans les deux palettes -->
+              <svg viewBox="0 0 512 512" width="28" height="28">
                 <rect width="512" height="512" rx="108" fill="#0f172a" stroke="#38bdf8" stroke-width="14" />
                 <g stroke="rgba(56, 189, 248, 0.15)" stroke-width="6">
                   <line x1="0" y1="170" x2="512" y2="170" />
@@ -3058,197 +2408,103 @@ export class HomeArchitectPanel extends LitElement {
             </span>
             <span class="brand-name">Home Architect</span>
             <span class="brand-tag">Studio</span>
-            <button class="brand-version" title="À propos de Home Architect (version, mises à jour, soutien)" @click=${this.openAbout}>v${VERSION}</button>
+            <button class="brand-version" title=${localize('panel.header.about_title')}
+              aria-label=${localize('panel.header.about_aria', { version: VERSION })} @click=${this.openAbout}>v${VERSION}</button>
           </div>
 
           ${this.updateInfo?.available && !this.readOnly ? html`
-            <button class="btn-update-auto" @click=${() => this.openUpdateModal()} title="Nouvelle version ${this.updateInfo.latestVersion} disponible">
-              <span>🚀</span>
-              <span class="btn-label">Mise à jour dispo</span>
+            <button class="btn-update-auto" @click=${() => this.openUpdateModal()}
+              title=${localize('panel.header.update_title', { version: this.updateInfo.latestVersion ?? '' })}
+              aria-label=${localize('panel.header.update_title', { version: this.updateInfo.latestVersion ?? '' })}>
+              <span aria-hidden="true">🚀</span>
+              <span class="btn-label">${localize('panel.header.update_available')}</span>
               <span class="update-version-tag">v${this.updateInfo.latestVersion}</span>
             </button>
-          ` : null}
+          ` : nothing}
 
-          <!-- 3 Menus Déroulants Principaux : Fichier, Plan, Pièce -->
-          <div class="menu-group">
-            <!-- 1. Menu Fichier (Ouvrir, Sauvegarder, Importer, Exporter) -->
+          <!-- Menus déroulants principaux : Fichier, Plan, Niveau (constat F110 : « Pièce » renommé « Niveau ») -->
+          <nav class="menu-group" aria-label=${localize('panel.header.menus')}>
             <div class="dropdown-menu-wrapper">
-              <button class="btn-dropdown-trigger ${this.activeDropdown === 'file' ? 'active' : ''}" title="Fichier" @click=${(e: Event) => this.toggleDropdown('file', e)}>
-                <span>📁</span>
-                <span class="btn-label">Fichier</span>
-                <span class="chevron">▾</span>
-              </button>
-              ${this.activeDropdown === 'file' ? html`
-                <div class="dropdown-menu-popup">
-                  <button class="dropdown-item" ?disabled=${this.readOnly} @click=${() => this.openNewPlanModal()}>
-                    <span>📄</span>
-                    <span>Nouveau plan... (Alt+N)</span>
-                  </button>
-                  <button class="dropdown-item" @click=${() => this.openLoadModal()}>
-                    <span>📂</span>
-                    <span>Ouvrir / Recharger un plan...</span>
-                  </button>
-                  <button class="dropdown-item" ?disabled=${this.readOnly || !ready} @click=${() => this.openSaveModal()}>
-                    <span>💾</span>
-                    <span>Sauvegarder le plan... (Ctrl+S)</span>
-                  </button>
-                  ${dirtyCount > 1 || (dirtyCount === 1 && !activeDirty) ? html`
-                    <button class="dropdown-item" ?disabled=${this.readOnly || !ready} @click=${() => void this.saveAllDirty()}>
-                      <span>🗂️</span>
-                      <span>Sauvegarder tous les plans modifiés (${dirtyCount})</span>
-                    </button>
-                  ` : null}
-                  <div class="dropdown-divider"></div>
-                  <button class="dropdown-item" ?disabled=${this.readOnly} @click=${() => this.openImportModal()}>
-                    <span>📥</span>
-                    <span>Importer un plan...</span>
-                  </button>
-                  <button class="dropdown-item" @click=${() => { this.isExportModalOpen = true; this.activeDropdown = null; }}>
-                    <span>📤</span>
-                    <span>Exporter Lovelace...</span>
-                  </button>
-                  <div class="dropdown-divider"></div>
-                  <button class="dropdown-item danger" ?disabled=${this.readOnly} @click=${() => this.openResetModal()}>
-                    <span>🗑️</span>
-                    <span>Effacer le plan (Reset)...</span>
-                  </button>
-                </div>
-              ` : null}
+              ${this.renderMenuTrigger('file', '📁', localize('panel.menu.file.label'))}
+              ${this.activeDropdown === 'file' ? this.renderFileMenu(ready, dirtyCount, activeDirty) : nothing}
             </div>
 
-            <!-- 2. Menu Plan (Demande 4: Mettre à l'échelle, Vue 2D/3D, Assistant Pièce, Cotes, etc.) -->
             <div class="dropdown-menu-wrapper">
-              <button class="btn-dropdown-trigger ${this.activeDropdown === 'plan' ? 'active' : ''}" title="Plan" @click=${(e: Event) => this.toggleDropdown('plan', e)}>
-                <span>📐</span>
-                <span class="btn-label">Plan</span>
-                <span class="chevron">▾</span>
-              </button>
-              ${this.activeDropdown === 'plan' ? html`
-                <div class="dropdown-menu-popup" style="min-width: 250px;">
-                  <button class="dropdown-item ${this.activeTool === 'rescale' ? 'active' : ''}" ?disabled=${this.readOnly} @click=${() => { this.activeTool = 'rescale'; this.activeDropdown = null; }}>
-                    <span>📐</span>
-                    <span>Mettre à l'échelle (S)</span>
-                    ${this.activeTool === 'rescale' ? html`<span class="dropdown-item-check">✓</span>` : null}
-                  </button>
-                  <button class="dropdown-item ${this.is3DMode ? 'active' : ''}" @click=${() => { this.is3DMode = !this.is3DMode; this.activeDropdown = null; }}>
-                    <span>${this.is3DMode ? '🧊' : '📐'}</span>
-                    <span>${this.is3DMode ? 'Vue 3D (Active)' : 'Vue 2D / 3D'}</span>
-                    ${this.is3DMode ? html`<span class="dropdown-item-check">✓</span>` : null}
-                  </button>
-                  <button class="dropdown-item" ?disabled=${this.readOnly} @click=${() => this.openWizard()}>
-                    <span>🪄</span>
-                    <span>Assistant Pièce</span>
-                  </button>
-                  <div class="dropdown-divider"></div>
-                  <!-- Préférences d'affichage enregistrées avec le plan (reprises par la carte, constat F104) -->
-                  <button class="dropdown-item ${this.showDimensions ? 'active' : ''}" @click=${() => this.setPreferences({ showDimensions: !this.showDimensions })}>
-                    <span>📏</span>
-                    <span>Cotes dynamiques</span>
-                    ${this.showDimensions ? html`<span class="dropdown-item-check">✓</span>` : null}
-                  </button>
-                  <button class="dropdown-item ${this.showThermalHeatmap ? 'active' : ''}" @click=${() => this.setPreferences({ showThermalHeatmap: !this.showThermalHeatmap })}>
-                    <span>🌡️</span>
-                    <span>Carte thermique</span>
-                    ${this.showThermalHeatmap ? html`<span class="dropdown-item-check">✓</span>` : null}
-                  </button>
-                  <button class="dropdown-item ${this.showGhostLevel ? 'active' : ''}" @click=${() => this.setPreferences({ showGhostLevel: !this.showGhostLevel })}>
-                    <span>👁️</span>
-                    <span>Filigrane niveau inf.</span>
-                    ${this.showGhostLevel ? html`<span class="dropdown-item-check">✓</span>` : null}
-                  </button>
-                  <div class="dropdown-divider"></div>
-                  <button class="dropdown-item" @click=${() => { this.canvas?.fitToScreen(); this.activeDropdown = null; }}>
-                    <span>⛶</span>
-                    <span>Ajuster à l'écran (Zoom auto)</span>
-                  </button>
-                  <!-- Quart de tour de la vue 2D (acquis 1.0.28 / 1.0.29 : rotation gérée par le canevas) -->
-                  <button class="dropdown-item" @click=${() => { this.canvas?.rotateQuarterTurn(); this.activeDropdown = null; }}>
-                    <span>↺</span>
-                    <span>Pivoter la vue de 90° à gauche</span>
-                  </button>
-                  <button class="dropdown-item ${this.isFullscreen ? 'active' : ''}" @click=${() => { void this.toggleFullscreen(); this.activeDropdown = null; }}>
-                    <span>${this.isFullscreen ? '🗗' : '⛶'}</span>
-                    <span>${this.isFullscreen ? 'Sortir du plein écran' : 'Plein écran'}</span>
-                    ${this.isFullscreen ? html`<span class="dropdown-item-check">✓</span>` : null}
-                  </button>
-                  <div class="dropdown-divider"></div>
-                  <button class="dropdown-item danger" ?disabled=${this.readOnly} @click=${() => this.openResetModal()}>
-                    <span>🗑️</span>
-                    <span>Effacer le plan (Reset)...</span>
-                  </button>
-                </div>
-              ` : null}
+              ${this.renderMenuTrigger('plan', '📐', localize('panel.menu.plan.label'))}
+              ${this.activeDropdown === 'plan' ? this.renderPlanMenu() : nothing}
             </div>
 
-            <!-- 3. Menu Pièce : plans rangés par niveau (catégorie), puis plans « Autre » -->
+            <!-- Sélecteur de niveau : plans rangés par niveau (catégorie), puis plans « Autre » -->
             <div class="dropdown-menu-wrapper">
-              <button class="btn-dropdown-trigger ${this.activeDropdown === 'level' ? 'active' : ''}" title="Niveau et plan affichés" @click=${(e: Event) => this.toggleDropdown('level', e)}>
-                <span>🏢</span>
-                <span><span class="btn-label">Pièce : </span><strong>${getLevelLabel(this.project.category)}</strong></span>
+              ${this.renderMenuTrigger('level', '🏢', localize('panel.level.label'), html`
+                <span><span class="btn-label">${localize('panel.level.prefix')} </span><strong>${levelLabel}</strong></span>
                 <span class="level-plan-name" title=${this.project.name}>${this.project.name}</span>
-                ${activeDirty ? html`<span class="dirty-dot" title="Modifications non sauvegardées">●</span>` : null}
-                <span class="chevron">▾</span>
-              </button>
-              ${this.activeDropdown === 'level' ? this.renderLevelMenu() : null}
+                ${activeDirty ? this.renderDirtyDot() : nothing}
+              `, localize(activeDirty ? 'panel.level.trigger_aria_dirty' : 'panel.level.trigger_aria', { level: levelLabel, name: this.project.name }))}
+              ${this.activeDropdown === 'level' ? this.renderLevelMenu() : nothing}
             </div>
-          </div>
+          </nav>
 
           <div class="top-controls">
             <!-- Historique Annuler / Rétablir -->
-            <div class="control-group" style="padding: 2px 4px; gap: 4px;">
+            <div class="control-group compact" role="group" aria-label=${localize('panel.history.group')}>
               <button
                 class="btn-history"
                 @click=${this.handleUndo}
                 ?disabled=${this.readOnly || !ws.canUndo()}
-                title="Annuler la dernière action (Ctrl+Z / Cmd+Z)"
+                title=${localize('panel.history.undo_title')}
+                aria-label=${undoLabel}
               >
-                ↩️<span class="btn-label"> Annuler</span>
+                <span aria-hidden="true">↩️</span><span class="btn-label"> ${undoLabel}</span>
               </button>
               <button
                 class="btn-history"
                 @click=${this.handleRedo}
                 ?disabled=${this.readOnly || !ws.canRedo()}
-                title="Rétablir l'action (Ctrl+Y / Cmd+Shift+Z)"
+                title=${localize('panel.history.redo_title')}
+                aria-label=${redoLabel}
               >
-                ↪️<span class="btn-label"> Rétablir</span>
+                <span aria-hidden="true">↪️</span><span class="btn-label"> ${redoLabel}</span>
               </button>
             </div>
 
             <!-- Épaisseur mur contextuelle : reflète la valeur réellement utilisée (constat F134) -->
             ${this.activeTool === 'wall' ? html`
               <div class="control-group">
-                <label>Épaisseur :</label>
-                <select @change=${this.handleThicknessChange}>
-                  ${selectOptions(THICKNESS_OPTIONS, this.currentThickness, v => `${Math.round(v * 100)} cm`)}
+                <label for="ctl-thickness">${localize('panel.controls.thickness')}</label>
+                <select id="ctl-thickness" aria-label=${localize('panel.controls.thickness_aria')} @change=${this.handleThicknessChange}>
+                  ${selectOptions(THICKNESS_OPTIONS, this.currentThickness, formatCentimeters)}
                 </select>
               </div>
-            ` : null}
+            ` : nothing}
 
             <!-- Largeur ouvrant contextuelle -->
             ${this.activeTool === 'door' || this.activeTool === 'window' || this.activeTool === 'french_window' ? html`
               <div class="control-group">
-                <label>Largeur :</label>
-                <select @change=${this.handleOpeningWidthChange}>
-                  ${selectOptions(OPENING_WIDTH_OPTIONS, this.currentOpeningWidth, v => `${v.toFixed(2)} m`)}
+                <label for="ctl-opening-width">${localize('panel.controls.width')}</label>
+                <select id="ctl-opening-width" aria-label=${localize('panel.controls.width_aria')} @change=${this.handleOpeningWidthChange}>
+                  ${selectOptions(OPENING_WIDTH_OPTIONS, this.currentOpeningWidth, formatLength)}
                 </select>
               </div>
-            ` : null}
+            ` : nothing}
 
             <!-- Hauteur sous plafond globale en mode 3D -->
             ${this.is3DMode ? html`
-              <div class="control-group" title="Hauteur sous plafond par défaut (3D)">
-                <label>Plafond 3D :</label>
-                <select ?disabled=${this.readOnly} @change=${(e: Event) => void this.handleDefaultCeilingChange(parseFloat((e.target as HTMLSelectElement).value))}>
-                  ${selectOptions(CEILING_OPTIONS, effectiveCeilingHeight(this.project), v => `${v.toFixed(2)} m`)}
+              <div class="control-group" title=${localize('panel.controls.ceiling_title')}>
+                <label for="ctl-ceiling">${localize('panel.controls.ceiling')}</label>
+                <select id="ctl-ceiling" aria-label=${localize('panel.controls.ceiling_title')} ?disabled=${this.readOnly}
+                  @change=${(e: Event) => void this.handleDefaultCeilingChange(parseFloat((e.target as HTMLSelectElement).value))}>
+                  ${selectOptions(CEILING_OPTIONS, effectiveCeilingHeight(this.project), v => formatMeters(v))}
                 </select>
               </div>
-            ` : null}
+            ` : nothing}
 
             <!-- Opacité du fond -->
             ${hasBg ? html`
               <div class="control-group">
-                <label>Fond :</label>
+                <label for="ctl-opacity">${localize('panel.controls.background')}</label>
                 <input
+                  id="ctl-opacity"
                   type="range"
                   min="0.05"
                   max="1.0"
@@ -3256,44 +2512,53 @@ export class HomeArchitectPanel extends LitElement {
                   .value=${String(this.project.background?.opacity ?? 0.4)}
                   ?disabled=${this.readOnly}
                   @input=${this.handleOpacityChange}
-                  style="width: 70px;"
-                  title="Opacité du plan de fond"
+                  title=${opacityLabel}
+                  aria-label=${opacityLabel}
+                  aria-valuetext=${formatNumber(this.project.background?.opacity ?? 0.4, { style: 'percent' })}
                 />
               </div>
-            ` : null}
+            ` : nothing}
 
             <!-- Volet Entités HA -->
             <button
               class="btn-drawer ${!this.isDrawerCollapsed ? 'active' : ''}"
+              aria-pressed=${this.isDrawerCollapsed ? 'false' : 'true'}
+              aria-label=${localizeCount('panel.drawer.toggle_aria', this.project.bindings.length)}
               @click=${this.toggleDrawer}
-              title="Afficher / Masquer le volet des entités et des meubles"
+              title=${drawerTitle}
             >
-              ⚡<span class="btn-label"> Entités HA</span> (${this.project.bindings.length})
+              <span aria-hidden="true">⚡</span><span class="btn-label"> ${localize('panel.drawer.label')}</span> (${formatNumber(this.project.bindings.length)})
             </button>
 
-            <div class="scale-indicator" title="Échelle d'affichage : pixels par mètre">
-              1 m = ${Number(this.project.pixelsPerMeter.toFixed(2))} px
+            <div class="scale-indicator" title=${localize('panel.controls.scale_title')}>
+              ${localize('panel.controls.scale', { value: formatNumber(this.project.pixelsPerMeter, { maximumFractionDigits: 2 }) })}
             </div>
 
             <!-- Bouton Plein Écran -->
             <button
               class="btn-fullscreen ${this.isFullscreen ? 'active' : ''}"
+              aria-pressed=${this.isFullscreen ? 'true' : 'false'}
               @click=${() => void this.toggleFullscreen()}
-              title="${this.isFullscreen ? 'Sortir du plein écran (Échap)' : 'Passer en plein écran'}"
+              title=${localize(this.isFullscreen ? 'panel.fullscreen.exit_title' : 'panel.fullscreen.enter_title')}
             >
-              <span style="font-size: 1.05rem; line-height: 1;">${this.isFullscreen ? '🗗' : '⛶'}</span>
-              <span class="btn-label">${this.isFullscreen ? 'Sortir du plein écran' : 'Plein écran'}</span>
+              <span class="fullscreen-icon" aria-hidden="true">${this.isFullscreen ? '🗗' : '⛶'}</span>
+              <span class="btn-label">${fullscreenLabel}</span>
             </button>
 
             <!-- Sauvegarde (indicateur des modifications non sauvegardées) -->
             <button
               class="btn-primary ${activeDirty ? 'is-dirty' : ''}"
               ?disabled=${this.readOnly || !ready || saving}
+              aria-label=${saving ? localize('panel.save.saving') : saveLabel}
+              aria-describedby=${activeDirty ? 'save-dirty-hint' : nothing}
               @click=${this.openSaveModal}
-              title=${activeDirty ? 'Modifications non sauvegardées (Ctrl+S / Cmd+S)' : 'Sauvegarder le plan (Ctrl+S / Cmd+S)'}
+              title=${saveTitle}
             >
-              ${saving ? html`⏳<span class="btn-label"> Sauvegarde…</span>` : html`💾<span class="btn-label"> Sauvegarder</span>${activeDirty ? html` <span class="dirty-dot">●</span>` : null}`}
+              ${saving
+                ? html`<span aria-hidden="true">⏳</span><span class="btn-label"> ${localize('panel.save.saving')}</span>`
+                : html`<span aria-hidden="true">💾</span><span class="btn-label"> ${saveLabel}</span>${activeDirty ? html` <span class="dirty-dot" aria-hidden="true">●</span>` : nothing}`}
             </button>
+            ${activeDirty ? html`<span id="save-dirty-hint" class="visually-hidden">${localize('panel.common.unsaved_changes')}</span>` : nothing}
           </div>
         </header>
 
@@ -3354,9 +2619,9 @@ export class HomeArchitectPanel extends LitElement {
                   this.isIconPickerOpen = true;
                 }
               }}
-              @toggle-3d=${(e: CustomEvent<{ is3DMode: boolean }>) => this.is3DMode = e.detail.is3DMode}
+              @toggle-3d=${(e: CustomEvent<{ is3DMode: boolean }>) => { this.is3DMode = e.detail.is3DMode; }}
               @opening-config-changed=${this.handleOpeningConfigChanged}
-              @room-selected=${(e: CustomEvent<{ room: Room }>) => this.selectedRoomForEdit = e.detail.room}
+              @room-selected=${(e: CustomEvent<{ room: Room }>) => { this.selectedRoomForEdit = e.detail.room; }}
               @project-changed=${this.handleProjectChanged}
               @request-calibration=${this.handleRequestCalibration}
               @request-rescale=${this.handleRequestRescale}
@@ -3364,159 +2629,12 @@ export class HomeArchitectPanel extends LitElement {
               @placement-done=${this.handlePlacementDone}
             ></home-architect-canvas>
 
-            <!-- Floating HUD de sélection multi-éléments repositionné en bas -->
-            ${(() => {
-              // Éléments encore présents dans le plan uniquement (identifiants périmés ignorés, constat F130).
-              if (countSelection(selection) === 0) return null;
+            ${this.renderSelectionHud(selection)}
 
-              const selectedBinding = selection.bindingIds.length > 0
-                ? this.project.bindings.find(b => b.id === selection.bindingIds[0])
-                : null;
-              const selectedFurniture = (selection.furnitureIds ?? []).length > 0
-                ? (this.project.furniture ?? []).find(f => f.id === selection.furnitureIds?.[0])
-                : undefined;
-
-              return html`
-                <div class="selection-hud">
-                  <div class="selection-hud-main">
-                    <span class="selection-info">
-                      <span>🎯</span>
-                      <span>${this.getSelectedSummary(selection)}</span>
-                    </span>
-
-                    ${selection.wallIds.length > 0 ? html`
-                      <div class="hud-options-group">
-                        <span class="hud-label">Épaisseur :</span>
-                        <button class="hud-opt-btn ${this.currentThickness === 0.10 ? 'active' : ''}" @click=${() => this.updateSelectedWallsThickness(0.10)} title="Cloison 10 cm">Fin 10cm</button>
-                        <button class="hud-opt-btn ${this.currentThickness === 0.20 ? 'active' : ''}" @click=${() => this.updateSelectedWallsThickness(0.20)} title="Standard 20 cm">Moyen 20cm</button>
-                        <button class="hud-opt-btn ${this.currentThickness === 0.30 ? 'active' : ''}" @click=${() => this.updateSelectedWallsThickness(0.30)} title="Porteur 30 cm">Gros 30cm</button>
-                      </div>
-                    ` : null}
-
-                    ${selection.openingIds.some(id => this.project.openings.find(op => op.id === id)?.type === 'door') ? html`
-                      <div class="hud-options-group">
-                        <span class="hud-label">Porte :</span>
-                        <button class="hud-opt-btn ${!this.doorFlipSide && this.doorFlipDirection ? 'active' : ''}" @click=${() => this.updateSelectedDoorConfig(false, true)} title="Ouverture Droite Intérieure (Poussant Droit)">Droite Int.</button>
-                        <button class="hud-opt-btn ${!this.doorFlipSide && !this.doorFlipDirection ? 'active' : ''}" @click=${() => this.updateSelectedDoorConfig(false, false)} title="Ouverture Gauche Intérieure (Poussant Gauche)">Gauche Int.</button>
-                        <button class="hud-opt-btn ${this.doorFlipSide && !this.doorFlipDirection ? 'active' : ''}" @click=${() => this.updateSelectedDoorConfig(true, false)} title="Ouverture Gauche Extérieure (Tirant Gauche)">Gauche Ext.</button>
-                        <button class="hud-opt-btn ${this.doorFlipSide && this.doorFlipDirection ? 'active' : ''}" @click=${() => this.updateSelectedDoorConfig(true, true)} title="Ouverture Droite Extérieure (Tirant Droit)">Droite Ext.</button>
-                      </div>
-                    ` : null}
-
-                    ${selection.openingIds.some(id => {
-                      const op = this.project.openings.find(o => o.id === id);
-                      return op && (op.type === 'window' || op.type === 'french_window');
-                    }) ? html`
-                      <div class="hud-options-group">
-                        <span class="hud-label">Fenêtre :</span>
-                        <button class="hud-opt-btn ${this.windowSashCount === 1 ? 'active' : ''}" @click=${() => this.updateSelectedWindowConfig('window', 1, 0.90)} title="Fenêtre 1 ouvrant (90 cm)">1 Ouvrant</button>
-                        <button class="hud-opt-btn ${this.windowSashCount === 2 ? 'active' : ''}" @click=${() => this.updateSelectedWindowConfig('window', 2, 1.40)} title="Fenêtre 2 battants (1.40 m)">2 Battants</button>
-                        <button class="hud-opt-btn" @click=${() => this.updateSelectedWindowConfig('french_window', 2, 2.00)} title="Baie vitrée coulissante (2.00 m)">Baie vitrée</button>
-                      </div>
-                    ` : null}
-
-                    ${selectedFurniture ? html`
-                      <div class="hud-options-group">
-                        <span class="hud-label">Meuble :</span>
-                        <button class="hud-opt-btn active" ?disabled=${this.readOnly} @click=${this.rotateSelectedFurniture} title="Pivoter les meubles de 90° (Touche R)">🔄 Pivoter 90° (R)</button>
-                        <label class="hud-color" title="Couleur du meuble (plan, export et carte)">
-                          <span class="hud-label">Couleur</span>
-                          <input
-                            type="color"
-                            .value=${furnitureColorValue(selectedFurniture)}
-                            ?disabled=${this.readOnly}
-                            @input=${(e: Event) => this.updateSelectedFurnitureColor((e.target as HTMLInputElement).value)}
-                          />
-                        </label>
-                        ${selectedFurniture.color ? html`
-                          <button class="hud-opt-btn" ?disabled=${this.readOnly} @click=${() => this.updateSelectedFurnitureColor(null)} title="Revenir à la couleur du modèle">↺</button>
-                        ` : null}
-                      </div>
-                    ` : null}
-
-                    ${selectedBinding ? html`
-                      <div class="hud-options-group">
-                        <button 
-                          class="hud-opt-btn ${this.isIconPickerOpen ? 'active' : ''}" 
-                          @click=${() => this.isIconPickerOpen = !this.isIconPickerOpen}
-                          title="Choisir l'icône pour le plan et la card Lovelace"
-                        >
-                          <span style="font-size: 1.05rem;">${selectedBinding.icon || '🎨'}</span>
-                          <span>Choisir l'icône ${this.isIconPickerOpen ? '▴' : '▾'}</span>
-                        </button>
-                      </div>
-                    ` : null}
-
-                    <button class="btn-delete-selection" ?disabled=${this.readOnly} @click=${this.handleDeleteSelected} title="Supprimer les éléments sélectionnés (Touche Suppr / Retour)">
-                      <span>🗑️</span>
-                      <span>Supprimer</span>
-                    </button>
-                    <button class="btn-clear-selection" @click=${this.clearSelection} title="Désélectionner tout (Échap)">
-                      ✕
-                    </button>
-                  </div>
-
-                  <!-- Onglet / Palette Choisir l'icône pour l'entité sélectionnée -->
-                  ${selectedBinding && this.isIconPickerOpen ? html`
-                    <div class="hud-icon-picker-panel">
-                      <div class="icon-category-tabs">
-                        ${Object.entries(TYPOLOGY_ICONS).map(([key, group]) => html`
-                          <button 
-                            class="icon-category-tab ${this.getActiveTypology() === key ? 'active' : ''}"
-                            @click=${() => this.selectedTypologyTab = key}
-                          >
-                            ${group.tabLabel}
-                          </button>
-                        `)}
-                      </div>
-
-                      <div class="icon-grid">
-                        ${(TYPOLOGY_ICONS[this.getActiveTypology()] || TYPOLOGY_ICONS['light']).icons.map(item => html`
-                          <button 
-                            class="icon-item-btn ${selectedBinding.icon === item.icon ? 'active' : ''}"
-                            @click=${() => this.updateSelectedBindingIcon(item.icon, item.mdi)}
-                            title="${item.label} (${item.mdi})"
-                          >
-                            <span class="icon-item-emoji">${item.icon}</span>
-                            <span>${item.label}</span>
-                          </button>
-                        `)}
-                      </div>
-
-                      <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 0.78rem; color: #94a3b8; border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 4px;">
-                        <span>Icône active : <strong style="color: #38bdf8;">${selectedBinding.icon || 'Défaut'}</strong> (${selectedBinding.mdiIcon || 'Automatique'})</span>
-                        <div style="display: flex; align-items: center; gap: 4px;">
-                          <span>Saisie libre :</span>
-                          <input 
-                            type="text" 
-                            style="width: 55px; background: rgba(30, 41, 59, 0.9); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 6px; color: #fff; padding: 2px 4px; font-size: 0.85rem; text-align: center;" 
-                            placeholder="Emoji"
-                            maxlength="4"
-                            @keydown=${(e: KeyboardEvent) => {
-                              if (e.key === 'Enter') {
-                                const val = (e.target as HTMLInputElement).value.trim();
-                                if (val) this.updateSelectedBindingIcon(val);
-                              }
-                            }}
-                            @change=${(e: any) => {
-                              const val = e.target.value.trim();
-                              if (val) this.updateSelectedBindingIcon(val);
-                            }}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  ` : null}
-                </div>
-              `;
-            })()}
-
-            <!-- Notification Toast -->
-            ${this.toastMessage ? html`
-              <div class="toast-notification">
-                ${this.toastMessage}
-              </div>
-            ` : null}
+            <!-- Notification (région annoncée par les lecteurs d'écran, toujours présente) -->
+            <div class="toast-region" role="status" aria-live="polite">
+              ${this.toastMessage ? html`<div class="toast-notification">${this.toastMessage}</div>` : nothing}
+            </div>
           </div>
 
           <!-- Volet des entités HA et des meubles : colonne, ou tiroir superposé sur écran étroit -->
@@ -3528,9 +2646,11 @@ export class HomeArchitectPanel extends LitElement {
           ></home-architect-entity-drawer>
         </div>
 
-        <!-- Modal d'Import Automatisé -->
+        <!-- Modales des composants (data-modal : focus rendu à l'élément déclencheur à la fermeture) -->
         ${this.isImportModalOpen ? html`
           <home-architect-import-modal
+            data-modal
+            .hass=${this.hass}
             .currentLevel=${this.project.category || DEFAULT_LEVEL}
             .initialFile=${this.importInitialFile}
             .initialSvg=${this.importInitialSvg}
@@ -3538,32 +2658,33 @@ export class HomeArchitectPanel extends LitElement {
             @import-project-backup=${this.handleImportProjectBackup}
             @close=${this.closeImportModal}
           ></home-architect-import-modal>
-        ` : null}
+        ` : nothing}
 
-        <!-- Modal Assistant Pièce Débutant -->
         ${this.isWizardOpen ? html`
           <home-architect-wizard-modal
+            data-modal
             @create-room=${this.handleCreateRoomFromWizard}
-            @close=${() => this.isWizardOpen = false}
+            @close=${() => { this.isWizardOpen = false; }}
           ></home-architect-wizard-modal>
-        ` : null}
+        ` : nothing}
 
-        <!-- Modal Propriétés de la Pièce (Hauteur sous plafond 3D, etc.) -->
         ${this.selectedRoomForEdit ? html`
           <home-architect-room-modal
+            data-modal
             .room=${this.selectedRoomForEdit}
             .hass=${this.hass}
             .defaultCeilingHeight=${this.project.defaultCeilingHeight}
             .walls=${this.project.walls}
             @save-room=${this.handleSaveRoom}
             @delete-room=${this.handleDeleteRoom}
-            @close=${() => this.selectedRoomForEdit = null}
+            @close=${() => { this.selectedRoomForEdit = null; }}
           ></home-architect-room-modal>
-        ` : null}
+        ` : nothing}
 
-        <!-- Modal Étalonnage Mesure de Mur -->
         ${this.isCalibrateModalOpen && this.calibrationData ? html`
           <home-architect-calibrate-modal
+            data-modal
+            .hass=${this.hass}
             .worldDistance=${this.calibrationData.worldDistance}
             .defaultMeters=${this.calibrationData.defaultMeters}
             .pixelsPerMeter=${this.project.pixelsPerMeter}
@@ -3572,11 +2693,12 @@ export class HomeArchitectPanel extends LitElement {
             @calibrate-confirmed=${this.handleCalibrateConfirmed}
             @close=${this.closeCalibrateModal}
           ></home-architect-calibrate-modal>
-        ` : null}
+        ` : nothing}
 
-        <!-- Modal Mettre à l'échelle (Recalcul de toutes les cotes) -->
         ${this.isRescaleModalOpen ? html`
           <home-architect-rescale-modal
+            data-modal
+            .hass=${this.hass}
             .measuredMeters=${this.rescaleMeasuredMeters}
             .wallCount=${this.project.walls.length}
             .roomCount=${this.project.rooms.length}
@@ -3585,13 +2707,13 @@ export class HomeArchitectPanel extends LitElement {
             .bindingCount=${this.project.bindings.length}
             .hasBackground=${!!(this.project.background && (this.project.background.assetId || this.project.background.imageUrl))}
             @rescale-confirmed=${this.handleRescaleConfirmed}
-            @close=${() => this.isRescaleModalOpen = false}
+            @close=${() => { this.isRescaleModalOpen = false; }}
           ></home-architect-rescale-modal>
-        ` : null}
+        ` : nothing}
 
-        <!-- Modal Exporter vers Lovelace -->
         ${this.isExportModalOpen ? html`
           <home-architect-export-modal
+            data-modal
             .project=${this.project}
             .hass=${this.hass}
             .backgroundSrc=${this.persistence.background.src}
@@ -3601,13 +2723,13 @@ export class HomeArchitectPanel extends LitElement {
             @project-published=${this.handleProjectPublished}
             @project-unpublished=${this.handleProjectUnpublished}
             @save-requested=${this.handleExportSaveRequested}
-            @close=${() => this.isExportModalOpen = false}
+            @close=${() => { this.isExportModalOpen = false; }}
           ></home-architect-export-modal>
-        ` : null}
+        ` : nothing}
 
-        <!-- Modal Sauvegarder & Recharger un Plan -->
         ${this.isSaveLoadModalOpen ? html`
           <home-architect-save-load-modal
+            data-modal
             .hass=${this.hass}
             .project=${this.project}
             .mode=${this.saveLoadModalTab}
@@ -3616,113 +2738,19 @@ export class HomeArchitectPanel extends LitElement {
             @save-confirmed=${this.handleSaveConfirmed}
             @load-project=${this.handleLoadProject}
             @project-deleted=${(e: CustomEvent<{ projectId: string }>) => this.persistence.projectDeleted(e.detail.projectId, { remote: false })}
-            @close=${() => this.isSaveLoadModalOpen = false}
+            @close=${() => { this.isSaveLoadModalOpen = false; }}
           ></home-architect-save-load-modal>
-        ` : null}
+        ` : nothing}
 
-        <!-- Modal Nouveau Plan -->
-        ${this.isNewPlanModalOpen ? html`
-          <div class="modal-backdrop" @click=${(e: MouseEvent) => { if (e.target === e.currentTarget) this.isNewPlanModalOpen = false; }}>
-            <div class="modal-dialog">
-              <div class="modal-dialog-header">
-                <div class="modal-dialog-title-group">
-                  <span class="modal-dialog-icon">📄</span>
-                  <div>
-                    <h3 class="modal-dialog-title">Nouveau Plan</h3>
-                    <p class="modal-dialog-subtitle">Créer une feuille de dessin vierge</p>
-                  </div>
-                </div>
-                <button class="btn-dialog-close" @click=${() => this.isNewPlanModalOpen = false}>✕</button>
-              </div>
-              <div class="modal-dialog-body">
-                <div class="dialog-form-group">
-                  <label class="dialog-label">Nom du plan :</label>
-                  <input
-                    type="text"
-                    class="dialog-input"
-                    .value=${this.newPlanName}
-                    @input=${(e: any) => this.newPlanName = e.target.value}
-                    placeholder="Ex: Mon Appartement, RDC..."
-                    autofocus
-                  />
-                </div>
+        ${this.isNewPlanModalOpen ? this.renderNewPlanDialog() : nothing}
 
-                <div class="dialog-form-group">
-                  <label class="dialog-label">Catégorie / Niveau :</label>
-                  <div class="category-grid">
-                    ${[...KNOWN_LEVELS, CUSTOM_CATEGORY_DEF].map(cat => html`
-                      <button
-                        type="button"
-                        class="category-btn ${this.newPlanCategory === cat.id ? 'active' : ''}"
-                        @click=${() => this.newPlanCategory = cat.id}
-                      >
-                        <span>${cat.icon}</span>
-                        <span>${cat.label}</span>
-                      </button>
-                    `)}
-                  </div>
-                </div>
-              </div>
-              <div class="modal-dialog-footer">
-                <button class="btn-dialog-cancel" @click=${() => this.isNewPlanModalOpen = false}>Annuler</button>
-                <button class="btn-dialog-confirm primary" @click=${() => void this.handleConfirmNewPlan()}>
-                  <span>✨</span>
-                  <span>Créer le plan</span>
-                </button>
-              </div>
-            </div>
-          </div>
-        ` : null}
-
-        <!-- Modal Effacer le Plan (Reset) -->
-        ${this.isResetModalOpen ? html`
-          <div class="modal-backdrop" @click=${(e: MouseEvent) => { if (e.target === e.currentTarget) this.isResetModalOpen = false; }}>
-            <div class="modal-dialog danger">
-              <div class="modal-dialog-header danger">
-                <div class="modal-dialog-title-group">
-                  <span class="modal-dialog-icon">🗑️</span>
-                  <div>
-                    <h3 class="modal-dialog-title" style="color: #f87171;">Effacer le Plan</h3>
-                    <p class="modal-dialog-subtitle">Réinitialisation de l'espace de travail</p>
-                  </div>
-                </div>
-                <button class="btn-dialog-close" @click=${() => this.isResetModalOpen = false}>✕</button>
-              </div>
-              <div class="modal-dialog-body">
-                <p style="color: #f1f5f9; margin: 0; line-height: 1.5; font-size: 0.92rem;">
-                  Êtes-vous sûr de vouloir <strong>effacer tout le contenu</strong> du plan actuel
-                  (<strong>${this.project.name || getLevelLabel(this.project.category)}</strong>) ?
-                </p>
-
-                <div class="reset-summary-box">
-                  <div>🧱 <strong>Murs :</strong> ${this.project.walls.length}</div>
-                  <div>🚪 <strong>Ouvrants :</strong> ${this.project.openings.length}</div>
-                  <div>🏷️ <strong>Pièces :</strong> ${this.project.rooms.length}</div>
-                  <div>⚡ <strong>Entités HA :</strong> ${this.project.bindings.length}</div>
-                  <div>🛋️ <strong>Meubles :</strong> ${this.project.furniture?.length || 0}</div>
-                  <div>🖼️ <strong>Image de fond :</strong> ${this.project.background ? 'Oui' : 'Non'}</div>
-                </div>
-
-                <p style="color: #94a3b8; font-size: 0.8rem; margin: 0;">
-                  ℹ️ Cette action est réversible avec le bouton Annuler (Ctrl+Z).
-                </p>
-              </div>
-              <div class="modal-dialog-footer">
-                <button class="btn-dialog-cancel" @click=${() => this.isResetModalOpen = false}>Annuler</button>
-                <button class="btn-dialog-confirm danger" @click=${() => this.handleConfirmResetPlan()}>
-                  <span>🗑️</span>
-                  <span>Effacer tout</span>
-                </button>
-              </div>
-            </div>
-          </div>
-        ` : null}
+        ${this.isResetModalOpen ? this.renderResetDialog() : nothing}
 
         <!-- Modale Mise à jour (notification seulement : l'installation passe par HA) -->
         ${this.isUpdateModalOpen && this.updateInfo?.available ? renderUpdateDialog(this.updateInfo, dirtyCount, {
           onClose: () => this.closeUpdateModal(),
           onOpenUpdates: () => this.openHaUpdates()
-        }) : null}
+        }) : nothing}
 
         <!-- À propos : version, état des mises à jour, liens (release, soutien du projet) -->
         ${this.isAboutOpen ? renderAboutDialog({
@@ -3731,7 +2759,7 @@ export class HomeArchitectPanel extends LitElement {
           onClose: () => { this.isAboutOpen = false; },
           onShowUpdate: () => { this.isAboutOpen = false; this.isUpdateModalOpen = true; },
           onOpenUpdates: () => this.openHaUpdates()
-        }) : null}
+        }) : nothing}
 
         <!-- Chargement bloquant, opération en cours, copies locales à restaurer, dialogue de choix -->
         ${this.persistence.renderOverlays()}

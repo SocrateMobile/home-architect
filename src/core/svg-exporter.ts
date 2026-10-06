@@ -2,6 +2,7 @@ import { ExportFrame, HomeArchitectProject, Opening, Point, Wall } from './types
 import { PolygonUtils } from './polygon';
 import { furnitureBounds, furnitureSymbolMarkup } from './furniture-catalog';
 import { EntityStates, bindingDisplayName } from './project-model';
+import { formatNumber } from '../i18n/index';
 
 export interface SvgExportOptions {
   includeRooms?: boolean;
@@ -508,9 +509,11 @@ export class SvgExporter {
         // Toujours à l'intérieur de la pièce, même concave (pièce en L, en U…).
         const c = PolygonUtils.labelPoint(room.polygon);
         const area = Number.isFinite(room.areaM2) ? room.areaM2 : PolygonUtils.computeArea(room.polygon);
+        // Surface au format de la langue de l'interface au moment de l'export (« 12,5 m² » / « 12.5 m² »).
+        const areaLabel = `${formatNumber(area, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} m²`;
         content += `    <g transform="translate(${m(c.x)}, ${m(c.y)})">\n`;
         content += `      <text y="${m(-SIZE.labelGap / 2)}" fill="${COLORS.labelName}" font-size="${m(SIZE.labelName)}" font-weight="700">${escapeXml(room.name || '')}</text>\n`;
-        content += `      <text y="${m(SIZE.labelGap / 2 + SIZE.labelArea)}" fill="${COLORS.accent}" font-size="${m(SIZE.labelArea)}" font-weight="600" font-family="${MONO_FONT_FAMILY}">${area.toFixed(1)} m²</text>\n`;
+        content += `      <text y="${m(SIZE.labelGap / 2 + SIZE.labelArea)}" fill="${COLORS.accent}" font-size="${m(SIZE.labelArea)}" font-weight="600" font-family="${MONO_FONT_FAMILY}">${escapeXml(areaLabel)}</text>\n`;
         content += `    </g>\n`;
       }
       content += `  </g>\n`;

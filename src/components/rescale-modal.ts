@@ -2,6 +2,10 @@ import { LitElement, html, css, PropertyValues } from 'lit';
 import { property, state } from 'lit/decorators.js';
 import { defineElement } from '../core/define';
 import { getEventTarget } from '../core/keyboard';
+import { LocalizeController, formatNumber, getLanguage, localize } from '../i18n';
+import '../i18n/locales/geometry';
+import { applyColorScheme, uiThemeStyles } from '../styles/theme.styles';
+import { DialogFocusController, geometryModalStyles } from './room-modal';
 
 export interface RescaleModalResult {
   currentMeters: number;
@@ -35,8 +39,27 @@ function parseDecimal(text: string): number | null {
   return Number.isFinite(v) ? v : null;
 }
 
-function plural(count: number, singular: string, pluralForm: string): string {
-  return `${count} ${count > 1 ? pluralForm : singular}`;
+/** Éléments du plan dénombrés dans la liste des impacts (clés `geometry.count.<nom>.one|other`). */
+type CountedElement = 'walls' | 'openings' | 'rooms' | 'furniture' | 'bindings';
+
+/** Forme du pluriel dans la langue courante (« 0 mur » en français, « 0 walls » en anglais). */
+function pluralForm(count: number): 'one' | 'other' {
+  return new Intl.PluralRules(getLanguage()).select(count) === 'one' ? 'one' : 'other';
+}
+
+function countLabel(element: CountedElement, count: number): string {
+  return localize(`geometry.count.${element}.${pluralForm(count)}`, { count: formatNumber(count) });
+}
+
+/** Ligne d'impact traduite dont le marqueur {subject} est rendu en gras. */
+function impactText(key: string, subject: string) {
+  const [before, after = ''] = localize(key).split('{subject}');
+  return html`${before}<strong>${subject}</strong>${after}`;
+}
+
+/** Longueur à deux décimales dans la langue courante. */
+function formatMeters(v: number): string {
+  return formatNumber(v, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 interface RescaleEvaluation {
@@ -46,51 +69,35 @@ interface RescaleEvaluation {
   unusual: boolean;
 }
 
+/** Sous-ensemble de l'objet hass utilisé : le mode sombre (palette de repli des jetons de thème). */
+export interface RescaleModalHass {
+  themes?: { darkMode?: unknown };
+}
+
 export class HomeArchitectRescaleModal extends LitElement {
-  static styles = css`
+  static styles = [uiThemeStyles, geometryModalStyles, css`
     :host {
-      position: fixed;
-      inset: 0;
-      background: rgba(15, 23, 42, 0.85);
-      backdrop-filter: blur(12px);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 100;
-      font-family: var(--ha-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
-      color: #f8fafc;
-      animation: fadeIn 0.2s ease-out;
+      --modal-success-text: color-mix(in srgb, var(--arch-ui-success) 60%, var(--arch-ui-text));
+      --modal-warning-text: color-mix(in srgb, var(--arch-ui-warning) 50%, var(--arch-ui-text));
     }
 
-    @keyframes fadeIn {
-      from { opacity: 0; transform: scale(0.98); }
-      to { opacity: 1; transform: scale(1); }
+    /* Navigateur sans color-mix() : texte lisible plutôt qu'un jeton invalide (voir geometryModalStyles). */
+    @supports not (color: color-mix(in srgb, red 50%, blue)) {
+      :host {
+        --modal-success-text: var(--arch-ui-text);
+        --modal-warning-text: var(--arch-ui-text);
+      }
     }
 
     .modal-card {
-      background: #1e293b;
-      border: 1px solid rgba(56, 189, 248, 0.3);
-      border-radius: 16px;
       width: 480px;
-      max-width: 92vw;
-      display: flex;
-      flex-direction: column;
-      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6), 0 0 25px rgba(56, 189, 248, 0.25);
-      overflow: hidden;
     }
 
     .modal-header {
       padding: 18px 24px;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      background: rgba(15, 23, 42, 0.6);
     }
 
     .modal-title-group {
-      display: flex;
-      align-items: center;
       gap: 12px;
     }
 
@@ -100,31 +107,12 @@ export class HomeArchitectRescaleModal extends LitElement {
 
     .modal-title {
       font-size: 1.15rem;
-      font-weight: 700;
-      color: #f1f5f9;
-      margin: 0;
     }
 
     .modal-subtitle {
       font-size: 0.8rem;
-      color: #94a3b8;
+      color: var(--arch-ui-text-muted);
       margin: 2px 0 0 0;
-    }
-
-    .btn-close {
-      background: transparent;
-      border: none;
-      color: #94a3b8;
-      font-size: 20px;
-      cursor: pointer;
-      padding: 4px;
-      border-radius: 6px;
-      transition: all 0.15s ease;
-    }
-
-    .btn-close:hover {
-      color: #ffffff;
-      background: rgba(255, 255, 255, 0.1);
     }
 
     .modal-body {
@@ -132,6 +120,7 @@ export class HomeArchitectRescaleModal extends LitElement {
       display: flex;
       flex-direction: column;
       gap: 18px;
+      overflow-y: auto;
     }
 
     .metric-compare {
@@ -141,8 +130,8 @@ export class HomeArchitectRescaleModal extends LitElement {
     }
 
     .metric-box {
-      background: rgba(15, 23, 42, 0.6);
-      border: 1px solid rgba(255, 255, 255, 0.1);
+      background: var(--arch-ui-bg);
+      border: 1px solid var(--arch-ui-border);
       border-radius: 12px;
       padding: 12px 14px;
       display: flex;
@@ -151,24 +140,21 @@ export class HomeArchitectRescaleModal extends LitElement {
     }
 
     .metric-box.active {
-      border-color: #38bdf8;
-      background: rgba(2, 132, 199, 0.15);
-      box-shadow: 0 0 15px rgba(56, 189, 248, 0.15);
+      border-color: var(--modal-accent-text);
+      background: var(--modal-accent-soft);
     }
 
     .metric-label {
       font-size: 0.78rem;
-      color: #94a3b8;
-      font-weight: 600;
-      text-transform: uppercase;
       letter-spacing: 0.5px;
     }
 
     .metric-val {
       font-size: 1.3rem;
-      font-weight: 800;
-      color: #cbd5e1;
-      font-family: ui-monospace, SFMono-Regular, monospace;
+    }
+
+    .metric-box:not(.active) .metric-val {
+      color: var(--arch-ui-text);
     }
 
     .input-group {
@@ -180,7 +166,7 @@ export class HomeArchitectRescaleModal extends LitElement {
     .input-label {
       font-size: 0.88rem;
       font-weight: 600;
-      color: #f1f5f9;
+      color: var(--arch-ui-text);
     }
 
     .input-row {
@@ -190,28 +176,13 @@ export class HomeArchitectRescaleModal extends LitElement {
     }
 
     .target-input {
-      flex: 1;
-      background: #0f172a;
-      border: 2px solid #0284c7;
       border-radius: 10px;
-      color: #ffffff;
       padding: 10px 14px;
       font-size: 1.25rem;
-      font-weight: 800;
-      font-family: ui-monospace, SFMono-Regular, monospace;
-      outline: none;
-      transition: all 0.2s ease;
     }
 
-    .target-input:focus {
-      border-color: #38bdf8;
-      box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.3);
-    }
-
-    .unit-badge {
+    .unit-tag {
       font-size: 1rem;
-      font-weight: 700;
-      color: #38bdf8;
       padding: 0 4px;
     }
 
@@ -219,11 +190,16 @@ export class HomeArchitectRescaleModal extends LitElement {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      background: rgba(15, 23, 42, 0.5);
-      border: 1px solid rgba(255, 255, 255, 0.08);
+      gap: 8px;
+      background: var(--arch-ui-bg);
+      border: 1px solid var(--arch-ui-border);
       border-radius: 10px;
       padding: 10px 14px;
       font-size: 0.85rem;
+    }
+
+    .factor-label {
+      color: var(--arch-ui-text-muted);
     }
 
     .ratio-pill {
@@ -231,35 +207,46 @@ export class HomeArchitectRescaleModal extends LitElement {
       font-weight: 700;
       padding: 3px 8px;
       border-radius: 9999px;
-      font-family: ui-monospace, SFMono-Regular, monospace;
+      font-family: var(--modal-mono);
+      white-space: nowrap;
+      border: 1px solid transparent;
     }
 
     .ratio-expand {
-      background: rgba(16, 185, 129, 0.2);
-      color: #34d399;
-      border: 1px solid rgba(16, 185, 129, 0.4);
+      background: color-mix(in srgb, var(--arch-ui-success) 16%, transparent);
+      color: var(--modal-success-text);
+      border-color: color-mix(in srgb, var(--arch-ui-success) 45%, transparent);
     }
 
     .ratio-shrink {
-      background: rgba(245, 158, 11, 0.2);
-      color: #f59e0b;
-      border: 1px solid rgba(245, 158, 11, 0.4);
+      background: color-mix(in srgb, var(--arch-ui-warning) 16%, transparent);
+      color: var(--modal-warning-text);
+      border-color: color-mix(in srgb, var(--arch-ui-warning) 45%, transparent);
     }
 
     .ratio-neutral {
-      background: rgba(100, 116, 139, 0.2);
-      color: #94a3b8;
+      background: var(--arch-ui-surface-2);
+      color: var(--arch-ui-text-muted);
+    }
+
+    .impact-box {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      background: var(--arch-ui-bg);
+      border-radius: 10px;
+      padding: 12px 14px;
+      font-size: 0.8rem;
+      color: var(--arch-ui-text-muted);
     }
 
     .impact-list {
       display: flex;
       flex-direction: column;
       gap: 6px;
-      background: rgba(15, 23, 42, 0.4);
-      border-radius: 10px;
-      padding: 12px 14px;
-      font-size: 0.8rem;
-      color: #94a3b8;
+      margin: 0;
+      padding: 0;
+      list-style: none;
     }
 
     .impact-item {
@@ -268,101 +255,42 @@ export class HomeArchitectRescaleModal extends LitElement {
       gap: 8px;
     }
 
+    .impact-item strong {
+      color: var(--arch-ui-text);
+    }
+
     .impact-icon {
       font-size: 1rem;
-    }
-
-    .modal-footer {
-      padding: 16px 24px;
-      border-top: 1px solid rgba(255, 255, 255, 0.1);
-      background: rgba(15, 23, 42, 0.6);
-      display: flex;
-      align-items: center;
-      justify-content: flex-end;
-      gap: 12px;
-    }
-
-    .btn-cancel {
-      background: transparent;
-      color: #94a3b8;
-      border: 1px solid rgba(255, 255, 255, 0.15);
-      border-radius: 8px;
-      padding: 8px 16px;
-      font-size: 0.88rem;
-      cursor: pointer;
-      transition: all 0.2s ease;
-    }
-
-    .btn-cancel:hover {
-      background: rgba(255, 255, 255, 0.08);
-      color: #ffffff;
-    }
-
-    .btn-confirm {
-      background: #0284c7;
-      color: #ffffff;
-      border: 1px solid #38bdf8;
-      border-radius: 8px;
-      padding: 8px 20px;
-      font-size: 0.88rem;
-      font-weight: 600;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      transition: all 0.2s ease;
-      box-shadow: 0 0 15px rgba(56, 189, 248, 0.35);
-    }
-
-    .btn-confirm:hover:not(:disabled) {
-      background: #0369a1;
-      box-shadow: 0 0 20px rgba(56, 189, 248, 0.55);
-    }
-
-    .btn-confirm:disabled {
-      opacity: 0.4;
-      cursor: not-allowed;
-      box-shadow: none;
-    }
-
-    .target-input.invalid {
-      border-color: #ef4444;
-    }
-
-    .field-error {
-      color: #f87171;
-      font-size: 0.8rem;
-      font-weight: 600;
     }
 
     .warning-box {
       display: flex;
       flex-direction: column;
       gap: 8px;
-      background: rgba(245, 158, 11, 0.12);
-      border: 1px solid rgba(245, 158, 11, 0.4);
+      background: color-mix(in srgb, var(--arch-ui-warning) 12%, transparent);
+      border: 1px solid color-mix(in srgb, var(--arch-ui-warning) 45%, transparent);
       border-radius: 10px;
       padding: 10px 12px;
       font-size: 0.82rem;
-      color: #fbbf24;
+      color: var(--modal-warning-text);
     }
 
-    .check-row {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 0.82rem;
-      color: #e2e8f0;
-      cursor: pointer;
+    .modal-footer {
+      padding: 16px 24px;
+      justify-content: flex-end;
+      gap: 12px;
     }
 
-    .check-row input {
-      width: 16px;
-      height: 16px;
-      accent-color: #38bdf8;
-      cursor: pointer;
+    .btn-cancel {
+      padding: 8px 16px;
+      font-size: 0.88rem;
     }
-  `;
+
+    .btn-primary {
+      padding: 8px 20px;
+      font-size: 0.88rem;
+    }
+  `];
 
   @property({ type: Number })
   public measuredMeters: number = 0;
@@ -390,6 +318,10 @@ export class HomeArchitectRescaleModal extends LitElement {
   @property({ attribute: false })
   public hasBackground?: boolean;
 
+  /** Objet hass : seul hass.themes.darkMode est lu (palette claire ou sombre des jetons de repli). */
+  @property({ attribute: false })
+  public hass?: RescaleModalHass;
+
   /** Saisie brute : jamais réécrite pendant la frappe, validée à la confirmation. */
   @state()
   private targetText: string = '';
@@ -399,6 +331,9 @@ export class HomeArchitectRescaleModal extends LitElement {
 
   @state()
   private unusualConfirmed: boolean = false;
+
+  private readonly i18n = new LocalizeController(this);
+  private readonly focusTrap = new DialogFocusController(this);
 
   connectedCallback() {
     super.connectedCallback();
@@ -410,16 +345,25 @@ export class HomeArchitectRescaleModal extends LitElement {
     super.disconnectedCallback();
   }
 
+  /** hass change à chaque état d'entité : il ne fait que choisir la palette, sans nouveau rendu. */
+  protected shouldUpdate(changed: PropertyValues<this>): boolean {
+    if (!changed.has('hass')) return true;
+    applyColorScheme(this, this.hass);
+    return changed.size > 1 || changed.get('hass') === undefined;
+  }
+
   protected willUpdate(changed: PropertyValues<this>) {
     if (changed.has('measuredMeters')) {
       const measured = this.measuredMeters;
-      this.targetText = Number.isFinite(measured) && measured > 0 ? String(Math.round(measured * 1000) / 1000) : '';
+      this.targetText = Number.isFinite(measured) && measured > 0
+        ? formatNumber(measured, { maximumFractionDigits: 3, useGrouping: false })
+        : '';
       this.unusualConfirmed = false;
     }
   }
 
   protected firstUpdated() {
-    const input = this.renderRoot.querySelector<HTMLInputElement>('.target-input');
+    const input = this.renderRoot.querySelector<HTMLInputElement>('#rescale-target');
     input?.focus();
     input?.select();
   }
@@ -433,6 +377,8 @@ export class HomeArchitectRescaleModal extends LitElement {
     if (e.key === 'Escape') {
       e.preventDefault();
       this.close();
+    } else if (e.key === 'Tab') {
+      this.focusTrap.trapTab(e);
     } else if (e.key === 'Enter' && !e.isComposing) {
       // Entrée dans le champ de saisie valide (sur un bouton ou une case, Entrée garde son action native).
       const target = getEventTarget(e);
@@ -456,21 +402,26 @@ export class HomeArchitectRescaleModal extends LitElement {
   private evaluate(): RescaleEvaluation {
     const measured = this.measuredMeters;
     if (!(Number.isFinite(measured) && measured > 0)) {
-      return { target: null, factor: null, error: 'La cote mesurée est invalide : refaites la mesure sur le plan.', unusual: false };
+      return { target: null, factor: null, error: localize('geometry.rescale.error_measured'), unusual: false };
     }
     const target = parseDecimal(this.targetText);
     if (target === null) {
-      return { target: null, factor: null, error: this.targetText.trim() === '' ? '' : 'Saisissez un nombre (ex. 4.25).', unusual: false };
+      const error = this.targetText.trim() === '' ? '' : localize('geometry.rescale.error_number', { example: formatNumber(4.25) });
+      return { target: null, factor: null, error, unusual: false };
     }
     if (target <= 0) {
-      return { target, factor: null, error: 'La longueur doit être strictement positive.', unusual: false };
+      return { target, factor: null, error: localize('geometry.rescale.error_positive'), unusual: false };
     }
     const factor = target / measured;
     if (!isValidRescaleFactor(factor)) {
       return {
         target,
         factor: null,
-        error: `Facteur ×${Number(factor.toPrecision(3))} hors limites (×${RESCALE_MIN_FACTOR} à ×${RESCALE_MAX_FACTOR}) : la longueur est-elle bien en mètres ?`,
+        error: localize('geometry.rescale.error_range', {
+          factor: formatNumber(factor, { maximumSignificantDigits: 3 }),
+          min: formatNumber(RESCALE_MIN_FACTOR),
+          max: formatNumber(RESCALE_MAX_FACTOR)
+        }),
         unusual: false
       };
     }
@@ -510,8 +461,17 @@ export class HomeArchitectRescaleModal extends LitElement {
           .checked=${this.adjustBackground}
           @change=${(e: Event) => this.adjustBackground = (e.target as HTMLInputElement).checked}
         />
-        <span>Ajuster aussi le calque de fond (conserve la superposition avec le plan)</span>
+        <span>${localize('geometry.rescale.adjust_background')}</span>
       </label>
+    `;
+  }
+
+  private renderImpact(icon: string, text: ReturnType<typeof impactText>) {
+    return html`
+      <li class="impact-item">
+        <span class="impact-icon" aria-hidden="true">${icon}</span>
+        <span>${text}</span>
+      </li>
     `;
   }
 
@@ -519,123 +479,125 @@ export class HomeArchitectRescaleModal extends LitElement {
     const ev = this.evaluate();
     const measuredValid = Number.isFinite(this.measuredMeters) && this.measuredMeters > 0;
     const ratio = ev.factor ?? 1.0;
-    const pctDiff = (ratio - 1.0) * 100;
+    const ratioText = formatNumber(ratio, { minimumFractionDigits: 3, maximumFractionDigits: 3 });
+    const percentText = formatNumber(ratio - 1.0, {
+      style: 'percent', minimumFractionDigits: 1, maximumFractionDigits: 1, signDisplay: 'exceptZero'
+    });
     const isValid = this.isConfirmable(ev);
+    const describedBy = ev.error ? 'rescale-unit rescale-error' : 'rescale-unit';
 
     return html`
-      <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="rescale-title">
+      <div
+        class="modal-card"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="rescale-title"
+        aria-describedby="rescale-subtitle"
+        tabindex="-1"
+      >
         <div class="modal-header">
           <div class="modal-title-group">
-            <span class="modal-icon">📐</span>
+            <span class="modal-icon" aria-hidden="true">📐</span>
             <div>
-              <h3 class="modal-title" id="rescale-title">Mettre à l'échelle le plan</h3>
-              <p class="modal-subtitle">Recalcule automatiquement toutes les dimensions et cotes</p>
+              <h2 class="modal-title" id="rescale-title">${localize('geometry.rescale.title')}</h2>
+              <p class="modal-subtitle" id="rescale-subtitle">${localize('geometry.rescale.subtitle')}</p>
             </div>
           </div>
-          <button class="btn-close" title="Fermer" @click=${this.close}>✕</button>
+          <button
+            type="button"
+            class="btn-close"
+            aria-label=${localize('geometry.close')}
+            title=${localize('geometry.close')}
+            @click=${this.close}
+          ><span aria-hidden="true">✕</span></button>
         </div>
 
         <div class="modal-body">
           <div class="metric-compare">
             <div class="metric-box">
-              <span class="metric-label">Cote mesurée actuelle</span>
-              <span class="metric-val">${measuredValid ? this.measuredMeters.toFixed(2) : '--'} m</span>
+              <span class="metric-label">${localize('geometry.rescale.measured')}</span>
+              <span class="metric-val">${localize('geometry.value_m', { value: measuredValid ? formatMeters(this.measuredMeters) : '--' })}</span>
             </div>
             <div class="metric-box active">
-              <span class="metric-label">Nouvelle cote cible</span>
-              <span class="metric-val" style="color: #38bdf8;">${ev.target !== null && ev.target > 0 ? ev.target.toFixed(2) : '--'} m</span>
+              <span class="metric-label">${localize('geometry.rescale.target')}</span>
+              <span class="metric-val">${localize('geometry.value_m', { value: ev.target !== null && ev.target > 0 ? formatMeters(ev.target) : '--' })}</span>
             </div>
           </div>
 
           <div class="input-group">
-            <label class="input-label" for="rescale-target">Quelle est la taille réelle de ce segment en mètres ?</label>
+            <label class="input-label" for="rescale-target">${localize('geometry.rescale.input_label')}</label>
             <div class="input-row">
               <input
                 id="rescale-target"
                 type="text"
                 inputmode="decimal"
                 autocomplete="off"
-                class="target-input ${ev.error ? 'invalid' : ''}"
+                class="big-input target-input ${ev.error ? 'invalid' : ''}"
                 aria-invalid=${ev.error ? 'true' : 'false'}
+                aria-describedby=${describedBy}
                 .value=${this.targetText}
                 @input=${this.handleInputChange}
               />
-              <span class="unit-badge">mètres</span>
+              <span class="unit-tag" id="rescale-unit">${localize('geometry.meters')}</span>
             </div>
-            ${ev.error ? html`<span class="field-error" role="alert">${ev.error}</span>` : null}
+            ${ev.error ? html`<span class="field-error" id="rescale-error" role="alert">${ev.error}</span>` : null}
           </div>
 
           <div class="ratio-indicator">
-            <span style="color: #94a3b8;">Facteur d'ajustement global :</span>
+            <span class="factor-label">${localize('geometry.rescale.factor_label')}</span>
             <span class="ratio-pill ${ratio > 1.001 ? 'ratio-expand' : ratio < 0.999 ? 'ratio-shrink' : 'ratio-neutral'}">
-              × ${ratio.toFixed(3)} (${pctDiff >= 0 ? '+' : ''}${pctDiff.toFixed(1)}%)
+              ${localize('geometry.rescale.factor_value', { ratio: ratioText, percent: percentText })}
             </span>
           </div>
 
           ${ev.unusual ? html`
-            <div class="warning-box">
-              <span>⚠️ Facteur inhabituel (×${ratio.toFixed(3)}) : toutes les dimensions seront multipliées par ce facteur. Vérifiez l'unité saisie.</span>
+            <div class="warning-box" role="status">
+              <span><span aria-hidden="true">⚠️</span> ${localize('geometry.rescale.unusual', { ratio: ratioText })}</span>
               <label class="check-row">
                 <input
                   type="checkbox"
                   .checked=${this.unusualConfirmed}
                   @change=${(e: Event) => this.unusualConfirmed = (e.target as HTMLInputElement).checked}
                 />
-                <span>Je confirme ce facteur</span>
+                <span>${localize('geometry.rescale.confirm_unusual')}</span>
               </label>
             </div>
           ` : null}
 
-          <div class="impact-list">
-            <div class="impact-item">
-              <span class="impact-icon">🧱</span>
-              <span><strong>${plural(this.wallCount, 'mur', 'murs')}</strong> : toutes les longueurs et cotes seront recalculées</span>
-            </div>
-            ${this.openingCount > 0 ? html`
-              <div class="impact-item">
-                <span class="impact-icon">🚪</span>
-                <span><strong>${plural(this.openingCount, 'ouverture', 'ouvertures')}</strong> : positions et largeurs ajustées proportionnellement</span>
-              </div>
-            ` : null}
-            ${this.roomCount > 0 ? html`
-              <div class="impact-item">
-                <span class="impact-icon">🏡</span>
-                <span><strong>${plural(this.roomCount, 'pièce', 'pièces')}</strong> : toutes les surfaces en m² seront actualisées</span>
-              </div>
-            ` : null}
-            ${this.furnitureCount > 0 ? html`
-              <div class="impact-item">
-                <span class="impact-icon">🛋️</span>
-                <span><strong>${plural(this.furnitureCount, 'meuble', 'meubles')}</strong> : positions et dimensions ajustées</span>
-              </div>
-            ` : null}
-            ${this.bindingCount > 0 ? html`
-              <div class="impact-item">
-                <span class="impact-icon">⚡</span>
-                <span><strong>${plural(this.bindingCount, 'entité', 'entités')}</strong> : ${this.bindingCount > 1 ? 'positions ajustées' : 'position ajustée'}</span>
-              </div>
-            ` : null}
-            ${this.backgroundOptionVisible ? html`
-              <div class="impact-item">
-                <span class="impact-icon">🖼️</span>
-                <span><strong>Calque de fond</strong> : ${this.adjustBackground
-                  ? 'échelle synchronisée pour conserver la superposition'
-                  : 'inchangé (il ne sera plus superposé au plan)'}</span>
-              </div>
-            ` : null}
+          <div class="impact-box">
+            <ul class="impact-list">
+              ${this.renderImpact('🧱', impactText('geometry.rescale.impact.walls', countLabel('walls', this.wallCount)))}
+              ${this.openingCount > 0
+                ? this.renderImpact('🚪', impactText('geometry.rescale.impact.openings', countLabel('openings', this.openingCount)))
+                : null}
+              ${this.roomCount > 0
+                ? this.renderImpact('🏡', impactText('geometry.rescale.impact.rooms', countLabel('rooms', this.roomCount)))
+                : null}
+              ${this.furnitureCount > 0
+                ? this.renderImpact('🛋️', impactText('geometry.rescale.impact.furniture', countLabel('furniture', this.furnitureCount)))
+                : null}
+              ${this.bindingCount > 0
+                ? this.renderImpact('⚡', impactText(
+                  `geometry.rescale.impact.bindings.${pluralForm(this.bindingCount)}`,
+                  countLabel('bindings', this.bindingCount)
+                ))
+                : null}
+              ${this.backgroundOptionVisible
+                ? this.renderImpact('🖼️', impactText(
+                  this.adjustBackground ? 'geometry.rescale.impact.background_synced' : 'geometry.rescale.impact.background_unchanged',
+                  localize('geometry.rescale.background_layer')
+                ))
+                : null}
+            </ul>
             ${this.renderBackgroundImpact()}
           </div>
         </div>
 
         <div class="modal-footer">
-          <button class="btn-cancel" @click=${this.close}>Annuler</button>
-          <button
-            class="btn-confirm"
-            ?disabled=${!isValid}
-            @click=${this.confirm}
-          >
-            <span>📐</span>
-            <span>Recalculer toutes les cotes</span>
+          <button type="button" class="btn-cancel" @click=${this.close}>${localize('geometry.cancel')}</button>
+          <button type="button" class="btn-primary" ?disabled=${!isValid} @click=${this.confirm}>
+            <span aria-hidden="true">📐</span>
+            <span>${localize('geometry.rescale.submit')}</span>
           </button>
         </div>
       </div>
