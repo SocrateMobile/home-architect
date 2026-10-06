@@ -438,6 +438,14 @@ export class HomeArchitectCanvas extends LitElement {
   @state()
   private cutWalls = false;
 
+  /** Mode visite virtuelle FPS dans la vue 3D WebGL. */
+  @state()
+  private walkthrough3D = false;
+
+  /** Ambiance jour/nuit dans la vue 3D WebGL. */
+  @state()
+  private nightMode3D = false;
+
   /** Caméra de départ transmise à la vue WebGL quand elle s'affiche (transition depuis la caméra courante). */
   private view3dIntro: View3DIntro | null = null;
 
@@ -2483,9 +2491,10 @@ export class HomeArchitectCanvas extends LitElement {
   private readonly watchedEntityIds = memoizeLast((bindings: readonly EntityBinding[], openings: readonly Opening[]) =>
     boundEntityIds(bindings, openings));
 
-  /** Épingles, et en 3D les capteurs liés aux ouvertures (battants ouverts ou fermés dans la vue WebGL). */
+  /** Épingles, et en 3D les capteurs liés aux ouvertures et la position solaire sun.sun. */
   private watchedEntities(): string[] {
-    return this.watchedEntityIds(this.project.bindings, this.is3DMode ? this.project.openings : NO_OPENINGS);
+    const list = this.watchedEntityIds(this.project.bindings, this.is3DMode ? this.project.openings : NO_OPENINGS);
+    return this.is3DMode ? [...list, 'sun.sun'] : list;
   }
 
   /** Liaisons affichables (une liaison sans entity_id, venue d'un projet non normalisé, ne doit pas bloquer le rendu). */
@@ -3380,7 +3389,10 @@ export class HomeArchitectCanvas extends LitElement {
       return "Touchez le plan à l'endroit voulu pour placer l'élément (Échap pour annuler).";
     }
     if (this.webgl3D) {
-      return "Vue 3D : glisser pour pivoter, clic droit ou Maj+glisser pour déplacer, molette pour zoomer. Clic : sélection, double-clic : fiche. Édition en vue 2D.";
+      if (this.walkthrough3D) {
+        return "Visite virtuelle : Touches ZQSD / Flèches pour vous déplacer, glisser pour regarder à 360°, Shift pour courir. Cliquez sur 🚶 pour revenir en vue aérienne.";
+      }
+      return "Vue 3D : glisser pour pivoter, clic droit ou Maj+glisser pour déplacer, molette pour zoomer. 🚶 : Visite virtuelle, ✂️ : Couper les murs, ☀️/🌙 : Ambiance lumineuse.";
     }
     if (this.is3DMode) {
       const prefix = this.view3d === 'fallback' ? 'Vue 3D simplifiée' : 'Vue 3D Interactive';
@@ -3448,6 +3460,26 @@ export class HomeArchitectCanvas extends LitElement {
             aria-pressed=${this.cutWalls ? 'true' : 'false'}
           >
             ✂️
+          </button>
+
+          <button
+            class="hud-btn ${this.walkthrough3D ? 'active' : ''}"
+            @click=${() => { this.walkthrough3D = !this.walkthrough3D; }}
+            title="Visite virtuelle à la première personne (hauteur d'yeux, ZQSD / flèches)"
+            aria-label="Visite virtuelle 3D"
+            aria-pressed=${this.walkthrough3D ? 'true' : 'false'}
+          >
+            🚶
+          </button>
+
+          <button
+            class="hud-btn ${this.nightMode3D ? 'active' : ''}"
+            @click=${() => { this.nightMode3D = !this.nightMode3D; }}
+            title="Ambiance Jour / Nuit (cycle solaire et lampes)"
+            aria-label="Ambiance Jour et Nuit"
+            aria-pressed=${this.nightMode3D ? 'true' : 'false'}
+          >
+            ${this.nightMode3D ? '🌙' : '☀️'}
           </button>
         ` : nothing}
 
@@ -3559,6 +3591,8 @@ export class HomeArchitectCanvas extends LitElement {
         .animations=${this.animations}
         .shadows=${this.shadows}
         .cutWalls=${this.cutWalls}
+        .walkthrough=${this.walkthrough3D}
+        .nightMode=${this.nightMode3D}
         .intro=${this.view3dIntro}
         @view3d-pick=${this.handleView3DPick}
         @view3d-camera=${this.handleView3DCamera}

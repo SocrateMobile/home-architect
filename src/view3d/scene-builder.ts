@@ -7,6 +7,7 @@ import { openingVerticalRange, windowSashes } from '../canvas/opening-symbols';
 import { HassDisplayContext, HassEntityState, TemperatureReading, roomAppearance, toFiniteNumber } from '../canvas/entity-display';
 import { Rgba, kelvinToRgb, mixRgb, parseCssColor, rgba, scaleRgb } from './colors';
 import { FurnitureRole, furnitureShape } from './furniture3d';
+import { FloorTextureType, detectFloorTexture } from './textures';
 
 /**
  * Modèle de la vue 3D (module PUR, sans three ni DOM, testé par tests/frontend/view3d-scene.test.ts).
@@ -103,6 +104,8 @@ export interface FloorModel {
   polygon: Point[];
   /** Couleur de la pièce (room.color), null : couleur de sol par défaut. */
   color: Rgba | null;
+  /** Texture procédurale de sol (parquet, carrelage, béton, etc.). */
+  textureType?: FloorTextureType;
 }
 
 export interface RoomLabelModel {
@@ -434,7 +437,7 @@ function validRooms(rooms: readonly Room[]): Room[] {
   return rooms.filter(r => Array.isArray(r.polygon) && r.polygon.length >= 3);
 }
 
-/** Murs pleins (sans baies) d'un niveau, pour le fantôme. */
+/** Murs pleins et dalles d'un niveau inférieur, pour le fantôme ou l'empilement multi-niveaux. */
 function plainWalls(project: Pick<HomeArchitectProject, 'walls' | 'rooms' | 'defaultCeilingHeight'>): { prisms: Prism[]; height: number } {
   const polygons = computeWallPolygons(project.walls);
   const heights = computeWallHeights(project.walls, project.rooms, project.defaultCeilingHeight);
@@ -447,6 +450,20 @@ function plainWalls(project: Pick<HomeArchitectProject, 'walls' | 'rooms' | 'def
     height = Math.max(height, h);
     prisms.push({ polygon, bottom: 0, top: h, role: 'wall' });
   }
+
+  // Dalles de plancher pour chaque pièce du niveau inférieur (effet dalle béton / plancher technique)
+  for (const room of validRooms(project.rooms)) {
+    if (room.polygon && room.polygon.length >= 3) {
+      prisms.push({
+        polygon: room.polygon,
+        bottom: 0,
+        top: 0.05,
+        role: 'wall',
+        topRole: 'wall-top'
+      });
+    }
+  }
+
   return { prisms, height: height || ceilingOf(project) };
 }
 
@@ -490,7 +507,12 @@ export function buildSceneModel(
   }
 
   const rooms = validRooms(project.rooms);
-  const floors: FloorModel[] = rooms.map(room => ({ roomId: room.id, polygon: room.polygon, color: parseCssColor(room.color) }));
+  const floors: FloorModel[] = rooms.map(room => ({
+    roomId: room.id,
+    polygon: room.polygon,
+    color: parseCssColor(room.color),
+    textureType: detectFloorTexture(room)
+  }));
   const labels: RoomLabelModel[] = rooms.map(room => {
     const ceiling = typeof room.height === 'number' && room.height > 0 ? room.height : ceilingOf(project);
     return {
@@ -596,6 +618,91 @@ function lightColor(st: HassEntityState): Rgba {
   const mired = toFiniteNumber(st.attributes?.color_temp);
   if (mired !== null && mired > 0) return kelvinToRgb(1e6 / mired);
   return WARM_WHITE;
+}
+
+export interface SunLighting {
+  azimuthDeg: number;
+  elevationDeg: number;
+  dirX: number;
+  dirY: number;
+  dirZ: number;
+  intensity: number;
+  color: Rgba;
+  ambientIntensity: number;
+  isNight: boolean;
+}
+
+/**
+ * Calcule l'éclairage et la direction 3D du soleil en temps réel depuis l'intégration `sun.sun` de Home Assistant.
+ * Si non disponible ou si `sun.sun` est sous l'horizon, fournit une ambiance réaliste (nuit étoilée ou crépuscule).
+ */
+export function calculateSunLighting(hass: HassDisplayContext | undefined, forceNight = false): SunLighting {
+  const sunState = hass?.states?.['sun.sun'];
+  let elevation = toFiniteNumber(sunState?.attributes?.elevation);
+  let azimuth = toFiniteNumber(sunState?.attributes?.azimuth);
+
+  if (forceNight) {
+    elevation = -15;
+    azimuth = 0;
+  } else if (elevation === null || azimuth === null) {
+    // Repli jour par défaut (soleil à 45° sud-ouest)
+    elevation = 45;
+    azimuth = 225;
+  }
+
+  const elevRad = (elevation * Math.PI) / 180;
+  // Azimuth en géodésie : 0° = Nord, 90° = Est, 180° = Sud, 270° = Ouest.
+  // Dans le repère plan (x: Est / droite, z: Sud / bas) :
+  const azRad = (azimuth * Math.PI) / 180;
+  const dirX = Math.sin(azRad) * Math.cos(Math.max(0.08, elevRad));
+  const dirY = Math.sin(Math.max(0.08, elevRad));
+  const dirZ = Math.cos(azRad) * Math.cos(Math.max(0.08, elevRad));
+
+  const isNight = elevation <= -0.8;
+
+  if (isNight) {
+    // Nuit : lumière lunaire froide et discrète
+    return {
+      azimuthDeg: azimuth,
+      elevationDeg: elevation,
+      dirX,
+      dirY: Math.max(0.35, dirY),
+      dirZ,
+      intensity: 0.22,
+      color: rgba(59, 130, 246), // Bleu nuit
+      ambientIntensity: 0.35,
+      isNight: true
+    };
+  }
+
+  // Aube ou crépuscule (soleil rasant entre 0° et 8°) : teintes dorées/orangées chaudes
+  if (elevation < 8) {
+    const t = Math.max(0, elevation) / 8;
+    return {
+      azimuthDeg: azimuth,
+      elevationDeg: elevation,
+      dirX,
+      dirY,
+      dirZ,
+      intensity: 0.6 + t * 0.8,
+      color: rgba(255, Math.round(160 + t * 90), Math.round(100 + t * 155)),
+      ambientIntensity: 0.5 + t * 0.7,
+      isNight: false
+    };
+  }
+
+  // Plein jour : lumière éclatante naturelle
+  return {
+    azimuthDeg: azimuth,
+    elevationDeg: elevation,
+    dirX,
+    dirY,
+    dirZ,
+    intensity: Math.min(1.8, 1.2 + Math.sin(elevRad) * 0.6),
+    color: rgba(255, 255, 255),
+    ambientIntensity: 1.5,
+    isNight: false
+  };
 }
 
 /** Lampes allumées, de la plus lumineuse à la moins lumineuse (les premières reçoivent un éclairage réel). */

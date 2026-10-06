@@ -8,7 +8,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.1.2-blue.svg?style=flat-square" alt="Version 1.1.2" />
+  <img src="https://img.shields.io/badge/version-2.0.0-blue.svg?style=flat-square" alt="Version 2.0.0" />
   <img src="https://img.shields.io/badge/HACS-Custom_Integration-orange.svg?style=flat-square" alt="HACS" />
   <img src="https://img.shields.io/badge/Home_Assistant-2024.1+-blueviolet.svg?style=flat-square" alt="Home Assistant" />
   <img src="https://img.shields.io/badge/license-MIT-green.svg?style=flat-square" alt="License" />
@@ -18,6 +18,12 @@
 ---
 ## 🌟 Fonctionnalités
 
+* **Moteur 3D temps réel nouvelle génération (WebGL / Three.js)** :
+  * **Textures architecturales procédurales** : Parquet chêne en lames décalées, grands carreaux de carrelage 60×60, mosaïque salle de bain, béton ciré contemporain, terrasse bois caillebotis, pelouse extérieure et moquette douce — générées mathématiquement en canevas avec projection métrique UV sans alourdir le bundle.
+  * **Visite virtuelle à la première personne (Walkthrough 🚶)** : Hauteur des yeux humaine (1.65 m), pilotage fluide clavier (ZQSD / WASD / Flèches), course (`Shift`), orientation 360° souris/toucher et HUD d'aide.
+  * **Simulation solaire dynamique connectée à `sun.sun`** : Course du soleil en direct d'après les coordonnées GPS de Home Assistant (azimut, élévation, projections d'ombres douces PCF Soft Shadows, teintes chaleureuses de Golden Hour au lever/coucher, ambiance nocturne avec illumination douce des lampes intérieures).
+  * **Empilement multi-niveaux 3D** : Visualisation tridimensionnelle des dalles de sol, trémies et niveaux inférieurs en filigrane sous le plan actif.
+  * **Coupe à mi-hauteur des murs (✂️)** : Visualisation instantanée de l'intérieur des pièces et du mobilier.
 * **Nouveau plan & Réinitialisation sécurisée (Reset)** :
   * **Créer un nouveau plan (`📄 Nouveau plan...` ou `Ctrl+N` / `Cmd+N`)** : dialogue assisté pour nommer le plan et choisir son niveau ou sa catégorie (RDC, Sous-Sol, Étages, Jardin, Autre) avec réinitialisation de la feuille et recentrage automatique.
   * **Effacer le plan (`🗑️ Effacer le plan (Reset)...`)** : dialogue de confirmation avec récapitulatif des éléments supprimés (murs, ouvrants, pièces, entités, meubles, calque de fond) et sécurité totale via l'historique d'annulation (`Ctrl+Z`).
@@ -39,7 +45,6 @@
   * Glisser-déposer direct sur une pièce avec détection automatique de la zone (area/room) et état en direct.
 * **Moteur de dessin vectoriel SVG pur sous Lit** : Zéro dépendance graphique lourde, bundle ultra-léger, netteté vectorielle infinie.
 * **Système métrique mondial** : Coordonnées réelles en mètres ($m$), échelle configurable ($px/m$).
-* **Bascule Vue 2D / 3D Isométrique** : Extrusion 3D temps réel des cloisons avec éclairage dynamique et badges d'états.
 * **Accroche magnétique intelligente (Snapping)** :
   * Grille métrique adaptative ($0.50\,\text{m}, 1.0\,\text{m}$).
   * Contraintes angulaires automatiques ($0^\circ, 45^\circ, 90^\circ, 135^\circ, 180^\circ$).

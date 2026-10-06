@@ -5,7 +5,7 @@ import { EntityBinding, FurnitureItem, HomeArchitectProject, Opening, OpeningTyp
 import { kelvinToRgb, mixRgb, parseCssColor, rgba } from '../../src/view3d/colors';
 import { furnitureShape } from '../../src/view3d/furniture3d';
 import {
-  Prism, buildSceneModel, floorColor, floorLooks, furnitureModel, lightSources, markerModels, openingState,
+  Prism, buildSceneModel, calculateSunLighting, floorColor, floorLooks, furnitureModel, lightSources, markerModels, openingState,
   sceneSignature, sceneSummary
 } from '../../src/view3d/scene-builder';
 import { MaterialSet, readPalette } from '../../src/view3d/materials';
@@ -273,18 +273,23 @@ describe('view3d / murs et ouvertures', () => {
 // ------------------------------------------------------------------
 
 describe('view3d / sols, meubles et emprise', () => {
-  it('un sol par pièce valide, avec la couleur de la pièce', () => {
+  it('un sol par pièce valide, avec la couleur de la pièce et la texture procédurale détectée', () => {
     const model = buildSceneModel(project({
       rooms: [
-        room('a', SQUARE, { color: 'rgba(56, 189, 248, 0.12)' }),
-        room('b', SQUARE.map(p => ({ x: p.x + 5, y: p.y }))),
+        room('a', SQUARE, { name: 'Salle de bain', icon: 'mdi:shower', color: 'rgba(56, 189, 248, 0.12)' }),
+        room('b', SQUARE.map(p => ({ x: p.x + 5, y: p.y })), { name: 'Cuisine', icon: 'mdi:silverware' }),
+        room('c', SQUARE.map(p => ({ x: p.x + 10, y: p.y })), { name: 'Terrasse', icon: 'mdi:deck' }),
+        room('d', SQUARE.map(p => ({ x: p.x + 15, y: p.y })), { name: 'Chambre', icon: 'mdi:bed' }),
         room('invalid', [{ x: 0, y: 0 }, { x: 1, y: 0 }])
       ]
     }), null, { cutWalls: false });
-    expect(model.floors.map(f => f.roomId)).toEqual(['a', 'b']);
+    expect(model.floors.map(f => f.roomId)).toEqual(['a', 'b', 'c', 'd']);
     expect(model.floors[0].color).toEqual({ r: 56, g: 189, b: 248, a: 0.12 });
-    expect(model.floors[1].color).toBeNull();
-    expect(model.labels.map(l => l.roomId)).toEqual(['a', 'b']);
+    expect(model.floors[0].textureType).toBe('mosaic');
+    expect(model.floors[1].textureType).toBe('tile');
+    expect(model.floors[2].textureType).toBe('deck');
+    expect(model.floors[3].textureType).toBe('parquet');
+    expect(model.labels.map(l => l.roomId)).toEqual(['a', 'b', 'c', 'd']);
     expect(model.labels[0].height).toBeCloseTo(2.6, 6); // au-dessus de l'arase (2,50 m)
   });
 
@@ -448,6 +453,40 @@ describe('view3d / état des entités', () => {
   it('entités surveillées : épingles et capteurs des ouvertures', () => {
     expect(boundEntityIds(bindings.slice(0, 1), [{ entityId: 'binary_sensor.porte' }, {}, { entityId: 'light.rouge' }]))
       .toEqual(['light.rouge', 'binary_sensor.porte']);
+  });
+
+  it('calcul de l’éclairage solaire en temps réel selon sun.sun (azimut, élévation, teintes et ombres)', () => {
+    // 1. Plein jour : soleil haut à 50° azimut 180° (plein sud)
+    const dayHass = hassWith({
+      'sun.sun': st('sun.sun', 'above_horizon', { elevation: 50, azimuth: 180 })
+    });
+    const day = calculateSunLighting(dayHass);
+    expect(day.isNight).toBe(false);
+    expect(day.intensity).toBeGreaterThan(1.2);
+    expect(day.color).toEqual(rgba(255, 255, 255));
+    expect(day.dirZ).toBeLessThan(0); // Orienté vers le nord
+
+    // 2. Aube / Crépuscule : soleil rasant à 4° (teintes chaudes dorées)
+    const sunsetHass = hassWith({
+      'sun.sun': st('sun.sun', 'above_horizon', { elevation: 4, azimuth: 270 }) // Ouest
+    });
+    const sunset = calculateSunLighting(sunsetHass);
+    expect(sunset.isNight).toBe(false);
+    expect(sunset.color.r).toBe(255);
+    expect(sunset.color.b).toBeLessThan(255); // Teinte dorée/orangée
+
+    // 3. Nuit : soleil sous l’horizon (-10°)
+    const nightHass = hassWith({
+      'sun.sun': st('sun.sun', 'below_horizon', { elevation: -10, azimuth: 350 })
+    });
+    const night = calculateSunLighting(nightHass);
+    expect(night.isNight).toBe(true);
+    expect(night.intensity).toBeLessThan(0.3);
+    expect(night.color).toEqual(rgba(59, 130, 246)); // Teinte lunaire bleutée
+
+    // 4. Force nuit (bouton 🌙 du HUD)
+    const forced = calculateSunLighting(dayHass, true);
+    expect(forced.isNight).toBe(true);
   });
 });
 

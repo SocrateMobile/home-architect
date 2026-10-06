@@ -1,7 +1,7 @@
-import { LitElement, PropertyValues, css, html } from 'lit';
+import { LitElement, PropertyValues, css, html, nothing } from 'lit';
 import { property } from 'lit/decorators.js';
 import {
-  DirectionalLight, HemisphereLight, PCFShadowMap, PerspectiveCamera, Plane, PointLight, Raycaster, Scene,
+  DirectionalLight, HemisphereLight, PCFSoftShadowMap, PerspectiveCamera, Plane, PointLight, Raycaster, Scene,
   Vector2, Vector3, WebGLRenderer
 } from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
@@ -20,10 +20,11 @@ import { Rgba, scaleRgb } from './colors';
 import { MaterialSet, readPalette, toColor } from './materials';
 import { MarkerDisplay, MarkerLayer, RoomLabelLayer } from './labels';
 import {
-  FloorLook, OpeningState, SceneModel, buildSceneModel, floorColor, floorLooks, lightSources, markerModels, openingState,
-  sceneSignature, sceneSummary
+  FloorLook, OpeningState, SceneModel, buildSceneModel, calculateSunLighting, floorColor, floorLooks, lightSources,
+  markerModels, openingState, sceneSignature, sceneSummary
 } from './scene-builder';
 import { BuiltScene, buildSceneObjects, disposeObject, pickRefOf, poseLeaf } from './scene-objects';
+import { disposeFloorTextures } from './textures';
 
 /**
  * Vue 3D WebGL du plan (`<home-architect-3d-view>`), chargée à la demande par le canevas (chunk séparé,
@@ -326,6 +327,46 @@ export class HomeArchitect3DView extends LitElement {
         transition: none;
       }
     }
+
+    .walkthrough-hud {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(15, 23, 42, 0.88);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      padding: 8px 16px;
+      border-radius: 9999px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      color: #f8fafc;
+      font-size: 13px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.45);
+      pointer-events: auto;
+      z-index: 50;
+      user-select: none;
+    }
+
+    .walkthrough-hud kbd {
+      background: rgba(255, 255, 255, 0.16);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: ui-monospace, monospace;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .walkthrough-hud-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-weight: 600;
+      color: #38bdf8;
+    }
   `;
 
   @property({ attribute: false })
@@ -372,6 +413,14 @@ export class HomeArchitect3DView extends LitElement {
   @property({ type: Boolean })
   public cutWalls = false;
 
+  /** Mode visite virtuelle à la première personne (hauteur des yeux 1.65 m, ZQSD / WASD / flèches). */
+  @property({ type: Boolean })
+  public walkthrough = false;
+
+  /** Ambiance lumineuse jour/nuit (cycle solaire ou simulation nocturne avec lampes chaleureuses). */
+  @property({ type: Boolean })
+  public nightMode = false;
+
   /**
    * Caméra initiale, lue au premier cadrage (non réactive) ; remplacée par les angles courants quand la
    * vue est retirée du document, pour les retrouver si elle y revient.
@@ -406,6 +455,12 @@ export class HomeArchitect3DView extends LitElement {
   private activePointers = new Set<number>();
   private readonly ndc = new Vector2();
   private readonly groundPlane = new Plane(new Vector3(0, 1, 0), 0);
+  /** Clés enfoncées pour le déplacement en visite virtuelle (ZQSD / WASD / flèches). */
+  private readonly keysDown = new Set<string>();
+  private walkthroughLastTime = 0;
+  private isPointerLooking = false;
+  private pointerLookStart = { x: 0, y: 0 };
+  private walkthroughEuler = { yaw: 0, pitch: 0 };
 
   /** Tap, double tap et appui long sur les marqueurs de la carte (mêmes règles que les épingles 2D, constat F10). */
   private readonly markerGestures = new TapGestureRecognizer({
@@ -418,9 +473,9 @@ export class HomeArchitect3DView extends LitElement {
     }
   });
 
-  /** Entités affichées (épingles et ouvertures liées) : un nouvel objet hass qui n'en touche aucune ne change rien. */
+  /** Entités affichées (épingles, ouvertures liées et soleil) : un nouvel objet hass qui n'en touche aucune ne change rien. */
   private readonly watchedEntityIds = memoizeLast((bindings: readonly EntityBinding[], openings: readonly Opening[]) =>
-    boundEntityIds(bindings, openings));
+    [...boundEntityIds(bindings, openings), 'sun.sun']);
 
   private readonly markerModelsOf = memoizeLast((bindings: readonly EntityBinding[]) => markerModels(bindings));
 
@@ -512,11 +567,22 @@ export class HomeArchitect3DView extends LitElement {
     if (changed.has('shadows')) this.applyShadows();
     if (changed.has('dashboard')) this.applyTouchPolicy();
     if (changed.has('animations')) t.controls.enableDamping = this.motionAllowed();
+    if (changed.has('nightMode')) this.applyEntityState(false);
+    if (changed.has('walkthrough')) this.applyWalkthroughMode();
     this.requestRender();
   }
 
   render() {
-    return html`<div class="stage"></div>`;
+    return html`
+      <div class="stage"></div>
+      ${this.walkthrough ? html`
+        <div class="walkthrough-hud" role="status" aria-live="polite">
+          <span class="walkthrough-hud-badge">🚶 Visite virtuelle</span>
+          <span><kbd>Z</kbd><kbd>Q</kbd><kbd>S</kbd><kbd>D</kbd> / Flèches pour marcher</span>
+          <span>• Glisser pour pivoter à 360°</span>
+        </div>
+      ` : nothing}
+    `;
   }
 
   /** Crée le moteur de rendu, la caméra, les contrôles et les lumières ; en cas d'échec, le canevas revient à la 3D simplifiée. */
@@ -532,7 +598,7 @@ export class HomeArchitect3DView extends LitElement {
       return;
     }
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, MAX_PIXEL_RATIO));
-    renderer.shadowMap.type = PCFShadowMap;
+    renderer.shadowMap.type = PCFSoftShadowMap;
     const canvas = renderer.domElement;
     canvas.setAttribute('role', 'img');
     stage.append(canvas);
@@ -599,6 +665,8 @@ export class HomeArchitect3DView extends LitElement {
     // Phase de capture : la molette de la carte n'atteint pas les contrôles (le tableau de bord défile).
     stage.addEventListener('wheel', this.onWheelCapture, { capture: true, passive: true });
     document.addEventListener('visibilitychange', this.onVisibilityChange);
+    window.addEventListener('keydown', this.onKeyDown);
+    window.addEventListener('keyup', this.onKeyUp);
     if (typeof ResizeObserver !== 'undefined') {
       this.resizeObserver = new ResizeObserver(entries => {
         const rect = entries[entries.length - 1]?.contentRect;
@@ -639,6 +707,8 @@ export class HomeArchitect3DView extends LitElement {
     this.intersectionObserver?.disconnect();
     this.intersectionObserver = null;
     document.removeEventListener('visibilitychange', this.onVisibilityChange);
+    window.removeEventListener('keydown', this.onKeyDown);
+    window.removeEventListener('keyup', this.onKeyUp);
     this.markerGestures.dispose();
     this.cameraTween = null;
     this.press = null;
@@ -668,6 +738,7 @@ export class HomeArchitect3DView extends LitElement {
     t.sky.dispose();
     t.renderer.renderLists.dispose();
     t.renderer.dispose();
+    disposeFloorTextures();
     // Le navigateur limite le nombre de contextes WebGL : celui-ci est rendu tout de suite.
     t.renderer.forceContextLoss();
     canvas.remove();
@@ -791,12 +862,39 @@ export class HomeArchitect3DView extends LitElement {
       const source = lights[i];
       if (!source) {
         lamp.intensity = 0;
+        lamp.castShadow = false;
         return;
       }
       lamp.position.set(source.position.x, source.height, source.position.y);
       toColor(source.color, lamp.color);
-      lamp.intensity = LAMP_INTENSITY * Math.max(0.15, source.level);
+      // Mode nuit : les lampes intérieures ressortent avec plus d'éclat chaleureux
+      const boost = this.nightMode ? 1.6 : 1.0;
+      lamp.intensity = LAMP_INTENSITY * Math.max(0.15, source.level) * boost;
+      if (this.shadows && i < 2) {
+        lamp.castShadow = true;
+        lamp.shadow.mapSize.set(512, 512);
+        lamp.shadow.bias = -0.002;
+      } else {
+        lamp.castShadow = false;
+      }
     });
+
+    // Ambiance lumineuse solaire et ombres en temps réel (sun.sun ou simulation jour/nuit)
+    const sunData = calculateSunLighting(hass, this.nightMode);
+    toColor(sunData.color, t.sun.color);
+    t.sun.intensity = sunData.intensity;
+    t.sky.intensity = sunData.ambientIntensity;
+    if (sunData.isNight) {
+      t.sky.color.setHex(0x1e293b);
+    } else {
+      toColor(sunData.color, t.sky.color);
+    }
+
+    // Repositionne le soleil en 3D selon l'azimut et l'élévation réels
+    const reach = t.built.radius + 1;
+    const sunVector = new Vector3(sunData.dirX, sunData.dirY, sunData.dirZ).normalize();
+    t.sun.position.copy(t.built.center).addScaledVector(sunVector, reach * 3);
+    t.sun.target.position.copy(t.built.center);
 
     this.floorState = floorLooks(this.project, hass, this.showThermalHeatmap);
 
@@ -1037,6 +1135,91 @@ export class HomeArchitect3DView extends LitElement {
     if (this.frame === null) this.frame = requestAnimationFrame(this.renderFrame);
   };
 
+  private readonly onKeyDown = (e: KeyboardEvent): void => {
+    if (!this.walkthrough) return;
+    const tag = (e.target as HTMLElement)?.tagName?.toLowerCase();
+    if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+    const code = e.code.toLowerCase();
+    if (['keyw', 'keya', 'keys', 'keyd', 'keyz', 'keyq', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'shiftleft', 'shiftright'].includes(code)) {
+      this.keysDown.add(code);
+      this.requestRender();
+    }
+  };
+
+  private readonly onKeyUp = (e: KeyboardEvent): void => {
+    const code = e.code.toLowerCase();
+    this.keysDown.delete(code);
+  };
+
+  /** Bascule entre l'orbite 3D et la visite virtuelle à la première personne */
+  private applyWalkthroughMode(): void {
+    const t = this.three;
+    if (!t) return;
+    if (this.walkthrough) {
+      t.controls.enabled = false;
+      this.keysDown.clear();
+      this.walkthroughLastTime = performance.now();
+      // Place la caméra à hauteur d'homme (1.65m) au centre ou dans la première pièce
+      const built = t.built;
+      const targetY = 1.65;
+      if (built) {
+        const center = built.center;
+        t.camera.position.set(center.x, targetY, center.z + 1);
+        t.camera.rotation.set(0, 0, 0);
+        this.walkthroughEuler.yaw = 0;
+        this.walkthroughEuler.pitch = 0;
+      }
+    } else {
+      t.controls.enabled = true;
+      this.keysDown.clear();
+      this.isPointerLooking = false;
+      if (t.built) {
+        const pose = this.fitPose(degToRad(45), degToRad(-35));
+        if (pose) this.placeAt({ polar: degToRad(45), azimuth: degToRad(-35), ...pose });
+      }
+    }
+    this.requestRender();
+  }
+
+  /** Met à jour la position du visiteur en mode Première Personne */
+  private stepWalkthrough(now: number): boolean {
+    const t = this.three;
+    if (!t || !this.walkthrough) return false;
+    const dt = this.walkthroughLastTime ? Math.min(0.1, (now - this.walkthroughLastTime) / 1000) : 0.016;
+    this.walkthroughLastTime = now;
+
+    const sprint = this.keysDown.has('shiftleft') || this.keysDown.has('shiftright');
+    const speed = (sprint ? 5.0 : 2.5) * dt;
+
+    let forward = 0;
+    let strafe = 0;
+
+    // Support ZQSD (AZERTY) et WASD (QWERTY) + Flèches
+    if (this.keysDown.has('keyw') || this.keysDown.has('keyz') || this.keysDown.has('arrowup')) forward += 1;
+    if (this.keysDown.has('keys') || this.keysDown.has('arrowdown')) forward -= 1;
+    if (this.keysDown.has('keya') || this.keysDown.has('keyq') || this.keysDown.has('arrowleft')) strafe -= 1;
+    if (this.keysDown.has('keyd') || this.keysDown.has('arrowright')) strafe += 1;
+
+    let active = false;
+    if (forward !== 0 || strafe !== 0) {
+      active = true;
+      const yaw = this.walkthroughEuler.yaw;
+      const sin = Math.sin(yaw);
+      const cos = Math.cos(yaw);
+
+      // Avancer/reculer selon l'orientation horizontale de la caméra
+      const dirX = -sin * forward + cos * strafe;
+      const dirZ = -cos * forward - sin * strafe;
+      const len = Math.hypot(dirX, dirZ) || 1;
+
+      t.camera.position.x += (dirX / len) * speed;
+      t.camera.position.z += (dirZ / len) * speed;
+      t.camera.position.y = 1.65; // Fixé à hauteur des yeux humaine
+    }
+
+    return active || this.keysDown.size > 0;
+  }
+
   private readonly renderFrame = (now: number): void => {
     this.frame = null;
     const t = this.three;
@@ -1047,12 +1230,14 @@ export class HomeArchitect3DView extends LitElement {
     }
     this.dirty = false;
     // Amortissement : tant que la caméra bouge, les contrôles émettent 'change' et redemandent une image.
-    t.controls.update();
-    let animating = this.stepCameraTween(now);
+    if (!this.walkthrough) {
+      t.controls.update();
+    }
+    let animating = this.walkthrough ? this.stepWalkthrough(now) : this.stepCameraTween(now);
     animating = this.stepOpenings() || animating;
     t.renderer.render(t.scene, t.camera);
     t.labelRenderer.render(t.scene, t.camera);
-    this.emitCamera();
+    if (!this.walkthrough) this.emitCamera();
     if (animating) this.requestRender();
   };
 
@@ -1096,6 +1281,10 @@ export class HomeArchitect3DView extends LitElement {
 
   private readonly onCanvasPointerDown = (e: PointerEvent): void => {
     this.activePointers.add(e.pointerId);
+    if (this.walkthrough && e.button === 0) {
+      this.isPointerLooking = true;
+      this.pointerLookStart = { x: e.clientX, y: e.clientY };
+    }
     if (this.activePointers.size > 1 || e.button !== 0 || !e.isPrimary) {
       this.press = null;
       return;
@@ -1105,6 +1294,9 @@ export class HomeArchitect3DView extends LitElement {
 
   private readonly onCanvasPointerUp = (e: PointerEvent): void => {
     this.activePointers.delete(e.pointerId);
+    if (this.walkthrough) {
+      this.isPointerLooking = false;
+    }
     const press = this.press;
     if (!press || press.id !== e.pointerId) return;
     this.press = null;
@@ -1114,6 +1306,9 @@ export class HomeArchitect3DView extends LitElement {
 
   private readonly onCanvasPointerCancel = (e: PointerEvent): void => {
     this.activePointers.delete(e.pointerId);
+    if (this.walkthrough) {
+      this.isPointerLooking = false;
+    }
     this.press = null;
   };
 
@@ -1122,8 +1317,28 @@ export class HomeArchitect3DView extends LitElement {
     this.pick(e.clientX, e.clientY, false, true);
   };
 
-  /** Survol (studio) : point du sol sous le pointeur, pour le HUD des coordonnées du canevas. */
+  /** Survol (studio) ou rotation de la tête (visite virtuelle) : point du sol sous le pointeur */
   private readonly onCanvasPointerMove = (e: PointerEvent): void => {
+    if (this.walkthrough && this.isPointerLooking && this.three) {
+      const dx = e.clientX - this.pointerLookStart.x;
+      const dy = e.clientY - this.pointerLookStart.y;
+      this.pointerLookStart = { x: e.clientX, y: e.clientY };
+
+      const sensitivity = 0.0035;
+      this.walkthroughEuler.yaw -= dx * sensitivity;
+      this.walkthroughEuler.pitch -= dy * sensitivity;
+      // Limiter le pitch pour ne pas faire de salto arrière avec la tête
+      this.walkthroughEuler.pitch = Math.max(-Math.PI / 2.2, Math.min(Math.PI / 2.2, this.walkthroughEuler.pitch));
+
+      // Appliquer rotation Euler Y-X sur la caméra
+      this.three.camera.rotation.set(0, 0, 0);
+      this.three.camera.rotation.order = 'YXZ';
+      this.three.camera.rotation.y = this.walkthroughEuler.yaw;
+      this.three.camera.rotation.x = this.walkthroughEuler.pitch;
+      this.requestRender();
+      return;
+    }
+
     if (this.dashboard || e.buttons !== 0) return;
     this.hoverPoint = { x: e.clientX, y: e.clientY };
     if (this.hoverFrame === null) this.hoverFrame = requestAnimationFrame(this.emitHover);
