@@ -7,6 +7,7 @@ import { ElementRef } from '../canvas/selection';
 import { Rgba } from './colors';
 import { MaterialSet, Palette3D, toColor } from './materials';
 import { LeafModel, OpeningModel, Prism, SceneModel, SurfaceRole, floorColor } from './scene-builder';
+import { FloorTextureType, getFloorTexture } from './textures';
 
 /**
  * Objets three de la vue 3D, construits à partir du modèle pur (scene-builder) : aucune dépendance au
@@ -66,16 +67,22 @@ class GeometryBuffers {
   readonly positions: number[] = [];
   readonly normals: number[] = [];
   readonly colors: number[] = [];
+  readonly uvs: number[] = [];
 
   /** Triangle à normale plate, enroulé pour faire face à `normal`. */
-  triangle(p: Vector3, q: Vector3, r: Vector3, normal: Vector3, color: Color): void {
+  triangle(p: Vector3, q: Vector3, r: Vector3, normal: Vector3, color: Color, uvP?: Vector2, uvQ?: Vector2, uvR?: Vector2): void {
     const e1 = new Vector3().subVectors(q, p);
     const e2 = new Vector3().subVectors(r, p);
     const flip = e1.cross(e2).dot(normal) < 0;
-    for (const v of flip ? [p, r, q] : [p, q, r]) {
+    const verts = flip ? [p, r, q] : [p, q, r];
+    const texCoords = flip ? [uvP, uvR, uvQ] : [uvP, uvQ, uvR];
+    for (let idx = 0; idx < 3; idx++) {
+      const v = verts[idx];
       this.positions.push(v.x, v.y, v.z);
       this.normals.push(normal.x, normal.y, normal.z);
       this.colors.push(color.r, color.g, color.b);
+      const uv = texCoords[idx];
+      this.uvs.push(uv ? uv.x : 0, uv ? uv.y : 0);
     }
   }
 
@@ -85,6 +92,7 @@ class GeometryBuffers {
     geometry.setAttribute('position', new Float32BufferAttribute(this.positions, 3));
     geometry.setAttribute('normal', new Float32BufferAttribute(this.normals, 3));
     geometry.setAttribute('color', new Float32BufferAttribute(this.colors, 3));
+    geometry.setAttribute('uv', new Float32BufferAttribute(this.uvs, 2));
     geometry.computeBoundingSphere();
     return geometry;
   }
@@ -108,7 +116,8 @@ function addCap(buffers: GeometryBuffers, poly: readonly Point[], y: number, nor
   const contour = poly.map(p => new Vector2(p.x, p.y));
   for (const [i, j, k] of ShapeUtils.triangulateShape(contour, [])) {
     const v = (n: number) => new Vector3(poly[n].x, y, poly[n].y);
-    buffers.triangle(v(i), v(j), v(k), normal, color);
+    const uv = (n: number) => new Vector2(poly[n].x, poly[n].y);
+    buffers.triangle(v(i), v(j), v(k), normal, color, uv(i), uv(j), uv(k));
   }
 }
 
@@ -223,13 +232,23 @@ function buildOpening(model: OpeningModel, materials: MaterialSet): { group: Gro
 }
 
 /** Sol d'une pièce : face horizontale à son propre matériau (teinte mise à jour selon l'état HA). */
-function buildFloor(polygon: readonly Point[], color: Rgba | null, palette: Palette3D): { mesh: Mesh; material: MeshLambertMaterial } | null {
+function buildFloor(
+  polygon: readonly Point[],
+  color: Rgba | null,
+  palette: Palette3D,
+  textureType?: FloorTextureType
+): { mesh: Mesh; material: MeshLambertMaterial } | null {
   const buffers = new GeometryBuffers();
   addCap(buffers, polygon, FLOOR_Y, UP, new Color(1, 1, 1));
   const geometry = buffers.toGeometry();
   if (!geometry) return null;
   geometry.deleteAttribute('color');
-  const material = new MeshLambertMaterial({ color: toColor(floorColor(palette.floor, color, undefined)) });
+  const texture = textureType ? getFloorTexture(textureType) : null;
+  const matParams: { color: Color; map?: Texture } = {
+    color: toColor(floorColor(palette.floor, color, undefined))
+  };
+  if (texture) matParams.map = texture;
+  const material = new MeshLambertMaterial(matParams);
   const mesh = new Mesh(geometry, material);
   mesh.receiveShadow = true;
   return { mesh, material };
@@ -265,7 +284,7 @@ export function buildSceneObjects(model: SceneModel, materials: MaterialSet): Bu
 
   const floors = new Map<string, BuiltFloor>();
   for (const floor of model.floors) {
-    const built = buildFloor(floor.polygon, floor.color, palette);
+    const built = buildFloor(floor.polygon, floor.color, palette, floor.textureType);
     if (!built) continue;
     setPick(built.mesh, { kind: 'room', id: floor.roomId });
     root.add(built.mesh);
