@@ -240,11 +240,13 @@ async def test_svg_size_is_counted_in_bytes(admin_ws: MockHAClientWebSocket, com
     """Le SVG est limité en octets UTF-8 (le schéma ne compte que des caractères)."""
     await _call(admin_ws, type="home_architect/save_project", project=make_project())
     target = {"project_id": "plan_abcd1234"} if command == "publish_svg" else {"filename": "plan_plan_abcd1234.svg"}
-    with patch.object(websocket, "MAX_PUBLISH_BYTES", len(SIMPLE_SVG) + 1):
-        response = await _call(admin_ws, type=f"home_architect/{command}", svg_content=SIMPLE_SVG.replace("<rect", "<!-- é --><rect"), **target)
+    svg = SIMPLE_SVG.replace("<rect", "<!-- é --><rect")
+    # Limite = nombre de caractères : seul le décompte en octets (« é » = 2 octets) la dépasse
+    with patch.object(websocket, "MAX_PUBLISH_BYTES", len(svg)):
+        response = await _call(admin_ws, type=f"home_architect/{command}", svg_content=svg, **target)
     assert response["error"]["code"] == "payload_too_large"
     size, limit = response["error"]["message"].split(":")[1:]
-    assert int(size) > int(limit) == len(SIMPLE_SVG) + 1
+    assert int(size) == len(svg.encode("utf-8")) == int(limit) + 1
 
 
 async def test_save_svg_to_www_writes_sanitized_legacy_plan(
@@ -288,6 +290,7 @@ async def test_save_svg_to_www_writes_sanitized_legacy_plan(
         "plan_.svg",
         "plan_rdc.svg.svg",
         "plan_a/b.svg",
+        "plan_rdc.svg\n",
         "other.svg",
         f"plan_{'a' * 65}.svg",
     ],

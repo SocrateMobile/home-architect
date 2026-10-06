@@ -45,7 +45,8 @@ ASSET_ID_RE = re.compile(
 PUBLISHED_FILENAME_RE = re.compile(r"^[a-zA-Z0-9_-]{1,64}-[A-Za-z0-9_-]{20,64}\.svg$")
 PUBLISH_TOKEN_RE = re.compile(r"^[A-Za-z0-9_-]{20,64}$")
 # Nom de l'ancien plan public (www/plan_<project_id>.svg), seul accepté par save_svg_to_www
-LEGACY_WWW_FILENAME_RE = re.compile(r"^plan_(?P<project>[a-zA-Z0-9_-]{1,64})\.svg$")
+# (\Z et non $ : « $ » admettrait un saut de ligne final)
+LEGACY_WWW_FILENAME_RE = re.compile(r"^plan_(?P<project>[a-zA-Z0-9_-]{1,64})\.svg\Z")
 _DATA_URL_RE = re.compile(
     r"^data:(?P<mime>[\w.+/-]+)(?P<params>(?:;[^,;]*)*),(?P<payload>.*)$", re.DOTALL
 )

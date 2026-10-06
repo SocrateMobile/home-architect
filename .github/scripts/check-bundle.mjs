@@ -4,8 +4,8 @@
  *  - les deux entrées existent (home_architect-card.js et home_architect-panel.js) ;
  *  - la carte, injectée sur TOUTES les pages HA, ne définit que des éléments de la carte
  *    (aucun élément du studio dans ses imports statiques) et respecte un budget gzip ;
- *  - aucun chunk n'importe une entrée : HA les charge avec ?v=<version>, un chunk qui importerait
- *    l'URL sans ?v en évaluerait une seconde copie (ou une ancienne version en cache HTTP) ;
+ *  - aucun chunk (ni l'autre entrée) n'importe une entrée : HA les charge avec ?v=<version>, un
+ *    import de l'URL sans ?v en évaluerait une seconde copie (ou une ancienne version en cache HTTP) ;
  *  - aucun chunk orphelin ni sourcemap n'est livré.
  *
  * Usage : node .github/scripts/check-bundle.mjs [dossier]
@@ -111,12 +111,15 @@ if (foreignTags.size > 0) {
 }
 
 // Un module placé par Rollup dans le chunk d'entrée et importé par un chunk à la demande produit
-// `import { … } from '../home_architect-card.js'` : URL sans ?v, donc seconde copie du bundle.
-for (const file of listFiles(OUT_DIR).filter((name) => name.startsWith(CHUNKS_DIR) && name.endsWith('.js'))) {
+// `import { … } from '../home_architect-card.js'` : URL sans ?v, donc seconde copie du bundle. Même
+// effet si le studio importe le module d'entrée de la carte (`from './home_architect-card.js'`).
+for (const file of listFiles(OUT_DIR).filter((name) => (name.startsWith(CHUNKS_DIR) || ENTRIES.includes(name)) && name.endsWith('.js'))) {
   const code = fs.readFileSync(path.join(OUT_DIR, file), 'utf-8');
-  for (const entry of new Set(relativeImports(file, code, { followDynamic: true }).filter((target) => ENTRIES.includes(target)))) {
+  const importedEntries = relativeImports(file, code, { followDynamic: true }).filter((target) => target !== file && ENTRIES.includes(target));
+  for (const entry of new Set(importedEntries)) {
+    const kind = file.startsWith(CHUNKS_DIR) ? 'ce chunk' : 'cette entrée';
     errors.add(
-      `${file} importe l'entrée ${entry} : les entrées sont chargées avec ?v=, ce chunk en évaluerait une seconde copie (ou une version en cache)`
+      `${file} importe l'entrée ${entry} : les entrées sont chargées avec ?v=, ${kind} en évaluerait une seconde copie (ou une version en cache)`
     );
   }
 }

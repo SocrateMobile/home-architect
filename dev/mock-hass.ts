@@ -221,6 +221,15 @@ function base64ToUtf8(base64: string): string {
   return new TextDecoder().decode(Uint8Array.from(atob(base64), (char) => char.charCodeAt(0)));
 }
 
+/** Type d'une image raster d'après sa signature (octets en chaîne binaire, comme atob), sinon null. */
+function detectRasterMime(binary: string): string | null {
+  if (binary.startsWith('\x89PNG\r\n\x1a\n')) return 'image/png';
+  if (binary.startsWith('\xff\xd8\xff')) return 'image/jpeg';
+  if (binary.startsWith('GIF87a') || binary.startsWith('GIF89a')) return 'image/gif';
+  if (binary.startsWith('RIFF') && binary.slice(8, 12) === 'WEBP') return 'image/webp';
+  return null;
+}
+
 interface SanitizeOptions {
   /** Publication sans l'image de fond : les <image> sont retirées. */
   dropImages?: boolean;
@@ -229,8 +238,9 @@ interface SanitizeOptions {
 }
 
 /**
- * href d'une <image>, comme svg_sanitizer._clean_image_data_url : data-URL raster en base64, ou SVG
- * imbriqué (base64 ou encodé en pourcentage) assaini à son tour puis ré-encodé en base64 ; null sinon.
+ * href d'une <image>, comme svg_sanitizer._clean_image_data_url : data-URL raster en base64 dont le
+ * contenu est bien du type annoncé, ou SVG imbriqué (base64 ou encodé en pourcentage) assaini à son
+ * tour puis ré-encodé en base64 ; null sinon.
  */
 function cleanImageHref(value: string, opts: SanitizeOptions): string | null {
   const match = IMAGE_DATA_URL_RE.exec(value);
@@ -249,12 +259,14 @@ function cleanImageHref(value: string, opts: SanitizeOptions): string | null {
   }
   const compact = payload.replace(INVISIBLE_RE, '');
   if (!isBase64 || !BASE64_RE.test(compact)) return null;
+  const mime = RASTER_DATA_URL_TYPES[type];
   try {
-    atob(compact);
+    // Comme detect_raster_mime : le contenu doit être une image du type annoncé.
+    if (detectRasterMime(atob(compact)) !== mime) return null;
   } catch {
     return null;
   }
-  return `data:${RASTER_DATA_URL_TYPES[type]};base64,${compact}`;
+  return `data:${mime};base64,${compact}`;
 }
 
 /** href / xlink:href conservé (sous la forme href), comme svg_sanitizer._clean_href ; null sinon. */

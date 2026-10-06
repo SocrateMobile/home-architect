@@ -255,6 +255,8 @@ const MAX_SEGMENTS = 150_000;
 const MAX_USE_DEPTH = 8;
 /** Au-delà, une forme fermée n'est pas une pièce plausible (et le test d'auto-intersection est en O(n²)). */
 const MAX_ROOM_VERTICES = 2000;
+/** Étiquettes d'un même contour comparées entre elles (recherche d'une cloison qui les sépare). */
+const MAX_LABEL_PAIRS = 64;
 
 /** Mots-clés des identifiants, classes et calques (comparés mot à mot, sans accents ni pluriel). */
 const ROLE_WORDS: Record<string, SemanticRole> = {
@@ -318,6 +320,9 @@ const TOL = {
   dividerMin: 1.0,
   dividerMargin: 0.3,
   dividerCell: 3.0,
+  /** Une cloison s'arrête au plus à une baie (sans battant dessiné) du contour ou d'un autre mur. */
+  dividerReach: 1.0,
+  vertexMerge: 0.005,
   unlabeledRoomMin: 1.5,
   scaleRetry: 0.02
 };
@@ -1969,6 +1974,30 @@ function pointSegmentDistance(px: number, py: number, ax: number, ay: number, bx
   return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
 }
 
+/** Point de croisement des segments [a, b] et [c, d] (contact compris), null s'ils ne se coupent pas. */
+function segmentCrossing(ax: number, ay: number, bx: number, by: number, cx: number, cy: number, dx: number, dy: number): Point | null {
+  const rx = bx - ax, ry = by - ay;
+  const sx = dx - cx, sy = dy - cy;
+  const den = rx * sy - ry * sx;
+  if (Math.abs(den) <= 1e-12 * Math.hypot(rx, ry) * Math.hypot(sx, sy)) return null;
+  const qx = cx - ax, qy = cy - ay;
+  const t = (qx * sy - qy * sx) / den;
+  const u = (qx * ry - qy * rx) / den;
+  if (t < 0 || t > 1 || u < 0 || u > 1) return null;
+  return { x: ax + t * rx, y: ay + t * ry };
+}
+
+/** Contour sans sommets quasi confondus (bruit de conversion), sommet de fermeture compris. */
+function withoutNearDuplicates(points: Point[], tol: number): Point[] {
+  const out: Point[] = [];
+  for (const p of points) {
+    const prev = out[out.length - 1];
+    if (!prev || Math.hypot(p.x - prev.x, p.y - prev.y) > tol) out.push(p);
+  }
+  while (out.length > 2 && Math.hypot(out[0].x - out[out.length - 1].x, out[0].y - out[out.length - 1].y) <= tol) out.pop();
+  return out;
+}
+
 function polygonAreaAbs(points: Point[]): number {
   let area = 0;
   for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
@@ -2428,10 +2457,12 @@ function roomStyle(name: string): { color: string; icon: string } {
 /**
  * Pièces : chaque étiquette va au plus petit contour qui la contient ; une forme sans étiquette n'est une
  * pièce que si elle est explicitement remplie (couleur claire) ou balisée « pièce », et qu'elle n'englobe
- * ni étiquette ni autre pièce (contour du bâtiment). Un contour recoupé par des murs intérieurs regroupe
- * plusieurs pièces (enveloppe du bâtiment dont les cloisons sont de simples traits) : ce n'est pas une
- * pièce et il ne reçoit aucune étiquette. Les bornes de surface sont configurables ; les formes étiquetées
- * hors bornes et les contours qui se recoupent sont signalés (constats F149, F153, F170).
+ * ni étiquette ni autre pièce (contour du bâtiment). Un contour qui regroupe plusieurs pièces (enveloppe du
+ * bâtiment dont les cloisons sont de simples traits) n'est pas une pièce : étiqueté, il a deux étiquettes
+ * séparées par une cloison et n'en reçoit aucune ; rempli sans étiquette, il est recoupé par une cloison
+ * raccordée aux deux bouts. Placards et pièces imbriquées ne cloisonnent pas leur contour, un épi non plus.
+ * Les bornes de surface sont configurables ; les formes étiquetées hors bornes et les contours qui se
+ * recoupent sont signalés (constats F149, F153, F170).
  *
  * `wallLines` : murs reconnus, en unités racine ; `wallCount` : murs créés (après conversion en mètres).
  */
@@ -2471,34 +2502,113 @@ function detectRooms(
   const inside = (c: RoomCandidate, x: number, y: number) =>
     x >= c.shape.minX && x <= c.shape.maxX && y >= c.shape.minY && y <= c.shape.maxY && PolygonUtils.isPointInPolygon({ x, y }, c.points);
 
-  // Murs intérieurs : axe d'au moins TOL.dividerMin, milieu à plus de TOL.dividerMargin (plus la
-  // demi-épaisseur) du contour. Les murs posés sur le contour lui-même ne comptent pas.
+  // Murs reconnus (épaisseur comprise), contours candidats et étiquettes, indexés par leur emprise. Les
+  // contours couvrent des surfaces : cellules d'au moins 1/256 de la page (jamais des millions de cellules).
   const k = 1 / mpu;
-  const dividers = wallLines.filter(w => lineLength(w) >= TOL.dividerMin * k);
-  const dividerGrid = new SpatialGrid<WallLine>(gridSize(TOL.dividerCell * k, Math.max(vb.width, vb.height)));
-  for (const w of dividers) {
-    const mx = (w.ax + w.bx) / 2, my = (w.ay + w.by) / 2;
-    dividerGrid.insertBox(mx, my, mx, my, w);
+  const cell = Math.max(TOL.dividerCell * k, Math.max(vb.width, vb.height) / 256, 1e-9);
+  const wallGrid = new SpatialGrid<WallLine>(cell);
+  for (const w of wallLines) {
+    const pad = w.thick / 2;
+    wallGrid.insertBox(Math.min(w.ax, w.bx) - pad, Math.min(w.ay, w.by) - pad, Math.max(w.ax, w.bx) + pad, Math.max(w.ay, w.by) + pad, w);
   }
-  const subdividedCache = new Map<RoomCandidate, boolean>();
-  const subdivided = (c: RoomCandidate): boolean => {
-    let result = subdividedCache.get(c);
-    if (result !== undefined) return result;
-    result = false;
-    dividerGrid.query(c.shape.minX, c.shape.minY, c.shape.maxX, c.shape.maxY, w => {
-      if (result) return;
-      const mid = { x: (w.ax + w.bx) / 2, y: (w.ay + w.by) / 2 };
-      if (!inside(c, mid.x, mid.y)) return;
-      if (PolygonUtils.distanceToBoundary(mid, c.points) > w.thick / 2 + TOL.dividerMargin * k) result = true;
+  const candidateGrid = new SpatialGrid<RoomCandidate>(cell);
+  const rank = new Map<RoomCandidate, number>();
+  unique.forEach((c, i) => {
+    candidateGrid.insertBox(c.shape.minX, c.shape.minY, c.shape.maxX, c.shape.maxY, c);
+    rank.set(c, i);
+  });
+  const labelGrid = new SpatialGrid<RawLabel>(cell);
+  for (const l of prims.labels) labelGrid.insertBox(l.x, l.y, l.x, l.y, l);
+  /** Étiquettes posées dans `c`. */
+  const labelsIn = (c: RoomCandidate): RawLabel[] => {
+    const out: RawLabel[] = [];
+    labelGrid.query(c.shape.minX, c.shape.minY, c.shape.maxX, c.shape.maxY, l => {
+      if (inside(c, l.x, l.y)) out.push(l);
     });
-    subdividedCache.set(c, result);
+    return out;
+  };
+
+  /**
+   * Point `p` du mur `w` qui fait de `w` une cloison intérieure de `c` : dans `c`, à plus de TOL.dividerMargin
+   * (plus la demi-épaisseur) de son contour, et pas sur le contour d'une forme plus petite incluse dans `c`
+   * (placard, pièce imbriquée, meuble), qui ne sépare pas `c` en plusieurs pièces.
+   */
+  const interiorPoint = (c: RoomCandidate, p: Point, w: WallLine): boolean => {
+    if (!inside(c, p.x, p.y)) return false;
+    if (PolygonUtils.distanceToBoundary(p, c.points) <= w.thick / 2 + TOL.dividerMargin * k) return false;
+    const near = w.thick / 2 + TOL.enclosed * k;
+    const t = TOL.enclosed * k;
+    let onNested = false;
+    candidateGrid.query(p.x - near, p.y - near, p.x + near, p.y + near, d => {
+      if (onNested || d === c || d.areaM2 >= c.areaM2) return;
+      const s = d.shape;
+      if (s.minX < c.shape.minX - t || s.maxX > c.shape.maxX + t || s.minY < c.shape.minY - t || s.maxY > c.shape.maxY + t) return;
+      if (PolygonUtils.distanceToBoundary(p, d.points) <= near) onNested = true;
+    });
+    return !onNested;
+  };
+
+  /**
+   * Contour étiqueté qui regroupe plusieurs pièces (enveloppe du bâtiment dont les cloisons sont de simples
+   * traits) : deux de ses étiquettes sont séparées par une cloison intérieure. Une seule étiquette n'est
+   * jamais retirée à son contour (épi, îlot, meuble dessiné au trait).
+   */
+  const envelopeCache = new Map<RoomCandidate, boolean>();
+  const separatesLabels = (c: RoomCandidate): boolean => {
+    const cached = envelopeCache.get(c);
+    if (cached !== undefined) return cached;
+    const inC = labelsIn(c).slice(0, MAX_LABEL_PAIRS);
+    let result = false;
+    for (let i = 1; i < inC.length && !result; i++) {
+      const a = inC[0], b = inC[i];
+      const seen = new Set<WallLine>();
+      wallGrid.query(Math.min(a.x, b.x), Math.min(a.y, b.y), Math.max(a.x, b.x), Math.max(a.y, b.y), w => {
+        if (result || seen.has(w)) return;
+        seen.add(w);
+        if (lineLength(w) < TOL.dividerMin * k) return;
+        const p = segmentCrossing(a.x, a.y, b.x, b.y, w.ax, w.ay, w.bx, w.by);
+        if (p && interiorPoint(c, p, w)) result = true;
+      });
+    }
+    envelopeCache.set(c, result);
     return result;
+  };
+
+  /** Extrémité d'une cloison raccordée au contour de `c` ou à un autre mur, à une baie près. */
+  const anchored = (c: RoomCandidate, w: WallLine, x: number, y: number): boolean => {
+    const reach = TOL.dividerReach * k + w.thick / 2;
+    if (PolygonUtils.distanceToBoundary({ x, y }, c.points) <= reach) return true;
+    let found = false;
+    wallGrid.query(x - reach, y - reach, x + reach, y + reach, o => {
+      if (!found && o !== w && pointSegmentDistance(x, y, o.ax, o.ay, o.bx, o.by) <= reach + o.thick / 2) found = true;
+    });
+    return found;
+  };
+
+  /** Forme remplie sans étiquette recoupée par une cloison raccordée aux deux bouts (et non un simple épi). */
+  const partitioned = (c: RoomCandidate): boolean => {
+    let found = false;
+    const seen = new Set<WallLine>();
+    wallGrid.query(c.shape.minX, c.shape.minY, c.shape.maxX, c.shape.maxY, w => {
+      if (found || seen.has(w)) return;
+      seen.add(w);
+      if (lineLength(w) < TOL.dividerMin * k) return;
+      const mid = { x: (w.ax + w.bx) / 2, y: (w.ay + w.by) / 2 };
+      if (interiorPoint(c, mid, w) && anchored(c, w, w.ax, w.ay) && anchored(c, w, w.bx, w.by)) found = true;
+    });
+    return found;
   };
 
   /** Étiquettes posées dans un contour candidat (retenu ou écarté) : jamais de pièce approximative pour elles. */
   const enclosedLabels = new Set<RawLabel>();
   for (const label of prims.labels) {
-    const owner = unique.find(c => inside(c, label.x, label.y) && !subdivided(c));
+    // Contours qui contiennent l'étiquette, du plus petit au plus grand (ordre de `unique`).
+    const containing: RoomCandidate[] = [];
+    candidateGrid.query(label.x, label.y, label.x, label.y, c => {
+      if (inside(c, label.x, label.y)) containing.push(c);
+    });
+    containing.sort((a, b) => (rank.get(a) ?? 0) - (rank.get(b) ?? 0));
+    const owner = containing.find(c => !separatesLabels(c));
     if (!owner) continue;
     enclosedLabels.add(label);
     if (owner.label === null) owner.label = label.text;
@@ -2511,12 +2621,15 @@ function detectRooms(
    * (les lobes s'annulent) et son rendu aussi. Il est écarté et signalé (constat F170).
    */
   const accept = (c: RoomCandidate): void => {
-    if (PolygonUtils.isSelfIntersecting(c.points)) {
+    // Sommets quasi confondus (bruit d'export) : sinon une arête minuscule passe pour un aller-retour.
+    const points = withoutNearDuplicates(c.points, TOL.vertexMerge * k);
+    if (points.length < 3) return;
+    if (PolygonUtils.isSelfIntersecting(points)) {
       ignored.push({ name: c.label ?? '', areaM2: round2(c.areaM2), reason: 'self_intersecting' });
       return;
     }
-    const worldPolygon = c.points.map(toWorld);
-    accepted.push({ candidate: c, worldPolygon, areaM2: PolygonUtils.computeArea(worldPolygon), centroid: PolygonUtils.calculateCentroid(c.points) });
+    const worldPolygon = points.map(toWorld);
+    accepted.push({ candidate: c, worldPolygon, areaM2: PolygonUtils.computeArea(worldPolygon), centroid: PolygonUtils.calculateCentroid(points) });
   };
   const minUnlabeled = Math.max(o.minRoomAreaM2, TOL.unlabeledRoomMin);
   for (const c of unique) {
@@ -2527,7 +2640,7 @@ function detectRooms(
     }
     const filled = (c.shape.fillExplicit && c.shape.fill === 'light') || c.shape.roomHint;
     if (!filled || c.areaM2 < minUnlabeled || c.areaM2 > o.maxRoomAreaM2) continue;
-    if (prims.labels.some(l => inside(c, l.x, l.y)) || subdivided(c)) continue;
+    if (labelsIn(c).length > 0 || partitioned(c)) continue;
     if (accepted.some(a => inside(c, a.centroid.x, a.centroid.y))) continue;
     accept(c);
   }
@@ -2902,9 +3015,12 @@ export function decodeSvgBytes(input: ArrayBuffer | Uint8Array): string {
   let head = '';
   for (let i = 0; i < Math.min(bytes.length, 512); i++) head += String.fromCharCode(bytes[i]);
   const declared = /^\s*<\?xml[^>]*?\bencoding\s*=\s*["']([A-Za-z0-9._:-]+)["']/.exec(head);
-  if (declared) {
+  // Un en-tête « UTF-8 » est souvent écrit par défaut sur un fichier Latin-1 : l'UTF-8 déclaré passe par la
+  // détection stricte ci-dessous (repli windows-1252) au lieu de produire des « � ».
+  const label = declared?.[1].toLowerCase();
+  if (label && label !== 'utf-8' && label !== 'utf8') {
     try {
-      return new TextDecoder(declared[1].toLowerCase()).decode(bytes);
+      return new TextDecoder(label).decode(bytes);
     } catch {
       // Étiquette d'encodage inconnue du navigateur : détection ci-dessous.
     }

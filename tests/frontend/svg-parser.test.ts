@@ -322,8 +322,8 @@ describe('portes depuis les arcs (F69)', () => {
     // Même plan en mm, avec un groupe à l'échelle 10 : le rayon local (9) vaut 90 cm.
     const r = parse(svg(`
       <g transform="scale(10)">
-        <path ${STROKE} stroke-width="0.2" d="M0,0 L10,0 M19,0 L40,0"/>
-        <path ${STROKE} stroke-width="0.2" d="M10,9 A9 9 0 0 0 19,0"/>
+        <path fill="none" stroke="#000" stroke-width="0.2" d="M0,0 L10,0 M19,0 L40,0"/>
+        <path fill="none" stroke="#000" stroke-width="0.2" d="M10,9 A9 9 0 0 0 19,0"/>
       </g>
     `, 'viewBox="0 0 400 300"'), { totalWidthMeters: 4 });
     // Sans mur vertical, l'emprise horizontale vaut exactement 4 m : rayon 9 × 10 unités = 0,90 m.
@@ -371,6 +371,19 @@ describe('filtres et statistiques (F157)', () => {
     expect(b.openings.length).toBe(1);
     expect(a.walls.map(w => w.id)).toEqual(b.walls.map(w => w.id));
   });
+
+  it('parseSvg(svg, options) donne le même résultat que les trois étapes de la modale (acquis 1.0.27)', () => {
+    const options: SvgParseOptions = {
+      totalWidthMeters: 4.2, defaultThickness: 0.2, defaultHeight: 2.5,
+      importWalls: true, importDoors: true, importWindows: true, importRooms: true, importLabels: true
+    };
+    // Les identifiants sont aléatoires : on compare le reste.
+    const strip = (r: SvgParseResult) => JSON.parse(JSON.stringify(r, (key, value) => (key === 'id' || key === 'wallId' ? undefined : value)));
+    const direct = SvgPlanParser.parseSvg(plan, options);
+    const staged = SvgPlanParser.select(SvgPlanParser.detect(SvgPlanParser.analyze(plan), options), options);
+    expect(direct.success).toBe(true);
+    expect(strip(staged)).toEqual(strip(direct));
+  });
 });
 
 describe('pièces (F149, F153)', () => {
@@ -400,9 +413,60 @@ describe('pièces (F149, F153)', () => {
     expect(r.rooms.every(room => room.areaM2 < 20)).toBe(true);
   });
 
+  it('garde une chambre qui contient un placard dessiné comme une forme fermée', () => {
+    // Placard de 2 × 0,6 m dans l'angle : son côté intérieur n'est pas une cloison de la chambre.
+    const r = parse(svg(`
+      <rect x="0" y="0" width="400" height="350" ${STROKE}/>
+      <rect x="0" y="0" width="200" height="60" ${STROKE}/>
+      <text x="100" y="35" text-anchor="middle" font-size="12">Placard</text>
+      <text x="250" y="250" text-anchor="middle">Chambre</text>
+    `), { totalWidthMeters: 4.2 });
+    expect(r.rooms.map(room => room.name).sort()).toEqual(['Chambre', 'Placard']);
+    expect(r.rooms.find(room => room.name === 'Chambre')?.areaM2).toBeCloseTo(14, 0);
+  });
+
+  it('garde une pièce étiquetée qui contient un mur en épi (extrémité libre)', () => {
+    const r = parse(svg(`
+      <rect x="0" y="0" width="600" height="400" ${STROKE}/>
+      <path ${STROKE} d="M400,0 L400,150"/>
+      <text x="150" y="250">Séjour</text>
+    `), { totalWidthMeters: 6.2 });
+    expect(r.rooms.map(room => room.name)).toEqual(['Séjour']);
+    // Le contour lui-même (6 × 4 m), et non une pièce approximative de 3,6 m autour de l'étiquette.
+    expect(r.rooms[0].areaM2).toBeCloseTo(24, 0);
+  });
+
+  it('ne fait pas d\'une emprise remplie et cloisonnée, sans étiquette, une pièce géante', () => {
+    // (Marge autour du plan : une forme qui couvre toute la page n'est jamais une pièce.)
+    const filled = 'fill="#eee" stroke="#000" stroke-width="2"';
+    const partitioned = parse(svg(`
+      <rect x="0" y="0" width="1000" height="800" ${filled}/>
+      <path ${STROKE} d="M500,0 L500,800"/>
+    `, 'viewBox="-50 -50 1100 900"'), { totalWidthMeters: 10.2 });
+    expect(partitioned.walls.length).toBeGreaterThanOrEqual(5);
+    expect(partitioned.rooms.length).toBe(0);
+    // Un simple épi ne cloisonne pas : la pièce remplie est gardée.
+    const stub = parse(svg(`
+      <rect x="0" y="0" width="1000" height="800" ${filled}/>
+      <path ${STROKE} d="M500,0 L500,250"/>
+    `, 'viewBox="-50 -50 1100 900"'), { totalWidthMeters: 10.2 });
+    expect(stub.rooms.length).toBe(1);
+    expect(stub.rooms[0].areaM2).toBeCloseTo(80, 0);
+  });
+
+  it('ne prend pas un sommet de fermeture presque confondu pour un contour qui se recoupe', () => {
+    // Bruit de conversion : le dernier sommet est à 0,01 unité du premier, sur la première arête.
+    const r = parse(svg(`
+      <path ${STROKE} d="M0,0 L400,0 L400,300 L0,300 L0.01,0 Z"/>
+      <text x="150" y="150">Bureau</text>
+    `), { totalWidthMeters: 4.2 });
+    expect(r.rooms.map(room => room.name)).toEqual(['Bureau']);
+    expect(r.ignoredRooms).toEqual([]);
+  });
+
   it('garde une pièce ouverte qui porte deux étiquettes sans cloison intérieure', () => {
     const r = parse(svg(`
-      <rect x="0" y="0" width="1000" height="600" fill="#eef" ${STROKE}/>
+      <rect x="0" y="0" width="1000" height="600" fill="#eef" stroke="#000" stroke-width="2"/>
       <text x="250" y="300">Cuisine</text>
       <text x="750" y="300">Séjour</text>
     `), { totalWidthMeters: 10.2 });
@@ -484,7 +548,7 @@ describe('échelle, unités et transformations (F70, F71, F72, F155)', () => {
   });
 
   it('aligne le calque Inkscape en mm sur la viewBox (et non sur width/height)', () => {
-    const analysis = SvgPlanParser.analyze(svg(`<path ${STROKE} stroke-width="0.5" d="M10,10 L200,10"/>`, 'width="210mm" height="297mm" viewBox="0 0 210 297"'));
+    const analysis = SvgPlanParser.analyze(svg(`<path fill="none" stroke="#000" stroke-width="0.5" d="M10,10 L200,10"/>`, 'width="210mm" height="297mm" viewBox="0 0 210 297"'));
     expect(analysis.viewBox).toEqual({ x: 0, y: 0, width: 210, height: 297 });
     const r = SvgPlanParser.select(SvgPlanParser.detect(analysis, { totalWidthMeters: 12 }), {});
     // Le calque (210 unités) mesure 210 × metersPerUnit mètres : cohérent avec les murs.
@@ -542,5 +606,13 @@ describe('robustesse et préparation du calque (F156)', () => {
   it('décode l\'UTF-8 par défaut et repli windows-1252 si invalide', () => {
     expect(decodeSvgBytes(new TextEncoder().encode('<svg><text>Séjour</text></svg>'))).toContain('Séjour');
     expect(decodeSvgBytes(new Uint8Array([0x3c, 0x73, 0x3e, 0xe9, 0x3c]))).toContain('é');
+  });
+
+  it('décode en windows-1252 un fichier Latin-1 qui se déclare à tort en UTF-8', () => {
+    const head = '<?xml version="1.0" encoding="UTF-8"?><svg><text>S';
+    const bytes = new Uint8Array([...Array.from(head, c => c.charCodeAt(0)), 0xe9, ...Array.from('jour</text></svg>', c => c.charCodeAt(0))]);
+    expect(decodeSvgBytes(bytes)).toContain('Séjour');
+    // Un vrai UTF-8 déclaré reste décodé en UTF-8.
+    expect(decodeSvgBytes(new TextEncoder().encode('<?xml version="1.0" encoding="utf-8"?><svg><text>Séjour</text></svg>'))).toContain('Séjour');
   });
 });
