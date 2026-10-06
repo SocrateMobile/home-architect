@@ -14,6 +14,7 @@ import voluptuous as vol
 
 from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 
 from .assets import LEGACY_WWW_FILENAME_RE
@@ -316,6 +317,41 @@ def ws_subscribe_project(
     connection.send_result(msg["id"])
 
 
+@websocket_api.require_admin
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): "home_architect/install_update",
+        vol.Optional("version"): str,
+    }
+)
+@websocket_api.async_response
+async def ws_install_update(
+    hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]
+) -> None:
+    """Installe la mise à jour (télécharge et applique dans custom_components)."""
+    runtime = get_runtime_data(hass)
+    if runtime is None or runtime.update_entity is None:
+        connection.send_error(msg["id"], ERR_NOT_READY, "Home Architect is not loaded")
+        return
+    try:
+        await runtime.update_entity.async_install(version=msg.get("version"))
+    except HomeAssistantError as err:
+        connection.send_error(msg["id"], "install_failed", str(err))
+        return
+    except Exception as err:
+        _LOGGER.exception("Erreur inattendue lors de l'installation de la mise à jour: %s", err)
+        connection.send_error(msg["id"], "install_failed", str(err))
+        return
+    connection.send_result(
+        msg["id"],
+        {
+            "success": True,
+            "installed_version": runtime.update_entity.installed_version,
+            "requires_restart": True,
+        },
+    )
+
+
 @callback
 def async_register_websocket_commands(hass: HomeAssistant) -> None:
     """Register all custom WebSocket commands (une seule fois, dans async_setup)."""
@@ -329,6 +365,7 @@ def async_register_websocket_commands(hass: HomeAssistant) -> None:
         ws_unpublish,
         ws_save_svg_to_www,
         ws_check_updates,
+        ws_install_update,
         ws_subscribe_project,
     ):
         websocket_api.async_register_command(hass, command)
