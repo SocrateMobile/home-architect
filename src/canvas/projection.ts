@@ -6,6 +6,10 @@ import { Point } from '../core/types';
  * appliquée autour du centre du canevas. Le sol (repère « vue » du plan 2D, en px) subit une
  * transformation affine ; la hauteur est extrudée dans l'espace écran (vers le haut quel que soit
  * l'angle), et la profondeur permet de trier les faces du plus lointain au plus proche.
+ *
+ * La vue 3D principale est rendue en WebGL (src/view3d, chargée à la demande) : cette projection SVG
+ * sert de repli (WebGL indisponible, ou chunk 3D en cours de chargement), avec les mêmes conventions
+ * d'angles (inclinaison 0 = dessus ; orientation = azimut de la caméra WebGL).
  */
 
 export interface Camera3D {

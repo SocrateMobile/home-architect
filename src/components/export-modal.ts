@@ -1,17 +1,30 @@
-import { LitElement, html, css, PropertyValues } from 'lit';
-import { property, state } from 'lit/decorators.js';
+import { LitElement, html, css, PropertyValues, TemplateResult } from 'lit';
+import { property, query, state } from 'lit/decorators.js';
 import { ExportFrame, HomeArchitectProject, PublishInfo } from '../core/types';
 import { SvgExporter, SvgExportOptions, DEFAULT_EXPORT_BACKGROUND } from '../core/svg-exporter';
 import { LovelaceGenerator } from '../core/lovelace-generator';
 import { defineElement } from '../core/define';
+import { getEventTarget } from '../core/keyboard';
 import { HaApiError, PayloadTooLargeError, fetchBackgroundBlob, isAdmin, publishSvg, unpublish } from '../core/ha-api';
 import { MAX_PUBLISH_BYTES, legacyCategory, normalizeProject, stripServerFields } from '../core/project-model';
 import { blobToDataUrl, dataUrlToBlob, triggerDownload } from '../core/image-utils';
+import { LANGUAGE_CHANGED_KEY, LocalizeController, formatNumber, getLanguage, localize } from '../i18n/index';
+import '../i18n/locales/export';
+import { applyColorScheme, uiThemeStyles } from '../styles/theme.styles';
 
 type ExportTab = 'picture_elements' | 'custom_card' | 'raw_files';
 type BusyAction = 'publish' | 'unpublish' | 'svg' | 'backup';
 type ConfirmAction = 'publish' | 'unpublish' | 'reframe';
 type CopyTarget = 'picture' | 'card';
+type NoticeKind = 'success' | 'error' | 'info';
+type I18nParams = Record<string, string | number>;
+
+/** Onglets, dans l'ordre d'affichage (navigation aux flèches). */
+const TABS: ReadonlyArray<{ id: ExportTab; icon: string; labelKey: string }> = [
+  { id: 'picture_elements', icon: '🖼️', labelKey: 'export.tab.picture_elements' },
+  { id: 'custom_card', icon: '🧊', labelKey: 'export.tab.custom_card' },
+  { id: 'raw_files', icon: '💾', labelKey: 'export.tab.raw_files' },
+];
 
 /** Options de rendu communes au SVG publié et au SVG téléchargé (seule l'image de fond varie). */
 const SVG_RENDER_OPTIONS: SvgExportOptions = {
@@ -26,6 +39,10 @@ const SVG_RENDER_OPTIONS: SvgExportOptions = {
 
 const DATA_IMAGE_URL = /^data:image\//i;
 const NOTICE_DURATION_MS = 3500;
+/** Éléments susceptibles de recevoir le focus (piège de focus de la fenêtre). */
+const FOCUSABLE_SELECTOR = 'button, [href], input, select, textarea, [tabindex]';
+/** Segments enrichis d'une traduction : **gras** ou `code`. */
+const RICH_SEGMENT = /(\*\*[^*]+\*\*|`[^`]+`)/;
 
 /** Nom de fichier sûr dérivé du nom du plan (sans accents ni séparateurs de chemin). */
 function fileSlug(name: string | undefined, fallback: string): string {
@@ -39,20 +56,83 @@ function fileSlug(name: string | undefined, fallback: string): string {
   return slug || fallback;
 }
 
+/**
+ * Traduction mise en forme : `**texte**` devient <strong> et `` `texte` `` devient <code>.
+ * Le résultat ne contient que des nœuds texte (jamais de HTML interprété).
+ */
+function richText(key: string, params?: I18nParams): Array<string | TemplateResult> {
+  return localize(key, params)
+    .split(RICH_SEGMENT)
+    .filter(part => part !== '')
+    .map(part => {
+      if (part.length > 4 && part.startsWith('**') && part.endsWith('**')) return html`<strong>${part.slice(2, -2)}</strong>`;
+      if (part.length > 2 && part.startsWith('`') && part.endsWith('`')) return html`<code>${part.slice(1, -1)}</code>`;
+      return part;
+    });
+}
+
+/** Clé de pluriel (`<base>_one` / `<base>_other`) selon les règles de la langue courante. */
+function pluralKey(base: string, count: number): string {
+  let rule = 'other';
+  try {
+    rule = new Intl.PluralRules(getLanguage()).select(count);
+  } catch {
+    // Intl.PluralRules indisponible : forme plurielle.
+  }
+  return `${base}_${rule === 'one' ? 'one' : 'other'}`;
+}
+
+/** Taille en mégaoctets, au format de la langue courante (« 3,5 Mo » / « 3.5 MB »). */
+function formatMegabytes(bytes: number): string {
+  return localize('export.unit.megabytes', {
+    value: formatNumber(bytes / (1024 * 1024), { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+  });
+}
+
+/** Élément actif réel, à travers les shadow roots ; null si le focus est sur le document. */
+function deepActiveElement(): HTMLElement | null {
+  let active: Element | null = document.activeElement;
+  while (active?.shadowRoot?.activeElement) active = active.shadowRoot.activeElement;
+  return active instanceof HTMLElement && active !== document.body && active !== document.documentElement ? active : null;
+}
+
+/** Contexte de `hass` affiché par la fenêtre : droits, langue / formats de date et thème. */
+function hassContextChanged(previous: any, next: any): boolean {
+  return !previous || !next
+    || previous.user?.is_admin !== next.user?.is_admin
+    || previous.language !== next.language
+    || previous.locale?.language !== next.locale?.language
+    || previous.themes?.darkMode !== next.themes?.darkMode;
+}
+
+/** Erreur propre à la fenêtre d'export : son message est traduit à l'affichage (langue courante). */
+class ExportError extends Error {
+  readonly key: string;
+  readonly params?: I18nParams;
+
+  constructor(key: string, params?: I18nParams) {
+    super(localize(key, params));
+    this.name = 'ExportError';
+    this.key = key;
+    this.params = params;
+  }
+}
+
 export class HomeArchitectExportModal extends LitElement {
-  static styles = css`
+  static styles = [uiThemeStyles, css`
     :host {
+      --exp-shadow: var(--ha-arch-ui-shadow, 0 24px 48px -12px rgba(0, 0, 0, 0.45));
       position: fixed;
       inset: 0;
-      background: rgba(15, 23, 42, 0.85);
+      background: var(--arch-ui-overlay);
+      -webkit-backdrop-filter: blur(14px);
       backdrop-filter: blur(14px);
       display: flex;
       align-items: center;
       justify-content: center;
       z-index: 100;
-      font-family: var(--ha-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
-      color: #f8fafc;
-      animation: fadeIn 0.2s ease-out;
+      font-family: var(--arch-ui-font);
+      color: var(--arch-ui-text);
     }
 
     @keyframes fadeIn {
@@ -62,31 +142,42 @@ export class HomeArchitectExportModal extends LitElement {
 
     .modal-card {
       position: relative;
-      background: #1e293b;
-      border: 1px solid rgba(56, 189, 248, 0.35);
-      border-radius: 16px;
+      background: var(--arch-ui-surface);
+      color: var(--arch-ui-text);
+      border: 1px solid var(--arch-ui-border);
+      border-radius: var(--arch-ui-radius);
       width: 720px;
       max-width: 94vw;
       max-height: 90vh;
       display: flex;
       flex-direction: column;
-      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7), 0 0 35px rgba(56, 189, 248, 0.25);
+      box-shadow: var(--exp-shadow);
       overflow: hidden;
+      animation: fadeIn 0.2s ease-out;
+    }
+
+    /* Focus initial porté par la fenêtre elle-même : pas d'anneau autour de toute la carte. */
+    .modal-card:focus,
+    .modal-card:focus-visible {
+      outline: none;
+      box-shadow: var(--exp-shadow);
     }
 
     .modal-header {
       padding: 16px 22px;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      border-bottom: 1px solid var(--arch-ui-border);
       display: flex;
       align-items: center;
       justify-content: space-between;
-      background: rgba(15, 23, 42, 0.7);
+      gap: 12px;
+      background: var(--arch-ui-bg);
     }
 
     .modal-title-group {
       display: flex;
       align-items: center;
       gap: 12px;
+      min-width: 0;
     }
 
     .modal-icon {
@@ -96,30 +187,35 @@ export class HomeArchitectExportModal extends LitElement {
     .modal-title {
       font-size: 1.15rem;
       font-weight: 700;
-      color: #f1f5f9;
+      color: var(--arch-ui-text);
       margin: 0;
     }
 
     .modal-subtitle {
       font-size: 0.8rem;
-      color: #94a3b8;
+      color: var(--arch-ui-text-muted);
       margin: 2px 0 0 0;
     }
 
     .btn-close {
+      flex-shrink: 0;
+      width: 36px;
+      height: 36px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
       background: transparent;
       border: none;
-      color: #94a3b8;
+      color: var(--arch-ui-text-muted);
       font-size: 20px;
       cursor: pointer;
-      padding: 4px;
-      border-radius: 6px;
-      transition: all 0.15s ease;
+      border-radius: 8px;
+      transition: background-color 0.15s ease, color 0.15s ease;
     }
 
     .btn-close:hover:not(:disabled) {
-      color: #ffffff;
-      background: rgba(255, 255, 255, 0.1);
+      color: var(--arch-ui-text);
+      background: var(--arch-ui-surface-2);
     }
 
     .btn-close:disabled {
@@ -131,35 +227,42 @@ export class HomeArchitectExportModal extends LitElement {
     .tabs-nav {
       display: flex;
       flex-wrap: wrap;
-      background: rgba(15, 23, 42, 0.5);
-      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      background: var(--arch-ui-bg);
+      border-bottom: 1px solid var(--arch-ui-border);
       padding: 0 16px;
       gap: 6px;
     }
 
     .tab-btn {
       padding: 12px 16px;
+      font: inherit;
       font-size: 0.88rem;
       font-weight: 600;
-      color: #94a3b8;
+      color: var(--arch-ui-text-muted);
       background: transparent;
       border: none;
-      border-bottom: 2px solid transparent;
+      border-bottom: 3px solid transparent;
+      border-radius: 6px 6px 0 0;
       cursor: pointer;
       display: flex;
       align-items: center;
       gap: 8px;
-      transition: all 0.2s ease;
+      transition: color 0.2s ease, border-color 0.2s ease;
     }
 
     .tab-btn:hover {
-      color: #e2e8f0;
+      color: var(--arch-ui-text);
     }
 
-    .tab-btn.active {
-      color: #38bdf8;
-      border-bottom-color: #38bdf8;
-      background: rgba(56, 189, 248, 0.06);
+    .tab-btn[aria-selected='true'] {
+      color: var(--arch-ui-text);
+      font-weight: 700;
+      border-bottom-color: var(--arch-ui-accent);
+    }
+
+    /* Anneau de focus intérieur : la barre d'onglets défile (et rognerait un anneau extérieur) sur mobile. */
+    .tab-btn:focus-visible {
+      box-shadow: inset 0 0 0 2px var(--arch-ui-accent);
     }
 
     .modal-body {
@@ -171,13 +274,19 @@ export class HomeArchitectExportModal extends LitElement {
       flex: 1;
     }
 
-    /* Entités stats banner */
+    .tab-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    /* Résumé du plan */
     .stats-row {
       display: flex;
       flex-wrap: wrap;
       gap: 8px;
-      background: rgba(15, 23, 42, 0.6);
-      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: var(--arch-ui-bg);
+      border: 1px solid var(--arch-ui-border);
       border-radius: 10px;
       padding: 10px 14px;
     }
@@ -189,15 +298,13 @@ export class HomeArchitectExportModal extends LitElement {
       font-size: 0.82rem;
       padding: 4px 10px;
       border-radius: 6px;
-      background: rgba(30, 41, 59, 0.8);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      color: #cbd5e1;
+      background: var(--arch-ui-surface);
+      border: 1px solid var(--arch-ui-border);
+      color: var(--arch-ui-text);
     }
 
     .stat-badge.highlight {
-      border-color: #38bdf8;
-      color: #38bdf8;
-      background: rgba(56, 189, 248, 0.1);
+      border-color: var(--arch-ui-accent);
     }
 
     /* Sections (publication, cadre, code) */
@@ -205,16 +312,17 @@ export class HomeArchitectExportModal extends LitElement {
       display: flex;
       flex-direction: column;
       gap: 10px;
-      background: rgba(15, 23, 42, 0.5);
-      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: var(--arch-ui-bg);
+      border: 1px solid var(--arch-ui-border);
       border-radius: 10px;
       padding: 14px 16px;
     }
 
     .section-title {
+      margin: 0;
       font-size: 0.92rem;
       font-weight: 700;
-      color: #38bdf8;
+      color: var(--arch-ui-text);
       display: flex;
       align-items: center;
       gap: 8px;
@@ -222,15 +330,17 @@ export class HomeArchitectExportModal extends LitElement {
 
     .hint {
       font-size: 0.8rem;
-      color: #94a3b8;
+      color: var(--arch-ui-text-muted);
       line-height: 1.45;
       margin: 0;
     }
 
     .hint code,
     .banner code,
-    .status-line code {
-      background: rgba(0, 0, 0, 0.35);
+    .status-line code,
+    .guide-step code {
+      background: var(--arch-ui-surface-2);
+      color: var(--arch-ui-text);
       padding: 1px 6px;
       border-radius: 4px;
       font-family: ui-monospace, SFMono-Regular, monospace;
@@ -240,7 +350,7 @@ export class HomeArchitectExportModal extends LitElement {
 
     .status-line {
       font-size: 0.84rem;
-      color: #e2e8f0;
+      color: var(--arch-ui-text);
       line-height: 1.5;
     }
 
@@ -258,8 +368,8 @@ export class HomeArchitectExportModal extends LitElement {
       justify-content: space-between;
       flex-wrap: wrap;
       gap: 12px;
-      background: rgba(15, 23, 42, 0.5);
-      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: var(--arch-ui-bg);
+      border: 1px solid var(--arch-ui-border);
       border-radius: 10px;
       padding: 10px 14px;
     }
@@ -267,7 +377,7 @@ export class HomeArchitectExportModal extends LitElement {
     .config-label {
       font-size: 0.85rem;
       font-weight: 600;
-      color: #e2e8f0;
+      color: var(--arch-ui-text);
     }
 
     .check-row {
@@ -278,8 +388,12 @@ export class HomeArchitectExportModal extends LitElement {
       user-select: none;
     }
 
+    .check-row.spaced {
+      margin-top: 8px;
+    }
+
     .check-row input {
-      accent-color: #38bdf8;
+      accent-color: var(--arch-ui-accent);
       width: 16px;
       height: 16px;
       margin-top: 2px;
@@ -292,30 +406,35 @@ export class HomeArchitectExportModal extends LitElement {
       height: 48px;
       object-fit: cover;
       border-radius: 6px;
-      border: 1px solid rgba(255, 255, 255, 0.15);
+      border: 1px solid var(--arch-ui-border);
       flex-shrink: 0;
     }
 
-    /* Bouton action primaire */
+    /* Boutons : action principale (couleur primaire du thème), neutre, destructive */
     .btn-action {
-      background: #0284c7;
-      color: #ffffff;
-      border: 1px solid #38bdf8;
+      background: var(--arch-ui-accent);
+      color: var(--arch-ui-accent-text);
+      border: 1px solid var(--arch-ui-accent);
       border-radius: 8px;
       padding: 8px 16px;
+      font: inherit;
       font-size: 0.85rem;
       font-weight: 600;
       cursor: pointer;
       display: inline-flex;
       align-items: center;
       gap: 8px;
-      transition: all 0.2s ease;
+      transition: box-shadow 0.2s ease, background-color 0.2s ease, color 0.2s ease;
       text-decoration: none;
     }
 
     .btn-action:hover:not(:disabled) {
-      background: #0369a1;
-      box-shadow: 0 0 14px rgba(56, 189, 248, 0.45);
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25);
+    }
+
+    /* Le survol ne masque pas l'anneau de focus clavier. */
+    .btn-action:focus-visible:not(:disabled) {
+      box-shadow: var(--arch-ui-focus-ring);
     }
 
     .btn-action:disabled,
@@ -324,42 +443,48 @@ export class HomeArchitectExportModal extends LitElement {
       cursor: not-allowed;
     }
 
-    .btn-action.emerald {
-      background: #059669;
-      border-color: #10b981;
-    }
-
-    .btn-action.emerald:hover:not(:disabled) {
-      background: #047857;
-      box-shadow: 0 0 14px rgba(16, 185, 129, 0.45);
-    }
-
-    .btn-action.purple {
-      background: #7c3aed;
-      border-color: #a855f7;
-    }
-
-    .btn-action.purple:hover:not(:disabled) {
-      background: #6d28d9;
-      box-shadow: 0 0 14px rgba(168, 85, 247, 0.45);
+    .btn-action.large {
+      padding: 10px 22px;
+      font-size: 0.92rem;
+      font-weight: 700;
     }
 
     .btn-action.danger {
-      background: rgba(239, 68, 68, 0.15);
-      border-color: rgba(239, 68, 68, 0.6);
-      color: #fca5a5;
+      background: var(--arch-ui-surface);
+      border-color: var(--arch-ui-danger);
+      color: var(--arch-ui-text);
     }
 
     .btn-action.danger:hover:not(:disabled) {
-      background: #b91c1c;
-      color: #ffffff;
-      box-shadow: 0 0 14px rgba(239, 68, 68, 0.45);
+      background: var(--arch-ui-danger);
+      color: var(--arch-ui-accent-text);
     }
 
     .btn-action.ghost {
-      background: rgba(30, 41, 59, 0.8);
-      border-color: rgba(255, 255, 255, 0.15);
-      color: #e2e8f0;
+      background: var(--arch-ui-surface);
+      border-color: var(--arch-ui-border);
+      color: var(--arch-ui-text);
+    }
+
+    .btn-action.ghost:hover:not(:disabled) {
+      border-color: var(--arch-ui-accent);
+    }
+
+    .btn-secondary {
+      background: var(--arch-ui-surface-2);
+      color: var(--arch-ui-text);
+      border: 1px solid var(--arch-ui-border);
+      border-radius: 8px;
+      padding: 8px 16px;
+      font: inherit;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: border-color 0.2s ease;
+    }
+
+    .btn-secondary:hover:not(:disabled) {
+      border-color: var(--arch-ui-text-muted);
     }
 
     /* Zone de code YAML */
@@ -369,49 +494,55 @@ export class HomeArchitectExportModal extends LitElement {
       flex-direction: column;
       border-radius: 10px;
       overflow: hidden;
-      border: 1px solid rgba(56, 189, 248, 0.3);
-      background: #090d16;
+      border: 1px solid var(--arch-ui-border);
+      background: var(--arch-ui-surface);
     }
 
     .code-header {
       display: flex;
       align-items: center;
       justify-content: space-between;
+      gap: 8px;
       padding: 8px 14px;
-      background: rgba(15, 23, 42, 0.8);
-      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      background: var(--arch-ui-surface-2);
+      border-bottom: 1px solid var(--arch-ui-border);
       font-size: 0.8rem;
       font-weight: 700;
-      color: #94a3b8;
+      color: var(--arch-ui-text);
       text-transform: uppercase;
       letter-spacing: 0.5px;
     }
 
     .btn-copy {
-      background: rgba(56, 189, 248, 0.15);
-      border: 1px solid rgba(56, 189, 248, 0.35);
-      color: #38bdf8;
+      background: var(--arch-ui-surface);
+      border: 1px solid var(--arch-ui-border);
+      color: var(--arch-ui-text);
       border-radius: 6px;
       padding: 4px 10px;
+      font: inherit;
       font-size: 0.8rem;
       font-weight: 600;
+      text-transform: none;
+      letter-spacing: normal;
       cursor: pointer;
       display: flex;
       align-items: center;
       gap: 6px;
-      transition: all 0.15s ease;
+      transition: border-color 0.15s ease, background-color 0.15s ease, color 0.15s ease;
     }
 
     .btn-copy:hover {
-      background: #0284c7;
-      color: #ffffff;
-      border-color: #38bdf8;
+      border-color: var(--arch-ui-accent);
     }
 
+    /* Copie réussie : liseré et coche de la couleur de succès, texte du thème (contraste garanti). */
     .btn-copy.copied {
-      background: #059669;
-      border-color: #10b981;
-      color: #ffffff;
+      border-color: var(--arch-ui-success);
+    }
+
+    .copied-mark {
+      color: var(--arch-ui-success);
+      font-weight: 700;
     }
 
     pre.code-box {
@@ -422,17 +553,22 @@ export class HomeArchitectExportModal extends LitElement {
       font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
       font-size: 0.82rem;
       line-height: 1.5;
-      color: #e2e8f0;
+      color: var(--arch-ui-text);
       white-space: pre;
+    }
+
+    /* Zone défilante focalisable : anneau intérieur (le conteneur arrondi rogne tout débordement). */
+    pre.code-box:focus-visible {
+      box-shadow: inset 0 0 0 2px var(--arch-ui-accent);
     }
 
     textarea.manual-copy {
       width: 100%;
       box-sizing: border-box;
       min-height: 140px;
-      background: #090d16;
-      color: #e2e8f0;
-      border: 1px solid #38bdf8;
+      background: var(--arch-ui-bg);
+      color: var(--arch-ui-text);
+      border: 1px solid var(--arch-ui-accent);
       border-radius: 8px;
       padding: 10px;
       font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -442,8 +578,9 @@ export class HomeArchitectExportModal extends LitElement {
 
     /* Guide pas-à-pas */
     .guide-box {
-      background: rgba(56, 189, 248, 0.06);
-      border: 1px solid rgba(56, 189, 248, 0.2);
+      background: var(--arch-ui-bg);
+      border: 1px solid var(--arch-ui-border);
+      border-left: 4px solid var(--arch-ui-accent);
       border-radius: 10px;
       padding: 12px 16px;
       display: flex;
@@ -452,25 +589,43 @@ export class HomeArchitectExportModal extends LitElement {
     }
 
     .guide-title {
+      margin: 0;
       font-size: 0.86rem;
       font-weight: 700;
-      color: #38bdf8;
+      color: var(--arch-ui-text);
       display: flex;
       align-items: center;
       gap: 6px;
     }
 
+    .guide-text {
+      font-size: 0.82rem;
+      color: var(--arch-ui-text);
+      line-height: 1.45;
+      margin: 0;
+    }
+
+    .guide-steps {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
     .guide-step {
       font-size: 0.8rem;
-      color: #cbd5e1;
+      color: var(--arch-ui-text);
       line-height: 1.45;
       display: flex;
       gap: 8px;
     }
 
-    .guide-num {
-      background: #0284c7;
-      color: #ffffff;
+    .guide-num,
+    .section-num {
+      background: var(--arch-ui-accent);
+      color: var(--arch-ui-accent-text);
       border-radius: 50%;
       width: 18px;
       height: 18px;
@@ -480,37 +635,23 @@ export class HomeArchitectExportModal extends LitElement {
       font-size: 0.72rem;
       font-weight: bold;
       flex-shrink: 0;
+    }
+
+    .guide-num {
       margin-top: 2px;
     }
 
     .modal-footer {
       padding: 14px 24px;
-      border-top: 1px solid rgba(255, 255, 255, 0.1);
+      border-top: 1px solid var(--arch-ui-border);
       display: flex;
       flex-wrap: wrap;
       justify-content: flex-end;
       gap: 10px;
-      background: rgba(15, 23, 42, 0.6);
+      background: var(--arch-ui-bg);
     }
 
-    .btn-secondary {
-      background: rgba(51, 65, 85, 0.7);
-      color: #cbd5e1;
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      border-radius: 8px;
-      padding: 8px 16px;
-      font-size: 0.85rem;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all 0.2s ease;
-    }
-
-    .btn-secondary:hover:not(:disabled) {
-      background: #475569;
-      color: #ffffff;
-    }
-
-    /* Bandeaux d'information / d'avertissement */
+    /* Bandeaux d'information / d'avertissement : texte du thème, couleur d'état en liseré */
     .banner {
       display: flex;
       align-items: flex-start;
@@ -519,31 +660,23 @@ export class HomeArchitectExportModal extends LitElement {
       border-radius: 10px;
       font-size: 0.82rem;
       line-height: 1.45;
+      background: var(--arch-ui-surface);
+      border: 1px solid var(--arch-ui-border);
+      border-left: 4px solid var(--arch-ui-info);
+      color: var(--arch-ui-text);
       animation: fadeIn 0.2s ease-out;
     }
 
-    .banner.success {
-      background: rgba(16, 185, 129, 0.12);
-      border: 1px solid rgba(16, 185, 129, 0.4);
-      color: #6ee7b7;
-    }
-
     .banner.info {
-      background: rgba(56, 189, 248, 0.1);
-      border: 1px solid rgba(56, 189, 248, 0.35);
-      color: #bae6fd;
+      border-left-color: var(--arch-ui-info);
     }
 
     .banner.warning {
-      background: rgba(245, 158, 11, 0.12);
-      border: 1px solid rgba(245, 158, 11, 0.45);
-      color: #fcd34d;
+      border-left-color: var(--arch-ui-warning);
     }
 
     .banner.error {
-      background: rgba(239, 68, 68, 0.12);
-      border: 1px solid rgba(239, 68, 68, 0.4);
-      color: #fca5a5;
+      border-left-color: var(--arch-ui-danger);
     }
 
     .banner-icon {
@@ -564,13 +697,22 @@ export class HomeArchitectExportModal extends LitElement {
       font-size: 0.86rem;
     }
 
-    /* Notification flottante */
-    .floating-toast {
+    /* Notification flottante (région annoncée par les lecteurs d'écran), couleurs inversées */
+    .toast-region {
       position: absolute;
       top: 18px;
-      left: 50%;
-      transform: translateX(-50%);
-      max-width: 90%;
+      left: 0;
+      right: 0;
+      display: flex;
+      justify-content: center;
+      padding: 0 16px;
+      z-index: 200;
+      pointer-events: none;
+    }
+
+    .floating-toast {
+      max-width: 100%;
+      box-sizing: border-box;
       padding: 10px 22px;
       border-radius: 12px;
       font-size: 0.88rem;
@@ -578,33 +720,72 @@ export class HomeArchitectExportModal extends LitElement {
       display: flex;
       align-items: center;
       gap: 10px;
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7);
-      z-index: 200;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
       animation: popToast 0.25s ease-out;
-      pointer-events: none;
-      color: #ffffff;
+      background: var(--arch-ui-text);
+      color: var(--arch-ui-surface);
+      border-left: 4px solid var(--arch-ui-info);
     }
 
     .floating-toast.success {
-      background: #059669;
-      border: 1px solid #10b981;
+      border-left-color: var(--arch-ui-success);
     }
 
     .floating-toast.error {
-      background: #b91c1c;
-      border: 1px solid #ef4444;
-    }
-
-    .floating-toast.info {
-      background: #0369a1;
-      border: 1px solid #38bdf8;
+      border-left-color: var(--arch-ui-danger);
     }
 
     @keyframes popToast {
-      from { transform: translate(-50%, -10px); opacity: 0; }
-      to { transform: translate(-50%, 0); opacity: 1; }
+      from { transform: translateY(-10px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
     }
-  `;
+
+    /* Petits écrans : la fenêtre occupe tout l'écran, les onglets défilent horizontalement. */
+    @media (max-width: 600px) {
+      .modal-card {
+        width: 100%;
+        max-width: 100%;
+        height: 100%;
+        max-height: 100%;
+        border: none;
+        border-radius: 0;
+      }
+
+      .modal-header {
+        padding: 12px 14px;
+        padding-top: max(12px, env(safe-area-inset-top));
+      }
+
+      .modal-icon {
+        display: none;
+      }
+
+      .tabs-nav {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        scrollbar-width: none;
+        padding: 0 8px;
+      }
+
+      .tabs-nav::-webkit-scrollbar {
+        display: none;
+      }
+
+      .tab-btn {
+        white-space: nowrap;
+        padding: 12px 10px;
+      }
+
+      .modal-body {
+        padding: 14px;
+      }
+
+      .modal-footer {
+        padding: 12px 14px;
+        padding-bottom: max(12px, env(safe-area-inset-bottom));
+      }
+    }
+  `];
 
   @property({ type: Object })
   public project!: HomeArchitectProject;
@@ -656,11 +837,12 @@ export class HomeArchitectExportModal extends LitElement {
   @state()
   private busy: BusyAction | null = null;
 
+  /** Échec de publication, décrit au rendu (le message suit la langue courante). */
   @state()
-  private publishError: string = '';
+  private publishError: { error: unknown; withBackground: boolean } | null = null;
 
   @state()
-  private notice: { kind: 'success' | 'error' | 'info'; text: string } | null = null;
+  private notice: { kind: NoticeKind; text: string } | null = null;
 
   @state()
   private copied: CopyTarget | null = null;
@@ -668,6 +850,9 @@ export class HomeArchitectExportModal extends LitElement {
   /** Texte à copier à la main quand le presse-papiers est inaccessible (HTTP, WebView). */
   @state()
   private manualCopyText: string | null = null;
+
+  @query('.modal-card')
+  private dialogCard?: HTMLElement;
 
   // Valeurs dérivées, recalculées dans willUpdate uniquement quand leurs entrées changent.
   private frame: ExportFrame | null = null;
@@ -678,14 +863,56 @@ export class HomeArchitectExportModal extends LitElement {
   private noticeTimer: ReturnType<typeof setTimeout> | undefined;
   private copiedTimer: ReturnType<typeof setTimeout> | undefined;
 
+  /** Élément qui avait le focus à l'ouverture : il le retrouve à la fermeture. */
+  private returnFocusTarget: HTMLElement | null = null;
+  /** Bouton qui a demandé la confirmation en cours : il retrouve le focus quand elle se ferme. */
+  private confirmOrigin: HTMLElement | null = null;
+  /** Contrôle désactivé pendant l'action en cours (« Publier »…) : il retrouve le focus une fois réactivé. */
+  private focusAfterBusy: HTMLElement | null = null;
+  private initialFocusDone = false;
+
+  /** Re-rendu au changement de langue (clé LANGUAGE_CHANGED_KEY). */
+  private readonly i18n = new LocalizeController(this);
+
+  constructor() {
+    super();
+    this.addEventListener('keydown', this.onKeyDown);
+    this.addEventListener('mousedown', this.onBackdropMouseDown);
+  }
+
+  connectedCallback(): void {
+    super.connectedCallback();
+    this.returnFocusTarget = deepActiveElement();
+    this.initialFocusDone = false;
+    window.addEventListener('keydown', this.onWindowKeyDown, true);
+  }
+
   disconnectedCallback(): void {
     super.disconnectedCallback();
+    window.removeEventListener('keydown', this.onWindowKeyDown, true);
     clearTimeout(this.noticeTimer);
     clearTimeout(this.copiedTimer);
+    this.focusAfterBusy = null;
+    this.confirmOrigin = null;
+    // Retour du focus à l'élément déclencheur (bouton ou menu du studio), s'il existe encore.
+    const target = this.returnFocusTarget;
+    this.returnFocusTarget = null;
+    if (target?.isConnected) target.focus({ preventScroll: true });
+  }
+
+  /**
+   * `hass` change à chaque état d'entité : seuls les droits, la langue et le thème concernent la
+   * fenêtre. Tout autre changement (dont celui de la langue de l'interface) déclenche le rendu.
+   */
+  protected shouldUpdate(changed: PropertyValues): boolean {
+    if (changed.has(LANGUAGE_CHANGED_KEY)) return true;
+    if (changed.size === 1 && changed.has('hass')) return hassContextChanged(changed.get('hass'), this.hass);
+    return true;
   }
 
   protected willUpdate(changed: PropertyValues): void {
     super.willUpdate(changed);
+    if (changed.has('hass')) applyColorScheme(this, this.hass);
     if (changed.has('project') && this.project) {
       const previous = changed.get('project') as HomeArchitectProject | undefined;
       if (!previous || previous.id !== this.project.id) {
@@ -695,7 +922,7 @@ export class HomeArchitectExportModal extends LitElement {
         this.localFrame = null;
         this.frameStale = false;
         this.confirmAction = null;
-        this.publishError = '';
+        this.publishError = null;
         this.manualCopyText = null;
       } else if (previous.publish !== this.project.publish) {
         this.publishInfo = this.project.publish ?? null;
@@ -710,12 +937,57 @@ export class HomeArchitectExportModal extends LitElement {
 
   protected updated(changed: PropertyValues): void {
     super.updated(changed);
+    const root = this.renderRoot as ShadowRoot;
+    if (!this.initialFocusDone && this.dialogCard) {
+      // Focus initial sur la fenêtre : le lecteur d'écran annonce son titre, Tab mène au premier contrôle.
+      this.initialFocusDone = true;
+      this.dialogCard.focus({ preventScroll: true });
+    }
+    if (changed.has('activeTab')) {
+      // Petits écrans : la barre d'onglets défile ; l'onglet choisi (clic, flèches) reste entièrement visible.
+      root.querySelector<HTMLElement>(`#export-tab-${this.activeTab}`)?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+    }
     if (changed.has('manualCopyText') && this.manualCopyText !== null) {
-      const area = this.renderRoot.querySelector<HTMLTextAreaElement>('textarea.manual-copy');
+      const area = root.querySelector<HTMLTextAreaElement>('textarea.manual-copy');
       if (area) {
         area.focus();
         area.select();
         area.setSelectionRange(0, area.value.length);
+      }
+    }
+    if (changed.has('confirmAction')) {
+      if (this.confirmAction) {
+        root.querySelector<HTMLElement>('.confirm-ok')?.focus();
+      } else if (changed.get('confirmAction')) {
+        // Confirmation fermée : retour au bouton qui l'a demandée (s'il est encore utilisable),
+        // ou dès sa réactivation s'il est désactivé le temps de l'action confirmée.
+        const origin = this.confirmOrigin;
+        this.confirmOrigin = null;
+        if (origin?.isConnected) {
+          if (origin.matches(':disabled')) this.focusAfterBusy = origin;
+          else origin.focus();
+        }
+      }
+    }
+    if (this.dialogCard) {
+      const active = root.activeElement as HTMLElement | null;
+      if (active && active !== this.dialogCard && active.matches(':disabled')) {
+        // Contrôle désactivé pendant une action (publication, téléchargement) : le navigateur lui
+        // retirerait le focus au rendu suivant, vers document.body, hors de la fenêtre (Échap
+        // n'atteindrait plus la fenêtre, Tab en sortirait). La fenêtre le garde en attendant.
+        this.focusAfterBusy = active;
+        this.dialogCard.focus({ preventScroll: true });
+      } else if (!active && deepActiveElement() === null) {
+        // Le contrôle qui avait le focus a disparu (bandeau fermé) : le focus reste dans la fenêtre.
+        this.dialogCard.focus({ preventScroll: true });
+      }
+      if (this.focusAfterBusy && !this.busy) {
+        // Action terminée : le contrôle réactivé retrouve le focus, sauf si l'utilisateur l'a déplacé.
+        const target = this.focusAfterBusy;
+        this.focusAfterBusy = null;
+        if (target.isConnected && !target.matches(':disabled') && root.activeElement === this.dialogCard) {
+          target.focus({ preventScroll: true });
+        }
       }
     }
   }
@@ -730,6 +1002,101 @@ export class HomeArchitectExportModal extends LitElement {
       ? LovelaceGenerator.generatePictureElementsYaml(project, { imageUrl: this.publishInfo.url, frame: this.frame })
       : '';
     this.cardYaml = LovelaceGenerator.generateHomeArchitectCardYaml(project, { viewMode: this.customCardViewMode });
+  }
+
+  // ==========================================
+  // CLAVIER ET FOCUS
+  // ==========================================
+
+  /**
+   * Échap : annule la confirmation en cours, sinon ferme la fenêtre (jamais pendant une écriture).
+   * La touche est marquée traitée : le panneau (qui ignore les touches traitées) ne ferme pas la
+   * fenêtre de son côté, ce qui perdrait les événements d'une publication en cours.
+   * Tab : le focus reste dans la fenêtre.
+   */
+  private readonly onKeyDown = (e: KeyboardEvent): void => {
+    if (e.key === 'Escape') {
+      if (e.defaultPrevented) return;
+      e.preventDefault();
+      if (this.confirmAction) {
+        this.confirmAction = null;
+        return;
+      }
+      this.handleClose();
+      return;
+    }
+    if (e.key === 'Tab') this.trapFocus(e);
+  };
+
+  /**
+   * Échap pressée alors que le focus n'est nulle part (document.body) : la touche n'atteint pas la
+   * fenêtre et le panneau la traiterait en fermant la fenêtre. Pendant une écriture, elle est
+   * neutralisée (marquée traitée, ignorée par le panneau) et le focus revient dans la fenêtre.
+   */
+  private readonly onWindowKeyDown = (e: KeyboardEvent): void => {
+    if (e.key !== 'Escape' || e.defaultPrevented || !this.isWriting) return;
+    const target = getEventTarget(e);
+    if (target !== document.body && target !== document.documentElement) return;
+    e.preventDefault();
+    this.dialogCard?.focus({ preventScroll: true });
+  };
+
+  /** Un clic sur le fond (hors de la fenêtre) ne retire pas le focus de la fenêtre. */
+  private readonly onBackdropMouseDown = (e: MouseEvent): void => {
+    if (e.composedPath()[0] === this) e.preventDefault();
+  };
+
+  private focusableElements(): HTMLElement[] {
+    return [...(this.renderRoot as ShadowRoot).querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)].filter(
+      el => el.tabIndex >= 0 && !el.matches(':disabled') && el.getClientRects().length > 0
+    );
+  }
+
+  private trapFocus(e: KeyboardEvent): void {
+    const items = this.focusableElements();
+    const active = (this.renderRoot as ShadowRoot).activeElement;
+    if (items.length === 0) {
+      e.preventDefault();
+      this.dialogCard?.focus();
+      return;
+    }
+    const first = items[0];
+    const last = items[items.length - 1];
+    if (e.shiftKey && (!active || active === first || active === this.dialogCard)) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && (!active || active === last)) {
+      e.preventDefault();
+      first.focus();
+    }
+  }
+
+  /** Flèches, Début et Fin sur les onglets (activation automatique, focus mobile). */
+  private handleTabKeydown(e: KeyboardEvent): void {
+    const index = TABS.findIndex(tab => tab.id === this.activeTab);
+    let next: number;
+    switch (e.key) {
+      case 'ArrowRight': next = (index + 1) % TABS.length; break;
+      case 'ArrowLeft': next = (index - 1 + TABS.length) % TABS.length; break;
+      case 'Home': next = 0; break;
+      case 'End': next = TABS.length - 1; break;
+      default: return;
+    }
+    e.preventDefault();
+    void this.selectTab(TABS[next].id, true);
+  }
+
+  private async selectTab(tab: ExportTab, focus: boolean = false): Promise<void> {
+    this.activeTab = tab;
+    if (!focus) return;
+    await this.updateComplete;
+    (this.renderRoot as ShadowRoot).querySelector<HTMLElement>(`#export-tab-${tab}`)?.focus();
+  }
+
+  /** Ouvre la confirmation `action` en mémorisant le bouton qui l'a demandée. */
+  private askConfirmation(action: ConfirmAction): void {
+    this.confirmOrigin = (this.renderRoot as ShadowRoot).activeElement as HTMLElement | null;
+    this.confirmAction = action;
   }
 
   // ==========================================
@@ -791,7 +1158,7 @@ export class HomeArchitectExportModal extends LitElement {
     this.emit('save-requested');
   }
 
-  private showNotice(kind: 'success' | 'error' | 'info', text: string): void {
+  private showNotice(kind: NoticeKind, text: string): void {
     clearTimeout(this.noticeTimer);
     this.notice = { kind, text };
     this.noticeTimer = setTimeout(() => { this.notice = null; }, NOTICE_DURATION_MS);
@@ -806,7 +1173,7 @@ export class HomeArchitectExportModal extends LitElement {
     } else if (bg && DATA_IMAGE_URL.test(bg.imageUrl || '')) {
       blob = dataUrlToBlob(bg.imageUrl);
     } else {
-      throw new Error("Aucune image de fond téléversée pour ce plan.");
+      throw new ExportError('export.error.no_background');
     }
     return blob.type || !bg?.mimeType ? blob : new Blob([blob], { type: bg.mimeType });
   }
@@ -820,46 +1187,40 @@ export class HomeArchitectExportModal extends LitElement {
       // Connexion ou droits : message générique ci-dessous. Sinon l'image elle-même est en cause
       // (asset absent : 'not_found' ne doit pas laisser croire que le PLAN est introuvable).
       if (err instanceof HaApiError && ['not_connected', 'connection_lost', 'network_error', 'unauthorized'].includes(err.code)) throw err;
-      console.warn('[home-architect] Image de fond illisible :', err);
-      throw new HaApiError(
-        'background_unavailable',
-        "Image de fond introuvable ou illisible sur le serveur : décochez « Inclure l'image de fond » ou réimportez l'image."
-      );
+      console.warn('[home-architect] Background image unreadable:', err);
+      throw new ExportError('export.error.background_unavailable');
     }
     const encodedBytes = Math.ceil(blob.size / 3) * 4;
     if (encodedBytes > MAX_PUBLISH_BYTES) {
-      const mb = (n: number) => `${(n / (1024 * 1024)).toFixed(1)} Mo`;
-      throw new PayloadTooLargeError(
-        `Image de fond trop volumineuse pour être incluse (${mb(encodedBytes)} une fois encodée, maximum ${mb(MAX_PUBLISH_BYTES)}).`,
-        encodedBytes,
-        MAX_PUBLISH_BYTES
-      );
+      throw new ExportError('export.error.background_too_large', {
+        size: formatMegabytes(encodedBytes),
+        max: formatMegabytes(MAX_PUBLISH_BYTES)
+      });
     }
     const dataUrl = SvgExporter.embeddableDataUrl(await blobToDataUrl(blob));
-    if (!dataUrl) {
-      throw new Error("Format d'image de fond non pris en charge (PNG, JPEG, WebP, GIF ou SVG attendu) : décochez « Inclure l'image de fond ».");
-    }
+    if (!dataUrl) throw new ExportError('export.error.background_format');
     return dataUrl;
   }
 
   /** Message lisible d'une erreur ; `withBackground` : l'image de fond faisait partie de l'envoi. */
   private describeError(err: unknown, withBackground: boolean = false): string {
+    if (err instanceof ExportError) return localize(err.key, err.params);
     if (err instanceof PayloadTooLargeError) {
-      return withBackground ? `${err.message} Décochez « Inclure l'image de fond » ou allégez l'image.` : err.message;
+      return withBackground ? localize('export.error.too_large_with_background', { message: err.message }) : err.message;
     }
     if (err instanceof HaApiError) {
       switch (err.code) {
         case 'not_found':
-          return "Ce plan n'existe pas encore sur le serveur : sauvegardez-le, puis réessayez.";
+          return localize('export.error.not_found');
         case 'invalid_svg':
-          return 'Le serveur a refusé le SVG généré (format non valide).';
+          return localize('export.error.invalid_svg');
         case 'write_failed':
-          return "Le serveur n'a pas pu écrire le plan publié (voir le journal de Home Assistant).";
+          return localize('export.error.write_failed');
         case 'unknown_command':
-          return "Le serveur Home Architect n'est pas à jour : redémarrez Home Assistant pour terminer la mise à jour.";
+          return localize('export.error.unknown_command');
         case 'connection_lost':
         case 'not_connected':
-          return 'Connexion à Home Assistant indisponible : réessayez dans un instant.';
+          return localize('export.error.connection');
         default:
           return err.message;
       }
@@ -871,7 +1232,7 @@ export class HomeArchitectExportModal extends LitElement {
   private async publish(): Promise<void> {
     if (!this.canEdit || !this.isSavedOnServer || this.busy || !this.frame) return;
     if (this.publishInfo && this.confirmAction !== 'publish') {
-      this.confirmAction = 'publish';
+      this.askConfirmation('publish');
       return;
     }
     this.confirmAction = null;
@@ -888,12 +1249,13 @@ export class HomeArchitectExportModal extends LitElement {
   private async publishWithFrame(frame: ExportFrame, adoptFrame: boolean): Promise<void> {
     if (!this.canEdit || !this.isSavedOnServer || this.busy) return;
     this.busy = 'publish';
-    this.publishError = '';
+    this.publishError = null;
     const project = this.project;
     const wasPublished = !!this.publishInfo;
     const includeBackground = this.includeBackground && this.hasEmbeddableBackground;
     try {
       const backgroundDataUrl = includeBackground ? await this.loadBackgroundDataUrl() : undefined;
+      // Les étiquettes du SVG (surfaces) suivent la langue courante au moment de la publication.
       const svg = SvgExporter.exportToSvg(project, { ...SVG_RENDER_OPTIONS, includeBackground, backgroundDataUrl, frame });
       const info = await publishSvg(this.hass, project.id, svg, { includeBackground });
       // Un autre plan a été ouvert pendant l'envoi : son cadre et sa publication ne doivent pas
@@ -909,11 +1271,11 @@ export class HomeArchitectExportModal extends LitElement {
       this.emit('project-published', { publish: info });
       this.showNotice(
         'success',
-        adoptFrame && wasPublished ? 'Plan publié avec le nouveau cadre : recollez le code YAML.' : 'Plan publié : copiez le code YAML ci-dessous.'
+        localize(adoptFrame && wasPublished ? 'export.notice.published_new_frame' : 'export.notice.published')
       );
     } catch (err) {
-      console.warn('[home-architect] Publication du plan impossible :', err);
-      this.publishError = this.describeError(err, includeBackground);
+      console.warn('[home-architect] Plan publication failed:', err);
+      this.publishError = { error: err, withBackground: includeBackground };
     } finally {
       this.busy = null;
     }
@@ -922,12 +1284,12 @@ export class HomeArchitectExportModal extends LitElement {
   private async unpublishPlan(): Promise<void> {
     if (!this.canEdit || this.busy || !this.publishInfo) return;
     if (this.confirmAction !== 'unpublish') {
-      this.confirmAction = 'unpublish';
+      this.askConfirmation('unpublish');
       return;
     }
     this.confirmAction = null;
     this.busy = 'unpublish';
-    this.publishError = '';
+    this.publishError = null;
     const projectId = this.project.id;
     try {
       await unpublish(this.hass, projectId);
@@ -936,10 +1298,10 @@ export class HomeArchitectExportModal extends LitElement {
       if (this.project?.id !== projectId) return;
       this.publishInfo = null;
       this.frameStale = false;
-      this.showNotice('info', "Plan dépublié : l'ancienne URL ne fonctionne plus.");
+      this.showNotice('info', localize('export.notice.unpublished'));
     } catch (err) {
-      console.warn('[home-architect] Dépublication impossible :', err);
-      this.publishError = this.describeError(err);
+      console.warn('[home-architect] Plan unpublication failed:', err);
+      this.publishError = { error: err, withBackground: false };
     } finally {
       this.busy = null;
     }
@@ -955,7 +1317,7 @@ export class HomeArchitectExportModal extends LitElement {
     if (!this.canEdit || this.busy) return;
     const published = !!this.publishInfo;
     if (published && this.confirmAction !== 'reframe') {
-      this.confirmAction = 'reframe';
+      this.askConfirmation('reframe');
       return;
     }
     this.confirmAction = null;
@@ -987,7 +1349,7 @@ export class HomeArchitectExportModal extends LitElement {
     this.copied = target;
     clearTimeout(this.copiedTimer);
     this.copiedTimer = setTimeout(() => { this.copied = null; }, 2500);
-    this.showNotice('success', 'Code YAML copié dans le presse-papiers.');
+    this.showNotice('success', localize('export.notice.copied'));
   }
 
   /** Repli execCommand('copy') : zone de texte en lecture seule, sélection explicite (iOS). */
@@ -1025,7 +1387,7 @@ export class HomeArchitectExportModal extends LitElement {
         try {
           backgroundDataUrl = SvgExporter.embeddableDataUrl(await blobToDataUrl(await this.loadBackgroundBlob())) ?? undefined;
         } catch (err) {
-          console.warn("[home-architect] Image de fond non incluse dans le SVG :", err);
+          console.warn('[home-architect] Background image not included in the SVG:', err);
         }
         backgroundMissing = !backgroundDataUrl;
       }
@@ -1036,10 +1398,10 @@ export class HomeArchitectExportModal extends LitElement {
         frame
       });
       triggerDownload(new Blob([svg], { type: 'image/svg+xml;charset=utf-8' }), `plan_${fileSlug(this.project.name, this.project.id)}.svg`);
-      if (backgroundMissing) this.showNotice('info', "SVG téléchargé sans l'image de fond (image indisponible).");
+      if (backgroundMissing) this.showNotice('info', localize('export.notice.svg_without_background'));
     } catch (err) {
-      console.warn('[home-architect] Téléchargement du SVG impossible :', err);
-      this.showNotice('error', `Téléchargement impossible : ${this.describeError(err)}`);
+      console.warn('[home-architect] SVG download failed:', err);
+      this.showNotice('error', localize('export.notice.download_failed', { error: this.describeError(err) }));
     } finally {
       this.busy = null;
     }
@@ -1061,7 +1423,7 @@ export class HomeArchitectExportModal extends LitElement {
           const blob = await this.loadBackgroundBlob();
           const dataUrl = await blobToDataUrl(blob);
           // À la réimportation, normalizeProject n'accepte qu'une data-URL d'image (data:image/…).
-          if (!DATA_IMAGE_URL.test(dataUrl)) throw new Error("Type de l'image de fond inconnu.");
+          if (!DATA_IMAGE_URL.test(dataUrl)) throw new ExportError('export.error.background_type');
           bg.imageUrl = dataUrl;
           // Type MIME sans paramètre (« image/svg+xml;charset=utf-8 » serait écarté à la réimportation).
           const mimeType = blob.type.split(';')[0].trim();
@@ -1069,7 +1431,7 @@ export class HomeArchitectExportModal extends LitElement {
           delete bg.assetId;
         } catch (err) {
           // L'asset reste référencé : il est encore lisible tant que le plan d'origine existe.
-          console.warn("[home-architect] Image de fond non incluse dans la sauvegarde :", err);
+          console.warn('[home-architect] Background image not included in the backup:', err);
           backgroundMissing = true;
         }
       }
@@ -1081,11 +1443,11 @@ export class HomeArchitectExportModal extends LitElement {
       );
       this.showNotice(
         backgroundMissing ? 'info' : 'success',
-        backgroundMissing ? "Sauvegarde téléchargée sans l'image de fond (image indisponible)." : 'Sauvegarde du projet téléchargée.'
+        localize(backgroundMissing ? 'export.notice.backup_without_background' : 'export.notice.backup_done')
       );
     } catch (err) {
-      console.warn('[home-architect] Sauvegarde JSON impossible :', err);
-      this.showNotice('error', `Téléchargement impossible : ${this.describeError(err)}`);
+      console.warn('[home-architect] JSON backup failed:', err);
+      this.showNotice('error', localize('export.notice.download_failed', { error: this.describeError(err) }));
     } finally {
       this.busy = null;
     }
@@ -1117,49 +1479,59 @@ export class HomeArchitectExportModal extends LitElement {
   // RENDU
   // ==========================================
 
+  /** Bouton dont le libellé est précédé d'un pictogramme décoratif (ignoré des lecteurs d'écran). */
+  private iconLabel(icon: string, label: string | Array<string | TemplateResult>) {
+    return html`<span aria-hidden="true">${icon}</span><span>${label}</span>`;
+  }
+
+  /** Bandeau avec pictogramme décoratif ; `role` : 'alert' pour une erreur à annoncer. */
+  private renderBanner(kind: 'info' | 'warning' | 'error', icon: string, content: unknown, role?: 'alert') {
+    return html`
+      <div class="banner ${kind}" role=${role ?? 'note'}>
+        <span class="banner-icon" aria-hidden="true">${icon}</span>
+        <div class="banner-text">${content}</div>
+      </div>
+    `;
+  }
+
+  private renderStat(icon: string, baseKey: string, count: number, highlight: boolean = false) {
+    return html`
+      <div class="stat-badge ${highlight ? 'highlight' : ''}" role="listitem">
+        <span aria-hidden="true">${icon}</span>
+        <span><strong>${formatNumber(count)}</strong> ${localize(pluralKey(baseKey, count))}</span>
+      </div>
+    `;
+  }
+
   /** Bandeau « plan non sauvegardé » : la carte intégrée lit le serveur, la publication exige un plan sauvegardé. */
   private renderSaveState() {
     if (!this.canEdit || (this.isSavedOnServer && !this.dirty)) return null;
     const neverSaved = !this.isSavedOnServer;
-    return html`
-      <div class="banner warning">
-        <span class="banner-icon">💾</span>
-        <div class="banner-text">
-          <div class="banner-title">${neverSaved ? "Ce plan n'est pas encore sauvegardé sur le serveur" : 'Modifications non sauvegardées'}</div>
-          <div>
-            ${neverSaved
-              ? 'La carte intégrée ne le trouvera pas et la publication est impossible tant que le plan n\'est pas sauvegardé.'
-              : 'La carte intégrée affiche la dernière version sauvegardée. Sauvegardez pour que les deux cartes affichent le même plan.'}
-          </div>
-          <div class="actions-row">
-            <button class="btn-action emerald" @click=${this.requestSave}>💾 Sauvegarder le plan</button>
-          </div>
-        </div>
+    return this.renderBanner('warning', '💾', html`
+      <div class="banner-title">${localize(neverSaved ? 'export.save.never_title' : 'export.save.dirty_title')}</div>
+      <div>${localize(neverSaved ? 'export.save.never_text' : 'export.save.dirty_text')}</div>
+      <div class="actions-row">
+        <button class="btn-action" @click=${this.requestSave}>${this.iconLabel('💾', localize('export.save.button'))}</button>
       </div>
-    `;
+    `);
   }
 
   private renderConfirm(action: ConfirmAction) {
     if (this.confirmAction !== action) return null;
     const text = action === 'publish'
-      ? 'Le plan publié sera remplacé par l\'état actuel du plan. Les tableaux de bord qui l\'utilisent afficheront immédiatement la nouvelle version.'
-        + (this.isFrameFrozen ? '' : ' Le cadre actuel sera figé : recollez ensuite le code YAML.')
-      : action === 'unpublish'
-        ? 'L\'URL publiée cessera de fonctionner : les cartes picture-elements qui l\'utilisent afficheront une image cassée. Une nouvelle publication créera une nouvelle URL.'
-        : 'Le cadre sera recalculé sur le contenu actuel et le plan publié sera mis à jour avec ce cadre : les positions changent, il faudra recoller le nouveau code YAML dans vos tableaux de bord.';
+      ? [localize('export.confirm.publish'), this.isFrameFrozen ? '' : localize('export.confirm.publish_freeze')].filter(Boolean).join(' ')
+      : localize(action === 'unpublish' ? 'export.confirm.unpublish' : 'export.confirm.reframe');
     const confirm = action === 'publish' ? () => this.publish() : action === 'unpublish' ? () => this.unpublishPlan() : () => this.reframe();
-    return html`
-      <div class="banner warning">
-        <span class="banner-icon">❓</span>
-        <div class="banner-text">
-          <div>${text}</div>
-          <div class="actions-row">
-            <button class="btn-action ${action === 'unpublish' ? 'danger' : ''}" @click=${confirm}>Confirmer</button>
-            <button class="btn-secondary" @click=${() => { this.confirmAction = null; }}>Annuler</button>
-          </div>
-        </div>
+    const textId = `confirm-text-${action}`;
+    return this.renderBanner('warning', '❓', html`
+      <div id=${textId}>${text}</div>
+      <div class="actions-row">
+        <button class="btn-action confirm-ok ${action === 'unpublish' ? 'danger' : ''}" aria-describedby=${textId} @click=${confirm}>
+          ${localize('export.confirm.ok')}
+        </button>
+        <button class="btn-secondary" @click=${() => { this.confirmAction = null; }}>${localize('export.confirm.cancel')}</button>
       </div>
-    `;
+    `);
   }
 
   private renderPublishSection() {
@@ -1167,70 +1539,56 @@ export class HomeArchitectExportModal extends LitElement {
     const canPublish = this.canEdit && this.isSavedOnServer && !!this.hass && !this.busy;
     const legacyId = !info && legacyCategory(this.project.id) !== undefined;
     const thumb = this.backgroundThumbnail;
+    const unpublishLabel = localize('export.publish.unpublish');
 
     return html`
-      <div class="section">
-        <div class="section-title"><span>1.</span><span>Publier le plan</span></div>
-        <p class="hint">
-          Home Assistant sert le plan publié <strong>sans authentification</strong>, à une adresse secrète impossible à deviner :
-          ne la partagez pas. Le plan publié n'est mis à jour que lorsque vous cliquez sur « Publier ».
-        </p>
+      <section class="section" aria-labelledby="export-publish-title">
+        <h3 class="section-title" id="export-publish-title">
+          <span class="section-num" aria-hidden="true">1</span><span>${localize('export.publish.title')}</span>
+        </h3>
+        <p class="hint">${richText('export.publish.hint')}</p>
 
         <div class="status-line">
           ${info ? html`
-            ✅ Publié le ${this.formatDate(info.published_at)} (${info.include_background ? 'avec' : 'sans'} image de fond)<br />
+            <span aria-hidden="true">✅</span>
+            ${localize(info.include_background ? 'export.publish.published_with_background' : 'export.publish.published_without_background', {
+              date: this.formatDate(info.published_at)
+            })}<br />
             <code>${info.url}</code>
-          ` : html`⚪ Pas encore publié.`}
+          ` : html`<span aria-hidden="true">⚪</span> ${localize('export.publish.not_published')}`}
         </div>
 
-        ${this.hasExternalBackground ? html`
-          <div class="banner info">
-            <span class="banner-icon">🌐</span>
-            <div class="banner-text">
-              L'image de fond est une URL externe : elle n'apparaîtra pas dans la carte picture-elements
-              (une image SVG affichée par Lovelace ne charge aucune ressource externe). Importez l'image dans le plan pour pouvoir l'inclure.
-            </div>
-          </div>
-        ` : null}
+        ${this.hasExternalBackground ? this.renderBanner('info', '🌐', localize('export.publish.external_background')) : null}
 
         ${this.hasEmbeddableBackground && this.canEdit ? html`
           <label class="check-row">
             <input
               type="checkbox"
+              aria-labelledby="export-include-bg-label"
+              aria-describedby="export-include-bg-hint"
               .checked=${this.includeBackground}
               ?disabled=${!!this.busy}
               @change=${(e: Event) => { this.includeBackground = (e.target as HTMLInputElement).checked; }}
             />
             ${thumb ? html`<img class="bg-thumb" src=${thumb} alt="" />` : null}
             <div>
-              <div class="config-label">Inclure l'image de fond</div>
-              <div class="hint">
+              <div class="config-label" id="export-include-bg-label">${localize('export.include_background')}</div>
+              <div class="hint" id="export-include-bg-hint">
                 ${this.includeBackground
-                  ? html`⚠️ <strong>URL publique :</strong> toute personne qui obtient l'URL pourra voir cette image (plan d'architecte, photo…).`
-                  : 'Seuls les murs, pièces, ouvertures et meubles sont publiés.'}
+                  ? html`<span aria-hidden="true">⚠️</span> ${richText('export.publish.public_warning')}`
+                  : localize('export.publish.without_background')}
               </div>
             </div>
           </label>
         ` : null}
 
-        ${info?.legacy_path ? html`
-          <div class="banner warning">
-            <span class="banner-icon">⚠️</span>
-            <div class="banner-text">
-              <div class="banner-title">Ancien fichier public détecté : <code>${info.legacy_path}</code></div>
-              <div>
-                Il est réécrit à chaque publication et reste accessible sans authentification sous une adresse devinable.
-                Remplacez-le dans vos tableaux de bord par le nouveau code YAML, puis cliquez sur « Dépublier » et republiez :
-                il sera supprimé (une copie retouchée hors de l'outil est conservée dans <code>/config/home_architect/backups/</code>).
-              </div>
-            </div>
-          </div>
-        ` : null}
+        ${info?.legacy_path ? this.renderBanner('warning', '⚠️', html`
+          <div class="banner-title">${richText('export.publish.legacy_title', { path: info.legacy_path })}</div>
+          <div>${richText('export.publish.legacy_text', { unpublish: unpublishLabel })}</div>
+        `) : null}
 
         ${legacyId && this.canEdit ? html`
-          <p class="hint">
-            Si un ancien fichier <code>/local/plan_${this.project.id}.svg</code> existe dans <code>/config/www</code>, il sera lui aussi mis à jour à chaque publication.
-          </p>
+          <p class="hint">${richText('export.publish.legacy_id_hint', { id: this.project.id })}</p>
         ` : null}
 
         ${this.renderConfirm('publish')}
@@ -1238,81 +1596,60 @@ export class HomeArchitectExportModal extends LitElement {
 
         ${this.canEdit ? html`
           <div class="actions-row">
-            <button class="btn-action emerald" ?disabled=${!canPublish} @click=${this.publish}>
-              ${this.busy === 'publish' ? '⏳ Publication…' : info ? '🔄 Mettre à jour le plan publié' : '🚀 Publier le plan'}
+            <button class="btn-action" ?disabled=${!canPublish} @click=${this.publish}>
+              ${this.busy === 'publish'
+                ? this.iconLabel('⏳', localize('export.publish.publishing'))
+                : info
+                  ? this.iconLabel('🔄', localize('export.publish.update'))
+                  : this.iconLabel('🚀', localize('export.publish.publish'))}
             </button>
             ${info ? html`
               <button class="btn-action danger" ?disabled=${!!this.busy} @click=${this.unpublishPlan}>
-                ${this.busy === 'unpublish' ? '⏳ Dépublication…' : '🗑️ Dépublier'}
+                ${this.busy === 'unpublish'
+                  ? this.iconLabel('⏳', localize('export.publish.unpublishing'))
+                  : this.iconLabel('🗑️', unpublishLabel)}
               </button>
             ` : null}
           </div>
-        ` : html`<p class="hint">Seul un administrateur peut publier ou mettre à jour le plan.</p>`}
+        ` : html`<p class="hint">${localize('export.publish.admin_only')}</p>`}
 
-        ${this.publishError ? html`
-          <div class="banner error">
-            <span class="banner-icon">⚠️</span>
-            <div class="banner-text">${this.publishError}</div>
-          </div>
-        ` : null}
-      </div>
+        ${this.publishError
+          ? this.renderBanner('error', '⚠️', this.describeError(this.publishError.error, this.publishError.withBackground), 'alert')
+          : null}
+      </section>
     `;
   }
 
   private renderFrameSection() {
     const frame = this.frame;
     if (!frame) return null;
-    const width = (frame.maxX - frame.minX).toFixed(1);
-    const height = (frame.maxY - frame.minY).toFixed(1);
+    const oneDecimal = { minimumFractionDigits: 1, maximumFractionDigits: 1 };
+    const width = formatNumber(frame.maxX - frame.minX, oneDecimal);
+    const height = formatNumber(frame.maxY - frame.minY, oneDecimal);
     return html`
-      <div class="section">
-        <div class="section-title"><span>2.</span><span>Cadre d'export</span></div>
+      <section class="section" aria-labelledby="export-frame-title">
+        <h3 class="section-title" id="export-frame-title">
+          <span class="section-num" aria-hidden="true">2</span><span>${localize('export.frame.title')}</span>
+        </h3>
         <p class="hint">
-          Les positions des entités sont exprimées en pourcentage de ce cadre (${width} × ${height} m).
-          ${this.isFrameFrozen
-            ? 'Il est figé : vos modifications du plan ne décalent pas les cartes déjà collées.'
-            : 'Il sera figé à la prochaine publication, pour que les cartes déjà collées restent alignées.'}
+          ${localize('export.frame.hint', { width, height })}
+          ${localize(this.isFrameFrozen ? 'export.frame.frozen' : 'export.frame.not_frozen')}
         </p>
 
-        ${this.publishInfo && !this.isFrameFrozen ? html`
-          <div class="banner warning">
-            <span class="banner-icon">📐</span>
-            <div class="banner-text">
-              Le cadre de la publication actuelle n'a pas été conservé dans le plan : le code YAML ci-dessous peut ne pas
-              correspondre au plan publié. Mettez à jour le plan publié pour figer le cadre, puis recollez le code YAML.
-            </div>
-          </div>
-        ` : null}
-
-        ${this.outOfFrame ? html`
-          <div class="banner warning">
-            <span class="banner-icon">📐</span>
-            <div class="banner-text">
-              Le plan dépasse le cadre figé : les éléments hors cadre seront coupés ou mal placés. Recadrez pour l'agrandir.
-            </div>
-          </div>
-        ` : null}
-
-        ${this.frameStale ? html`
-          <div class="banner warning">
-            <span class="banner-icon">🔁</span>
-            <div class="banner-text">
-              Le plan publié utilise un nouveau cadre : recollez le nouveau code YAML dans vos tableaux de bord
-              (les positions des entités ont changé).
-            </div>
-          </div>
-        ` : null}
+        ${this.publishInfo && !this.isFrameFrozen ? this.renderBanner('warning', '📐', localize('export.frame.not_kept')) : null}
+        ${this.outOfFrame ? this.renderBanner('warning', '📐', localize('export.frame.out_of_frame')) : null}
+        ${this.frameStale ? this.renderBanner('warning', '🔁', localize('export.frame.stale')) : null}
 
         ${this.renderConfirm('reframe')}
 
         ${this.canEdit && this.isFrameFrozen ? html`
           <div class="actions-row">
             <button class="btn-action ghost" ?disabled=${!!this.busy || (!!this.publishInfo && !this.isSavedOnServer)} @click=${this.reframe}>
-              ${this.publishInfo ? '📐 Recadrer sur le plan actuel et republier' : '📐 Recadrer sur le plan actuel'}
+              ${this.iconLabel('📐', localize(this.publishInfo ? 'export.frame.reframe_and_publish' : 'export.frame.reframe'))}
             </button>
           </div>
         ` : null}
-      </div>
+      </section>
     `;
   }
 
@@ -1323,10 +1660,28 @@ export class HomeArchitectExportModal extends LitElement {
         <div class="code-header">
           <span>${title}</span>
           <button class="btn-copy ${copied ? 'copied' : ''}" @click=${() => this.copyText(yaml, target)}>
-            <span>${copied ? '✓ Copié !' : '📋 Copier le YAML'}</span>
+            ${copied
+              ? html`<span class="copied-mark" aria-hidden="true">✓</span><span>${localize('export.code.copied')}</span>`
+              : this.iconLabel('📋', localize('export.code.copy'))}
           </button>
         </div>
-        <pre class="code-box"><code>${yaml}</code></pre>
+        <pre class="code-box" tabindex="0" role="region" aria-label=${title}><code>${yaml}</code></pre>
+      </div>
+    `;
+  }
+
+  private renderGuide(icon: string, title: string, steps: Array<Array<string | TemplateResult>>) {
+    return html`
+      <div class="guide-box">
+        <h3 class="guide-title">${this.iconLabel(icon, title)}</h3>
+        <ol class="guide-steps" role="list">
+          ${steps.map((step, i) => html`
+            <li class="guide-step">
+              <span class="guide-num" aria-hidden="true">${formatNumber(i + 1)}</span>
+              <div>${step}</div>
+            </li>
+          `)}
+        </ol>
       </div>
     `;
   }
@@ -1338,97 +1693,63 @@ export class HomeArchitectExportModal extends LitElement {
       ${this.renderPublishSection()}
       ${this.renderFrameSection()}
 
-      <div class="section">
-        <div class="section-title"><span>3.</span><span>Code Lovelace</span></div>
+      <section class="section" aria-labelledby="export-code-title">
+        <h3 class="section-title" id="export-code-title">
+          <span class="section-num" aria-hidden="true">3</span><span>${localize('export.code.title')}</span>
+        </h3>
         ${this.pictureYaml ? html`
-          ${!hasBindings ? html`
-            <p class="hint">Aucune entité n'est placée sur le plan : la carte affichera le plan seul (<code>elements: []</code>).</p>
-          ` : null}
-          ${this.renderCode(this.pictureYaml, 'picture', 'Code YAML Picture-Elements')}
+          ${!hasBindings ? html`<p class="hint">${richText('export.code.no_entities')}</p>` : null}
+          ${this.renderCode(this.pictureYaml, 'picture', localize('export.code.picture_title'))}
         ` : html`
-          <p class="hint">Publiez le plan pour obtenir le code de la carte picture-elements (il référence l'URL publiée).</p>
+          <p class="hint">${localize('export.code.publish_first')}</p>
         `}
-      </div>
+      </section>
 
-      <div class="guide-box">
-        <div class="guide-title">
-          <span>💡</span>
-          <span>Comment installer cette carte dans Home Assistant :</span>
-        </div>
-        <div class="guide-step">
-          <span class="guide-num">1</span>
-          <div>Sauvegardez puis <strong>publiez</strong> le plan (l'image est servie par Home Assistant, aucun fichier à copier).</div>
-        </div>
-        <div class="guide-step">
-          <span class="guide-num">2</span>
-          <div>Cliquez sur <strong>Copier le YAML</strong>.</div>
-        </div>
-        <div class="guide-step">
-          <span class="guide-num">3</span>
-          <div>
-            Dans votre tableau de bord, cliquez sur <strong>Modifier le tableau de bord</strong> > <strong>Ajouter une carte</strong> > <strong>Manuel</strong>, collez le code et enregistrez.
-          </div>
-        </div>
-        <div class="guide-step">
-          <span class="guide-num">4</span>
-          <div>Après une modification du plan, cliquez sur <strong>Mettre à jour le plan publié</strong> : l'URL reste la même et les tableaux de bord se mettent à jour.</div>
-        </div>
-      </div>
+      ${this.renderGuide('💡', localize('export.guide.picture_title'), [
+        richText('export.guide.picture_step1'),
+        richText('export.guide.picture_step2', { button: localize('export.code.copy') }),
+        richText('export.guide.picture_step3'),
+        richText('export.guide.picture_step4', { button: localize('export.publish.update') }),
+      ])}
     `;
   }
 
   private renderCustomCardTab() {
+    const is2d = this.customCardViewMode === '2d';
     return html`
       ${this.renderSaveState()}
 
-      <div class="guide-box" style="background: rgba(168, 85, 247, 0.08); border-color: rgba(168, 85, 247, 0.3);">
-        <div class="guide-title" style="color: #c084fc;">
-          <span>✨</span>
-          <span>Carte 2D & 3D temps réel, sans publication</span>
-        </div>
-        <div style="font-size: 0.82rem; color: #cbd5e1; line-height: 1.45;">
-          Cette carte utilise directement le moteur de rendu Home Architect et lit le plan <strong>sauvegardé</strong> sur votre serveur
-          (aucune URL publique). Elle affiche votre plan en 2D ou en <strong>3D isométrique</strong>, anime les capteurs en temps réel,
-          et se met à jour à chaque sauvegarde du plan.
-        </div>
+      <div class="guide-box">
+        <h3 class="guide-title">${this.iconLabel('✨', localize('export.card.intro_title'))}</h3>
+        <p class="guide-text">${richText('export.card.intro')}</p>
       </div>
 
       <div class="config-row">
-        <span class="config-label">Mode de vue par défaut :</span>
-        <div class="actions-row">
+        <span class="config-label" id="export-view-mode-label">${localize('export.card.view_mode')}</span>
+        <div class="actions-row" role="group" aria-labelledby="export-view-mode-label">
           <button
-            class="btn-action ${this.customCardViewMode === '2d' ? '' : 'ghost'}"
+            class="btn-action ${is2d ? '' : 'ghost'}"
+            aria-pressed=${is2d ? 'true' : 'false'}
             @click=${() => { this.customCardViewMode = '2d'; }}
           >
-            📐 Vue 2D
+            ${this.iconLabel('📐', localize('export.card.view_2d'))}
           </button>
           <button
-            class="btn-action ${this.customCardViewMode === '3d' ? 'purple' : 'ghost'}"
+            class="btn-action ${is2d ? 'ghost' : ''}"
+            aria-pressed=${is2d ? 'false' : 'true'}
             @click=${() => { this.customCardViewMode = '3d'; }}
           >
-            🧊 Vue 3D Isométrique
+            ${this.iconLabel('🧊', localize('export.card.view_3d'))}
           </button>
         </div>
       </div>
 
-      ${this.renderCode(this.cardYaml, 'card', 'Code Lovelace YAML')}
+      ${this.renderCode(this.cardYaml, 'card', localize('export.code.card_title'))}
 
-      <div class="guide-box">
-        <div class="guide-title">
-          <span>🚀</span>
-          <span>Installation rapide :</span>
-        </div>
-        <div class="guide-step">
-          <span class="guide-num">1</span>
-          <div>Sauvegardez le plan (la carte lit la version sauvegardée).</div>
-        </div>
-        <div class="guide-step">
-          <span class="guide-num">2</span>
-          <div>
-            Dans Lovelace, cliquez sur <strong>Modifier le tableau de bord</strong> > <strong>Ajouter une carte</strong> > <strong>Manuel</strong>, collez ce code YAML et enregistrez.
-          </div>
-        </div>
-      </div>
+      ${this.renderGuide('🚀', localize('export.guide.card_title'), [
+        richText('export.guide.card_step1'),
+        richText('export.guide.card_step2'),
+      ])}
     `;
   }
 
@@ -1436,37 +1757,50 @@ export class HomeArchitectExportModal extends LitElement {
     return html`
       <div class="config-row">
         <div>
-          <div class="config-label">Fichier vectoriel SVG</div>
-          <div class="hint">Idéal pour ouvrir dans Inkscape, Illustrator ou imprimer (même cadre que le plan publié).</div>
+          <div class="config-label">${localize('export.files.svg_title')}</div>
+          <div class="hint">${localize('export.files.svg_hint')}</div>
           ${this.hasEmbeddableBackground ? html`
-            <label class="check-row" style="margin-top: 8px;">
+            <label class="check-row spaced">
               <input
                 type="checkbox"
                 .checked=${this.downloadWithBackground}
                 @change=${(e: Event) => { this.downloadWithBackground = (e.target as HTMLInputElement).checked; }}
               />
-              <span class="hint">Inclure l'image de fond</span>
+              <span class="hint">${localize('export.include_background')}</span>
             </label>
           ` : null}
         </div>
-        <button class="btn-action emerald" ?disabled=${!!this.busy} @click=${this.downloadSvg}>
-          <span>📐</span>
-          <span>${this.busy === 'svg' ? 'Préparation…' : 'Télécharger le SVG'}</span>
+        <button class="btn-action" ?disabled=${!!this.busy} @click=${this.downloadSvg}>
+          ${this.iconLabel('📐', localize(this.busy === 'svg' ? 'export.files.preparing' : 'export.files.download_svg'))}
         </button>
       </div>
 
       <div class="config-row">
         <div>
-          <div class="config-label">Sauvegarde complète du projet (JSON)</div>
-          <div class="hint">
-            Murs, pièces, ouvertures, meubles, entités et image de fond. Réimportable depuis la fenêtre d'import (fichier .json).
-          </div>
+          <div class="config-label">${localize('export.files.backup_title')}</div>
+          <div class="hint">${localize('export.files.backup_hint')}</div>
         </div>
-        <button class="btn-action purple" ?disabled=${!!this.busy} @click=${this.downloadBackup}>
-          <span>💾</span>
-          <span>${this.busy === 'backup' ? 'Préparation…' : 'Télécharger la sauvegarde JSON'}</span>
+        <button class="btn-action" ?disabled=${!!this.busy} @click=${this.downloadBackup}>
+          ${this.iconLabel('💾', localize(this.busy === 'backup' ? 'export.files.preparing' : 'export.files.download_backup'))}
         </button>
       </div>
+    `;
+  }
+
+  private renderTab(tab: (typeof TABS)[number]) {
+    const selected = this.activeTab === tab.id;
+    return html`
+      <button
+        class="tab-btn"
+        role="tab"
+        id="export-tab-${tab.id}"
+        aria-selected=${selected ? 'true' : 'false'}
+        aria-controls="export-tabpanel"
+        tabindex=${selected ? '0' : '-1'}
+        @click=${() => { void this.selectTab(tab.id); }}
+      >
+        ${this.iconLabel(tab.icon, localize(tab.labelKey))}
+      </button>
     `;
   }
 
@@ -1475,117 +1809,85 @@ export class HomeArchitectExportModal extends LitElement {
     const summary = this.getEntitySummary();
     const footerYaml = this.activeTab === 'picture_elements' ? this.pictureYaml : this.activeTab === 'custom_card' ? this.cardYaml : '';
     const footerTarget: CopyTarget = this.activeTab === 'custom_card' ? 'card' : 'picture';
+    const footerCopied = this.copied === footerTarget;
+    const closeLabel = localize(this.isWriting ? 'export.close_busy' : 'export.close');
+    const notice = this.notice;
 
     return html`
-      <div class="modal-card" @click=${(e: Event) => e.stopPropagation()}>
+      <div
+        class="modal-card"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="export-title"
+        aria-describedby="export-subtitle"
+        tabindex="-1"
+        @click=${(e: Event) => e.stopPropagation()}
+      >
         <!-- En-tête -->
         <div class="modal-header">
           <div class="modal-title-group">
-            <span class="modal-icon">📤</span>
+            <span class="modal-icon" aria-hidden="true">📤</span>
             <div>
-              <h2 class="modal-title">Exporter le plan vers Lovelace</h2>
-              <p class="modal-subtitle">Générez une carte interactive pour votre tableau de bord Home Assistant</p>
+              <h2 class="modal-title" id="export-title">${localize('export.title')}</h2>
+              <p class="modal-subtitle" id="export-subtitle">${localize('export.subtitle')}</p>
             </div>
           </div>
-          <button class="btn-close" ?disabled=${this.isWriting} @click=${this.handleClose} title="Fermer">✕</button>
+          <button class="btn-close" ?disabled=${this.isWriting} @click=${this.handleClose} aria-label=${closeLabel} title=${closeLabel}>
+            <span aria-hidden="true">✕</span>
+          </button>
         </div>
 
         <!-- Onglets -->
-        <div class="tabs-nav">
-          <button
-            class="tab-btn ${this.activeTab === 'picture_elements' ? 'active' : ''}"
-            @click=${() => { this.activeTab = 'picture_elements'; }}
-          >
-            <span>🖼️</span>
-            <span>Carte Picture-Elements (Native)</span>
-          </button>
-
-          <button
-            class="tab-btn ${this.activeTab === 'custom_card' ? 'active' : ''}"
-            @click=${() => { this.activeTab = 'custom_card'; }}
-          >
-            <span>🧊</span>
-            <span>Carte 2D/3D (Intégrée)</span>
-          </button>
-
-          <button
-            class="tab-btn ${this.activeTab === 'raw_files' ? 'active' : ''}"
-            @click=${() => { this.activeTab = 'raw_files'; }}
-          >
-            <span>💾</span>
-            <span>Fichiers & Sauvegarde</span>
-          </button>
+        <div class="tabs-nav" role="tablist" aria-label=${localize('export.tabs_label')} @keydown=${this.handleTabKeydown}>
+          ${TABS.map(tab => this.renderTab(tab))}
         </div>
 
         <!-- Corps de la modale -->
         <div class="modal-body">
           <!-- Résumé des entités liées -->
-          <div class="stats-row">
-            <div class="stat-badge highlight">
-              <span>🏠</span>
-              <span><strong>${summary.rooms}</strong> pièces</span>
-            </div>
-            <div class="stat-badge">
-              <span>💡</span>
-              <span><strong>${summary.lights}</strong> lumière(s)</span>
-            </div>
-            <div class="stat-badge">
-              <span>📡</span>
-              <span><strong>${summary.radars}</strong> détecteur(s)</span>
-            </div>
-            <div class="stat-badge">
-              <span>🌡️</span>
-              <span><strong>${summary.sensors}</strong> capteur(s) / temp.</span>
-            </div>
-            <div class="stat-badge">
-              <span>🔌</span>
-              <span><strong>${summary.switches}</strong> prise(s) / switch</span>
-            </div>
-            ${summary.furniture > 0 ? html`
-              <div class="stat-badge">
-                <span>🛋️</span>
-                <span><strong>${summary.furniture}</strong> meuble(s)</span>
-              </div>
-            ` : ''}
+          <div class="stats-row" role="list" aria-label=${localize('export.stats.label')}>
+            ${this.renderStat('🏠', 'export.stats.rooms', summary.rooms, true)}
+            ${this.renderStat('💡', 'export.stats.lights', summary.lights)}
+            ${this.renderStat('📡', 'export.stats.radars', summary.radars)}
+            ${this.renderStat('🌡️', 'export.stats.sensors', summary.sensors)}
+            ${this.renderStat('🔌', 'export.stats.switches', summary.switches)}
+            ${summary.furniture > 0 ? this.renderStat('🛋️', 'export.stats.furniture', summary.furniture) : null}
           </div>
 
-          ${this.manualCopyText !== null ? html`
-            <div class="banner info">
-              <span class="banner-icon">📋</span>
-              <div class="banner-text">
-                <div>Copie automatique impossible dans ce navigateur : le code est sélectionné ci-dessous, copiez-le avec Ctrl+C (⌘C) ou le menu « Copier ».</div>
-                <textarea class="manual-copy" readonly .value=${this.manualCopyText}></textarea>
-                <div class="actions-row">
-                  <button class="btn-secondary" @click=${() => { this.manualCopyText = null; }}>Fermer</button>
-                </div>
-              </div>
+          ${this.manualCopyText !== null ? this.renderBanner('info', '📋', html`
+            <div>${localize('export.copy.manual')}</div>
+            <textarea class="manual-copy" readonly aria-label=${localize('export.copy.manual_label')} .value=${this.manualCopyText}></textarea>
+            <div class="actions-row">
+              <button class="btn-secondary" @click=${() => { this.manualCopyText = null; }}>${localize('export.close')}</button>
             </div>
-          ` : null}
+          `) : null}
 
-          ${this.activeTab === 'picture_elements' ? this.renderPictureElementsTab() : null}
-          ${this.activeTab === 'custom_card' ? this.renderCustomCardTab() : null}
-          ${this.activeTab === 'raw_files' ? this.renderFilesTab() : null}
+          <div class="tab-panel" role="tabpanel" id="export-tabpanel" aria-labelledby="export-tab-${this.activeTab}">
+            ${this.activeTab === 'picture_elements' ? this.renderPictureElementsTab() : null}
+            ${this.activeTab === 'custom_card' ? this.renderCustomCardTab() : null}
+            ${this.activeTab === 'raw_files' ? this.renderFilesTab() : null}
+          </div>
         </div>
 
-        <!-- Notification flottante -->
-        ${this.notice ? html`
-          <div class="floating-toast ${this.notice.kind}" role="status">
-            <span>${this.notice.kind === 'error' ? '⚠️' : this.notice.kind === 'success' ? '✅' : 'ℹ️'}</span>
-            <span>${this.notice.text}</span>
-          </div>
-        ` : null}
+        <!-- Notification flottante (région toujours présente pour être annoncée) -->
+        <div class="toast-region" role="status" aria-live="polite" aria-atomic="true">
+          ${notice ? html`
+            <div class="floating-toast ${notice.kind}">
+              <span aria-hidden="true">${notice.kind === 'error' ? '⚠️' : notice.kind === 'success' ? '✅' : 'ℹ️'}</span>
+              <span>${notice.text}</span>
+            </div>
+          ` : null}
+        </div>
 
         <!-- Pied de page -->
         <div class="modal-footer">
-          <button class="btn-secondary" ?disabled=${this.isWriting} @click=${this.handleClose}>Fermer</button>
+          <button class="btn-secondary" ?disabled=${this.isWriting} @click=${this.handleClose}>${localize('export.close')}</button>
           ${footerYaml ? html`
             <button
-              class="btn-action ${this.copied === footerTarget ? 'emerald' : (this.activeTab === 'custom_card' ? 'purple' : '')}"
-              style="padding: 10px 22px; font-size: 0.92rem; font-weight: 700;"
+              class="btn-action large"
               @click=${() => this.copyText(footerYaml, footerTarget)}
             >
-              <span>📋</span>
-              <span>${this.copied === footerTarget ? 'Copié dans le presse-papiers !' : 'Copier le YAML dans le presse-papiers'}</span>
+              ${this.iconLabel(footerCopied ? '✓' : '📋', localize(footerCopied ? 'export.copy.footer_done' : 'export.copy.footer'))}
             </button>
           ` : null}
         </div>

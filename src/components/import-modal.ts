@@ -9,6 +9,9 @@ import { HomeArchitectProject } from '../core/types';
 import {
   SvgAnalysis, SvgBox, SvgDetection, SvgIgnoredRoom, SvgParseOptions, SvgParseResult, SvgPlanParser, decodeSvgBytes
 } from '../core/svg-parser';
+import { LocalizeController, formatNumber, getLanguage, localize } from '../i18n';
+import '../i18n/locales/import';
+import { applyColorScheme, uiThemeStyles } from '../styles/theme.styles';
 
 /**
  * Image de fond prête à téléverser (SPEC §6) : image raster déjà redimensionnée et recompressée, ou
@@ -48,11 +51,15 @@ export interface ImportProjectBackupDetail {
   project: HomeArchitectProject;
 }
 
+/** Texte affiché, recalculé à chaque rendu : il suit la langue courante même s'il a été produit avant. */
+type Text = () => string;
+
 type ImportCategory = 'importWalls' | 'importDoors' | 'importWindows' | 'importRooms' | 'importLabels';
 
 interface RasterSource {
   kind: 'raster';
-  name: string;
+  /** Nom du fichier, ou nom générique traduit (image collée…). */
+  name: Text;
   background: ImportModalBackground;
   /** Taille du fichier d'origine (avant compression). */
   originalBytes: number;
@@ -61,7 +68,7 @@ interface RasterSource {
 
 interface SvgSource {
   kind: 'svg';
-  name: string;
+  name: Text;
   analysis: SvgAnalysis;
   background: ImportModalBackground;
   previewUrl: string;
@@ -71,7 +78,7 @@ interface SvgSource {
 
 interface ProjectSource {
   kind: 'project';
-  name: string;
+  name: Text;
   project: HomeArchitectProject;
   /** La sauvegarde référençait une image du serveur sans l'embarquer : le plan est importé sans fond. */
   droppedBackground: boolean;
@@ -80,6 +87,17 @@ interface ProjectSource {
 type LoadedSource = RasterSource | SvgSource | ProjectSource;
 
 type FileKind = 'svg' | 'raster' | 'json' | 'pdf' | 'unknown';
+
+/** Erreur destinée à l'utilisateur, dont le message est traduit au moment de l'affichage. */
+class ImportError extends Error {
+  public readonly text: Text;
+
+  constructor(text: Text) {
+    super(text());
+    this.name = 'ImportError';
+    this.text = text;
+  }
+}
 
 const SVG_MIME = 'image/svg+xml';
 /** Plafonds de lecture : au-delà, le navigateur risque de saturer la mémoire pour rien. */
@@ -95,8 +113,19 @@ const DEFAULT_WALL_THICKNESS = 0.2;
 const DEFAULT_WALL_HEIGHT = 2.5;
 /** Éléments dessinés au plus dans l'aperçu (par type). */
 const PREVIEW_MAX_ITEMS = 4000;
+/** Formes écartées citées nommément sous l'aperçu. */
+const IGNORED_ROOMS_SHOWN = 6;
 const RASTER_EXTENSION_RE = /\.(png|jpe?g|jfif|webp|gif|bmp|avif|heic|heif)$/;
 const DOOR_TYPES = new Set(['door', 'double_door', 'sliding_door']);
+/** Éléments atteignables au clavier (piège de focus de la modale). */
+const FOCUSABLE_SELECTOR = [
+  'button:not([disabled])',
+  'input:not([disabled]):not([type="hidden"])',
+  'select:not([disabled])',
+  'textarea:not([disabled])',
+  'a[href]',
+  '[tabindex]:not([tabindex="-1"])'
+].join(', ');
 
 function fileKind(file: Blob, name: string): FileKind {
   const lower = name.toLowerCase();
@@ -124,21 +153,43 @@ function parseDecimal(text: string): number | null {
   return Number.isFinite(v) ? v : null;
 }
 
+/** Taille de fichier dans la langue courante (Ko / KB, Mo / MB). */
 function formatBytes(bytes: number): string {
-  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} Ko`;
-  return `${(bytes / (1024 * 1024)).toLocaleString('fr-FR', { maximumFractionDigits: 1 })} Mo`;
+  if (bytes < 1024 * 1024) return localize('import.unit.kb', { value: formatNumber(Math.max(1, Math.round(bytes / 1024))) });
+  return localize('import.unit.mb', { value: formatNumber(bytes / (1024 * 1024), { maximumFractionDigits: 1 }) });
 }
 
 function formatMeters(v: number): string {
-  return v.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return formatNumber(v, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-function plural(count: number, singular: string, pluralForm: string): string {
-  return `${count} ${count > 1 ? pluralForm : singular}`;
+/**
+ * Libellé avec un nombre : clé `<key>_one` ou `<key>_other` selon les règles de pluriel de la langue
+ * courante (en français, 0 et 1 prennent le singulier). Le marqueur `{count}` reçoit le nombre formaté.
+ */
+function plural(key: string, count: number, params: Record<string, string | number> = {}): string {
+  const form = new Intl.PluralRules(getLanguage()).select(count) === 'one' ? 'one' : 'other';
+  return localize(`${key}_${form}`, { ...params, count: formatNumber(count) });
 }
 
-function errorMessage(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
+/** Message affichable d'une erreur : traduit au rendu pour une ImportError, tel quel sinon. */
+function errorText(err: unknown): Text {
+  if (err instanceof ImportError) return err.text;
+  const message = err instanceof Error ? err.message : String(err);
+  return () => message;
+}
+
+/**
+ * Attend une opération de bas niveau (lecture, décodage) et remplace son éventuel message technique,
+ * non traduit, par un message clair dans la langue de l'utilisateur (le détail reste dans la console).
+ */
+async function withUserMessage<T>(operation: Promise<T>, key: string): Promise<T> {
+  try {
+    return await operation;
+  } catch (err) {
+    console.warn('[home-architect] import:', err);
+    throw new ImportError(() => localize(key));
+  }
 }
 
 function isRecord(v: unknown): v is Record<string, unknown> {
@@ -170,6 +221,13 @@ function clipboardFile(data: DataTransfer): File | null {
   return null;
 }
 
+/** Élément qui a le focus, en traversant les racines fantômes (bouton de la barre d'outils, canevas…). */
+function deepActiveElement(): HTMLElement | null {
+  let active: Element | null = document.activeElement;
+  while (active?.shadowRoot?.activeElement) active = active.shadowRoot.activeElement;
+  return active instanceof HTMLElement && active !== document.body ? active : null;
+}
+
 /**
  * Sauvegarde JSON complète (modale d'export) → nouveau plan : schéma normalisé, nouvel identifiant,
  * sans champs serveur. Une image de fond référencée sur le serveur sans être embarquée appartient au
@@ -180,10 +238,10 @@ function projectFromBackup(text: string): { project: HomeArchitectProject; dropp
   try {
     raw = JSON.parse(text);
   } catch {
-    throw new Error('Fichier JSON illisible (syntaxe invalide).');
+    throw new ImportError(() => localize('import.error.json_syntax'));
   }
   const looksLikeProject = isRecord(raw) && ['walls', 'rooms', 'openings', 'bindings', 'furniture'].some(k => Array.isArray(raw[k]));
-  if (!looksLikeProject) throw new Error('Ce fichier JSON n\'est pas une sauvegarde de projet Home Architect.');
+  if (!looksLikeProject) throw new ImportError(() => localize('import.error.not_backup'));
   const now = new Date().toISOString();
   const project: HomeArchitectProject = { ...normalizeProject(raw), id: generateProjectId(), created_at: now, updated_at: now };
   delete project.revision;
@@ -200,26 +258,53 @@ function projectFromBackup(text: string): { project: HomeArchitectProject; dropp
 }
 
 function describeIgnoredRoom(room: SvgIgnoredRoom): string {
-  const name = room.name || 'forme sans nom';
+  const name = room.name || localize('import.notes.ignored_unnamed');
   return room.reason === 'self_intersecting'
-    ? `${name} (contour qui se recoupe)`
-    : `${name} (${room.areaM2.toLocaleString('fr-FR')} m²)`;
+    ? localize('import.notes.ignored_self_intersecting', { name })
+    : localize('import.notes.ignored_area', { name, area: formatNumber(room.areaM2, { maximumFractionDigits: 2 }) });
 }
 
 export class HomeArchitectImportModal extends LitElement {
-  static styles = css`
+  /**
+   * Styles de la modale. Couleurs : jetons --arch-ui-* (thème HA, palettes claire et sombre). Les teintes
+   * sémantiques (vectorisation, portes, fenêtres, alertes) ne servent qu'aux bordures et aux fonds
+   * translucides : les textes restent en --arch-ui-text / --arch-ui-text-muted, lisibles dans les deux thèmes.
+   */
+  static styles = [uiThemeStyles, css`
     :host {
+      --import-magic: #a855f7;
+      --import-magic-tint: rgba(168, 85, 247, 0.14);
+      --import-label-color: #ec4899;
+      --import-label-tint: rgba(236, 72, 153, 0.12);
+      --import-accent-tint: rgba(3, 169, 244, 0.12);
+      --import-danger-tint: rgba(219, 68, 55, 0.12);
+      --import-warning-tint: rgba(255, 166, 0, 0.14);
+      --import-success-tint: rgba(67, 160, 71, 0.14);
+      /* Un plan d'architecte est dessiné pour du papier : l'aperçu garde un fond clair dans les deux thèmes. */
+      --import-paper: #ffffff;
+      --import-shadow: 0 24px 48px -12px rgba(0, 0, 0, 0.45);
+
       position: fixed;
       inset: 0;
-      background: rgba(15, 23, 42, 0.85);
-      backdrop-filter: blur(12px);
+      background: var(--arch-ui-overlay);
+      backdrop-filter: blur(8px);
       display: flex;
       align-items: center;
       justify-content: center;
       z-index: 100;
-      font-family: var(--ha-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
-      color: #f8fafc;
+      font-family: var(--arch-ui-font);
+      color: var(--arch-ui-text);
       animation: fadeIn 0.2s ease-out;
+    }
+
+    /* Teintes dérivées des couleurs du thème quand le navigateur sait les mélanger. */
+    @supports (color: color-mix(in srgb, red 50%, blue)) {
+      :host {
+        --import-accent-tint: color-mix(in srgb, var(--arch-ui-accent) 12%, transparent);
+        --import-danger-tint: color-mix(in srgb, var(--arch-ui-danger) 12%, transparent);
+        --import-warning-tint: color-mix(in srgb, var(--arch-ui-warning) 14%, transparent);
+        --import-success-tint: color-mix(in srgb, var(--arch-ui-success) 14%, transparent);
+      }
     }
 
     @keyframes fadeIn {
@@ -227,36 +312,41 @@ export class HomeArchitectImportModal extends LitElement {
       to { opacity: 1; transform: scale(1); }
     }
 
-    .modal-card:focus {
-      outline: none;
-    }
-
     .modal-card {
-      background: #1e293b;
-      border: 1px solid rgba(255, 255, 255, 0.15);
-      border-radius: 16px;
+      background: var(--arch-ui-surface);
+      color: var(--arch-ui-text);
+      border: 1px solid var(--arch-ui-border);
+      border-radius: var(--arch-ui-radius);
       width: 620px;
       max-width: 94vw;
       max-height: 92vh;
       display: flex;
       flex-direction: column;
-      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6), 0 0 20px rgba(56, 189, 248, 0.2);
+      box-shadow: var(--import-shadow);
       overflow: hidden;
+    }
+
+    /* Focus initial sur la boîte de dialogue elle-même : pas d'anneau, l'ombre reste celle de la carte. */
+    .modal-card:focus,
+    .modal-card:focus-visible {
+      outline: none;
+      box-shadow: var(--import-shadow);
     }
 
     .modal-header {
       padding: 18px 24px;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      border-bottom: 1px solid var(--arch-ui-border);
       display: flex;
       align-items: center;
       justify-content: space-between;
-      background: rgba(15, 23, 42, 0.5);
+      gap: 12px;
     }
 
     .modal-title-group {
       display: flex;
       align-items: center;
       gap: 12px;
+      min-width: 0;
     }
 
     .modal-icon {
@@ -266,30 +356,36 @@ export class HomeArchitectImportModal extends LitElement {
     .modal-title {
       font-size: 1.15rem;
       font-weight: 700;
-      color: #f1f5f9;
+      color: var(--arch-ui-text);
       margin: 0;
     }
 
     .modal-subtitle {
       font-size: 0.8rem;
-      color: #94a3b8;
+      color: var(--arch-ui-text-muted);
       margin: 2px 0 0 0;
     }
 
+    button {
+      font-family: inherit;
+    }
+
     .btn-close {
+      flex: none;
       background: transparent;
       border: none;
-      color: #94a3b8;
+      color: var(--arch-ui-text-muted);
       font-size: 20px;
+      line-height: 1;
       cursor: pointer;
-      padding: 4px;
+      padding: 6px;
       border-radius: 6px;
-      transition: all 0.15s ease;
+      transition: background-color 0.15s ease, color 0.15s ease;
     }
 
     .btn-close:hover {
-      color: #ffffff;
-      background: rgba(255, 255, 255, 0.1);
+      color: var(--arch-ui-text);
+      background: var(--arch-ui-surface-2);
     }
 
     .modal-body {
@@ -300,10 +396,10 @@ export class HomeArchitectImportModal extends LitElement {
       gap: 18px;
     }
 
-    /* Zone de Dépôt / Drag & Drop */
+    /* Zone de dépôt (glisser-déposer) */
     .drop-zone {
-      border: 2px dashed rgba(56, 189, 248, 0.4);
-      background: rgba(15, 23, 42, 0.6);
+      border: 2px dashed var(--arch-ui-border);
+      background: var(--arch-ui-bg);
       border-radius: 14px;
       padding: 24px 20px;
       text-align: center;
@@ -313,14 +409,14 @@ export class HomeArchitectImportModal extends LitElement {
       justify-content: center;
       gap: 12px;
       cursor: pointer;
-      transition: all 0.2s ease;
+      transition: border-color 0.2s ease, background-color 0.2s ease;
       position: relative;
     }
 
-    .drop-zone:hover, .drop-zone.dragover {
-      border-color: #38bdf8;
-      background: rgba(56, 189, 248, 0.08);
-      box-shadow: 0 0 20px rgba(56, 189, 248, 0.15);
+    .drop-zone:hover,
+    .drop-zone.dragover {
+      border-color: var(--arch-ui-accent);
+      background: var(--import-accent-tint);
     }
 
     .drop-icon {
@@ -330,12 +426,12 @@ export class HomeArchitectImportModal extends LitElement {
     .drop-text {
       font-size: 0.95rem;
       font-weight: 600;
-      color: #e2e8f0;
+      color: var(--arch-ui-text);
     }
 
     .drop-subtext {
       font-size: 0.8rem;
-      color: #64748b;
+      color: var(--arch-ui-text-muted);
     }
 
     .drop-actions {
@@ -348,9 +444,9 @@ export class HomeArchitectImportModal extends LitElement {
     }
 
     .btn-action-small {
-      background: rgba(51, 65, 85, 0.8);
-      color: #f1f5f9;
-      border: 1px solid rgba(255, 255, 255, 0.15);
+      background: var(--arch-ui-surface-2);
+      color: var(--arch-ui-text);
+      border: 1px solid var(--arch-ui-border);
       border-radius: 8px;
       padding: 6px 12px;
       font-size: 0.82rem;
@@ -359,18 +455,17 @@ export class HomeArchitectImportModal extends LitElement {
       display: flex;
       align-items: center;
       gap: 6px;
-      transition: all 0.2s ease;
+      transition: border-color 0.2s ease;
     }
 
     .btn-action-small:hover {
-      background: #0284c7;
-      border-color: #38bdf8;
+      border-color: var(--arch-ui-accent);
     }
 
     /* Aperçu du plan chargé */
     .preview-card {
-      background: rgba(15, 23, 42, 0.7);
-      border: 1px solid rgba(56, 189, 248, 0.3);
+      background: var(--arch-ui-bg);
+      border: 1px solid var(--arch-ui-border);
       border-radius: 12px;
       padding: 12px;
       display: flex;
@@ -383,12 +478,13 @@ export class HomeArchitectImportModal extends LitElement {
       height: 75px;
       border-radius: 8px;
       object-fit: contain;
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      background: #f8fafc;
+      border: 1px solid var(--arch-ui-border);
+      background: var(--import-paper);
     }
 
     .preview-meta {
       flex: 1;
+      min-width: 0;
       display: flex;
       flex-direction: column;
       gap: 4px;
@@ -397,19 +493,20 @@ export class HomeArchitectImportModal extends LitElement {
     .preview-title {
       font-size: 0.92rem;
       font-weight: 700;
-      color: #38bdf8;
+      color: var(--arch-ui-text);
       display: flex;
       align-items: center;
       gap: 6px;
       flex-wrap: wrap;
+      overflow-wrap: anywhere;
     }
 
-    .preview-badge-svg {
+    .preview-badge {
       font-size: 0.72rem;
       padding: 2px 7px;
-      background: rgba(168, 85, 247, 0.25);
-      color: #c084fc;
-      border: 1px solid rgba(168, 85, 247, 0.5);
+      background: var(--import-magic-tint);
+      color: var(--arch-ui-text);
+      border: 1px solid var(--import-magic);
       border-radius: 9999px;
       font-weight: 700;
       text-transform: uppercase;
@@ -418,37 +515,37 @@ export class HomeArchitectImportModal extends LitElement {
 
     .preview-dimensions {
       font-size: 0.8rem;
-      color: #94a3b8;
+      color: var(--arch-ui-text-muted);
       font-family: ui-monospace, SFMono-Regular, monospace;
     }
 
     .btn-change-image {
       background: transparent;
-      border: 1px solid rgba(255, 255, 255, 0.2);
-      color: #94a3b8;
+      border: 1px solid var(--arch-ui-border);
+      color: var(--arch-ui-text-muted);
       border-radius: 6px;
       padding: 4px 8px;
       font-size: 0.75rem;
       cursor: pointer;
       width: fit-content;
       margin-top: 4px;
+      flex: none;
     }
 
     .btn-change-image:hover {
-      color: #ffffff;
-      border-color: #ffffff;
+      color: var(--arch-ui-text);
+      border-color: var(--arch-ui-text-muted);
     }
 
-    /* Section Vectorisation Intelligente SVG */
+    /* Interprétation vectorielle (SVG) */
     .svg-interpret-box {
-      background: linear-gradient(135deg, rgba(88, 28, 135, 0.25) 0%, rgba(30, 58, 138, 0.25) 100%);
-      border: 1.5px solid rgba(168, 85, 247, 0.5);
+      background: var(--import-magic-tint);
+      border: 1.5px solid var(--import-magic);
       border-radius: 12px;
       padding: 16px;
       display: flex;
       flex-direction: column;
       gap: 12px;
-      box-shadow: 0 4px 20px rgba(168, 85, 247, 0.15);
     }
 
     .svg-box-header {
@@ -464,12 +561,13 @@ export class HomeArchitectImportModal extends LitElement {
     .svg-box-title {
       font-size: 0.95rem;
       font-weight: 700;
-      color: #f3e8ff;
+      color: var(--arch-ui-text);
+      overflow-wrap: anywhere;
     }
 
     .svg-box-subtitle {
       font-size: 0.8rem;
-      color: #cbd5e1;
+      color: var(--arch-ui-text-muted);
       margin-top: 2px;
     }
 
@@ -480,35 +578,34 @@ export class HomeArchitectImportModal extends LitElement {
     }
 
     .svg-choice-card {
-      background: rgba(15, 23, 42, 0.6);
-      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: var(--arch-ui-surface);
+      border: 1px solid var(--arch-ui-border);
       border-radius: 10px;
       padding: 12px 14px;
       cursor: pointer;
       display: flex;
       gap: 12px;
       align-items: flex-start;
-      transition: all 0.2s ease;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
     }
 
     .svg-choice-card:hover {
-      border-color: #c084fc;
-      background: rgba(15, 23, 42, 0.85);
+      border-color: var(--import-magic);
     }
 
     .svg-choice-card.selected {
-      border-color: #a855f7;
-      background: rgba(168, 85, 247, 0.15);
-      box-shadow: 0 0 16px rgba(168, 85, 247, 0.25);
+      border-color: var(--import-magic);
+      box-shadow: inset 0 0 0 1px var(--import-magic);
     }
 
     .svg-choice-radio {
       margin-top: 3px;
-      accent-color: #a855f7;
+      accent-color: var(--import-magic);
     }
 
     .svg-choice-content {
       flex: 1;
+      min-width: 0;
       display: flex;
       flex-direction: column;
       gap: 6px;
@@ -517,25 +614,27 @@ export class HomeArchitectImportModal extends LitElement {
     .svg-choice-title {
       font-size: 0.9rem;
       font-weight: 700;
-      color: #f8fafc;
+      color: var(--arch-ui-text);
       display: flex;
       align-items: center;
       gap: 8px;
+      flex-wrap: wrap;
+      cursor: pointer;
     }
 
     .badge-magic {
       font-size: 0.7rem;
       padding: 2px 7px;
-      background: rgba(168, 85, 247, 0.3);
-      color: #e9d5ff;
-      border: 1px solid rgba(168, 85, 247, 0.6);
+      background: var(--import-magic-tint);
+      color: var(--arch-ui-text);
+      border: 1px solid var(--import-magic);
       border-radius: 9999px;
       font-weight: 700;
     }
 
     .svg-choice-desc {
       font-size: 0.78rem;
-      color: #cbd5e1;
+      color: var(--arch-ui-text-muted);
       line-height: 1.35;
     }
 
@@ -543,7 +642,9 @@ export class HomeArchitectImportModal extends LitElement {
       display: flex;
       flex-wrap: wrap;
       gap: 6px;
-      margin-top: 4px;
+      margin: 4px 0 0;
+      padding: 0;
+      list-style: none;
     }
 
     .stat-pill {
@@ -554,36 +655,33 @@ export class HomeArchitectImportModal extends LitElement {
       display: flex;
       align-items: center;
       gap: 4px;
+      color: var(--arch-ui-text);
+      border: 1px solid var(--arch-ui-border);
     }
 
     .stat-pill.wall {
-      background: rgba(56, 189, 248, 0.2);
-      color: #38bdf8;
-      border: 1px solid rgba(56, 189, 248, 0.4);
+      background: var(--import-accent-tint);
+      border-color: var(--arch-ui-accent);
     }
 
     .stat-pill.door {
-      background: rgba(245, 158, 11, 0.2);
-      color: #fbbf24;
-      border: 1px solid rgba(245, 158, 11, 0.4);
+      background: var(--import-warning-tint);
+      border-color: var(--arch-ui-warning);
     }
 
     .stat-pill.window {
-      background: rgba(16, 185, 129, 0.2);
-      color: #34d399;
-      border: 1px solid rgba(16, 185, 129, 0.4);
+      background: var(--import-success-tint);
+      border-color: var(--arch-ui-success);
     }
 
     .stat-pill.room {
-      background: rgba(168, 85, 247, 0.2);
-      color: #c084fc;
-      border: 1px solid rgba(168, 85, 247, 0.4);
+      background: var(--import-magic-tint);
+      border-color: var(--import-magic);
     }
 
     .stat-pill.label {
-      background: rgba(236, 72, 153, 0.2);
-      color: #f472b6;
-      border: 1px solid rgba(236, 72, 153, 0.4);
+      background: var(--import-label-tint);
+      border-color: var(--import-label-color);
     }
 
     .checkbox-wrap {
@@ -592,18 +690,22 @@ export class HomeArchitectImportModal extends LitElement {
       gap: 8px;
       margin-top: 6px;
       font-size: 0.8rem;
-      color: #cbd5e1;
+      color: var(--arch-ui-text);
     }
 
     .checkbox-wrap input {
-      accent-color: #a855f7;
+      accent-color: var(--import-magic);
       cursor: pointer;
     }
 
-    /* Boîte de sélection personnalisée des catégories à importer */
+    .checkbox-wrap label {
+      cursor: pointer;
+    }
+
+    /* Cases à cocher des éléments et des calques à importer */
     .import-categories-box {
-      background: rgba(15, 23, 42, 0.65);
-      border: 1px solid rgba(168, 85, 247, 0.35);
+      background: var(--arch-ui-bg);
+      border: 1px solid var(--arch-ui-border);
       border-radius: 10px;
       padding: 10px 12px;
       margin-top: 8px;
@@ -615,7 +717,7 @@ export class HomeArchitectImportModal extends LitElement {
     .categories-title {
       font-size: 0.8rem;
       font-weight: 700;
-      color: #e9d5ff;
+      color: var(--arch-ui-text);
       text-transform: uppercase;
       letter-spacing: 0.4px;
     }
@@ -627,8 +729,8 @@ export class HomeArchitectImportModal extends LitElement {
     }
 
     .category-toggle {
-      background: rgba(30, 41, 59, 0.7);
-      border: 1px solid rgba(255, 255, 255, 0.15);
+      background: var(--arch-ui-surface);
+      border: 1px solid var(--arch-ui-border);
       border-radius: 8px;
       padding: 5px 10px;
       font-size: 0.82rem;
@@ -636,51 +738,75 @@ export class HomeArchitectImportModal extends LitElement {
       display: flex;
       align-items: center;
       gap: 6px;
-      color: #94a3b8;
-      transition: all 0.15s ease;
+      color: var(--arch-ui-text-muted);
+      transition: border-color 0.15s ease, background-color 0.15s ease;
       user-select: none;
     }
 
     .category-toggle:hover {
-      border-color: #a855f7;
-      color: #ffffff;
+      border-color: var(--import-magic);
+      color: var(--arch-ui-text);
     }
 
     .category-toggle.active {
-      background: rgba(168, 85, 247, 0.2);
-      border-color: #a855f7;
-      color: #f1f5f9;
+      background: var(--import-magic-tint);
+      border-color: var(--import-magic);
+      color: var(--arch-ui-text);
       font-weight: 600;
     }
 
     .category-toggle input[type="checkbox"] {
-      accent-color: #a855f7;
+      accent-color: var(--import-magic);
       cursor: pointer;
       margin: 0;
     }
 
     .cat-count {
       font-size: 0.75rem;
-      color: #38bdf8;
+      color: var(--arch-ui-text-muted);
       font-family: ui-monospace, SFMono-Regular, monospace;
     }
 
-    .ignored-note {
+    /* Notes : information, avertissement, erreur (texte du thème sur fond teinté) */
+    .ignored-note,
+    .warn-note,
+    .error-box {
+      color: var(--arch-ui-text);
+      line-height: 1.4;
+      border: 1px solid;
+    }
+
+    .ignored-note,
+    .warn-note {
       font-size: 0.76rem;
-      color: #38bdf8;
-      background: rgba(56, 189, 248, 0.1);
-      border: 1px solid rgba(56, 189, 248, 0.25);
       border-radius: 6px;
       padding: 5px 8px;
-      line-height: 1.35;
       margin-top: 4px;
     }
 
-    /* Section Méthode d'Étalonnage */
+    .ignored-note {
+      background: var(--import-accent-tint);
+      border-color: var(--arch-ui-accent);
+    }
+
+    .warn-note {
+      background: var(--import-warning-tint);
+      border-color: var(--arch-ui-warning);
+    }
+
+    .error-box {
+      font-size: 0.82rem;
+      background: var(--import-danger-tint);
+      border-color: var(--arch-ui-danger);
+      border-radius: 10px;
+      padding: 10px 12px;
+    }
+
+    /* Méthode d'étalonnage */
     .section-title {
       font-size: 0.88rem;
       font-weight: 700;
-      color: #cbd5e1;
+      color: var(--arch-ui-text);
       text-transform: uppercase;
       letter-spacing: 0.5px;
       margin-bottom: 8px;
@@ -696,36 +822,40 @@ export class HomeArchitectImportModal extends LitElement {
     }
 
     .option-card {
-      background: rgba(15, 23, 42, 0.5);
-      border: 1px solid rgba(255, 255, 255, 0.1);
+      background: var(--arch-ui-bg);
+      border: 1px solid var(--arch-ui-border);
       border-radius: 10px;
       padding: 12px 14px;
       cursor: pointer;
       display: flex;
       gap: 12px;
       align-items: flex-start;
-      transition: all 0.2s ease;
+      transition: border-color 0.2s ease, background-color 0.2s ease;
     }
 
     .option-card:hover {
-      border-color: rgba(56, 189, 248, 0.4);
-      background: rgba(15, 23, 42, 0.8);
+      border-color: var(--arch-ui-accent);
     }
 
     .option-card.selected {
-      border-color: #38bdf8;
-      background: rgba(2, 132, 199, 0.15);
-      box-shadow: 0 0 15px rgba(56, 189, 248, 0.15);
+      border-color: var(--arch-ui-accent);
+      background: var(--import-accent-tint);
+      box-shadow: inset 0 0 0 1px var(--arch-ui-accent);
+    }
+
+    .option-card.static {
+      cursor: default;
     }
 
     .option-radio {
       margin-top: 3px;
       cursor: pointer;
-      accent-color: #38bdf8;
+      accent-color: var(--arch-ui-accent);
     }
 
     .option-content {
       flex: 1;
+      min-width: 0;
       display: flex;
       flex-direction: column;
       gap: 4px;
@@ -734,25 +864,27 @@ export class HomeArchitectImportModal extends LitElement {
     .option-title {
       font-size: 0.9rem;
       font-weight: 700;
-      color: #f1f5f9;
+      color: var(--arch-ui-text);
       display: flex;
       align-items: center;
       gap: 6px;
+      flex-wrap: wrap;
+      cursor: pointer;
     }
 
     .option-badge {
       font-size: 0.7rem;
       padding: 2px 6px;
-      background: rgba(16, 185, 129, 0.2);
-      color: #34d399;
+      background: var(--import-success-tint);
+      color: var(--arch-ui-text);
       border-radius: 9999px;
-      border: 1px solid rgba(16, 185, 129, 0.4);
+      border: 1px solid var(--arch-ui-success);
       font-weight: 600;
     }
 
     .option-desc {
       font-size: 0.78rem;
-      color: #94a3b8;
+      color: var(--arch-ui-text-muted);
       line-height: 1.35;
     }
 
@@ -761,14 +893,21 @@ export class HomeArchitectImportModal extends LitElement {
       align-items: center;
       gap: 10px;
       margin-top: 8px;
+      flex-wrap: wrap;
+    }
+
+    .input-label {
+      font-size: 0.82rem;
+      color: var(--arch-ui-text-muted);
     }
 
     .dimension-input {
-      background: #0f172a;
-      border: 1px solid rgba(56, 189, 248, 0.4);
+      background: var(--arch-ui-surface);
+      border: 1px solid var(--arch-ui-border);
       border-radius: 6px;
-      color: #f8fafc;
+      color: var(--arch-ui-text);
       padding: 6px 10px;
+      font: inherit;
       font-size: 0.95rem;
       font-weight: 700;
       width: 100px;
@@ -777,77 +916,102 @@ export class HomeArchitectImportModal extends LitElement {
     }
 
     .dimension-input:focus {
-      border-color: #38bdf8;
-      box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.25);
+      border-color: var(--arch-ui-accent);
+      box-shadow: var(--arch-ui-focus-ring);
+    }
+
+    .dimension-input.invalid {
+      border-color: var(--arch-ui-danger);
     }
 
     .unit-tag {
       font-size: 0.85rem;
-      color: #94a3b8;
+      color: var(--arch-ui-text-muted);
       font-weight: 600;
     }
 
-    /* Calque & Opacité */
+    .field-error {
+      color: var(--arch-ui-text);
+      font-size: 0.8rem;
+      font-weight: 600;
+      margin-top: 6px;
+      padding-left: 8px;
+      border-left: 3px solid var(--arch-ui-danger);
+    }
+
+    .footprint-info {
+      font-size: 0.76rem;
+      color: var(--arch-ui-text-muted);
+      margin-top: 6px;
+      font-family: ui-monospace, SFMono-Regular, monospace;
+    }
+
+    /* Calque & opacité */
     .slider-row {
       display: flex;
       align-items: center;
       gap: 14px;
-      background: rgba(15, 23, 42, 0.5);
-      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: var(--arch-ui-bg);
+      border: 1px solid var(--arch-ui-border);
       border-radius: 10px;
       padding: 10px 14px;
     }
 
     .slider-label {
       font-size: 0.82rem;
-      color: #cbd5e1;
+      color: var(--arch-ui-text);
       min-width: 130px;
     }
 
     .slider-input {
       flex: 1;
+      min-width: 0;
       cursor: pointer;
-      accent-color: #38bdf8;
+      accent-color: var(--arch-ui-accent);
     }
 
     .slider-val {
       font-size: 0.82rem;
-      color: #38bdf8;
+      color: var(--arch-ui-text);
       font-weight: 700;
-      min-width: 40px;
+      min-width: 44px;
       text-align: right;
     }
 
     .modal-footer {
       padding: 16px 24px;
-      border-top: 1px solid rgba(255, 255, 255, 0.1);
-      background: rgba(15, 23, 42, 0.5);
+      border-top: 1px solid var(--arch-ui-border);
       display: flex;
       align-items: center;
       justify-content: flex-end;
       gap: 12px;
     }
 
+    .footer-note {
+      margin-right: auto;
+      font-size: 0.78rem;
+      color: var(--arch-ui-text-muted);
+    }
+
     .btn-cancel {
       background: transparent;
-      color: #94a3b8;
-      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: var(--arch-ui-text);
+      border: 1px solid var(--arch-ui-border);
       border-radius: 8px;
       padding: 8px 16px;
       font-size: 0.88rem;
       cursor: pointer;
-      transition: all 0.2s ease;
+      transition: background-color 0.2s ease;
     }
 
     .btn-cancel:hover {
-      background: rgba(255, 255, 255, 0.08);
-      color: #ffffff;
+      background: var(--arch-ui-surface-2);
     }
 
     .btn-confirm {
-      background: #0284c7;
-      color: #ffffff;
-      border: 1px solid #38bdf8;
+      background: var(--arch-ui-accent);
+      color: var(--arch-ui-accent-text);
+      border: 1px solid var(--arch-ui-accent);
       border-radius: 8px;
       padding: 8px 20px;
       font-size: 0.88rem;
@@ -856,28 +1020,53 @@ export class HomeArchitectImportModal extends LitElement {
       display: flex;
       align-items: center;
       gap: 8px;
-      transition: all 0.2s ease;
-      box-shadow: 0 0 15px rgba(56, 189, 248, 0.3);
+      transition: filter 0.2s ease;
     }
 
+    /* Dégradé violet → bleu foncés : texte blanc lisible dans les deux thèmes. */
     .btn-confirm.btn-magic {
       background: linear-gradient(135deg, #7e22ce 0%, #2563eb 100%);
-      border-color: #c084fc;
-      box-shadow: 0 0 20px rgba(168, 85, 247, 0.4);
+      border-color: var(--import-magic);
+      color: #ffffff;
     }
 
     .btn-confirm:hover:not(:disabled) {
-      filter: brightness(1.1);
-      box-shadow: 0 0 25px rgba(56, 189, 248, 0.5);
+      filter: brightness(1.08);
     }
 
     .btn-confirm:disabled {
       opacity: 0.5;
       cursor: not-allowed;
-      box-shadow: none;
     }
+
     .file-input {
       display: none;
+    }
+
+    /*
+     * Région annoncée aux lecteurs d'écran, toujours présente : une région live insérée avec son texte
+     * n'est pas lue de façon fiable. Hors du flux (position absolue) : elle ne crée aucun espacement.
+     */
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      margin: -1px;
+      padding: 0;
+      border: 0;
+      overflow: hidden;
+      clip: rect(0 0 0 0);
+      clip-path: inset(50%);
+      white-space: nowrap;
+    }
+
+    /* Anneau de focus en contour pour les commandes natives (certains navigateurs ignorent leur ombre). */
+    input[type='checkbox']:focus-visible,
+    input[type='radio']:focus-visible,
+    input[type='range']:focus-visible {
+      outline: 2px solid var(--arch-ui-accent);
+      outline-offset: 2px;
+      box-shadow: none;
     }
 
     .preview-card.column {
@@ -887,8 +1076,8 @@ export class HomeArchitectImportModal extends LitElement {
     }
 
     .preview-card.dragover {
-      border-color: #38bdf8;
-      box-shadow: 0 0 20px rgba(56, 189, 248, 0.25);
+      border-color: var(--arch-ui-accent);
+      box-shadow: inset 0 0 0 1px var(--arch-ui-accent);
     }
 
     .preview-head {
@@ -904,8 +1093,8 @@ export class HomeArchitectImportModal extends LitElement {
 
     .preview-figure {
       height: 220px;
-      background: #f8fafc;
-      border: 1px solid rgba(255, 255, 255, 0.1);
+      background: var(--import-paper);
+      border: 1px solid var(--arch-ui-border);
       border-radius: 8px;
       overflow: hidden;
     }
@@ -916,6 +1105,7 @@ export class HomeArchitectImportModal extends LitElement {
       height: 100%;
     }
 
+    /* Éléments détectés superposés au plan (toujours sur fond papier clair) */
     .ov-wall {
       stroke: #0284c7;
       stroke-width: 3px;
@@ -929,23 +1119,23 @@ export class HomeArchitectImportModal extends LitElement {
     }
 
     .ov-opening.door {
-      stroke: #f59e0b;
+      stroke: #d97706;
     }
 
     .ov-opening.window {
-      stroke: #10b981;
+      stroke: #059669;
     }
 
     .ov-room {
       fill: rgba(168, 85, 247, 0.18);
-      stroke: rgba(168, 85, 247, 0.7);
+      stroke: rgba(147, 51, 234, 0.75);
       stroke-width: 1px;
       vector-effect: non-scaling-stroke;
     }
 
     .ov-footprint {
       fill: none;
-      stroke: #ef4444;
+      stroke: #dc2626;
       stroke-width: 1.5px;
       stroke-dasharray: 6 4;
       vector-effect: non-scaling-stroke;
@@ -955,8 +1145,11 @@ export class HomeArchitectImportModal extends LitElement {
       display: flex;
       flex-wrap: wrap;
       gap: 10px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
       font-size: 0.72rem;
-      color: #94a3b8;
+      color: var(--arch-ui-text-muted);
     }
 
     .legend-item {
@@ -973,19 +1166,19 @@ export class HomeArchitectImportModal extends LitElement {
     }
 
     .swatch.wall { background: #0284c7; }
-    .swatch.door { background: #f59e0b; }
-    .swatch.window { background: #10b981; }
-    .swatch.room { background: rgba(168, 85, 247, 0.7); height: 8px; }
-    .swatch.footprint { background: transparent; border-top: 2px dashed #ef4444; height: 0; }
+    .swatch.door { background: #d97706; }
+    .swatch.window { background: #059669; }
+    .swatch.room { background: rgba(147, 51, 234, 0.75); height: 8px; }
+    .swatch.footprint { background: transparent; border-top: 2px dashed #dc2626; height: 0; }
 
     .busy-box {
       display: flex;
       align-items: center;
       gap: 10px;
       font-size: 0.85rem;
-      color: #e2e8f0;
-      background: rgba(56, 189, 248, 0.1);
-      border: 1px solid rgba(56, 189, 248, 0.3);
+      color: var(--arch-ui-text);
+      background: var(--import-accent-tint);
+      border: 1px solid var(--arch-ui-accent);
       border-radius: 10px;
       padding: 10px 12px;
     }
@@ -993,8 +1186,8 @@ export class HomeArchitectImportModal extends LitElement {
     .spinner {
       width: 16px;
       height: 16px;
-      border: 2px solid rgba(56, 189, 248, 0.3);
-      border-top-color: #38bdf8;
+      border: 2px solid var(--arch-ui-border);
+      border-top-color: var(--arch-ui-accent);
       border-radius: 50%;
       animation: spin 0.8s linear infinite;
       flex-shrink: 0;
@@ -1004,75 +1197,81 @@ export class HomeArchitectImportModal extends LitElement {
       to { transform: rotate(360deg); }
     }
 
-    @media (prefers-reduced-motion: reduce) {
-      .spinner { animation: none; }
-      :host { animation: none; }
-    }
-
-    .error-box {
-      font-size: 0.82rem;
-      color: #fecaca;
-      background: rgba(239, 68, 68, 0.15);
-      border: 1px solid rgba(239, 68, 68, 0.45);
-      border-radius: 10px;
-      padding: 10px 12px;
-      line-height: 1.4;
-    }
-
-    .warn-note {
-      font-size: 0.76rem;
-      color: #fbbf24;
-      background: rgba(245, 158, 11, 0.1);
-      border: 1px solid rgba(245, 158, 11, 0.3);
-      border-radius: 6px;
-      padding: 5px 8px;
-      line-height: 1.35;
-      margin-top: 4px;
-    }
-
-    .input-label {
-      font-size: 0.82rem;
-      color: #94a3b8;
-    }
-
-    .input-row {
-      flex-wrap: wrap;
-    }
-
-    .dimension-input.invalid {
-      border-color: #ef4444;
-    }
-
-    .field-error {
-      color: #f87171;
-      font-size: 0.8rem;
-      font-weight: 600;
-      margin-top: 4px;
-    }
-
-    .footprint-info {
-      font-size: 0.76rem;
-      color: #94a3b8;
-      margin-top: 6px;
-      font-family: ui-monospace, SFMono-Regular, monospace;
-    }
-
     .category-toggle.disabled,
     .svg-choice-card.disabled {
       opacity: 0.5;
       cursor: not-allowed;
     }
 
-    .option-card.static {
-      cursor: default;
+    .category-toggle.disabled input,
+    .svg-choice-card.disabled .svg-choice-title {
+      cursor: not-allowed;
     }
 
-    .footer-note {
-      margin-right: auto;
-      font-size: 0.78rem;
-      color: #fbbf24;
+    @media (prefers-reduced-motion: reduce) {
+      :host,
+      .spinner {
+        animation: none;
+      }
     }
-  `;
+
+    /* Téléphone : la modale occupe tout l'écran, le contenu défile entre l'en-tête et le pied. */
+    @media (max-width: 600px) {
+      .modal-card {
+        width: 100%;
+        max-width: 100%;
+        height: 100%;
+        max-height: 100%;
+        border: none;
+        border-radius: 0;
+      }
+
+      .modal-header,
+      .modal-footer {
+        padding: 12px 16px;
+      }
+
+      .modal-body {
+        padding: 16px;
+        flex: 1;
+      }
+
+      .modal-footer {
+        flex-wrap: wrap;
+      }
+
+      .footer-note {
+        flex-basis: 100%;
+      }
+
+      .preview-card {
+        flex-wrap: wrap;
+      }
+
+      .preview-figure {
+        height: 180px;
+      }
+
+      .svg-interpret-box {
+        padding: 12px;
+      }
+
+      .svg-choice-card,
+      .option-card {
+        padding: 10px;
+        gap: 8px;
+      }
+
+      .slider-row {
+        flex-wrap: wrap;
+      }
+
+      .slider-label {
+        min-width: 0;
+        flex-basis: 100%;
+      }
+    }
+  `];
 
   @property({ type: String })
   public currentLevel: string = DEFAULT_LEVEL;
@@ -1085,18 +1284,31 @@ export class HomeArchitectImportModal extends LitElement {
   @property({ attribute: false })
   public initialFile: Blob | null = null;
 
+  /**
+   * Objet hass (facultatif) : sert seulement à suivre le thème clair / sombre de Home Assistant.
+   * Ce n'est pas une propriété réactive : ses mises à jour fréquentes ne provoquent aucun rendu.
+   */
+  public get hass(): unknown {
+    return this.hassRef;
+  }
+
+  public set hass(hass: unknown) {
+    this.hassRef = hass;
+    if (hass) applyColorScheme(this, hass);
+  }
+
   @state()
   private source: LoadedSource | null = null;
 
   /** Traitement en cours (message affiché) : la confirmation est bloquée. */
   @state()
-  private busy: string | null = null;
+  private busy: Text | null = null;
 
   @state()
-  private error: string | null = null;
+  private error: Text | null = null;
 
   @state()
-  private hint: string | null = null;
+  private hint: Text | null = null;
 
   /** Reconnaissance à l'échelle saisie (relancée seulement quand la largeur ou les calques changent). */
   @state()
@@ -1141,12 +1353,18 @@ export class HomeArchitectImportModal extends LitElement {
   @state()
   private isDragOver: boolean = false;
 
+  /** Re-rendu au changement de langue. */
+  private readonly i18n = new LocalizeController(this);
+  private hassRef: unknown = undefined;
   /** Jeton du fichier en cours : le résultat d'une lecture obsolète est ignoré (F156). */
   private loadToken = 0;
   private detectTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Élément qui avait le focus à l'ouverture (bouton d'import…) : il le retrouve à la fermeture. */
+  private returnFocusTo: HTMLElement | null = null;
 
   connectedCallback() {
     super.connectedCallback();
+    this.returnFocusTo = deepActiveElement();
     this.addEventListener('keydown', this.handleKeyDown);
     // Tant que la modale est ouverte, aucun dépôt ne doit faire naviguer l'onglet vers le fichier (F74).
     window.addEventListener('dragover', this.handleWindowDragOver);
@@ -1166,28 +1384,39 @@ export class HomeArchitectImportModal extends LitElement {
     this.releasePreview();
     this.source = null;
     super.disconnectedCallback();
+    const returnTo = this.returnFocusTo;
+    this.returnFocusTo = null;
+    if (returnTo?.isConnected) returnTo.focus({ preventScroll: true });
   }
 
   protected willUpdate(changed: PropertyValues<this>) {
-    if (changed.has('initialFile') && this.initialFile) void this.processFile(this.initialFile, 'Plan déposé');
-    if (changed.has('initialSvg') && this.initialSvg) void this.loadSvgFromText(this.initialSvg, 'Plan SVG collé');
+    if (changed.has('initialFile') && this.initialFile) void this.processFile(this.initialFile, 'import.name.dropped');
+    if (changed.has('initialSvg') && this.initialSvg) void this.loadSvgFromText(this.initialSvg, 'import.name.pasted_svg');
   }
 
-  /** Focus dans la modale : Échap la ferme et Ctrl+V y colle un plan sans clic préalable. */
+  /** Focus dans la boîte de dialogue : Échap la ferme et Ctrl+V y colle un plan sans clic préalable. */
   protected firstUpdated() {
-    this.renderRoot.querySelector<HTMLElement>('.modal-card')?.focus();
+    this.dialogCard()?.focus();
   }
 
   // ---------------------------------------------------------------------------------------------
   // Clavier, collage, glisser-déposer
   // ---------------------------------------------------------------------------------------------
 
+  private dialogCard(): HTMLElement | null {
+    return this.renderRoot.querySelector<HTMLElement>('.modal-card');
+  }
+
   /** Les touches tapées dans la modale n'atteignent pas les raccourcis globaux du panneau et du canevas. */
   private handleKeyDown = (e: KeyboardEvent) => {
     e.stopPropagation();
     if (e.key === 'Escape') {
+      // Échap pendant une composition (IME) l'annule seulement.
+      if (e.isComposing) return;
       e.preventDefault();
       this.close();
+    } else if (e.key === 'Tab') {
+      this.trapFocus(e);
     } else if (e.key === 'Enter' && !e.isComposing) {
       // Entrée dans le champ de largeur : applique la saisie sans attendre la fin du délai.
       const target = getEventTarget(e);
@@ -1198,19 +1427,41 @@ export class HomeArchitectImportModal extends LitElement {
     }
   };
 
+  /** Piège de focus : Tab et Maj+Tab bouclent sur les commandes de la boîte de dialogue. */
+  private trapFocus(e: KeyboardEvent) {
+    const card = this.dialogCard();
+    if (!card) return;
+    const items = Array.from(card.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter(el => el.getClientRects().length > 0);
+    const active = (this.renderRoot as ShadowRoot).activeElement;
+    if (items.length === 0) {
+      e.preventDefault();
+      card.focus();
+      return;
+    }
+    const first = items[0];
+    const last = items[items.length - 1];
+    if (e.shiftKey && (active === first || active === card || !active)) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && (active === last || !active)) {
+      e.preventDefault();
+      first.focus();
+    }
+  }
+
   /** Collage hors des champs de saisie uniquement : image, fichier ou code SVG (F127). */
   private handleWindowPaste = (e: ClipboardEvent) => {
     if (e.defaultPrevented || !e.clipboardData || isTextEntryEvent(e)) return;
     const file = clipboardFile(e.clipboardData);
     if (file) {
       e.preventDefault();
-      void this.processFile(file, 'Image collée');
+      void this.processFile(file, 'import.name.pasted_image');
       return;
     }
     const text = e.clipboardData.getData('text/plain');
     if (looksLikeSvg(text)) {
       e.preventDefault();
-      void this.loadSvgFromText(text.trim(), 'Plan SVG collé');
+      void this.loadSvgFromText(text.trim(), 'import.name.pasted_svg');
     }
   };
 
@@ -1259,13 +1510,14 @@ export class HomeArchitectImportModal extends LitElement {
           if (imageType) {
             const blob = await item.getType(imageType);
             const extension = imageType === SVG_MIME ? 'svg' : imageType.slice('image/'.length).replace(/[^a-z0-9]/gi, '') || 'png';
-            void this.processFile(new File([blob], `presse-papier.${extension}`, { type: imageType }), 'Image collée');
+            const fileName = `${localize('import.name.clipboard_file')}.${extension}`;
+            void this.processFile(new File([blob], fileName, { type: imageType }), 'import.name.pasted_image');
             return;
           }
           if (item.types.includes('text/plain')) {
             const text = await (await item.getType('text/plain')).text();
             if (looksLikeSvg(text)) {
-              void this.loadSvgFromText(text.trim(), 'Plan SVG collé');
+              void this.loadSvgFromText(text.trim(), 'import.name.pasted_svg');
               return;
             }
           }
@@ -1273,13 +1525,13 @@ export class HomeArchitectImportModal extends LitElement {
       } else if (clipboard?.readText) {
         const text = await clipboard.readText();
         if (looksLikeSvg(text)) {
-          void this.loadSvgFromText(text.trim(), 'Plan SVG collé');
+          void this.loadSvgFromText(text.trim(), 'import.name.pasted_svg');
           return;
         }
       }
-      this.hint = 'Le presse-papier ne contient ni image ni code SVG. Copiez votre plan puis appuyez sur Ctrl+V (Cmd+V sur Mac).';
+      this.hint = () => localize('import.hint.clipboard_empty');
     } catch {
-      this.hint = 'Accès au presse-papier refusé par le navigateur : appuyez directement sur Ctrl+V (Cmd+V sur Mac) pour coller votre plan.';
+      this.hint = () => localize('import.hint.clipboard_denied');
     }
   }
 
@@ -1299,7 +1551,7 @@ export class HomeArchitectImportModal extends LitElement {
     this.excludedLayers = [];
     this.error = null;
     this.hint = null;
-    this.busy = 'Lecture du fichier…';
+    this.busy = () => localize('import.busy.reading');
     return token;
   }
 
@@ -1310,7 +1562,7 @@ export class HomeArchitectImportModal extends LitElement {
 
   private fail(err: unknown) {
     this.busy = null;
-    this.error = errorMessage(err);
+    this.error = errorText(err);
   }
 
   /** Laisse le navigateur afficher le message d'attente avant un traitement synchrone long. */
@@ -1319,63 +1571,73 @@ export class HomeArchitectImportModal extends LitElement {
     await new Promise(resolve => setTimeout(resolve, 30));
   }
 
-  private async processFile(file: Blob, fallbackName = 'Plan importé'): Promise<void> {
+  /** `fallbackNameKey` : clé du nom affiché quand le fichier n'en a pas (image collée, plan déposé…). */
+  private async processFile(file: Blob, fallbackNameKey = 'import.name.imported'): Promise<void> {
     const fileName = (file as File).name;
-    const name = typeof fileName === 'string' && fileName ? fileName : fallbackName;
+    const name: Text = typeof fileName === 'string' && fileName ? () => fileName : () => localize(fallbackNameKey);
     const token = this.beginLoad();
     try {
-      const kind = fileKind(file, name);
+      const kind = fileKind(file, name());
       if (kind === 'svg') {
         if (file.size > MAX_SVG_INPUT_BYTES) {
-          throw new Error(`Fichier SVG trop volumineux (${formatBytes(file.size)} ; maximum ${formatBytes(MAX_SVG_INPUT_BYTES)}).`);
+          throw new ImportError(() => localize('import.error.svg_file_too_large', {
+            size: formatBytes(file.size), max: formatBytes(MAX_SVG_INPUT_BYTES)
+          }));
         }
         // Décodage selon l'encodage déclaré dans l'en-tête XML (Latin-1, windows-1252…), et non UTF-8 imposé.
-        const text = decodeSvgBytes(await file.arrayBuffer());
+        const text = decodeSvgBytes(await withUserMessage(file.arrayBuffer(), 'import.error.read_failed'));
         if (token !== this.loadToken) return;
         await this.loadSvg(text, name, token);
       } else if (kind === 'raster') {
         await this.loadRaster(file, name, token);
       } else if (kind === 'json') {
         if (file.size > MAX_BACKUP_BYTES) {
-          throw new Error(`Sauvegarde trop volumineuse (${formatBytes(file.size)} ; maximum ${formatBytes(MAX_BACKUP_BYTES)}).`);
+          throw new ImportError(() => localize('import.error.backup_too_large', {
+            size: formatBytes(file.size), max: formatBytes(MAX_BACKUP_BYTES)
+          }));
         }
-        const text = await readFileAsText(file);
+        const text = await withUserMessage(readFileAsText(file), 'import.error.read_failed');
         if (token !== this.loadToken) return;
         const { project, droppedBackground } = projectFromBackup(text);
         this.source = { kind: 'project', name, project, droppedBackground };
         this.busy = null;
       } else if (kind === 'pdf') {
-        throw new Error('Les fichiers PDF ne sont pas pris en charge : exportez le plan en SVG (vectoriel), PNG ou JPEG depuis votre logiciel.');
+        throw new ImportError(() => localize('import.error.pdf'));
       } else {
-        throw new Error('Format de fichier non pris en charge. Formats acceptés : SVG, PNG, JPEG, WebP, GIF, ou sauvegarde de projet (.json).');
+        throw new ImportError(() => localize('import.error.unsupported'));
       }
     } catch (err) {
       if (token === this.loadToken) this.fail(err);
     }
   }
 
-  private async loadSvgFromText(text: string, name: string): Promise<void> {
+  /** `nameKey` : clé du nom générique affiché (plan SVG collé). */
+  private async loadSvgFromText(text: string, nameKey: string): Promise<void> {
     const token = this.beginLoad();
     try {
       if (text.length > MAX_SVG_INPUT_BYTES) {
-        throw new Error(`Code SVG trop volumineux (maximum ${formatBytes(MAX_SVG_INPUT_BYTES)}).`);
+        throw new ImportError(() => localize('import.error.svg_code_too_large', { max: formatBytes(MAX_SVG_INPUT_BYTES) }));
       }
-      await this.loadSvg(text, name, token);
+      await this.loadSvg(text, () => localize(nameKey), token);
     } catch (err) {
       if (token === this.loadToken) this.fail(err);
     }
   }
 
   /** Image raster : redimensionnée et recompressée avant tout (côté max 2 500 px, F1). */
-  private async loadRaster(file: Blob, name: string, token: number): Promise<void> {
+  private async loadRaster(file: Blob, name: Text, token: number): Promise<void> {
     if (file.size > MAX_RASTER_INPUT_BYTES) {
-      throw new Error(`Image trop volumineuse (${formatBytes(file.size)} ; maximum ${formatBytes(MAX_RASTER_INPUT_BYTES)}).`);
+      throw new ImportError(() => localize('import.error.image_too_large', {
+        size: formatBytes(file.size), max: formatBytes(MAX_RASTER_INPUT_BYTES)
+      }));
     }
-    this.busy = 'Compression de l\'image…';
-    const compressed = await compressRasterImage(file);
+    this.busy = () => localize('import.busy.compressing');
+    const compressed = await withUserMessage(compressRasterImage(file), 'import.error.image_unreadable');
     if (token !== this.loadToken) return;
     if (compressed.blob.size > MAX_UPLOAD_BYTES) {
-      throw new Error(`Image trop lourde même après compression (${formatBytes(compressed.blob.size)} ; maximum ${formatBytes(MAX_UPLOAD_BYTES)}).`);
+      throw new ImportError(() => localize('import.error.image_too_heavy', {
+        size: formatBytes(compressed.blob.size), max: formatBytes(MAX_UPLOAD_BYTES)
+      }));
     }
     this.source = {
       kind: 'raster',
@@ -1396,12 +1658,15 @@ export class HomeArchitectImportModal extends LitElement {
   }
 
   /** SVG : analysé une seule fois ; seule la reconnaissance est relancée quand la largeur change (F73). */
-  private async loadSvg(text: string, name: string, token: number): Promise<void> {
-    this.busy = 'Analyse du plan SVG…';
+  private async loadSvg(text: string, name: Text, token: number): Promise<void> {
+    this.busy = () => localize('import.busy.analyzing');
     await this.yieldToBrowser();
     if (token !== this.loadToken) return;
     const analysis = SvgPlanParser.analyze(text);
-    if (!analysis.success) throw new Error(analysis.error ?? 'Fichier SVG invalide.');
+    if (!analysis.success) {
+      const detail = analysis.error;
+      throw new ImportError(() => detail ?? localize('import.error.invalid_svg'));
+    }
 
     // SVG nettoyé (sans DOCTYPE, refusé par le serveur ; viewBox garantie) : c'est lui qui sert de calque.
     const blob = new Blob([analysis.markup], { type: SVG_MIME });
@@ -1419,7 +1684,7 @@ export class HomeArchitectImportModal extends LitElement {
     this.keepSvgBackground = canKeepBackground;
     this.calibrateMode = 'auto_dimension';
 
-    this.busy = 'Reconnaissance des murs, ouvertures et pièces…';
+    this.busy = () => localize('import.busy.detecting');
     await this.yieldToBrowser();
     if (token !== this.loadToken) return;
     this.runDetection();
@@ -1437,9 +1702,9 @@ export class HomeArchitectImportModal extends LitElement {
 
   private widthError(): string {
     const v = parseDecimal(this.widthText);
-    if (v === null) return this.widthText.trim() === '' ? 'Indiquez une largeur en mètres.' : 'Saisissez un nombre (ex. 12,5).';
+    if (v === null) return localize(this.widthText.trim() === '' ? 'import.width.empty' : 'import.width.not_number');
     if (v < MIN_WIDTH_METERS || v > MAX_WIDTH_METERS) {
-      return `La largeur doit être comprise entre ${MIN_WIDTH_METERS.toLocaleString('fr-FR')} et ${MAX_WIDTH_METERS.toLocaleString('fr-FR')} m.`;
+      return localize('import.width.range', { min: formatNumber(MIN_WIDTH_METERS), max: formatNumber(MAX_WIDTH_METERS) });
     }
     return '';
   }
@@ -1533,12 +1798,12 @@ export class HomeArchitectImportModal extends LitElement {
       if (this.widthMeters() === null) return '';
       const stats = this.result?.stats;
       if (!this.includesBackground(src) && stats && stats.wallCount + stats.roomCount === 0) {
-        return 'Aucun élément sélectionné à importer.';
+        return localize('import.blocker.nothing_selected');
       }
       return null;
     }
     if (src.kind === 'svg' && !src.canKeepBackground) {
-      return 'SVG trop lourd pour servir de calque de fond : seule la conversion en murs est possible.';
+      return localize('import.blocker.svg_too_heavy');
     }
     if (this.calibrateMode === 'auto_dimension' && this.widthMeters() === null) return '';
     return null;
@@ -1612,19 +1877,27 @@ export class HomeArchitectImportModal extends LitElement {
   // Rendu
   // ---------------------------------------------------------------------------------------------
 
+  /** La zone entière ouvre le sélecteur au pointeur ; au clavier, ce sont ses deux boutons. */
   private renderDropZone() {
     return html`
-      <div class="drop-zone ${this.isDragOver ? 'dragover' : ''}" @click=${this.openFilePicker}>
-        <span class="drop-icon">📐</span>
-        <div class="drop-text">Glissez-déposez votre plan ici</div>
-        <div class="drop-subtext">SVG (vectorisation automatique en murs 3D), PNG, JPEG, WebP — ou sauvegarde de projet (.json)</div>
+      <div
+        class="drop-zone ${this.isDragOver ? 'dragover' : ''}"
+        role="group"
+        aria-label=${localize('import.drop.region')}
+        @click=${this.openFilePicker}
+      >
+        <span class="drop-icon" aria-hidden="true">📐</span>
+        <div class="drop-text">${localize('import.drop.title')}</div>
+        <div class="drop-subtext">${localize('import.drop.formats')}</div>
 
         <div class="drop-actions" @click=${(e: Event) => e.stopPropagation()}>
-          <button class="btn-action-small" @click=${this.openFilePicker}>
-            📁 Choisir un fichier
+          <button type="button" class="btn-action-small" @click=${this.openFilePicker}>
+            <span aria-hidden="true">📁</span>
+            <span>${localize('import.drop.choose_file')}</span>
           </button>
-          <button class="btn-action-small" @click=${this.pasteFromClipboard}>
-            📋 Coller (Ctrl+V)
+          <button type="button" class="btn-action-small" @click=${this.pasteFromClipboard}>
+            <span aria-hidden="true">📋</span>
+            <span>${localize('import.drop.paste')}</span>
           </button>
         </div>
       </div>
@@ -1633,16 +1906,18 @@ export class HomeArchitectImportModal extends LitElement {
 
   private renderSourceCard(src: LoadedSource) {
     const replace = html`
-      <button class="btn-change-image" @click=${this.openFilePicker}>🔄 Remplacer le fichier</button>
+      <button type="button" class="btn-change-image" @click=${this.openFilePicker}>
+        <span aria-hidden="true">🔄</span> ${localize('import.source.replace')}
+      </button>
     `;
     if (src.kind === 'project') {
       return html`
         <div class="preview-card ${this.isDragOver ? 'dragover' : ''}">
-          <span class="preview-icon">🗂️</span>
+          <span class="preview-icon" aria-hidden="true">🗂️</span>
           <div class="preview-meta">
             <div class="preview-title">
-              <span>${src.name}</span>
-              <span class="preview-badge-svg">Sauvegarde de projet</span>
+              <span>${src.name()}</span>
+              <span class="preview-badge">${localize('import.source.backup_badge')}</span>
             </div>
             ${replace}
           </div>
@@ -1652,16 +1927,19 @@ export class HomeArchitectImportModal extends LitElement {
     if (src.kind === 'raster') {
       const bg = src.background;
       const recompressed = bg.blob.size !== src.originalBytes;
+      const sizeParams = { width: formatNumber(bg.widthPx), height: formatNumber(bg.heightPx), size: formatBytes(bg.blob.size) };
       return html`
         <div class="preview-card ${this.isDragOver ? 'dragover' : ''}">
-          <img class="preview-thumb" src=${src.previewUrl} alt="Aperçu du plan" />
+          <img class="preview-thumb" src=${src.previewUrl} alt=${localize('import.source.preview_alt')} />
           <div class="preview-meta">
             <div class="preview-title">
-              <span>✅</span>
-              <span>${src.name}</span>
+              <span aria-hidden="true">✅</span>
+              <span>${src.name()}</span>
             </div>
             <div class="preview-dimensions">
-              ${bg.widthPx} × ${bg.heightPx} px · ${formatBytes(bg.blob.size)}${recompressed ? ` (fichier d'origine : ${formatBytes(src.originalBytes)})` : ''}
+              ${recompressed
+                ? localize('import.source.raster_size_recompressed', { ...sizeParams, original: formatBytes(src.originalBytes) })
+                : localize('import.source.raster_size', sizeParams)}
             </div>
             ${replace}
           </div>
@@ -1674,12 +1952,16 @@ export class HomeArchitectImportModal extends LitElement {
         <div class="preview-head">
           <div class="preview-meta">
             <div class="preview-title">
-              <span>✅</span>
-              <span>${src.name}</span>
-              <span class="preview-badge-svg">SVG Vectoriel</span>
+              <span aria-hidden="true">✅</span>
+              <span>${src.name()}</span>
+              <span class="preview-badge">${localize('import.source.svg_badge')}</span>
             </div>
             <div class="preview-dimensions">
-              Repère du plan : ${Math.round(vb.width)} × ${Math.round(vb.height)} unités · ${formatBytes(src.background.blob.size)}
+              ${localize('import.source.svg_frame', {
+                width: formatNumber(Math.round(vb.width)),
+                height: formatNumber(Math.round(vb.height)),
+                size: formatBytes(src.background.blob.size)
+              })}
             </div>
           </div>
           ${replace}
@@ -1695,19 +1977,19 @@ export class HomeArchitectImportModal extends LitElement {
     const overlay = this.isVectorizing() ? this.result : null;
     return html`
       <div class="preview-figure">
-        <svg viewBox="${vb.x} ${vb.y} ${vb.width} ${vb.height}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Aperçu du plan et des éléments détectés">
+        <svg viewBox="${vb.x} ${vb.y} ${vb.width} ${vb.height}" preserveAspectRatio="xMidYMid meet" role="img" aria-label=${localize('import.preview.aria')}>
           <image href=${src.previewUrl} x=${vb.x} y=${vb.y} width=${vb.width} height=${vb.height} preserveAspectRatio="none" opacity=${overlay ? 0.45 : 1}></image>
           ${overlay ? this.renderOverlay(overlay, vb) : nothing}
         </svg>
       </div>
       ${overlay ? html`
-        <div class="preview-legend">
-          <span class="legend-item"><i class="swatch wall"></i>Murs</span>
-          <span class="legend-item"><i class="swatch door"></i>Portes</span>
-          <span class="legend-item"><i class="swatch window"></i>Fenêtres</span>
-          <span class="legend-item"><i class="swatch room"></i>Pièces</span>
-          <span class="legend-item"><i class="swatch footprint"></i>Emprise de la largeur saisie</span>
-        </div>
+        <ul class="preview-legend" aria-label=${localize('import.preview.legend')}>
+          <li class="legend-item"><i class="swatch wall" aria-hidden="true"></i>${localize('import.element.walls')}</li>
+          <li class="legend-item"><i class="swatch door" aria-hidden="true"></i>${localize('import.element.doors')}</li>
+          <li class="legend-item"><i class="swatch window" aria-hidden="true"></i>${localize('import.element.windows')}</li>
+          <li class="legend-item"><i class="swatch room" aria-hidden="true"></i>${localize('import.element.rooms')}</li>
+          <li class="legend-item"><i class="swatch footprint" aria-hidden="true"></i>${localize('import.legend.footprint')}</li>
+        </ul>
       ` : nothing}
     `;
   }
@@ -1754,7 +2036,7 @@ export class HomeArchitectImportModal extends LitElement {
     `;
   }
 
-  private renderCategory(cat: ImportCategory, label: string, count: number, disabled = false) {
+  private renderCategory(cat: ImportCategory, icon: string, labelKey: string, count: number, disabled = false) {
     const checked = this.importOptions[cat];
     return html`
       <label class="category-toggle ${checked && !disabled ? 'active' : ''} ${disabled ? 'disabled' : ''}">
@@ -1764,8 +2046,9 @@ export class HomeArchitectImportModal extends LitElement {
           ?disabled=${disabled}
           @change=${(e: Event) => this.toggleImportCategory(cat, (e.target as HTMLInputElement).checked)}
         />
-        <span>${label}</span>
-        <span class="cat-count">(${count})</span>
+        <span aria-hidden="true">${icon}</span>
+        <span>${localize(labelKey)}</span>
+        <span class="cat-count">(${formatNumber(count)})</span>
       </label>
     `;
   }
@@ -1775,8 +2058,8 @@ export class HomeArchitectImportModal extends LitElement {
     if (layers.length < 2) return nothing;
     const excluded = new Set(this.excludedLayers);
     return html`
-      <div class="import-categories-box">
-        <div class="categories-title">Calques et groupes pris en compte :</div>
+      <div class="import-categories-box" role="group" aria-labelledby="import-layers-title">
+        <div class="categories-title" id="import-layers-title">${localize('import.layers.title')}</div>
         <div class="categories-grid">
           ${layers.map(layer => html`
             <label class="category-toggle ${excluded.has(layer.id) ? '' : 'active'}">
@@ -1786,7 +2069,7 @@ export class HomeArchitectImportModal extends LitElement {
                 @change=${(e: Event) => this.toggleLayer(layer.id, (e.target as HTMLInputElement).checked)}
               />
               <span>${layer.name}</span>
-              <span class="cat-count">(${layer.elementCount})</span>
+              <span class="cat-count">(${formatNumber(layer.elementCount)})</span>
             </label>
           `)}
         </div>
@@ -1798,20 +2081,21 @@ export class HomeArchitectImportModal extends LitElement {
     const r = this.result;
     if (!r) return nothing;
     const ignored = r.ignoredRooms;
-    const shown = ignored.slice(0, 6).map(describeIgnoredRoom).join(', ');
+    const shown = ignored.slice(0, IGNORED_ROOMS_SHOWN).map(describeIgnoredRoom).join(', ');
+    const list = ignored.length > IGNORED_ROOMS_SHOWN ? `${shown}…` : shown;
     return html`
       ${r.stats.ignoredMeasurementLinesCount > 0 ? html`
         <div class="ignored-note">
-          ℹ️ ${r.stats.ignoredMeasurementLinesCount} ligne(s) de cotation / pointillés ont été automatiquement ignorées (non transformées en murs).
+          <span aria-hidden="true">ℹ️</span> ${plural('import.notes.measurement_lines', r.stats.ignoredMeasurementLinesCount)}
         </div>
       ` : nothing}
       ${ignored.length > 0 ? html`
         <div class="warn-note">
-          ⚠️ ${plural(ignored.length, 'forme écartée', 'formes écartées')} des pièces : ${shown}${ignored.length > 6 ? '…' : ''}
+          <span aria-hidden="true">⚠️</span> ${plural('import.notes.ignored_rooms', ignored.length, { list })}
         </div>
       ` : nothing}
       ${r.truncated ? html`
-        <div class="warn-note">⚠️ Plan très volumineux : seule une partie du fichier a été analysée.</div>
+        <div class="warn-note"><span aria-hidden="true">⚠️</span> ${localize('import.notes.truncated')}</div>
       ` : nothing}
     `;
   }
@@ -1820,57 +2104,60 @@ export class HomeArchitectImportModal extends LitElement {
     const r = this.result;
     const available = r?.success ? r.available : null;
     const wallsOn = this.importOptions.importWalls;
-    const detectionError = r && !r.success ? r.error ?? 'La reconnaissance du plan a échoué.' : null;
+    const detectionError = r && !r.success ? r.error ?? localize('import.svg.detection_failed') : null;
 
     return html`
       <div class="svg-interpret-box">
         <div class="svg-box-header">
-          <span class="svg-box-icon">✨</span>
+          <span class="svg-box-icon" aria-hidden="true">✨</span>
           <div>
-            <div class="svg-box-title">Interprétation Vectorielle Intelligente SVG</div>
-            <div class="svg-box-subtitle">
-              Transformez directement les lignes et courbes de votre SVG en éléments réels
-            </div>
+            <div class="svg-box-title">${localize('import.svg.title')}</div>
+            <div class="svg-box-subtitle">${localize('import.svg.subtitle')}</div>
           </div>
         </div>
 
-        ${detectionError ? html`<div class="error-box" role="alert">❌ ${detectionError}</div>` : nothing}
+        ${detectionError ? html`<div class="error-box" role="alert"><span aria-hidden="true">❌</span> ${detectionError}</div>` : nothing}
 
-        <div class="svg-mode-selector">
-          <!-- Mode 1 : Convertir en murs, portes, fenêtres et pièces -->
+        <div class="svg-mode-selector" role="radiogroup" aria-label=${localize('import.svg.mode_group')}>
+          <!-- Mode 1 : Convertir en murs, portes, fenêtres et pièces (la carte entière est cliquable) -->
           <div
             class="svg-choice-card ${this.svgImportMode === 'vectorize' ? 'selected' : ''}"
             @click=${() => this.svgImportMode = 'vectorize'}
           >
             <input
               type="radio"
+              id="svg-mode-vectorize"
               name="svg_mode"
               class="svg-choice-radio"
+              aria-describedby="svg-mode-vectorize-desc"
               .checked=${this.svgImportMode === 'vectorize'}
               @change=${() => this.svgImportMode = 'vectorize'}
             />
             <div class="svg-choice-content">
-              <div class="svg-choice-title">
-                <span>🧱 Convertir en Murs, Portes, Fenêtres & Pièces 3D</span>
-                <span class="badge-magic">Recommandé</span>
-              </div>
-              <div class="svg-choice-desc">
-                Génère instantanément les murs, baies, ouvertures et pièces prêts pour l'affichage 2D et 3D.
-              </div>
+              <label class="svg-choice-title" for="svg-mode-vectorize">
+                <span><span aria-hidden="true">🧱</span> ${localize('import.svg.vectorize_title')}</span>
+                <span class="badge-magic">${localize('import.common.recommended')}</span>
+              </label>
+              <div class="svg-choice-desc" id="svg-mode-vectorize-desc">${localize('import.svg.vectorize_desc')}</div>
 
               ${available ? html`
                 <!-- Sélection granulaire des éléments à importer (nombres détectés, avant filtres) -->
-                <div class="import-categories-box" @click=${(e: Event) => e.stopPropagation()}>
-                  <div class="categories-title">Éléments à importer :</div>
+                <div
+                  class="import-categories-box"
+                  role="group"
+                  aria-labelledby="import-categories-title"
+                  @click=${(e: Event) => e.stopPropagation()}
+                >
+                  <div class="categories-title" id="import-categories-title">${localize('import.categories.title')}</div>
                   <div class="categories-grid">
-                    ${this.renderCategory('importWalls', '🧱 Murs', available.wallCount)}
-                    ${this.renderCategory('importDoors', '🚪 Portes', available.doorCount, !wallsOn)}
-                    ${this.renderCategory('importWindows', '🪟 Fenêtres', available.windowCount, !wallsOn)}
-                    ${this.renderCategory('importRooms', '🏠 Pièces', available.roomCount)}
-                    ${this.renderCategory('importLabels', '🏷️ Noms', available.textLabelCount, !this.importOptions.importRooms)}
+                    ${this.renderCategory('importWalls', '🧱', 'import.element.walls', available.wallCount)}
+                    ${this.renderCategory('importDoors', '🚪', 'import.element.doors', available.doorCount, !wallsOn)}
+                    ${this.renderCategory('importWindows', '🪟', 'import.element.windows', available.windowCount, !wallsOn)}
+                    ${this.renderCategory('importRooms', '🏠', 'import.element.rooms', available.roomCount)}
+                    ${this.renderCategory('importLabels', '🏷️', 'import.element.labels', available.textLabelCount, !this.importOptions.importRooms)}
                   </div>
                   ${!wallsOn && available.doorCount + available.windowCount > 0 ? html`
-                    <div class="ignored-note">ℹ️ Les portes et fenêtres ne sont importées qu'avec les murs qui les portent.</div>
+                    <div class="ignored-note"><span aria-hidden="true">ℹ️</span> ${localize('import.categories.openings_need_walls')}</div>
                   ` : nothing}
                 </div>
               ` : nothing}
@@ -1888,13 +2175,15 @@ export class HomeArchitectImportModal extends LitElement {
                   ?disabled=${!src.canKeepBackground}
                   @change=${(e: Event) => this.keepSvgBackground = (e.target as HTMLInputElement).checked}
                 />
-                <label for="chk_keep_bg" style="cursor: pointer;">
-                  Conserver également le tracé SVG original en filigrane sous le plan
-                </label>
+                <label for="chk_keep_bg">${localize('import.svg.keep_background')}</label>
               </div>
               ${!src.canKeepBackground ? html`
                 <div class="warn-note">
-                  ⚠️ SVG trop lourd (${formatBytes(src.background.blob.size)}) pour servir de calque de fond (maximum ${formatBytes(MAX_UPLOAD_BYTES)}).
+                  <span aria-hidden="true">⚠️</span>
+                  ${localize('import.svg.too_heavy_for_background', {
+                    size: formatBytes(src.background.blob.size),
+                    max: formatBytes(MAX_UPLOAD_BYTES)
+                  })}
                 </div>
               ` : nothing}
             </div>
@@ -1907,19 +2196,19 @@ export class HomeArchitectImportModal extends LitElement {
           >
             <input
               type="radio"
+              id="svg-mode-background"
               name="svg_mode"
               class="svg-choice-radio"
+              aria-describedby="svg-mode-background-desc"
               .checked=${this.svgImportMode === 'background_only'}
               ?disabled=${!src.canKeepBackground}
               @change=${() => this.svgImportMode = 'background_only'}
             />
             <div class="svg-choice-content">
-              <div class="svg-choice-title">
-                <span>🖼️ Calque de fond simple (Décalque manuel)</span>
-              </div>
-              <div class="svg-choice-desc">
-                Affiche le SVG comme une image en arrière-plan pour tracer les murs manuellement.
-              </div>
+              <label class="svg-choice-title" for="svg-mode-background">
+                <span><span aria-hidden="true">🖼️</span> ${localize('import.svg.background_title')}</span>
+              </label>
+              <div class="svg-choice-desc" id="svg-mode-background-desc">${localize('import.svg.background_desc')}</div>
             </div>
           </div>
         </div>
@@ -1933,37 +2222,35 @@ export class HomeArchitectImportModal extends LitElement {
     return html`
       <div class="svg-interpret-box">
         <div class="svg-box-header">
-          <span class="svg-box-icon">🗂️</span>
+          <span class="svg-box-icon" aria-hidden="true">🗂️</span>
           <div>
             <div class="svg-box-title">${p.name}</div>
-            <div class="svg-box-subtitle">Niveau : ${getLevelLabel(p.category)}</div>
+            <div class="svg-box-subtitle">${localize('import.project.level', { level: getLevelLabel(p.category) })}</div>
           </div>
         </div>
-        <div class="svg-pills-row">
-          <span class="stat-pill wall">🧱 ${plural(p.walls.length, 'mur', 'murs')}</span>
-          <span class="stat-pill door">🚪 ${plural(p.openings.length, 'ouverture', 'ouvertures')}</span>
-          <span class="stat-pill room">🏠 ${plural(p.rooms.length, 'pièce', 'pièces')}</span>
-          <span class="stat-pill window">🛋️ ${plural(furniture, 'meuble', 'meubles')}</span>
-          <span class="stat-pill label">⚡ ${plural(p.bindings.length, 'entité', 'entités')}</span>
-          ${p.background ? html`<span class="stat-pill wall">🖼️ Image de fond</span>` : nothing}
-        </div>
-        <div class="ignored-note">
-          ℹ️ Le plan sera ouvert comme un nouveau plan (nouvel identifiant) : aucun plan existant n'est écrasé. Enregistrez-le ensuite pour le conserver.
-        </div>
+        <ul class="svg-pills-row">
+          <li class="stat-pill wall"><span aria-hidden="true">🧱</span> ${plural('import.count.walls', p.walls.length)}</li>
+          <li class="stat-pill door"><span aria-hidden="true">🚪</span> ${plural('import.count.openings', p.openings.length)}</li>
+          <li class="stat-pill room"><span aria-hidden="true">🏠</span> ${plural('import.count.rooms', p.rooms.length)}</li>
+          <li class="stat-pill window"><span aria-hidden="true">🛋️</span> ${plural('import.count.furniture', furniture)}</li>
+          <li class="stat-pill label"><span aria-hidden="true">⚡</span> ${plural('import.count.entities', p.bindings.length)}</li>
+          ${p.background ? html`
+            <li class="stat-pill wall"><span aria-hidden="true">🖼️</span> ${localize('import.project.background')}</li>
+          ` : nothing}
+        </ul>
+        <div class="ignored-note"><span aria-hidden="true">ℹ️</span> ${localize('import.project.new_plan_note')}</div>
         ${src.droppedBackground ? html`
-          <div class="warn-note">
-            ⚠️ La sauvegarde ne contient pas l'image de fond (indisponible lors de l'export) : le plan sera importé sans fond.
-          </div>
+          <div class="warn-note"><span aria-hidden="true">⚠️</span> ${localize('import.project.dropped_background')}</div>
         ` : nothing}
       </div>
     `;
   }
 
-  private renderWidthInput(label: string) {
+  private renderWidthInput(labelKey: string) {
     const error = this.widthError();
     return html`
       <div class="input-row" @click=${(e: Event) => e.stopPropagation()}>
-        <label class="input-label" for="import-width">${label}</label>
+        <label class="input-label" for="import-width">${localize(labelKey)}</label>
         <input
           id="import-width"
           type="text"
@@ -1971,13 +2258,14 @@ export class HomeArchitectImportModal extends LitElement {
           autocomplete="off"
           class="dimension-input ${error ? 'invalid' : ''}"
           aria-invalid=${error ? 'true' : 'false'}
+          aria-describedby=${error ? 'import-width-unit import-width-error' : 'import-width-unit'}
           .value=${this.widthText}
           @input=${this.handleWidthInput}
           @change=${this.flushDetection}
         />
-        <span class="unit-tag">mètres</span>
+        <span class="unit-tag" id="import-width-unit">${localize('import.common.meters')}</span>
       </div>
-      ${error ? html`<div class="field-error" role="alert">${error}</div>` : nothing}
+      ${error ? html`<div class="field-error" id="import-width-error">${error}</div>` : nothing}
     `;
   }
 
@@ -1985,12 +2273,22 @@ export class HomeArchitectImportModal extends LitElement {
   private renderFootprintInfo() {
     const d = this.detection;
     if (!d?.success || !d.footprint) return nothing;
-    const reference = d.widthReference === 'walls'
-      ? 'emprise des murs détectés'
-      : d.widthReference === 'content' ? 'emprise du dessin (aucun mur détecté)' : 'page entière';
+    const reference = localize(d.widthReference === 'walls'
+      ? 'import.footprint.walls'
+      : d.widthReference === 'content' ? 'import.footprint.content' : 'import.footprint.page');
+    const params = { reference, width: formatMeters(d.footprint.width), height: formatMeters(d.footprint.height) };
     return html`
       <div class="footprint-info">
-        Référence : ${reference} — ${formatMeters(d.footprint.width)} × ${formatMeters(d.footprint.height)} m${this.detectPending ? ' (mise à jour…)' : ''}
+        ${localize(this.detectPending ? 'import.footprint.info_pending' : 'import.footprint.info', params)}
+      </div>
+    `;
+  }
+
+  private renderScaleTitle() {
+    return html`
+      <div class="section-title" id="import-scale-title">
+        <span aria-hidden="true">📏</span>
+        <span>${localize('import.scale.title')}</span>
       </div>
     `;
   }
@@ -1999,16 +2297,11 @@ export class HomeArchitectImportModal extends LitElement {
     if (this.isVectorizing()) {
       return html`
         <div>
-          <div class="section-title">
-            <span>📏</span>
-            <span>Échelle du plan (Mètres réels)</span>
-          </div>
+          ${this.renderScaleTitle()}
           <div class="option-card selected static">
             <div class="option-content">
-              <div class="option-desc">
-                Largeur réelle du bâtiment, murs extérieurs compris : elle s'applique à l'emprise des murs détectés, pas aux marges ni au cartouche de la page.
-              </div>
-              ${this.renderWidthInput('Largeur du bâtiment :')}
+              <div class="option-desc">${localize('import.scale.vectorize_desc')}</div>
+              ${this.renderWidthInput('import.scale.building_width')}
               ${this.renderFootprintInfo()}
             </div>
           </div>
@@ -2016,7 +2309,9 @@ export class HomeArchitectImportModal extends LitElement {
       `;
     }
     const isSvg = src.kind === 'svg';
-    const option = (mode: 'auto_dimension' | 'interactive_calibrate', title: string, recommended: boolean, desc: string, extra: unknown) => html`
+    const option = (
+      mode: 'auto_dimension' | 'interactive_calibrate', icon: string, titleKey: string, recommended: boolean, descKey: string, extra: unknown
+    ) => html`
       <div
         class="option-card ${this.calibrateMode === mode ? 'selected' : ''}"
         @click=${() => this.calibrateMode = mode}
@@ -2024,44 +2319,43 @@ export class HomeArchitectImportModal extends LitElement {
         <input
           type="radio"
           class="option-radio"
+          id="calib-${mode}"
           name="calib"
+          aria-describedby="calib-${mode}-desc"
           .checked=${this.calibrateMode === mode}
           @change=${() => this.calibrateMode = mode}
         />
         <div class="option-content">
-          <div class="option-title">
-            <span>${title}</span>
-            ${recommended ? html`<span class="option-badge">Recommandé</span>` : nothing}
-          </div>
-          <div class="option-desc">${desc}</div>
+          <label class="option-title" for="calib-${mode}">
+            <span><span aria-hidden="true">${icon}</span> ${localize(titleKey)}</span>
+            ${recommended ? html`<span class="option-badge">${localize('import.common.recommended')}</span>` : nothing}
+          </label>
+          <div class="option-desc" id="calib-${mode}-desc">${localize(descKey)}</div>
           ${this.calibrateMode === mode ? extra : nothing}
         </div>
       </div>
     `;
     return html`
       <div>
-        <div class="section-title">
-          <span>📏</span>
-          <span>Échelle du plan (Mètres réels)</span>
-        </div>
-        <div class="calibrate-options">
+        ${this.renderScaleTitle()}
+        <div class="calibrate-options" role="radiogroup" aria-labelledby="import-scale-title">
           ${option(
             'auto_dimension',
-            isSvg ? '⚡ Étalonnage par la largeur du bâtiment' : '⚡ Étalonnage par la largeur de l\'image',
+            '⚡',
+            isSvg ? 'import.scale.auto_svg_title' : 'import.scale.auto_raster_title',
             isSvg,
-            isSvg
-              ? 'Indiquez la largeur réelle du bâtiment : elle s\'applique à l\'emprise des murs détectés, pas aux marges de la page.'
-              : 'Indiquez la largeur réelle couverte par toute l\'image, marges comprises. Si le plan a des marges, un cartouche ou des cotes autour, préférez la mesure d\'un mur.',
+            isSvg ? 'import.scale.auto_svg_desc' : 'import.scale.auto_raster_desc',
             html`
-              ${this.renderWidthInput(isSvg ? 'Largeur du bâtiment :' : 'Largeur de l\'image entière :')}
+              ${this.renderWidthInput(isSvg ? 'import.scale.building_width' : 'import.scale.image_width')}
               ${isSvg ? this.renderFootprintInfo() : nothing}
             `
           )}
           ${option(
             'interactive_calibrate',
-            '📐 Étalonnage assisté par mesure de mur',
+            '📐',
+            'import.scale.measure_title',
             !isSvg,
-            'Vous tracerez un segment directement sur un mur mesuré du plan (ex : 3,50 m) pour étalonner avec précision.',
+            'import.scale.measure_desc',
             nothing
           )}
         </div>
@@ -2070,50 +2364,80 @@ export class HomeArchitectImportModal extends LitElement {
   }
 
   private renderOpacity() {
+    const percent = formatNumber(this.opacity, { style: 'percent', maximumFractionDigits: 0 });
     return html`
       <div class="slider-row">
-        <span class="slider-label">Opacité du fond :</span>
+        <label class="slider-label" for="import-opacity">${localize('import.opacity.label')}</label>
         <input
+          id="import-opacity"
           type="range"
           class="slider-input"
           min="0.05"
           max="1.0"
           step="0.05"
+          aria-valuetext=${percent}
           .value=${String(this.opacity)}
           @input=${(e: Event) => this.opacity = Number((e.target as HTMLInputElement).value)}
         />
-        <span class="slider-val">${Math.round(this.opacity * 100)}%</span>
+        <output class="slider-val" for="import-opacity">${percent}</output>
       </div>
     `;
   }
 
   private renderConfirmLabel(src: LoadedSource | null) {
     if (src?.kind === 'project') {
-      return html`<span>📂</span><span>Importer le projet</span>`;
+      return html`<span aria-hidden="true">📂</span><span>${localize('import.confirm.project')}</span>`;
     }
     if (this.isVectorizing()) {
-      const walls = this.result?.stats.wallCount ?? 0;
-      return html`<span>✨</span><span>Convertir le plan SVG (${plural(walls, 'mur', 'murs')})</span>`;
+      const walls = plural('import.count.walls', this.result?.stats.wallCount ?? 0);
+      return html`<span aria-hidden="true">✨</span><span>${localize('import.confirm.vectorize', { walls })}</span>`;
     }
-    return html`<span>🚀</span><span>Charger le plan</span>`;
+    return html`<span aria-hidden="true">🚀</span><span>${localize('import.confirm.load')}</span>`;
+  }
+
+  /**
+   * Messages lus par les lecteurs d'écran (attente, indication, erreur de largeur, blocage) : un
+   * élément par message, pour que seul celui qui change soit annoncé. L'erreur de fichier garde son
+   * role=alert (annoncé dès l'insertion).
+   */
+  private renderLiveRegion(src: LoadedSource | null, vectorizing: boolean, blocker: string | null) {
+    const widthShown = !!src && src.kind !== 'project' && (vectorizing || this.calibrateMode === 'auto_dimension');
+    return html`
+      <div class="sr-only" role="status" aria-live="polite">
+        <span>${this.busy ? this.busy() : ''}</span>
+        <span>${this.hint ? this.hint() : ''}</span>
+        <span>${widthShown ? this.widthError() : ''}</span>
+        <span>${blocker ?? ''}</span>
+      </div>
+    `;
   }
 
   render() {
     const src = this.source;
     const blocker = this.confirmBlocker();
     const vectorizing = this.isVectorizing();
+    const closeLabel = localize('import.common.close');
 
     return html`
-      <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="import-title" tabindex="-1">
+      <div
+        class="modal-card"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="import-title"
+        aria-describedby="import-subtitle"
+        tabindex="-1"
+      >
         <div class="modal-header">
           <div class="modal-title-group">
-            <span class="modal-icon">📥</span>
+            <span class="modal-icon" aria-hidden="true">📥</span>
             <div>
-              <h3 class="modal-title" id="import-title">Importer & Interpréter un plan</h3>
-              <p class="modal-subtitle">SVG (vectoriel intelligent), PNG, JPEG, WebP, ou sauvegarde de projet (.json)</p>
+              <h2 class="modal-title" id="import-title">${localize('import.title')}</h2>
+              <p class="modal-subtitle" id="import-subtitle">${localize('import.subtitle')}</p>
             </div>
           </div>
-          <button class="btn-close" title="Fermer" @click=${this.close}>✕</button>
+          <button type="button" class="btn-close" title=${closeLabel} aria-label=${closeLabel} @click=${this.close}>
+            <span aria-hidden="true">✕</span>
+          </button>
         </div>
 
         <div class="modal-body">
@@ -2127,10 +2451,10 @@ export class HomeArchitectImportModal extends LitElement {
           ${src ? this.renderSourceCard(src) : this.renderDropZone()}
 
           ${this.busy ? html`
-            <div class="busy-box" role="status"><span class="spinner"></span><span>${this.busy}</span></div>
+            <div class="busy-box"><span class="spinner" aria-hidden="true"></span><span>${this.busy()}</span></div>
           ` : nothing}
-          ${this.error ? html`<div class="error-box" role="alert">❌ ${this.error}</div>` : nothing}
-          ${this.hint ? html`<div class="ignored-note">ℹ️ ${this.hint}</div>` : nothing}
+          ${this.error ? html`<div class="error-box" role="alert"><span aria-hidden="true">❌</span> ${this.error()}</div>` : nothing}
+          ${this.hint ? html`<div class="ignored-note"><span aria-hidden="true">ℹ️</span> ${this.hint()}</div>` : nothing}
 
           ${src?.kind === 'svg' ? this.renderSvgOptions(src) : nothing}
           ${src?.kind === 'project' ? this.renderProjectSummary(src) : nothing}
@@ -2139,16 +2463,20 @@ export class HomeArchitectImportModal extends LitElement {
         </div>
 
         <div class="modal-footer">
-          ${blocker ? html`<span class="footer-note">${blocker}</span>` : nothing}
-          <button class="btn-cancel" @click=${this.close}>Annuler</button>
+          ${blocker ? html`<span class="footer-note" id="import-blocker">${blocker}</span>` : nothing}
+          <button type="button" class="btn-cancel" @click=${this.close}>${localize('import.common.cancel')}</button>
           <button
+            type="button"
             class="btn-confirm ${vectorizing ? 'btn-magic' : ''}"
             ?disabled=${blocker !== null}
+            aria-describedby=${blocker ? 'import-blocker' : nothing}
             @click=${this.confirmImport}
           >
             ${this.renderConfirmLabel(src)}
           </button>
         </div>
+
+        ${this.renderLiveRegion(src, vectorizing, blocker)}
       </div>
     `;
   }

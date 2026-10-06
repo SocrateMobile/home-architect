@@ -1,4 +1,4 @@
-import { EntityBinding, Room } from '../core/types';
+import { EntityBinding, Opening, Room } from '../core/types';
 import { bindingDisplayName, entityDomain } from '../core/project-model';
 
 /**
@@ -162,8 +162,18 @@ const CLIMATE_MODES: Record<string, string> = {
 
 const ACTIVE_HVAC_ACTIONS = new Set(['heating', 'cooling', 'drying', 'fan', 'preheating', 'defrosting']);
 
-/** Unités de température reconnues (constat F58 : jamais la sous-chaîne « temp » de l'identifiant). */
-const TEMPERATURE_UNITS = new Set(['°C', '°F', 'K']);
+/**
+ * Domaines dont l'état est l'horodatage du dernier déclenchement : une date complète n'a pas sa place
+ * sous une épingle, le texte court du domaine est affiché.
+ */
+const TIMESTAMP_STATE_DOMAINS = new Set(['scene', 'button', 'input_button']);
+
+/**
+ * Unités qui suffisent, sans device_class, à reconnaître une sonde de température (constat F58 : jamais la
+ * sous-chaîne « temp » de l'identifiant). Le kelvin n'en fait pas partie : c'est aussi l'unité des capteurs
+ * de température de couleur (2 700 K) ; il n'est retenu qu'avec device_class 'temperature'.
+ */
+const TEMPERATURE_UNITS = new Set(['°C', '°F']);
 
 // ------------------------------------------------------------------
 // Utilitaires
@@ -262,7 +272,7 @@ export function toCelsius(value: number, unit: string): number {
 }
 
 /**
- * Température mesurée par une entité : sensor de device_class 'temperature' ou d'unité °C/°F/K, ou
+ * Température mesurée par une entité : sensor de device_class 'temperature' ou d'unité °C/°F, ou
  * current_temperature d'un climate (unité du système). null si l'entité n'en est pas une ou si la
  * valeur n'est pas numérique (unavailable, unknown…).
  */
@@ -514,7 +524,8 @@ export function describeEntity(binding: EntityBinding, hass: HassDisplayContext 
   if (!st) {
     return { ...view, stateText: MISSING_ENTITY_TEXT, status: 'missing', orphan: true, icon: binding.icon || ORPHAN_ICON };
   }
-  if (st.state === 'unavailable' || st.state === 'unknown') {
+  // Scène ou bouton jamais déclenché : 'unknown' est leur état normal (« Prêt »), pas une panne.
+  if (st.state === 'unavailable' || (st.state === 'unknown' && !TIMESTAMP_STATE_DOMAINS.has(domain))) {
     return {
       ...view,
       stateText: haStateText(st, hass) ?? (st.state === 'unavailable' ? 'Indisponible' : 'Inconnu'),
@@ -524,7 +535,7 @@ export function describeEntity(binding: EntityBinding, hass: HassDisplayContext 
   }
 
   const info = domainState(domain, st, binding.entityId, hass);
-  let text = haStateText(st, hass) ?? info.text;
+  let text = (TIMESTAMP_STATE_DOMAINS.has(domain) ? null : haStateText(st, hass)) ?? info.text;
   if (domain === 'light' && st.state === 'on' && text !== info.text) {
     const brightness = toFiniteNumber(attr(st, 'brightness'));
     if (brightness !== null) text = `${text} (${Math.round((brightness / 255) * 100)} %)`;
@@ -547,14 +558,16 @@ export function describeEntity(binding: EntityBinding, hass: HassDisplayContext 
 // Nouveau rendu seulement si une entité affichée change (constat F34)
 // ------------------------------------------------------------------
 
-/** Entités affichées par le plan (épingles). */
-export function boundEntityIds(bindings: readonly EntityBinding[]): string[] {
-  return [...new Set(bindings.filter(b => typeof b.entityId === 'string').map(b => b.entityId))];
+/** Entités affichées par le plan : épingles, et capteurs liés aux ouvertures (dont la vue 3D montre l'état). */
+export function boundEntityIds(bindings: readonly EntityBinding[], openings: readonly Pick<Opening, 'entityId'>[] = []): string[] {
+  const ids = [...bindings.map(b => b.entityId), ...openings.map(o => o.entityId)];
+  return [...new Set(ids.filter((id): id is string => typeof id === 'string'))];
 }
 
 /**
  * Vrai si le passage de `oldHass` à `hass` change l'affichage du plan : état d'une entité liée,
- * langue ou format des nombres, unité de température, registre des entités (précision d'affichage)
+ * langue ou format des nombres, unité de température, registre des entités (précision d'affichage),
+ * formateur d'état de HA (recréé quand des traductions arrivent, jamais à chaque changement d'état)
  * ou mode sombre. Les réglages sont comparés par valeur : seul ce que le plan lit compte.
  */
 export function hassChangeAffects(
@@ -568,7 +581,8 @@ export function hassChangeAffects(
     oldHass.locale?.number_format !== hass.locale?.number_format ||
     oldHass.config?.unit_system?.temperature !== hass.config?.unit_system?.temperature ||
     oldHass.themes?.darkMode !== hass.themes?.darkMode ||
-    oldHass.entities !== hass.entities) {
+    oldHass.entities !== hass.entities ||
+    oldHass.formatEntityState !== hass.formatEntityState) {
     return true;
   }
   const before = oldHass.states;

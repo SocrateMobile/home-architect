@@ -3,11 +3,17 @@ import { state } from 'lit/decorators.js';
 import { live } from 'lit/directives/live.js';
 import { defineElement } from '../core/define';
 import { RoomTemplate } from '../core/types';
+import { LocalizeController, formatNumber, localize } from '../i18n';
+import '../i18n/locales/ui';
+import { uiThemeStyles } from '../styles/theme.styles';
+import { deepActiveElement, focusableElements } from '../panel/a11y';
 
-const PREDEFINED_TEMPLATES: RoomTemplate[] = [
+/** Gabarit de pièce : son nom est traduit au rendu (clé `ui.wizard.template.<id>`). */
+type WizardTemplate = Omit<RoomTemplate, 'name'>;
+
+const PREDEFINED_TEMPLATES: readonly WizardTemplate[] = [
   {
     id: 'living',
-    name: 'Salon / Séjour',
     icon: '🛋️',
     widthMeters: 6.0,
     lengthMeters: 4.5,
@@ -18,7 +24,6 @@ const PREDEFINED_TEMPLATES: RoomTemplate[] = [
   },
   {
     id: 'bedroom',
-    name: 'Chambre',
     icon: '🛏️',
     widthMeters: 4.0,
     lengthMeters: 3.5,
@@ -29,7 +34,6 @@ const PREDEFINED_TEMPLATES: RoomTemplate[] = [
   },
   {
     id: 'kitchen',
-    name: 'Cuisine',
     icon: '🍳',
     widthMeters: 4.0,
     lengthMeters: 3.0,
@@ -40,7 +44,6 @@ const PREDEFINED_TEMPLATES: RoomTemplate[] = [
   },
   {
     id: 'bathroom',
-    name: 'Salle de Bains',
     icon: '🚿',
     widthMeters: 2.5,
     lengthMeters: 2.2,
@@ -51,7 +54,6 @@ const PREDEFINED_TEMPLATES: RoomTemplate[] = [
   },
   {
     id: 'office',
-    name: 'Bureau',
     icon: '💼',
     widthMeters: 3.2,
     lengthMeters: 3.0,
@@ -62,7 +64,6 @@ const PREDEFINED_TEMPLATES: RoomTemplate[] = [
   },
   {
     id: 'custom',
-    name: 'Sur Mesure',
     icon: '📐',
     widthMeters: 5.0,
     lengthMeters: 4.0,
@@ -73,12 +74,12 @@ const PREDEFINED_TEMPLATES: RoomTemplate[] = [
   }
 ];
 
-/** Épaisseurs proposées (mètres) : doivent couvrir celles des gabarits. */
-const THICKNESS_OPTIONS: ReadonlyArray<{ value: number; label: string }> = [
-  { value: 0.10, label: 'Cloison 10 cm' },
-  { value: 0.15, label: 'Mur 15 cm' },
-  { value: 0.20, label: 'Porteur 20 cm' },
-  { value: 0.30, label: 'Extérieur 30 cm' },
+/** Épaisseurs proposées (mètres) : doivent couvrir celles des gabarits. Libellé : `ui.wizard.thickness.<key>`. */
+const THICKNESS_OPTIONS: ReadonlyArray<{ value: number; key: string }> = [
+  { value: 0.10, key: 'partition' },
+  { value: 0.15, key: 'wall' },
+  { value: 0.20, key: 'load_bearing' },
+  { value: 0.30, key: 'exterior' },
 ];
 
 interface MeterLimits {
@@ -91,22 +92,35 @@ const DIMENSION_LIMITS: MeterLimits = { min: 0.5, max: 50 };
 const HEIGHT_LIMITS: MeterLimits = { min: 1.5, max: 10 };
 const DEFAULT_HEIGHT = 2.5;
 const MAX_ROOM_NAME_LENGTH = 80;
+/** Largeurs des ouvertures ajoutées par le panneau (porte standard, fenêtre). */
+const DOOR_WIDTH = 0.90;
+const WINDOW_WIDTH = 1.20;
+
+const TITLE_ID = 'wizard-title';
+const NAME_INPUT_ID = 'wizard-room-name';
+const THICKNESS_SELECT_ID = 'wizard-thickness';
+const DIMENSIONS_ERROR_ID = 'wizard-error-dimensions';
+const HEIGHT_ERROR_ID = 'wizard-error-height';
 
 type NumericField = 'width' | 'length' | 'height';
-
-const FIELD_LABELS: Record<NumericField, string> = {
-  width: 'Largeur',
-  length: 'Longueur',
-  height: 'Hauteur sous plafond',
-};
 
 interface FieldCheck {
   value: number | null;
   error: string | null;
 }
 
+function templateName(tmpl: WizardTemplate): string {
+  return localize(`ui.wizard.template.${tmpl.id}`);
+}
+
+/** Nombre au plus à deux décimales, dans la langue courante (« 4,5 » / « 4.5 »). */
+function formatValue(value: number): string {
+  return formatNumber(value, { maximumFractionDigits: 2 });
+}
+
+/** Longueur en mètres à deux décimales (« 0,90 m » / « 0.90 m »). */
 function formatMeters(value: number): string {
-  return value.toLocaleString('fr-FR', { maximumFractionDigits: 2 });
+  return localize('ui.unit.m', { value: formatNumber(value, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) });
 }
 
 /** Nombre décimal saisi au clavier, avec point ou virgule (« 4,5 », « 4.5 », « ,5 »). */
@@ -115,37 +129,43 @@ const DECIMAL_INPUT = /^-?(?:\d+(?:[.,]\d*)?|[.,]\d+)$/;
 /** Saisie brute -> nombre borné ; accepte la virgule décimale. Ne réécrit jamais le champ. */
 function checkMeters(raw: string, limits: MeterLimits): FieldCheck {
   const text = raw.trim();
-  if (text === '') return { value: null, error: 'Valeur requise' };
-  if (!DECIMAL_INPUT.test(text)) return { value: null, error: 'Nombre invalide' };
+  if (text === '') return { value: null, error: localize('ui.wizard.error.required') };
+  if (!DECIMAL_INPUT.test(text)) return { value: null, error: localize('ui.wizard.error.invalid') };
   const value = Number(text.replace(',', '.'));
   if (!Number.isFinite(value) || value < limits.min || value > limits.max) {
-    return { value: null, error: `Entre ${formatMeters(limits.min)} et ${formatMeters(limits.max)} m` };
+    return { value: null, error: localize('ui.wizard.error.range', { min: formatValue(limits.min), max: formatValue(limits.max) }) };
   }
   return { value, error: null };
 }
 
 export class HomeArchitectWizardModal extends LitElement {
-  static styles = css`
+  static styles = [uiThemeStyles, css`
     :host {
+      --wz-accent-ink: color-mix(in srgb, var(--arch-ui-accent) 55%, var(--arch-ui-text));
+      --wz-hover-bg: color-mix(in srgb, var(--arch-ui-accent) 12%, var(--arch-ui-surface));
+
       position: fixed;
       inset: 0;
-      background: rgba(15, 23, 42, 0.75);
+      background: var(--arch-ui-overlay);
       backdrop-filter: blur(8px);
       display: flex;
       align-items: center;
       justify-content: center;
       z-index: 100;
-      font-family: var(--ha-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
-      color: #f8fafc;
+      font-family: var(--arch-ui-font);
+      color: var(--arch-ui-text);
     }
 
     .modal-card {
       width: 90%;
       max-width: 540px;
-      background: #1e293b;
-      border: 1px solid rgba(255, 255, 255, 0.15);
+      max-height: 92vh;
+      overflow-y: auto;
+      box-sizing: border-box;
+      background: var(--arch-ui-surface);
+      border: 1px solid var(--arch-ui-border);
       border-radius: 18px;
-      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.45);
       padding: 24px;
       display: flex;
       flex-direction: column;
@@ -162,7 +182,7 @@ export class HomeArchitectWizardModal extends LitElement {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      border-bottom: 1px solid var(--arch-ui-border);
       padding-bottom: 12px;
     }
 
@@ -172,20 +192,24 @@ export class HomeArchitectWizardModal extends LitElement {
       display: flex;
       align-items: center;
       gap: 10px;
-      color: #38bdf8;
+      margin: 0;
+      color: var(--arch-ui-text);
     }
 
     .btn-close {
       background: transparent;
       border: none;
-      color: #94a3b8;
+      color: var(--arch-ui-text-muted);
       font-size: 20px;
       cursor: pointer;
       line-height: 1;
+      border-radius: 6px;
+      padding: 2px 6px;
     }
 
     .btn-close:hover {
-      color: #ffffff;
+      color: var(--arch-ui-text);
+      background: var(--arch-ui-surface-2);
     }
 
     .templates-grid {
@@ -194,9 +218,15 @@ export class HomeArchitectWizardModal extends LitElement {
       gap: 10px;
     }
 
+    @media (max-width: 480px) {
+      .templates-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+
     .template-card {
-      background: rgba(15, 23, 42, 0.6);
-      border: 1px solid rgba(255, 255, 255, 0.1);
+      background: var(--arch-ui-bg);
+      border: 1px solid var(--arch-ui-border);
       border-radius: 12px;
       padding: 12px 8px;
       text-align: center;
@@ -206,18 +236,20 @@ export class HomeArchitectWizardModal extends LitElement {
       flex-direction: column;
       align-items: center;
       gap: 6px;
+      color: var(--arch-ui-text);
+      font: inherit;
     }
 
     .template-card:hover {
-      background: rgba(51, 65, 85, 0.8);
-      border-color: #38bdf8;
+      background: var(--wz-hover-bg);
+      border-color: var(--arch-ui-accent);
       transform: translateY(-2px);
     }
 
     .template-card.selected {
-      background: rgba(2, 132, 199, 0.25);
-      border-color: #38bdf8;
-      box-shadow: 0 0 12px rgba(56, 189, 248, 0.3);
+      background: color-mix(in srgb, var(--arch-ui-accent) 20%, var(--arch-ui-surface));
+      border-color: var(--arch-ui-accent);
+      box-shadow: 0 0 12px color-mix(in srgb, var(--arch-ui-accent) 30%, transparent);
     }
 
     .template-icon {
@@ -231,12 +263,12 @@ export class HomeArchitectWizardModal extends LitElement {
 
     .template-dims {
       font-size: 0.72rem;
-      color: #94a3b8;
+      color: var(--arch-ui-text-muted);
     }
 
     .config-section {
-      background: rgba(15, 23, 42, 0.5);
-      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: var(--arch-ui-bg);
+      border: 1px solid var(--arch-ui-border);
       border-radius: 12px;
       padding: 14px;
       display: flex;
@@ -248,12 +280,13 @@ export class HomeArchitectWizardModal extends LitElement {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 12px;
+      flex-wrap: wrap;
+      gap: 8px 12px;
     }
 
     .field-label {
       font-size: 0.85rem;
-      color: #cbd5e1;
+      color: var(--arch-ui-text);
     }
 
     .field-inputs {
@@ -263,11 +296,12 @@ export class HomeArchitectWizardModal extends LitElement {
     }
 
     input[type="text"], select {
-      background: #0f172a;
-      border: 1px solid rgba(255, 255, 255, 0.2);
-      color: #f8fafc;
+      background: var(--arch-ui-surface);
+      border: 1px solid var(--arch-ui-border);
+      color: var(--arch-ui-text);
       padding: 6px 10px;
       border-radius: 6px;
+      font: inherit;
       font-size: 0.85rem;
       width: 75px;
       outline: none;
@@ -275,8 +309,14 @@ export class HomeArchitectWizardModal extends LitElement {
     }
 
     input[type="text"]:focus, select:focus {
-      border-color: #38bdf8;
-      box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.25);
+      border-color: var(--arch-ui-accent);
+      box-shadow: var(--arch-ui-focus-ring);
+    }
+
+    input.name-input {
+      width: 160px;
+      text-align: left;
+      padding-left: 8px;
     }
 
     select {
@@ -286,15 +326,16 @@ export class HomeArchitectWizardModal extends LitElement {
 
     .surface-badge {
       font-weight: 700;
-      color: #38bdf8;
+      color: var(--wz-accent-ink);
       font-family: ui-monospace, SFMono-Regular, monospace;
     }
 
     .checkboxes-row {
       display: flex;
-      gap: 18px;
+      flex-wrap: wrap;
+      gap: 8px 18px;
       font-size: 0.85rem;
-      color: #cbd5e1;
+      color: var(--arch-ui-text);
     }
 
     .checkboxes-row label {
@@ -304,9 +345,14 @@ export class HomeArchitectWizardModal extends LitElement {
       cursor: pointer;
     }
 
+    .checkboxes-row input {
+      accent-color: var(--arch-ui-accent);
+    }
+
     .modal-actions {
       display: flex;
       justify-content: flex-end;
+      flex-wrap: wrap;
       gap: 10px;
       margin-top: 4px;
     }
@@ -314,32 +360,33 @@ export class HomeArchitectWizardModal extends LitElement {
     .btn {
       padding: 9px 18px;
       border-radius: 8px;
+      font: inherit;
       font-size: 0.85rem;
       font-weight: 600;
       cursor: pointer;
       transition: all 0.2s ease;
-      border: none;
+      border: 1px solid transparent;
     }
 
     .btn-cancel {
-      background: rgba(51, 65, 85, 0.7);
-      color: #cbd5e1;
+      background: var(--arch-ui-surface-2);
+      color: var(--arch-ui-text);
+      border-color: var(--arch-ui-border);
     }
 
     .btn-cancel:hover {
-      background: rgba(71, 85, 105, 0.9);
-      color: #ffffff;
+      background: var(--wz-hover-bg);
     }
 
     .btn-create {
-      background: #0284c7;
-      color: #ffffff;
-      border: 1px solid #38bdf8;
-      box-shadow: 0 0 12px rgba(56, 189, 248, 0.35);
+      background: var(--arch-ui-accent);
+      color: var(--arch-ui-accent-text);
+      border-color: var(--arch-ui-accent);
+      box-shadow: 0 0 12px color-mix(in srgb, var(--arch-ui-accent) 35%, transparent);
     }
 
     .btn-create:hover:not(:disabled) {
-      background: #0369a1;
+      background: color-mix(in srgb, var(--arch-ui-accent) 85%, black);
       transform: translateY(-1px);
     }
 
@@ -347,6 +394,13 @@ export class HomeArchitectWizardModal extends LitElement {
       opacity: 0.45;
       cursor: not-allowed;
       box-shadow: none;
+    }
+
+    /* Focus clavier visible même sur les éléments qui portent déjà une ombre (gabarit choisi, bouton principal). */
+    .template-card:focus-visible,
+    .btn:focus-visible {
+      outline: 2px solid var(--arch-ui-accent);
+      outline-offset: 2px;
     }
 
     .field-block {
@@ -358,16 +412,17 @@ export class HomeArchitectWizardModal extends LitElement {
     .field-error {
       align-self: flex-end;
       font-size: 0.75rem;
-      color: #f87171;
+      color: var(--arch-ui-danger);
+      font-weight: 600;
     }
 
     input[aria-invalid="true"] {
-      border-color: #f87171;
+      border-color: var(--arch-ui-danger);
     }
-  `;
+  `];
 
   @state()
-  private selectedTemplate: RoomTemplate = PREDEFINED_TEMPLATES[0];
+  private selectedTemplate: WizardTemplate = PREDEFINED_TEMPLATES[0];
 
   // Saisies brutes : validées et bornées à la confirmation, jamais réécrites pendant la frappe.
   @state()
@@ -395,10 +450,87 @@ export class HomeArchitectWizardModal extends LitElement {
   @state()
   private addWindow: boolean = PREDEFINED_TEMPLATES[0].addWindow;
 
+  /** Nom saisi par l'utilisateur ; null = nom du gabarit, dans la langue courante. */
   @state()
-  private roomName: string = PREDEFINED_TEMPLATES[0].name;
+  private roomName: string | null = null;
 
-  private selectTemplate(tmpl: RoomTemplate) {
+  /** Re-rendu au changement de langue. */
+  private readonly i18n = new LocalizeController(this);
+
+  /** Élément qui avait le focus à l'ouverture (bouton de la barre d'outils) : il le retrouve à la fermeture. */
+  private returnFocusTo: HTMLElement | null = null;
+  private schemeObserver: MutationObserver | null = null;
+
+  connectedCallback() {
+    super.connectedCallback();
+    this.returnFocusTo = deepActiveElement();
+    this.addEventListener('keydown', this.handleKeyDown);
+    this.followHostScheme();
+  }
+
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    this.removeEventListener('keydown', this.handleKeyDown);
+    this.schemeObserver?.disconnect();
+    this.schemeObserver = null;
+    const target = this.returnFocusTo;
+    this.returnFocusTo = null;
+    if (target?.isConnected && target !== document.body) target.focus({ preventScroll: true });
+  }
+
+  protected firstUpdated() {
+    // Focus initial : le gabarit sélectionné (groupe radio parcouru aux flèches).
+    this.renderRoot.querySelector<HTMLElement>('.template-card[aria-checked="true"]')?.focus({ preventScroll: true });
+  }
+
+  /** Reprend le schéma clair/sombre (attribut `scheme`) de l'élément qui contient la modale (le panneau). */
+  private followHostScheme() {
+    const root = this.getRootNode();
+    const themed = root instanceof ShadowRoot ? root.host : null;
+    if (!themed) return;
+    const sync = () => {
+      const scheme = themed.getAttribute('scheme');
+      if (scheme) this.setAttribute('scheme', scheme);
+      else this.removeAttribute('scheme');
+    };
+    sync();
+    this.schemeObserver = new MutationObserver(sync);
+    this.schemeObserver.observe(themed, { attributes: true, attributeFilter: ['scheme'] });
+  }
+
+  /** Échap ferme la modale ; Tab et Maj+Tab restent dans la modale (piège de focus). */
+  private handleKeyDown = (e: KeyboardEvent) => {
+    // Échap pendant une composition (IME) annule seulement la saisie en cours.
+    if (e.key === 'Escape' && !e.isComposing) {
+      e.preventDefault();
+      e.stopPropagation();
+      this.handleClose();
+      return;
+    }
+    if (e.key !== 'Tab') return;
+    const card = this.renderRoot.querySelector<HTMLElement>('.modal-card');
+    if (!card) return;
+    const items = focusableElements(card);
+    if (items.length === 0) {
+      e.preventDefault();
+      return;
+    }
+    const active = this.shadowRoot?.activeElement;
+    const first = items[0];
+    const last = items[items.length - 1];
+    if (!active || !items.includes(active as HTMLElement)) {
+      e.preventDefault();
+      first.focus();
+    } else if (e.shiftKey && active === first) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && active === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  };
+
+  private selectTemplate(tmpl: WizardTemplate) {
     this.selectedTemplate = tmpl;
     this.widthText = String(tmpl.widthMeters);
     this.lengthText = String(tmpl.lengthMeters);
@@ -406,9 +538,37 @@ export class HomeArchitectWizardModal extends LitElement {
     this.thickness = tmpl.wallThickness;
     this.addDoor = tmpl.addDoor;
     this.addWindow = tmpl.addWindow;
-    this.roomName = tmpl.name;
+    this.roomName = null;
     this.touched = {};
     this.submitAttempted = false;
+  }
+
+  /** Gabarits au clavier (groupe radio) : les flèches sélectionnent le gabarit voisin. */
+  private handleTemplateKeyDown(e: KeyboardEvent) {
+    const index = PREDEFINED_TEMPLATES.indexOf(this.selectedTemplate);
+    let next: number;
+    switch (e.key) {
+      case 'ArrowRight':
+      case 'ArrowDown':
+        next = (index + 1) % PREDEFINED_TEMPLATES.length;
+        break;
+      case 'ArrowLeft':
+      case 'ArrowUp':
+        next = (index - 1 + PREDEFINED_TEMPLATES.length) % PREDEFINED_TEMPLATES.length;
+        break;
+      case 'Home':
+        next = 0;
+        break;
+      case 'End':
+        next = PREDEFINED_TEMPLATES.length - 1;
+        break;
+      default:
+        return;
+    }
+    e.preventDefault();
+    this.selectTemplate(PREDEFINED_TEMPLATES[next]);
+    void this.updateComplete.then(() =>
+      this.renderRoot.querySelector<HTMLElement>('.template-card[aria-checked="true"]')?.focus());
   }
 
   private checkFields(): Record<NumericField, FieldCheck> {
@@ -433,7 +593,8 @@ export class HomeArchitectWizardModal extends LitElement {
       this.submitAttempted = true;
       return;
     }
-    const name = (this.roomName.trim() || this.selectedTemplate.name).slice(0, MAX_ROOM_NAME_LENGTH);
+    const defaultName = templateName(this.selectedTemplate);
+    const name = ((this.roomName ?? defaultName).trim() || defaultName).slice(0, MAX_ROOM_NAME_LENGTH);
     this.dispatchEvent(new CustomEvent('create-room', {
       detail: {
         name,
@@ -451,15 +612,21 @@ export class HomeArchitectWizardModal extends LitElement {
     }));
   }
 
-  private renderMetersInput(field: NumericField, value: string, check: FieldCheck, limits: MeterLimits, onInput: (v: string) => void) {
+  /** `errorId` : identifiant du message d'erreur affiché pour ce champ (aria-describedby), s'il y en a un. */
+  private renderMetersInput(field: NumericField, value: string, check: FieldCheck, limits: MeterLimits, errorId: string | null, onInput: (v: string) => void) {
     const showError = check.error !== null && (this.touched[field] || this.submitAttempted);
     return html`
       <input
         type="text"
         inputmode="decimal"
         autocomplete="off"
-        aria-label=${`${FIELD_LABELS[field]} (${formatMeters(limits.min)} à ${formatMeters(limits.max)} m)`}
+        aria-label=${localize('ui.wizard.field_range', {
+          field: localize(`ui.wizard.field.${field}`),
+          min: formatValue(limits.min),
+          max: formatValue(limits.max),
+        })}
         aria-invalid=${showError ? 'true' : 'false'}
+        aria-describedby=${errorId ?? nothing}
         .value=${live(value)}
         @input=${(e: Event) => onInput((e.target as HTMLInputElement).value)}
         @change=${() => this.markTouched(field)}
@@ -468,9 +635,12 @@ export class HomeArchitectWizardModal extends LitElement {
   }
 
   /** Première erreur à afficher parmi les champs d'une ligne (champ quitté, ou tentative de validation). */
-  private renderFieldError(...entries: Array<[NumericField, FieldCheck]>) {
-    const shown = entries.find(([field, check]) => check.error !== null && (this.touched[field] || this.submitAttempted));
-    return shown ? html`<span class="field-error" role="alert">${shown[1].error}</span>` : nothing;
+  private shownError(...entries: Array<[NumericField, FieldCheck]>): [NumericField, FieldCheck] | undefined {
+    return entries.find(([field, check]) => check.error !== null && (this.touched[field] || this.submitAttempted));
+  }
+
+  private renderFieldError(id: string, shown: [NumericField, FieldCheck] | undefined) {
+    return shown ? html`<span class="field-error" id=${id} role="alert">${shown[1].error}</span>` : nothing;
   }
 
   private handleClose() {
@@ -484,119 +654,157 @@ export class HomeArchitectWizardModal extends LitElement {
     const fields = this.checkFields();
     const isValid = fields.width.value !== null && fields.length.value !== null && fields.height.value !== null;
     const areaM2 = fields.width.value !== null && fields.length.value !== null
-      ? (fields.width.value * fields.length.value).toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+      ? formatNumber(fields.width.value * fields.length.value, { minimumFractionDigits: 1, maximumFractionDigits: 1 })
       : '—';
     const thicknessValue = this.thickness.toFixed(2);
+    const defaultName = templateName(this.selectedTemplate);
+    const dimensionsError = this.shownError(['width', fields.width], ['length', fields.length]);
+    const heightError = this.shownError(['height', fields.height]);
+    const errorIdFor = (field: NumericField, shown: [NumericField, FieldCheck] | undefined, id: string) =>
+      shown?.[0] === field ? id : null;
 
     return html`
-      <form class="modal-card" novalidate @submit=${this.handleSubmit}>
+      <form
+        class="modal-card"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby=${TITLE_ID}
+        novalidate
+        @submit=${this.handleSubmit}
+      >
         <div class="modal-header">
-          <div class="modal-title">
-            <span>🪄</span>
-            <span>Assistant Création de Pièce</span>
-          </div>
-          <button type="button" class="btn-close" title="Fermer" @click=${this.handleClose}>✕</button>
+          <h2 class="modal-title" id=${TITLE_ID}>
+            <span aria-hidden="true">🪄</span>
+            <span>${localize('ui.wizard.title')}</span>
+          </h2>
+          <button
+            type="button"
+            class="btn-close"
+            title=${localize('ui.common.close')}
+            aria-label=${localize('ui.common.close')}
+            @click=${this.handleClose}
+          ><span aria-hidden="true">✕</span></button>
         </div>
 
         <!-- Gabarits prédéfinis -->
-        <div class="templates-grid">
-          ${PREDEFINED_TEMPLATES.map((tmpl) => html`
-            <div 
-              class="template-card ${this.selectedTemplate.id === tmpl.id ? 'selected' : ''}"
-              @click=${() => this.selectTemplate(tmpl)}
-            >
-              <div class="template-icon">${tmpl.icon}</div>
-              <div class="template-name">${tmpl.name}</div>
-              <div class="template-dims">${formatMeters(tmpl.widthMeters)} m × ${formatMeters(tmpl.lengthMeters)} m</div>
-            </div>
-          `)}
+        <div
+          class="templates-grid"
+          role="radiogroup"
+          aria-label=${localize('ui.wizard.templates')}
+          @keydown=${this.handleTemplateKeyDown}
+        >
+          ${PREDEFINED_TEMPLATES.map((tmpl) => {
+            const selected = this.selectedTemplate.id === tmpl.id;
+            return html`
+              <button
+                type="button"
+                class="template-card ${selected ? 'selected' : ''}"
+                role="radio"
+                aria-checked=${selected ? 'true' : 'false'}
+                tabindex=${selected ? 0 : -1}
+                @click=${() => this.selectTemplate(tmpl)}
+              >
+                <span class="template-icon" aria-hidden="true">${tmpl.icon}</span>
+                <span class="template-name">${templateName(tmpl)}</span>
+                <span class="template-dims">${localize('ui.wizard.template_dims', {
+                  width: formatValue(tmpl.widthMeters),
+                  length: formatValue(tmpl.lengthMeters),
+                })}</span>
+              </button>
+            `;
+          })}
         </div>
 
         <!-- Paramétrage précis des dimensions -->
         <div class="config-section">
           <div class="field-row">
-            <span class="field-label">Nom de la pièce :</span>
-            <input 
-              type="text" 
-              style="width: 160px; text-align: left; padding-left: 8px;"
+            <label class="field-label" for=${NAME_INPUT_ID}>${localize('ui.wizard.room_name')}</label>
+            <input
+              id=${NAME_INPUT_ID}
+              type="text"
+              class="name-input"
               maxlength=${MAX_ROOM_NAME_LENGTH}
-              placeholder=${this.selectedTemplate.name}
-              .value=${live(this.roomName)}
+              placeholder=${defaultName}
+              .value=${live(this.roomName ?? defaultName)}
               @input=${(e: Event) => this.roomName = (e.target as HTMLInputElement).value}
             />
           </div>
 
           <div class="field-block">
-            <div class="field-row">
-              <span class="field-label">Dimensions (Largeur × Longueur) :</span>
+            <div class="field-row" role="group" aria-labelledby="wizard-dimensions-label">
+              <span class="field-label" id="wizard-dimensions-label">${localize('ui.wizard.dimensions')}</span>
               <div class="field-inputs">
-                ${this.renderMetersInput('width', this.widthText, fields.width, DIMENSION_LIMITS, v => this.widthText = v)}
-                <span>m ×</span>
-                ${this.renderMetersInput('length', this.lengthText, fields.length, DIMENSION_LIMITS, v => this.lengthText = v)}
-                <span>m</span>
+                ${this.renderMetersInput('width', this.widthText, fields.width, DIMENSION_LIMITS,
+                  errorIdFor('width', dimensionsError, DIMENSIONS_ERROR_ID), v => this.widthText = v)}
+                <span aria-hidden="true">${localize('ui.wizard.unit_times')}</span>
+                ${this.renderMetersInput('length', this.lengthText, fields.length, DIMENSION_LIMITS,
+                  errorIdFor('length', dimensionsError, DIMENSIONS_ERROR_ID), v => this.lengthText = v)}
+                <span aria-hidden="true">${localize('ui.wizard.unit_m')}</span>
               </div>
             </div>
-            ${this.renderFieldError(['width', fields.width], ['length', fields.length])}
+            ${this.renderFieldError(DIMENSIONS_ERROR_ID, dimensionsError)}
           </div>
 
           <div class="field-row">
-            <span class="field-label">Superficie calculée :</span>
-            <span class="surface-badge">${areaM2} m²</span>
+            <span class="field-label">${localize('ui.wizard.area')}</span>
+            <span class="surface-badge" aria-live="polite">${localize('ui.unit.m2', { value: areaM2 })}</span>
           </div>
 
           <div class="field-block">
-            <div class="field-row">
-              <span class="field-label">Hauteur sous plafond (3D) :</span>
+            <div class="field-row" role="group" aria-labelledby="wizard-height-label">
+              <span class="field-label" id="wizard-height-label">${localize('ui.wizard.height')}</span>
               <div class="field-inputs">
-                ${this.renderMetersInput('height', this.heightText, fields.height, HEIGHT_LIMITS, v => this.heightText = v)}
-                <span>m</span>
+                ${this.renderMetersInput('height', this.heightText, fields.height, HEIGHT_LIMITS,
+                  errorIdFor('height', heightError, HEIGHT_ERROR_ID), v => this.heightText = v)}
+                <span aria-hidden="true">${localize('ui.wizard.unit_m')}</span>
               </div>
             </div>
-            ${this.renderFieldError(['height', fields.height])}
+            ${this.renderFieldError(HEIGHT_ERROR_ID, heightError)}
           </div>
 
           <div class="field-row">
-            <span class="field-label">Épaisseur des murs :</span>
-            <select 
+            <label class="field-label" for=${THICKNESS_SELECT_ID}>${localize('ui.wizard.thickness')}</label>
+            <select
+              id=${THICKNESS_SELECT_ID}
               .value=${live(thicknessValue)}
               @change=${(e: Event) => this.thickness = parseFloat((e.target as HTMLSelectElement).value)}
             >
               ${THICKNESS_OPTIONS.map(opt => html`
-                <option value=${opt.value.toFixed(2)} ?selected=${opt.value.toFixed(2) === thicknessValue}>${opt.label}</option>
+                <option value=${opt.value.toFixed(2)} ?selected=${opt.value.toFixed(2) === thicknessValue}>${localize(`ui.wizard.thickness.${opt.key}`)}</option>
               `)}
             </select>
           </div>
 
           <div class="checkboxes-row">
             <label>
-              <input 
-                type="checkbox" 
-                .checked=${live(this.addDoor)} 
+              <input
+                type="checkbox"
+                .checked=${live(this.addDoor)}
                 @change=${(e: Event) => this.addDoor = (e.target as HTMLInputElement).checked}
               />
-              <span>Porte standard (0.90 m)</span>
+              <span>${localize('ui.wizard.add_door', { width: formatMeters(DOOR_WIDTH) })}</span>
             </label>
 
             <label>
-              <input 
-                type="checkbox" 
-                .checked=${live(this.addWindow)} 
+              <input
+                type="checkbox"
+                .checked=${live(this.addWindow)}
                 @change=${(e: Event) => this.addWindow = (e.target as HTMLInputElement).checked}
               />
-              <span>Fenêtre (1.20 m)</span>
+              <span>${localize('ui.wizard.add_window', { width: formatMeters(WINDOW_WIDTH) })}</span>
             </label>
           </div>
         </div>
 
         <div class="modal-actions">
-          <button type="button" class="btn btn-cancel" @click=${this.handleClose}>Annuler</button>
+          <button type="button" class="btn btn-cancel" @click=${this.handleClose}>${localize('ui.common.cancel')}</button>
           <button
             type="submit"
             class="btn btn-create"
             ?disabled=${!isValid}
-            title=${isValid ? 'Générer la pièce sur le plan' : 'Corrigez les dimensions pour continuer'}
+            title=${localize(isValid ? 'ui.wizard.create' : 'ui.wizard.fix_dimensions')}
           >
-            Générer la pièce sur le plan
+            ${localize('ui.wizard.create')}
           </button>
         </div>
       </form>

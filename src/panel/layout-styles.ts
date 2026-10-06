@@ -2,7 +2,7 @@
  * Mise en page du studio dans Home Assistant (constat F60) : bouton de la barre latérale de HA,
  * barre supérieure qui passe à la ligne au lieu de déborder, mode étroit (mobile) avec icônes
  * seules, badge de version (dialogue « À propos ») et commandes ajoutées au HUD de sélection.
- * Complète les styles du panneau (classes .top-bar, .selection-hud…).
+ * Complète les styles du panneau (classes .top-bar, .selection-hud…) avec les mêmes jetons de thème.
  */
 import { css } from 'lit';
 
@@ -20,13 +20,13 @@ export const studioLayoutStyles = css`
     background: transparent;
     border: none;
     border-radius: 50%;
-    color: #f1f5f9;
+    color: var(--arch-ui-text);
     cursor: pointer;
   }
 
   .ha-menu-btn:hover,
   .ha-menu-btn:focus-visible {
-    background: rgba(255, 255, 255, 0.1);
+    background: var(--studio-hover);
   }
 
   /* Barre supérieure : les groupes passent à la ligne au lieu d'être coupés */
@@ -50,14 +50,8 @@ export const studioLayoutStyles = css`
 
   button.brand-version:hover,
   button.brand-version:focus-visible {
-    border-color: #38bdf8;
-    color: #e0f2fe;
-  }
-
-  .toast-notification {
-    max-width: calc(100% - 24px);
-    box-sizing: border-box;
-    text-align: center;
+    border-color: var(--arch-ui-accent);
+    color: var(--arch-ui-text);
   }
 
   /* HUD : couleur des meubles, commandes désactivées en lecture seule */
@@ -72,7 +66,7 @@ export const studioLayoutStyles = css`
     width: 28px;
     height: 22px;
     padding: 0;
-    border: 1px solid rgba(255, 255, 255, 0.25);
+    border: 1px solid var(--arch-ui-border);
     border-radius: 4px;
     background: transparent;
     cursor: pointer;

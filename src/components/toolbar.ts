@@ -1,9 +1,12 @@
 import { LitElement, html, css, nothing, svg, PropertyValues, TemplateResult } from 'lit';
 import { property, state } from 'lit/decorators.js';
-import { live } from 'lit/directives/live.js';
 import { defineElement } from '../core/define';
 import { GRID_SIZE_PRESETS } from '../core/snapping';
 import { ActiveTool, GridConfig } from '../core/types';
+import { LocalizeController, formatNumber, localize } from '../i18n';
+import '../i18n/locales/ui';
+import { uiThemeStyles } from '../styles/theme.styles';
+import { focusMenuItem, handleMenuKeydown } from '../panel/a11y';
 
 /**
  * Raccourcis clavier des outils (touche seule, sans modificateur), affichés dans les infobulles.
@@ -27,10 +30,19 @@ const EDGE_MARGIN = 8;
 const FLYOUT_GAP = 10;
 const FLYOUT_WIDTH = 300;
 const MIN_TOOLBAR_HEIGHT = 120;
+/** Déplacement de la barre au clavier (flèches de la poignée), en pixels ; Maj : pas large. */
+const KEYBOARD_MOVE_STEP = 10;
+const KEYBOARD_MOVE_STEP_LARGE = 40;
+
+const FLYOUT_ID = 'toolbar-flyout';
+const FLYOUT_TITLE_ID = 'toolbar-flyout-title';
+const GRID_HINT_ID = 'toolbar-grid-hint';
 
 type Position = { x: number; y: number };
 type Submenu = 'none' | 'door' | 'window' | 'wall' | 'room' | 'grid';
+type OpenSubmenu = Exclude<Submenu, 'none'>;
 type RoomTool = 'room' | 'rect_room';
+type SnapKey = 'snapToGrid' | 'snapToAngles' | 'snapToElements';
 
 function sameMeasure(a: number, b: number): boolean {
   return Math.abs(a - b) < 1e-6;
@@ -40,9 +52,21 @@ function clamp(v: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, v));
 }
 
-/** Libellé d'un pas de grille : centimètres sous 1 m (« 5 cm », « 12.5 cm »), mètres au-delà (« 1 m »). */
+/** Longueur en centimètres arrondis (« 90 cm »), à partir de mètres. */
+function formatCentimeters(meters: number): string {
+  return localize('ui.unit.cm', { value: formatNumber(Number((meters * 100).toFixed(1)), { maximumFractionDigits: 1 }) });
+}
+
+/** Longueur en mètres à deux décimales (« 1,40 m » / « 1.40 m »). */
+function formatMeters(meters: number): string {
+  return localize('ui.unit.m', { value: formatNumber(meters, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) });
+}
+
+/** Libellé d'un pas de grille : centimètres sous 1 m (« 5 cm », « 12,5 cm »), mètres au-delà (« 1 m »). */
 function gridSizeLabel(size: number): string {
-  return size < 1 ? `${Number((size * 100).toFixed(1))} cm` : `${Number(size.toFixed(2))} m`;
+  return size < 1
+    ? formatCentimeters(size)
+    : localize('ui.unit.m', { value: formatNumber(size, { maximumFractionDigits: 2 }) });
 }
 
 function readStoredPosition(): Position | null {
@@ -74,10 +98,40 @@ function writeStoredPosition(position: Position | null): void {
 const ROOM_POLYGON_ICON = svg`<polygon points="4,18 3,7 11,3 20,7 19,18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>`;
 const ROOM_RECT_ICON = svg`<rect x="3.5" y="5.5" width="17" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-dasharray="3 2"/>`;
 const GRID_ICON = svg`<path d="M3 3h18v18H3zM9 3v18M15 3v18M3 9h18M3 15h18" fill="none" stroke="currentColor" stroke-width="1.5"/>`;
+const CHECK_ICON = svg`<path d="M3.5 8.5l3 3 6-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`;
+
+/** Bouton d'outil de la barre (voir renderTool). */
+interface ToolButton {
+  /** Contenu visuel (emoji ou icône SVG), masqué aux technologies d'assistance. */
+  icon: TemplateResult | string;
+  /** Nom accessible (sans emoji). */
+  label: string;
+  /** Infobulle (libellé détaillé). */
+  title: string;
+  onClick: (e: MouseEvent) => void;
+  /** État enfoncé (outil actif) ; absent pour une simple action. */
+  pressed?: boolean;
+  /** Sous-menu ouvert par le bouton. */
+  submenu?: OpenSubmenu;
+  disabled?: boolean;
+  /** Raccourci clavier (aria-keyshortcuts). */
+  shortcut?: string;
+  className?: string;
+}
 
 export class HomeArchitectToolbar extends LitElement {
-  static styles = css`
+  static styles = [uiThemeStyles, css`
     :host {
+      /* Couleurs dérivées des jetons du thème (src/styles/theme.styles.ts) */
+      --tb-bg: color-mix(in srgb, var(--arch-ui-surface) 95%, transparent);
+      --tb-flyout-bg: color-mix(in srgb, var(--arch-ui-surface) 97%, transparent);
+      --tb-item-bg: color-mix(in srgb, var(--arch-ui-surface-2) 55%, transparent);
+      --tb-hover-bg: color-mix(in srgb, var(--arch-ui-accent) 14%, transparent);
+      --tb-selected-bg: color-mix(in srgb, var(--arch-ui-accent) 22%, transparent);
+      --tb-accent-ink: color-mix(in srgb, var(--arch-ui-accent) 55%, var(--arch-ui-text));
+      /* Texte secondaire posé sur les éléments de sous-menu (fond plus foncé que la surface) : renforcé (4,5:1). */
+      --tb-muted-ink: color-mix(in srgb, var(--arch-ui-text-muted) 75%, var(--arch-ui-text));
+
       position: absolute;
       left: 20px;
       top: 20px;
@@ -86,32 +140,45 @@ export class HomeArchitectToolbar extends LitElement {
       gap: 5px;
       box-sizing: border-box;
       max-height: calc(100% - 16px);
-      background: rgba(30, 41, 59, 0.95);
+      background: var(--tb-bg);
       backdrop-filter: blur(16px);
-      border: 1px solid rgba(255, 255, 255, 0.14);
+      border: 1px solid var(--arch-ui-border);
       border-radius: 14px;
       padding: 6px 6px 8px 6px;
-      box-shadow: 0 12px 36px rgba(0, 0, 0, 0.5), 0 0 15px rgba(2, 132, 199, 0.2);
+      box-shadow: 0 12px 36px rgba(0, 0, 0, 0.35);
       z-index: 40;
       user-select: none;
       touch-action: none;
+      color: var(--arch-ui-text);
+      font-family: var(--arch-ui-font);
+    }
+
+    /* Sous-menu ouvert : la barre passe au-dessus des HUD du canevas (z-index 50) pour ne pas être masquée. */
+    :host([menu-open]) {
+      z-index: 65;
     }
 
     .drag-handle {
       height: 18px;
+      width: 100%;
       display: flex;
       align-items: center;
       justify-content: center;
       cursor: grab;
-      color: #64748b;
+      color: var(--arch-ui-text-muted);
+      background: transparent;
+      border: none;
+      padding: 0;
+      font: inherit;
       border-radius: 6px;
       transition: all 0.2s ease;
       margin-bottom: 2px;
+      touch-action: none;
     }
 
     .drag-handle:hover, .drag-handle.dragging {
-      color: #38bdf8;
-      background: rgba(56, 189, 248, 0.15);
+      color: var(--tb-accent-ink);
+      background: var(--tb-hover-bg);
     }
 
     .drag-handle.dragging {
@@ -129,8 +196,9 @@ export class HomeArchitectToolbar extends LitElement {
       overflow-x: hidden;
       overscroll-behavior: contain;
       scrollbar-width: thin;
-      padding: 2px;
-      margin: -2px;
+      /* Marge intérieure : le contour de focus (2 px, décalé de 2 px) n'est pas rogné par le défilement. */
+      padding: 2px 4px;
+      margin: -2px -4px;
     }
 
     .read-only-badge {
@@ -150,37 +218,48 @@ export class HomeArchitectToolbar extends LitElement {
 
     .tool-btn {
       background: transparent;
-      color: #94a3b8;
+      color: var(--arch-ui-text-muted);
       border: 1px solid transparent;
       border-radius: 10px;
       width: 42px;
       height: 42px;
+      padding: 0;
       display: flex;
       align-items: center;
       justify-content: center;
       cursor: pointer;
+      font: inherit;
       font-size: 19px;
       transition: all 0.2s ease;
       position: relative;
+      flex-shrink: 0;
     }
 
     .tool-btn:hover:not(:disabled) {
-      background: rgba(51, 65, 85, 0.8);
-      color: #f8fafc;
+      background: var(--arch-ui-surface-2);
+      color: var(--arch-ui-text);
       transform: scale(1.05);
     }
 
     .tool-btn.active {
-      background: #0284c7;
-      color: #ffffff;
-      border-color: #38bdf8;
-      box-shadow: 0 0 12px rgba(56, 189, 248, 0.4);
+      background: var(--arch-ui-accent);
+      color: var(--arch-ui-accent-text);
+      border-color: var(--arch-ui-accent);
+      box-shadow: 0 0 12px color-mix(in srgb, var(--arch-ui-accent) 40%, transparent);
+    }
+
+    .tool-btn.active:hover:not(:disabled) {
+      background: var(--arch-ui-accent);
+      color: var(--arch-ui-accent-text);
     }
 
     .tool-btn.menu-open {
-      border-color: #38bdf8;
-      box-shadow: 0 0 14px rgba(56, 189, 248, 0.6);
-      background: rgba(2, 132, 199, 0.4);
+      border-color: var(--arch-ui-accent);
+      box-shadow: 0 0 14px color-mix(in srgb, var(--arch-ui-accent) 50%, transparent);
+    }
+
+    .tool-btn.menu-open:not(.active) {
+      background: var(--tb-selected-bg);
     }
 
     .submenu-indicator {
@@ -193,14 +272,14 @@ export class HomeArchitectToolbar extends LitElement {
     }
 
     .tool-btn.highlight {
-      background: rgba(245, 158, 11, 0.15);
-      border-color: rgba(245, 158, 11, 0.4);
-      color: #f59e0b;
+      background: color-mix(in srgb, var(--arch-ui-warning) 15%, transparent);
+      border-color: color-mix(in srgb, var(--arch-ui-warning) 45%, transparent);
+      color: var(--arch-ui-warning);
     }
 
     .tool-btn.highlight:hover:not(:disabled) {
-      background: #f59e0b;
-      color: #ffffff;
+      background: color-mix(in srgb, var(--arch-ui-warning) 35%, transparent);
+      color: var(--arch-ui-text);
     }
 
     .tool-btn:disabled {
@@ -217,7 +296,8 @@ export class HomeArchitectToolbar extends LitElement {
 
     .divider {
       height: 1px;
-      background: rgba(255, 255, 255, 0.1);
+      flex-shrink: 0;
+      background: var(--arch-ui-border);
       margin: 3px 2px;
     }
 
@@ -229,12 +309,12 @@ export class HomeArchitectToolbar extends LitElement {
       box-sizing: border-box;
       overflow-y: auto;
       overscroll-behavior: contain;
-      background: rgba(15, 23, 42, 0.96);
+      background: var(--tb-flyout-bg);
       backdrop-filter: blur(20px);
-      border: 1.5px solid rgba(56, 189, 248, 0.45);
+      border: 1.5px solid color-mix(in srgb, var(--arch-ui-accent) 45%, transparent);
       border-radius: 14px;
       padding: 10px;
-      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.7), 0 0 25px rgba(56, 189, 248, 0.25);
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.4);
       z-index: 60;
       width: 300px;
       display: flex;
@@ -242,6 +322,12 @@ export class HomeArchitectToolbar extends LitElement {
       gap: 6px;
       animation: flyoutIn 0.18s ease-out;
       user-select: none;
+    }
+
+    .flyout-items {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
     }
 
     @keyframes flyoutIn {
@@ -254,14 +340,14 @@ export class HomeArchitectToolbar extends LitElement {
       align-items: center;
       justify-content: space-between;
       padding: 2px 4px 6px 4px;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      border-bottom: 1px solid var(--arch-ui-border);
       margin-bottom: 2px;
     }
 
     .flyout-title {
       font-size: 0.8rem;
       font-weight: 700;
-      color: #38bdf8;
+      color: var(--tb-accent-ink);
       text-transform: uppercase;
       letter-spacing: 0.5px;
       display: flex;
@@ -272,7 +358,7 @@ export class HomeArchitectToolbar extends LitElement {
     .flyout-close-btn {
       background: transparent;
       border: none;
-      color: #94a3b8;
+      color: var(--arch-ui-text-muted);
       cursor: pointer;
       font-size: 14px;
       padding: 2px 5px;
@@ -281,8 +367,8 @@ export class HomeArchitectToolbar extends LitElement {
     }
 
     .flyout-close-btn:hover {
-      color: #ffffff;
-      background: rgba(255, 255, 255, 0.1);
+      color: var(--arch-ui-text);
+      background: var(--arch-ui-surface-2);
     }
 
     .flyout-item {
@@ -291,9 +377,9 @@ export class HomeArchitectToolbar extends LitElement {
       gap: 10px;
       padding: 8px 10px;
       border-radius: 10px;
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      background: rgba(30, 41, 59, 0.65);
-      color: #e2e8f0;
+      border: 1px solid var(--arch-ui-border);
+      background: var(--tb-item-bg);
+      color: var(--arch-ui-text);
       cursor: pointer;
       transition: all 0.15s ease;
       text-align: left;
@@ -303,31 +389,39 @@ export class HomeArchitectToolbar extends LitElement {
     }
 
     .flyout-item:hover {
-      background: rgba(56, 189, 248, 0.18);
-      border-color: rgba(56, 189, 248, 0.5);
-      color: #ffffff;
+      background: var(--tb-hover-bg);
+      border-color: color-mix(in srgb, var(--arch-ui-accent) 50%, transparent);
       transform: translateX(2px);
     }
 
     .flyout-item.active {
-      background: rgba(2, 132, 199, 0.35);
-      border-color: #38bdf8;
-      color: #ffffff;
-      box-shadow: 0 0 12px rgba(56, 189, 248, 0.35);
+      background: var(--tb-selected-bg);
+      border-color: var(--arch-ui-accent);
+      box-shadow: 0 0 12px color-mix(in srgb, var(--arch-ui-accent) 30%, transparent);
     }
 
     .flyout-item-icon {
       width: 34px;
       height: 34px;
       border-radius: 8px;
-      background: rgba(15, 23, 42, 0.85);
-      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: var(--arch-ui-bg);
+      border: 1px solid var(--arch-ui-border);
+      color: var(--arch-ui-accent);
       display: flex;
       align-items: center;
       justify-content: center;
       flex-shrink: 0;
       font-size: 16px;
     }
+
+    /* Pictogrammes des sous-menus (couleurs du thème) */
+    .ico-wall { stroke: var(--arch-ui-text-muted); }
+    .ico-frame { stroke: var(--arch-ui-text-muted); }
+    .ico-leaf { stroke: var(--arch-ui-accent); }
+    .ico-hinge { fill: var(--arch-ui-warning); }
+    .ico-fill { fill: var(--arch-ui-accent); }
+    .ico-fill-muted { fill: var(--arch-ui-text-muted); }
+    .ico-fill-strong { fill: color-mix(in srgb, var(--arch-ui-accent) 75%, black); stroke: var(--arch-ui-accent); }
 
     .flyout-item-content {
       display: flex;
@@ -339,13 +433,13 @@ export class HomeArchitectToolbar extends LitElement {
     .flyout-item-label {
       font-size: 0.84rem;
       font-weight: 700;
-      color: #f1f5f9;
+      color: var(--arch-ui-text);
       line-height: 1.25;
     }
 
     .flyout-item-sub {
       font-size: 0.72rem;
-      color: #94a3b8;
+      color: var(--tb-muted-ink);
       margin-top: 2px;
       line-height: 1.25;
     }
@@ -353,10 +447,16 @@ export class HomeArchitectToolbar extends LitElement {
     .flyout-section-label {
       font-size: 0.72rem;
       font-weight: 700;
-      color: #94a3b8;
+      color: var(--arch-ui-text-muted);
       text-transform: uppercase;
       letter-spacing: 0.4px;
       padding: 4px 4px 0 4px;
+    }
+
+    .flyout-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
     }
 
     .grid-sizes {
@@ -366,10 +466,10 @@ export class HomeArchitectToolbar extends LitElement {
     }
 
     .grid-size-btn {
-      background: rgba(30, 41, 59, 0.65);
-      border: 1px solid rgba(255, 255, 255, 0.1);
+      background: var(--tb-item-bg);
+      border: 1px solid var(--arch-ui-border);
       border-radius: 8px;
-      color: #e2e8f0;
+      color: var(--arch-ui-text);
       font: inherit;
       font-size: 0.76rem;
       font-weight: 700;
@@ -379,14 +479,13 @@ export class HomeArchitectToolbar extends LitElement {
     }
 
     .grid-size-btn:hover {
-      border-color: rgba(56, 189, 248, 0.5);
-      background: rgba(56, 189, 248, 0.18);
+      border-color: color-mix(in srgb, var(--arch-ui-accent) 50%, transparent);
+      background: var(--tb-hover-bg);
     }
 
     .grid-size-btn.active {
-      background: rgba(2, 132, 199, 0.35);
-      border-color: #38bdf8;
-      color: #ffffff;
+      background: var(--tb-selected-bg);
+      border-color: var(--arch-ui-accent);
     }
 
     .flyout-toggle {
@@ -395,23 +494,50 @@ export class HomeArchitectToolbar extends LitElement {
       gap: 10px;
       padding: 7px 10px;
       border-radius: 10px;
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      background: rgba(30, 41, 59, 0.65);
+      border: 1px solid var(--arch-ui-border);
+      background: var(--tb-item-bg);
+      color: var(--arch-ui-text);
       cursor: pointer;
       flex-shrink: 0;
+      width: 100%;
+      font: inherit;
+      text-align: left;
     }
 
-    .flyout-toggle input {
+    .flyout-toggle:hover {
+      background: var(--tb-hover-bg);
+    }
+
+    /* Case à cocher dessinée (l'état est porté par aria-checked du menuitemcheckbox) */
+    .check-box {
       width: 16px;
       height: 16px;
-      accent-color: #0284c7;
       flex-shrink: 0;
-      margin: 0;
+      box-sizing: border-box;
+      border: 1.5px solid var(--arch-ui-text-muted);
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: transparent;
+      background: var(--arch-ui-surface);
+    }
+
+    .check-box svg {
+      width: 12px;
+      height: 12px;
+      display: block;
+    }
+
+    .flyout-toggle[aria-checked='true'] .check-box {
+      background: var(--arch-ui-accent);
+      border-color: var(--arch-ui-accent);
+      color: var(--arch-ui-accent-text);
     }
 
     .flyout-hint {
       font-size: 0.7rem;
-      color: #64748b;
+      color: var(--arch-ui-text-muted);
       padding: 0 4px;
       line-height: 1.3;
     }
@@ -437,18 +563,28 @@ export class HomeArchitectToolbar extends LitElement {
       height: 19px;
     }
 
+    /* Focus clavier visible même sur les éléments qui portent déjà une ombre (outil actif, choix courant). */
+    .tool-btn:focus-visible,
+    .flyout-item:focus-visible,
+    .grid-size-btn:focus-visible,
+    .flyout-toggle:focus-visible,
+    .drag-handle:focus-visible {
+      outline: 2px solid var(--arch-ui-accent);
+      outline-offset: 2px;
+    }
+
     .flyout-item-badge {
       font-size: 0.72rem;
       font-weight: 700;
       font-family: ui-monospace, SFMono-Regular, monospace;
       padding: 3px 8px;
       border-radius: 6px;
-      background: rgba(15, 23, 42, 0.85);
-      border: 1px solid rgba(56, 189, 248, 0.35);
-      color: #38bdf8;
+      background: var(--arch-ui-bg);
+      border: 1px solid color-mix(in srgb, var(--arch-ui-accent) 35%, transparent);
+      color: var(--tb-accent-ink);
       flex-shrink: 0;
     }
-  `;
+  `];
 
   @property({ type: String })
   public activeTool: ActiveTool = 'wall';
@@ -479,7 +615,7 @@ export class HomeArchitectToolbar extends LitElement {
   @property({ type: Boolean, reflect: true })
   public narrow: boolean = false;
 
-  /** Lecture seule (utilisateur non administrateur) : seuls la sélection et la navigation restent actives. */
+  /** Lecture seule (utilisateur non administrateur) : seules la sélection et la navigation restent actives. */
   @property({ type: Boolean, attribute: 'read-only', reflect: true })
   public readOnly: boolean = false;
 
@@ -489,19 +625,27 @@ export class HomeArchitectToolbar extends LitElement {
   @state()
   private activeSubmenu: Submenu = 'none';
 
+  /** Re-rendu au changement de langue. */
+  private readonly i18n = new LocalizeController(this);
+
   /** Position choisie par l'utilisateur (mémorisée), et position effective re-bornée à la zone visible. */
   private preferredPosition: Position = { ...DEFAULT_POSITION };
   private position: Position = { ...DEFAULT_POSITION };
   private dragStartPointer: Position = { x: 0, y: 0 };
   private dragStartPosition: Position = { ...DEFAULT_POSITION };
   private resizeObserver: ResizeObserver | null = null;
+  private schemeObserver: MutationObserver | null = null;
   private lastRoomTool: RoomTool = 'room';
+  /** Sous-menu ouvert au clavier : son premier élément (ou l'élément actif) reçoit le focus. */
+  private focusMenuOnOpen = false;
 
   connectedCallback() {
     super.connectedCallback();
     this.preferredPosition = readStoredPosition() ?? { ...DEFAULT_POSITION };
     this.setHostPosition(this.preferredPosition);
     window.addEventListener('pointerdown', this.handleWindowPointerDown);
+    this.addEventListener('keydown', this.handleHostKeyDown);
+    this.followHostScheme();
 
     // Re-bornage au chargement (première mesure) et à chaque redimensionnement de la zone de dessin.
     const bounds = this.getBoundsElement();
@@ -517,8 +661,11 @@ export class HomeArchitectToolbar extends LitElement {
     super.disconnectedCallback();
     window.removeEventListener('pointerdown', this.handleWindowPointerDown);
     window.removeEventListener('resize', this.handleLayoutChange);
+    this.removeEventListener('keydown', this.handleHostKeyDown);
     this.resizeObserver?.disconnect();
     this.resizeObserver = null;
+    this.schemeObserver?.disconnect();
+    this.schemeObserver = null;
   }
 
   protected firstUpdated() {
@@ -532,6 +679,7 @@ export class HomeArchitectToolbar extends LitElement {
     if (changed.has('activeTool') && (this.activeTool === 'room' || this.activeTool === 'rect_room')) {
       this.lastRoomTool = this.activeTool;
     }
+    this.toggleAttribute('menu-open', this.activeSubmenu !== 'none');
   }
 
   protected updated(changed: PropertyValues) {
@@ -542,7 +690,30 @@ export class HomeArchitectToolbar extends LitElement {
     }
     if (changed.has('activeSubmenu') && this.activeSubmenu !== 'none') {
       this.positionFlyout();
+      if (this.focusMenuOnOpen) {
+        const menu = this.renderRoot.querySelector<HTMLElement>('[role="menu"]');
+        if (menu) focusMenuItem(menu, 'checked');
+      }
     }
+    this.focusMenuOnOpen = false;
+  }
+
+  /**
+   * Reprend le schéma clair/sombre (attribut `scheme`) de l'élément qui contient la barre (le panneau,
+   * qui le pose d'après hass.themes.darkMode) : les couleurs de repli du thème suivent celles du studio.
+   */
+  private followHostScheme() {
+    const root = this.getRootNode();
+    const themed = root instanceof ShadowRoot ? root.host : null;
+    if (!themed) return;
+    const sync = () => {
+      const scheme = themed.getAttribute('scheme');
+      if (scheme) this.setAttribute('scheme', scheme);
+      else this.removeAttribute('scheme');
+    };
+    sync();
+    this.schemeObserver = new MutationObserver(sync);
+    this.schemeObserver.observe(themed, { attributes: true, attributeFilter: ['scheme'] });
   }
 
   private handleWindowPointerDown = (e: PointerEvent) => {
@@ -555,6 +726,58 @@ export class HomeArchitectToolbar extends LitElement {
     if (this.isDragging) return;
     this.applyPosition();
     if (this.activeSubmenu !== 'none') this.positionFlyout();
+  };
+
+  /**
+   * Clavier dans la barre : Échap ferme le sous-menu ouvert (le focus revient à son bouton),
+   * flèches haut/bas, Début et Fin parcourent les outils, flèche droite ouvre le sous-menu d'un outil.
+   */
+  private handleHostKeyDown = (e: KeyboardEvent) => {
+    if (e.defaultPrevented) return;
+    if (e.key === 'Escape' && this.activeSubmenu !== 'none') {
+      e.preventDefault();
+      e.stopPropagation();
+      this.closeSubmenu({ restoreFocus: true });
+      return;
+    }
+    const target = e.composedPath()[0];
+    if (!(target instanceof HTMLElement) || !target.classList.contains('tool-btn')) return;
+    const submenu = target.dataset.submenu as OpenSubmenu | undefined;
+    if (e.key === 'ArrowRight' && submenu && !target.hasAttribute('disabled')) {
+      e.preventDefault();
+      e.stopPropagation();
+      const openMenu = this.activeSubmenu === submenu ? this.renderRoot.querySelector<HTMLElement>('[role="menu"]') : null;
+      if (openMenu) {
+        focusMenuItem(openMenu, 'checked');
+      } else {
+        this.focusMenuOnOpen = true;
+        this.activeSubmenu = submenu;
+      }
+      return;
+    }
+    const buttons = Array.from(this.renderRoot.querySelectorAll<HTMLButtonElement>('.tools .tool-btn:not(:disabled)'));
+    const index = buttons.indexOf(target as HTMLButtonElement);
+    if (index < 0) return;
+    let next: HTMLButtonElement | undefined;
+    switch (e.key) {
+      case 'ArrowDown':
+        next = buttons[(index + 1) % buttons.length];
+        break;
+      case 'ArrowUp':
+        next = buttons[(index - 1 + buttons.length) % buttons.length];
+        break;
+      case 'Home':
+        next = buttons[0];
+        break;
+      case 'End':
+        next = buttons[buttons.length - 1];
+        break;
+      default:
+        return;
+    }
+    e.preventDefault();
+    e.stopPropagation();
+    next?.focus();
   };
 
   /** Élément dont la barre ne doit pas sortir (zone de dessin). */
@@ -597,6 +820,14 @@ export class HomeArchitectToolbar extends LitElement {
     this.setHostPosition(this.clampPosition(this.preferredPosition, bounds));
   }
 
+  /** Déplace la barre vers `target` (bornée à la zone visible) et mémorise la position. */
+  private moveTo(target: Position) {
+    const bounds = this.getBoundsRect();
+    const next = bounds ? this.clampPosition(target, bounds) : target;
+    this.preferredPosition = next;
+    this.setHostPosition(next);
+  }
+
   private handleDragStart(e: PointerEvent) {
     if (e.button !== 0) return;
     e.preventDefault();
@@ -616,14 +847,10 @@ export class HomeArchitectToolbar extends LitElement {
     e.preventDefault();
     e.stopPropagation();
 
-    const target = {
+    this.moveTo({
       x: this.dragStartPosition.x + e.clientX - this.dragStartPointer.x,
       y: this.dragStartPosition.y + e.clientY - this.dragStartPointer.y,
-    };
-    const bounds = this.getBoundsRect();
-    const next = bounds ? this.clampPosition(target, bounds) : target;
-    this.preferredPosition = next;
-    this.setHostPosition(next);
+    });
   }
 
   private handleDragEnd(e: PointerEvent) {
@@ -634,6 +861,30 @@ export class HomeArchitectToolbar extends LitElement {
     } catch {
       // Capture déjà relâchée (pointercancel).
     }
+    writeStoredPosition(this.preferredPosition);
+  }
+
+  /** Poignée au clavier : flèches pour déplacer la barre (Maj : pas large), Début pour la position par défaut. */
+  private handleDragKeyDown(e: KeyboardEvent) {
+    if (e.key === 'Home') {
+      e.preventDefault();
+      e.stopPropagation();
+      this.resetPosition();
+      return;
+    }
+    const step = e.shiftKey ? KEYBOARD_MOVE_STEP_LARGE : KEYBOARD_MOVE_STEP;
+    const deltas: Record<string, Position> = {
+      ArrowLeft: { x: -step, y: 0 },
+      ArrowRight: { x: step, y: 0 },
+      ArrowUp: { x: 0, y: -step },
+      ArrowDown: { x: 0, y: step },
+    };
+    const delta = deltas[e.key];
+    if (!delta) return;
+    e.preventDefault();
+    e.stopPropagation();
+    this.activeSubmenu = 'none';
+    this.moveTo({ x: this.position.x + delta.x, y: this.position.y + delta.y });
     writeStoredPosition(this.preferredPosition);
   }
 
@@ -689,13 +940,29 @@ export class HomeArchitectToolbar extends LitElement {
     }));
   }
 
-  private closeSubmenu() {
+  /**
+   * Ferme le sous-menu. `restoreFocus` : le focus revient (immédiatement, pour que Tab reparte de lui)
+   * au bouton qui l'a ouvert, uniquement si le focus était dans le sous-menu.
+   */
+  private closeSubmenu({ restoreFocus }: { restoreFocus: boolean } = { restoreFocus: false }) {
+    const menu = this.activeSubmenu;
+    if (menu === 'none') return;
+    const active = this.shadowRoot?.activeElement;
+    if (restoreFocus && active instanceof HTMLElement && active.closest('.flyout-menu')) {
+      this.renderRoot.querySelector<HTMLElement>(`[data-submenu="${menu}"]`)?.focus();
+    }
     this.activeSubmenu = 'none';
   }
 
-  private toggleSubmenu(menu: Exclude<Submenu, 'none'>, e: Event) {
+  /** Ouvre ou ferme un sous-menu ; ouvert au clavier (clic sans pointeur), son élément actif reçoit le focus. */
+  private toggleSubmenu(menu: OpenSubmenu, e: MouseEvent) {
     e.stopPropagation();
-    this.activeSubmenu = this.activeSubmenu === menu ? 'none' : menu;
+    if (this.activeSubmenu === menu) {
+      this.activeSubmenu = 'none';
+      return;
+    }
+    this.focusMenuOnOpen = e.detail === 0;
+    this.activeSubmenu = menu;
   }
 
   private selectDoorOption(flipSide: boolean, flipDirection: boolean) {
@@ -705,7 +972,7 @@ export class HomeArchitectToolbar extends LitElement {
       composed: true
     }));
     this.selectTool('door');
-    this.activeSubmenu = 'none';
+    this.closeSubmenu({ restoreFocus: true });
   }
 
   private selectWindowOption(type: 'window' | 'french_window', sashCount: number, width: number) {
@@ -715,7 +982,7 @@ export class HomeArchitectToolbar extends LitElement {
       composed: true
     }));
     this.selectTool(type);
-    this.activeSubmenu = 'none';
+    this.closeSubmenu({ restoreFocus: true });
   }
 
   private selectWallThickness(thickness: number) {
@@ -725,12 +992,12 @@ export class HomeArchitectToolbar extends LitElement {
       composed: true
     }));
     this.selectTool('wall');
-    this.activeSubmenu = 'none';
+    this.closeSubmenu({ restoreFocus: true });
   }
 
   private selectRoomTool(tool: RoomTool) {
     this.selectTool(tool);
-    this.activeSubmenu = 'none';
+    this.closeSubmenu({ restoreFocus: true });
   }
 
   private changeGrid(grid: Partial<GridConfig>) {
@@ -761,314 +1028,266 @@ export class HomeArchitectToolbar extends LitElement {
     return key ? `${label} (${key.toUpperCase()})` : label;
   }
 
-  private renderFlyoutShell(icon: TemplateResult | string, title: string, body: TemplateResult) {
+  private handleMenuKeyDown(e: KeyboardEvent) {
+    // Échap est aussi traité par le panneau (annulation du tracé) : il s'arrête au sous-menu.
+    if (e.key === 'Escape') e.stopPropagation();
+    handleMenuKeydown(e, e.currentTarget as HTMLElement, opts => this.closeSubmenu(opts));
+  }
+
+  /** Bouton d'outil : nom accessible traduit, état enfoncé et sous-menu annoncés. */
+  private renderTool(b: ToolButton) {
+    const open = b.submenu !== undefined && this.activeSubmenu === b.submenu;
+    const classes = [
+      'tool-btn',
+      b.className ?? '',
+      b.pressed ? 'active' : '',
+      open ? 'menu-open' : '',
+    ].filter(Boolean).join(' ');
     return html`
-      <div class="flyout-menu" @pointerdown=${(e: Event) => e.stopPropagation()}>
+      <button
+        type="button"
+        class=${classes}
+        data-submenu=${b.submenu ?? nothing}
+        ?disabled=${b.disabled ?? false}
+        aria-label=${b.label}
+        aria-pressed=${b.pressed === undefined ? nothing : String(b.pressed)}
+        aria-haspopup=${b.submenu ? 'menu' : nothing}
+        aria-expanded=${b.submenu ? String(open) : nothing}
+        aria-controls=${open ? FLYOUT_ID : nothing}
+        aria-keyshortcuts=${b.shortcut ? b.shortcut.toUpperCase() : nothing}
+        title=${b.title}
+        @click=${b.onClick}
+      >
+        ${typeof b.icon === 'string' ? html`<span aria-hidden="true">${b.icon}</span>` : b.icon}
+        ${b.submenu ? html`<span class="submenu-indicator" aria-hidden="true">▾</span>` : nothing}
+      </button>
+    `;
+  }
+
+  /** Coque d'un sous-menu : en-tête (titre, ✕) et liste role=menu parcourue au clavier. */
+  private renderFlyoutShell(icon: TemplateResult | string, title: string, body: TemplateResult, describedBy?: string, footer?: TemplateResult) {
+    return html`
+      <div class="flyout-menu" id=${FLYOUT_ID} @pointerdown=${(e: Event) => e.stopPropagation()}>
         <div class="flyout-header">
           <span class="flyout-title">
-            <span>${icon}</span>
-            <span>${title}</span>
+            <span aria-hidden="true">${icon}</span>
+            <span id=${FLYOUT_TITLE_ID}>${title}</span>
           </span>
-          <button type="button" class="flyout-close-btn" title="Fermer" @click=${this.closeSubmenu}>✕</button>
+          <button
+            type="button"
+            class="flyout-close-btn"
+            title=${localize('ui.common.close')}
+            aria-label=${localize('ui.common.close')}
+            @click=${() => this.closeSubmenu({ restoreFocus: true })}
+          ><span aria-hidden="true">✕</span></button>
         </div>
-        ${body}
+        <div
+          class="flyout-items"
+          role="menu"
+          aria-labelledby=${FLYOUT_TITLE_ID}
+          aria-describedby=${describedBy ?? nothing}
+          @keydown=${this.handleMenuKeyDown}
+        >
+          ${body}
+        </div>
+        ${footer ?? nothing}
       </div>
     `;
   }
 
-  private renderDoorItems() {
+  /** Élément de sous-menu à choix unique (porte, fenêtre, épaisseur, pièce). */
+  private renderRadioItem(opts: {
+    checked: boolean;
+    icon: TemplateResult;
+    label: string;
+    sub: string;
+    /** Pastille visuelle (dimension, déjà dite par `sub`) ; « Actif » par défaut, annoncé par aria-checked. */
+    badge?: string;
+    onSelect: () => void;
+  }) {
+    const badge = opts.badge ?? (opts.checked ? localize('ui.toolbar.active_badge') : undefined);
     return html`
-      <!-- 1. Droite Intérieure (Poussant Droit) -->
-      <button 
+      <button
         type="button"
-        class="flyout-item ${!this.doorFlipSide && this.doorFlipDirection ? 'active' : ''}"
-        @click=${() => this.selectDoorOption(false, true)}
+        class="flyout-item ${opts.checked ? 'active' : ''}"
+        role="menuitemradio"
+        aria-checked=${opts.checked ? 'true' : 'false'}
+        @click=${opts.onSelect}
       >
-        <div class="flyout-item-icon">
-          <svg width="24" height="24" viewBox="-12 -12 24 24">
-            <line x1="-10" y1="0" x2="10" y2="0" stroke="#64748b" stroke-width="2.5"/>
-            <circle cx="8" cy="0" r="1.5" fill="#f59e0b"/>
-            <line x1="8" y1="0" x2="8" y2="10" stroke="#38bdf8" stroke-width="2"/>
-            <path d="M -2 0 A 10 10 0 0 0 8 10" fill="none" stroke="#38bdf8" stroke-width="1.2" stroke-dasharray="2,2"/>
-          </svg>
-        </div>
+        <div class="flyout-item-icon" aria-hidden="true">${opts.icon}</div>
         <div class="flyout-item-content">
-          <div class="flyout-item-label">Ouverture droite intérieure</div>
-          <div class="flyout-item-sub">Poussant droit • Gonds à droite, s'ouvre vers l'intérieur</div>
+          <div class="flyout-item-label">${opts.label}</div>
+          <div class="flyout-item-sub">${opts.sub}</div>
         </div>
-        ${!this.doorFlipSide && this.doorFlipDirection ? html`<span class="flyout-item-badge">Actif</span>` : nothing}
-      </button>
-
-      <!-- 2. Gauche Intérieure (Poussant Gauche) -->
-      <button 
-        type="button"
-        class="flyout-item ${!this.doorFlipSide && !this.doorFlipDirection ? 'active' : ''}"
-        @click=${() => this.selectDoorOption(false, false)}
-      >
-        <div class="flyout-item-icon">
-          <svg width="24" height="24" viewBox="-12 -12 24 24">
-            <line x1="-10" y1="0" x2="10" y2="0" stroke="#64748b" stroke-width="2.5"/>
-            <circle cx="-8" cy="0" r="1.5" fill="#f59e0b"/>
-            <line x1="-8" y1="0" x2="-8" y2="10" stroke="#38bdf8" stroke-width="2"/>
-            <path d="M 2 0 A 10 10 0 0 1 -8 10" fill="none" stroke="#38bdf8" stroke-width="1.2" stroke-dasharray="2,2"/>
-          </svg>
-        </div>
-        <div class="flyout-item-content">
-          <div class="flyout-item-label">Ouverture gauche intérieure</div>
-          <div class="flyout-item-sub">Poussant gauche • Gonds à gauche, s'ouvre vers l'intérieur</div>
-        </div>
-        ${!this.doorFlipSide && !this.doorFlipDirection ? html`<span class="flyout-item-badge">Actif</span>` : nothing}
-      </button>
-
-      <!-- 3. Gauche Extérieure (Tirant Gauche) -->
-      <button 
-        type="button"
-        class="flyout-item ${this.doorFlipSide && !this.doorFlipDirection ? 'active' : ''}"
-        @click=${() => this.selectDoorOption(true, false)}
-      >
-        <div class="flyout-item-icon">
-          <svg width="24" height="24" viewBox="-12 -12 24 24">
-            <line x1="-10" y1="0" x2="10" y2="0" stroke="#64748b" stroke-width="2.5"/>
-            <circle cx="-8" cy="0" r="1.5" fill="#f59e0b"/>
-            <line x1="-8" y1="0" x2="-8" y2="-10" stroke="#38bdf8" stroke-width="2"/>
-            <path d="M 2 0 A 10 10 0 0 0 -8 -10" fill="none" stroke="#38bdf8" stroke-width="1.2" stroke-dasharray="2,2"/>
-          </svg>
-        </div>
-        <div class="flyout-item-content">
-          <div class="flyout-item-label">Ouverture gauche extérieure</div>
-          <div class="flyout-item-sub">Tirant gauche • Gonds à gauche, s'ouvre vers l'extérieur</div>
-        </div>
-        ${this.doorFlipSide && !this.doorFlipDirection ? html`<span class="flyout-item-badge">Actif</span>` : nothing}
-      </button>
-
-      <!-- 4. Droite Extérieure (Tirant Droit) -->
-      <button 
-        type="button"
-        class="flyout-item ${this.doorFlipSide && this.doorFlipDirection ? 'active' : ''}"
-        @click=${() => this.selectDoorOption(true, true)}
-      >
-        <div class="flyout-item-icon">
-          <svg width="24" height="24" viewBox="-12 -12 24 24">
-            <line x1="-10" y1="0" x2="10" y2="0" stroke="#64748b" stroke-width="2.5"/>
-            <circle cx="8" cy="0" r="1.5" fill="#f59e0b"/>
-            <line x1="8" y1="0" x2="8" y2="-10" stroke="#38bdf8" stroke-width="2"/>
-            <path d="M -2 0 A 10 10 0 0 1 8 -10" fill="none" stroke="#38bdf8" stroke-width="1.2" stroke-dasharray="2,2"/>
-          </svg>
-        </div>
-        <div class="flyout-item-content">
-          <div class="flyout-item-label">Ouverture droite extérieure</div>
-          <div class="flyout-item-sub">Tirant droit • Gonds à droite, s'ouvre vers l'extérieur</div>
-        </div>
-        ${this.doorFlipSide && this.doorFlipDirection ? html`<span class="flyout-item-badge">Actif</span>` : nothing}
+        ${badge ? html`<span class="flyout-item-badge" aria-hidden="true">${badge}</span>` : nothing}
       </button>
     `;
+  }
+
+  /** Pictogramme d'un sens d'ouverture de porte (gonds à droite ou à gauche, vers l'intérieur ou l'extérieur). */
+  private doorIcon(hingeRight: boolean, inward: boolean) {
+    const hx = hingeRight ? 8 : -8;
+    const ly = inward ? 10 : -10;
+    const arcStart = hingeRight ? -2 : 2;
+    const sweep = (hingeRight === inward) ? 0 : 1;
+    return html`
+      <svg width="24" height="24" viewBox="-12 -12 24 24">
+        <line class="ico-wall" x1="-10" y1="0" x2="10" y2="0" stroke-width="2.5"/>
+        <circle class="ico-hinge" cx=${hx} cy="0" r="1.5"/>
+        <line class="ico-leaf" x1=${hx} y1="0" x2=${hx} y2=${ly} stroke-width="2"/>
+        <path class="ico-leaf" d="M ${arcStart} 0 A 10 10 0 0 ${sweep} ${hx} ${ly}" fill="none" stroke-width="1.2" stroke-dasharray="2,2"/>
+      </svg>
+    `;
+  }
+
+  private renderDoorItems() {
+    // Les quatre sens : (flipSide, flipDirection) -> gonds à droite si flipDirection, vers l'intérieur si !flipSide.
+    const options: ReadonlyArray<{ flipSide: boolean; flipDirection: boolean; key: string }> = [
+      { flipSide: false, flipDirection: true, key: 'right_in' },
+      { flipSide: false, flipDirection: false, key: 'left_in' },
+      { flipSide: true, flipDirection: false, key: 'left_out' },
+      { flipSide: true, flipDirection: true, key: 'right_out' },
+    ];
+    return html`${options.map(o => this.renderRadioItem({
+      checked: this.doorFlipSide === o.flipSide && this.doorFlipDirection === o.flipDirection,
+      icon: this.doorIcon(o.flipDirection, !o.flipSide),
+      label: localize(`ui.toolbar.door.${o.key}`),
+      sub: localize(`ui.toolbar.door.${o.key}_sub`),
+      onSelect: () => this.selectDoorOption(o.flipSide, o.flipDirection),
+    }))}`;
   }
 
   private renderWindowItems() {
     return html`
-      <!-- 1. Fenêtre 1 ouvrant -->
-      <button 
-        type="button"
-        class="flyout-item ${this.activeTool === 'window' && this.windowSashCount !== 2 ? 'active' : ''}"
-        @click=${() => this.selectWindowOption('window', 1, 0.90)}
-      >
-        <div class="flyout-item-icon">
+      ${this.renderRadioItem({
+        checked: this.activeTool === 'window' && this.windowSashCount !== 2,
+        icon: html`
           <svg width="24" height="24" viewBox="-12 -12 24 24">
-            <rect x="-9" y="-6" width="18" height="12" fill="none" stroke="#94a3b8" stroke-width="1.8"/>
-            <line x1="-9" y1="0" x2="9" y2="0" stroke="#38bdf8" stroke-width="1.5"/>
-          </svg>
-        </div>
-        <div class="flyout-item-content">
-          <div class="flyout-item-label">1 ouvrant (Battant simple)</div>
-          <div class="flyout-item-sub">Fenêtre standard 1 vantail (90 cm)</div>
-        </div>
-        <span class="flyout-item-badge">90 cm</span>
-      </button>
-
-      <!-- 2. Fenêtre 2 battants -->
-      <button 
-        type="button"
-        class="flyout-item ${this.activeTool === 'window' && this.windowSashCount === 2 ? 'active' : ''}"
-        @click=${() => this.selectWindowOption('window', 2, 1.40)}
-      >
-        <div class="flyout-item-icon">
+            <rect class="ico-frame" x="-9" y="-6" width="18" height="12" fill="none" stroke-width="1.8"/>
+            <line class="ico-leaf" x1="-9" y1="0" x2="9" y2="0" stroke-width="1.5"/>
+          </svg>`,
+        label: localize('ui.toolbar.window.single'),
+        sub: localize('ui.toolbar.window.single_sub', { width: formatCentimeters(0.90) }),
+        badge: formatCentimeters(0.90),
+        onSelect: () => this.selectWindowOption('window', 1, 0.90),
+      })}
+      ${this.renderRadioItem({
+        checked: this.activeTool === 'window' && this.windowSashCount === 2,
+        icon: html`
           <svg width="24" height="24" viewBox="-12 -12 24 24">
-            <rect x="-10" y="-6" width="20" height="12" fill="none" stroke="#94a3b8" stroke-width="1.8"/>
-            <line x1="-10" y1="0" x2="10" y2="0" stroke="#38bdf8" stroke-width="1.5"/>
-            <line x1="0" y1="-6" x2="0" y2="6" stroke="#38bdf8" stroke-width="2"/>
-          </svg>
-        </div>
-        <div class="flyout-item-content">
-          <div class="flyout-item-label">2 battants (Double vantaux)</div>
-          <div class="flyout-item-sub">Fenêtre large avec meneau (1.40 m)</div>
-        </div>
-        <span class="flyout-item-badge">1.40 m</span>
-      </button>
-
-      <!-- 3. Baie vitrée coulissante -->
-      <button 
-        type="button"
-        class="flyout-item ${this.activeTool === 'french_window' ? 'active' : ''}"
-        @click=${() => this.selectWindowOption('french_window', 2, 2.00)}
-      >
-        <div class="flyout-item-icon">
+            <rect class="ico-frame" x="-10" y="-6" width="20" height="12" fill="none" stroke-width="1.8"/>
+            <line class="ico-leaf" x1="-10" y1="0" x2="10" y2="0" stroke-width="1.5"/>
+            <line class="ico-leaf" x1="0" y1="-6" x2="0" y2="6" stroke-width="2"/>
+          </svg>`,
+        label: localize('ui.toolbar.window.double'),
+        sub: localize('ui.toolbar.window.double_sub', { width: formatMeters(1.40) }),
+        badge: formatMeters(1.40),
+        onSelect: () => this.selectWindowOption('window', 2, 1.40),
+      })}
+      ${this.renderRadioItem({
+        checked: this.activeTool === 'french_window',
+        icon: html`
           <svg width="24" height="24" viewBox="-12 -12 24 24">
-            <rect x="-10" y="-6" width="20" height="12" fill="none" stroke="#94a3b8" stroke-width="1.8"/>
-            <rect x="-10" y="-3" width="10" height="2" fill="#38bdf8"/>
-            <rect x="0" y="2" width="10" height="2" fill="#38bdf8"/>
-          </svg>
-        </div>
-        <div class="flyout-item-content">
-          <div class="flyout-item-label">Baie vitrée coulissante</div>
-          <div class="flyout-item-sub">Porte-fenêtre 2 vantaux (2.00 m)</div>
-        </div>
-        <span class="flyout-item-badge">2.00 m</span>
-      </button>
+            <rect class="ico-frame" x="-10" y="-6" width="20" height="12" fill="none" stroke-width="1.8"/>
+            <rect class="ico-fill" x="-10" y="-3" width="10" height="2"/>
+            <rect class="ico-fill" x="0" y="2" width="10" height="2"/>
+          </svg>`,
+        label: localize('ui.toolbar.window.sliding'),
+        sub: localize('ui.toolbar.window.sliding_sub', { width: formatMeters(2.00) }),
+        badge: formatMeters(2.00),
+        onSelect: () => this.selectWindowOption('french_window', 2, 2.00),
+      })}
     `;
   }
 
   private renderWallItems() {
-    return html`
-      <!-- 1. Mur Fin (10 cm) -->
-      <button 
-        type="button"
-        class="flyout-item ${sameMeasure(this.currentThickness, 0.10) ? 'active' : ''}"
-        @click=${() => this.selectWallThickness(0.10)}
-      >
-        <div class="flyout-item-icon">
-          <svg width="24" height="24" viewBox="-12 -12 24 24">
-            <rect x="-10" y="-2" width="20" height="4" fill="#94a3b8" rx="1"/>
-          </svg>
-        </div>
-        <div class="flyout-item-content">
-          <div class="flyout-item-label">Fin (Cloison)</div>
-          <div class="flyout-item-sub">Cloisons intérieures séparatives (10 cm)</div>
-        </div>
-        <span class="flyout-item-badge">10 cm</span>
-      </button>
-
-      <!-- 2. Mur Moyen (20 cm) -->
-      <button 
-        type="button"
-        class="flyout-item ${sameMeasure(this.currentThickness, 0.20) ? 'active' : ''}"
-        @click=${() => this.selectWallThickness(0.20)}
-      >
-        <div class="flyout-item-icon">
-          <svg width="24" height="24" viewBox="-12 -12 24 24">
-            <rect x="-10" y="-4" width="20" height="8" fill="#38bdf8" rx="1"/>
-          </svg>
-        </div>
-        <div class="flyout-item-content">
-          <div class="flyout-item-label">Moyen (Standard)</div>
-          <div class="flyout-item-sub">Murs intérieurs porteurs ou standards (20 cm)</div>
-        </div>
-        <span class="flyout-item-badge">20 cm</span>
-      </button>
-
-      <!-- 3. Mur Gros (30 cm) -->
-      <button 
-        type="button"
-        class="flyout-item ${sameMeasure(this.currentThickness, 0.30) ? 'active' : ''}"
-        @click=${() => this.selectWallThickness(0.30)}
-      >
-        <div class="flyout-item-icon">
-          <svg width="24" height="24" viewBox="-12 -12 24 24">
-            <rect x="-10" y="-6" width="20" height="12" fill="#0284c7" stroke="#38bdf8" stroke-width="1" rx="1"/>
-          </svg>
-        </div>
-        <div class="flyout-item-content">
-          <div class="flyout-item-label">Gros (Porteur / Extérieur)</div>
-          <div class="flyout-item-sub">Murs de façade et gros porteurs (30 cm)</div>
-        </div>
-        <span class="flyout-item-badge">30 cm</span>
-      </button>
-    `;
+    const options: ReadonlyArray<{ thickness: number; key: string; icon: TemplateResult }> = [
+      { thickness: 0.10, key: 'thin', icon: html`<svg width="24" height="24" viewBox="-12 -12 24 24"><rect class="ico-fill-muted" x="-10" y="-2" width="20" height="4" rx="1"/></svg>` },
+      { thickness: 0.20, key: 'medium', icon: html`<svg width="24" height="24" viewBox="-12 -12 24 24"><rect class="ico-fill" x="-10" y="-4" width="20" height="8" rx="1"/></svg>` },
+      { thickness: 0.30, key: 'thick', icon: html`<svg width="24" height="24" viewBox="-12 -12 24 24"><rect class="ico-fill-strong" x="-10" y="-6" width="20" height="12" stroke-width="1" rx="1"/></svg>` },
+    ];
+    return html`${options.map(o => this.renderRadioItem({
+      checked: sameMeasure(this.currentThickness, o.thickness),
+      icon: o.icon,
+      label: localize(`ui.toolbar.wall.${o.key}`),
+      sub: localize(`ui.toolbar.wall.${o.key}_sub`, { thickness: formatCentimeters(o.thickness) }),
+      badge: formatCentimeters(o.thickness),
+      onSelect: () => this.selectWallThickness(o.thickness),
+    }))}`;
   }
 
   private renderRoomItems() {
     return html`
-      <button
-        type="button"
-        class="flyout-item ${this.activeTool === 'room' ? 'active' : ''}"
-        @click=${() => this.selectRoomTool('room')}
-      >
-        <div class="flyout-item-icon">
-          <svg width="24" height="24" viewBox="0 0 24 24" style="color: #38bdf8">${ROOM_POLYGON_ICON}</svg>
-        </div>
-        <div class="flyout-item-content">
-          <div class="flyout-item-label">Pièce libre (polygone)</div>
-          <div class="flyout-item-sub">Cliquez chaque angle ; double-cliquez ou revenez au premier point pour fermer</div>
-        </div>
-        ${this.activeTool === 'room' ? html`<span class="flyout-item-badge">Actif</span>` : nothing}
-      </button>
-
-      <button
-        type="button"
-        class="flyout-item ${this.activeTool === 'rect_room' ? 'active' : ''}"
-        @click=${() => this.selectRoomTool('rect_room')}
-      >
-        <div class="flyout-item-icon">
-          <svg width="24" height="24" viewBox="0 0 24 24" style="color: #38bdf8">${ROOM_RECT_ICON}</svg>
-        </div>
-        <div class="flyout-item-content">
-          <div class="flyout-item-label">Pièce rectangulaire</div>
-          <div class="flyout-item-sub">Glissez d'un angle à l'angle opposé</div>
-        </div>
-        ${this.activeTool === 'rect_room' ? html`<span class="flyout-item-badge">Actif</span>` : nothing}
-      </button>
+      ${this.renderRadioItem({
+        checked: this.activeTool === 'room',
+        icon: html`<svg width="24" height="24" viewBox="0 0 24 24">${ROOM_POLYGON_ICON}</svg>`,
+        label: localize('ui.toolbar.room.polygon'),
+        sub: localize('ui.toolbar.room.polygon_sub'),
+        onSelect: () => this.selectRoomTool('room'),
+      })}
+      ${this.renderRadioItem({
+        checked: this.activeTool === 'rect_room',
+        icon: html`<svg width="24" height="24" viewBox="0 0 24 24">${ROOM_RECT_ICON}</svg>`,
+        label: localize('ui.toolbar.room.rect'),
+        sub: localize('ui.toolbar.room.rect_sub'),
+        onSelect: () => this.selectRoomTool('rect_room'),
+      })}
     `;
   }
 
   private renderGridItems() {
     const grid = this.grid ?? DEFAULT_GRID;
-    const toggles: ReadonlyArray<{ key: 'snapToGrid' | 'snapToAngles' | 'snapToElements'; label: string; sub: string }> = [
-      { key: 'snapToGrid', label: 'Accrocher à la grille', sub: 'Les points tombent sur les intersections de la grille' },
-      { key: 'snapToAngles', label: 'Accrocher aux angles', sub: 'Murs guidés à 0°, 45° et 90°' },
-      { key: 'snapToElements', label: 'Accrocher aux murs et points', sub: 'Alignement sur les extrémités et murs existants' },
-    ];
+    const toggles: readonly SnapKey[] = ['snapToGrid', 'snapToAngles', 'snapToElements'];
     return html`
-      <div class="flyout-section-label">Taille de la grille</div>
-      <div class="grid-sizes" role="group" aria-label="Taille de la grille">
-        ${GRID_SIZE_PRESETS.map(size => html`
-          <button
-            type="button"
-            class="grid-size-btn ${sameMeasure(grid.size, size) ? 'active' : ''}"
-            aria-pressed=${sameMeasure(grid.size, size) ? 'true' : 'false'}
-            @click=${() => this.changeGrid({ size })}
-          >${gridSizeLabel(size)}</button>
-        `)}
+      <div class="flyout-group" role="group" aria-labelledby="grid-size-label">
+        <div class="flyout-section-label" id="grid-size-label">${localize('ui.toolbar.grid.size')}</div>
+        <div class="grid-sizes">
+          ${GRID_SIZE_PRESETS.map(size => html`
+            <button
+              type="button"
+              class="grid-size-btn ${sameMeasure(grid.size, size) ? 'active' : ''}"
+              role="menuitemradio"
+              aria-checked=${sameMeasure(grid.size, size) ? 'true' : 'false'}
+              @click=${() => this.changeGrid({ size })}
+            >${gridSizeLabel(size)}</button>
+          `)}
+        </div>
       </div>
 
-      <div class="flyout-section-label">Accrochages</div>
-      ${toggles.map(t => html`
-        <label class="flyout-toggle">
-          <input
-            type="checkbox"
-            .checked=${live(grid[t.key])}
-            @change=${(e: Event) => this.changeGrid({ [t.key]: (e.target as HTMLInputElement).checked })}
-          />
-          <div class="flyout-item-content">
-            <div class="flyout-item-label">${t.label}</div>
-            <div class="flyout-item-sub">${t.sub}</div>
-          </div>
-        </label>
-      `)}
-      <div class="flyout-hint">Maintenez Alt pendant un tracé ou un glisser pour désactiver temporairement l'accrochage.</div>
+      <div class="flyout-group" role="group" aria-labelledby="grid-snap-label">
+        <div class="flyout-section-label" id="grid-snap-label">${localize('ui.toolbar.grid.snapping')}</div>
+        ${toggles.map(key => html`
+          <button
+            type="button"
+            class="flyout-toggle"
+            role="menuitemcheckbox"
+            aria-checked=${grid[key] ? 'true' : 'false'}
+            @click=${() => this.changeGrid({ [key]: !grid[key] })}
+          >
+            <span class="check-box" aria-hidden="true"><svg viewBox="0 0 16 16">${CHECK_ICON}</svg></span>
+            <div class="flyout-item-content">
+              <div class="flyout-item-label">${localize(`ui.toolbar.grid.${key}`)}</div>
+              <div class="flyout-item-sub">${localize(`ui.toolbar.grid.${key}_sub`)}</div>
+            </div>
+          </button>
+        `)}
+      </div>
     `;
   }
 
   private renderFlyout() {
     switch (this.activeSubmenu) {
       case 'door':
-        return this.renderFlyoutShell('🚪', "Sens d'ouverture de porte", this.renderDoorItems());
+        return this.renderFlyoutShell('🚪', localize('ui.toolbar.door.title'), this.renderDoorItems());
       case 'window':
-        return this.renderFlyoutShell('🪟', 'Type de fenêtre', this.renderWindowItems());
+        return this.renderFlyoutShell('🪟', localize('ui.toolbar.window.title'), this.renderWindowItems());
       case 'wall':
-        return this.renderFlyoutShell('🧱', 'Épaisseur du mur', this.renderWallItems());
+        return this.renderFlyoutShell('🧱', localize('ui.toolbar.wall.title'), this.renderWallItems());
       case 'room':
-        return this.renderFlyoutShell('⬠', 'Tracer une pièce', this.renderRoomItems());
+        return this.renderFlyoutShell('⬠', localize('ui.toolbar.room.title'), this.renderRoomItems());
       case 'grid':
-        return this.renderFlyoutShell('▦', 'Grille et accrochages', this.renderGridItems());
+        return this.renderFlyoutShell('▦', localize('ui.toolbar.grid.title'), this.renderGridItems(), GRID_HINT_ID,
+          html`<div class="flyout-hint" id=${GRID_HINT_ID}>${localize('ui.toolbar.grid.hint')}</div>`);
       default:
         return nothing;
     }
@@ -1078,173 +1297,182 @@ export class HomeArchitectToolbar extends LitElement {
     const ro = this.readOnly;
     const grid = this.grid ?? DEFAULT_GRID;
     const isRoomTool = this.activeTool === 'room' || this.activeTool === 'rect_room';
-    const gridSize = gridSizeLabel(grid.size);
+    const gridTitle = localize('ui.toolbar.grid_tooltip', {
+      size: gridSizeLabel(grid.size),
+      state: localize(grid.snapToGrid ? 'ui.toolbar.snap_on' : 'ui.toolbar.snap_off'),
+    });
 
     return html`
-      <!-- Poignée de déplacement de la boîte à outils -->
-      <div 
+      <!-- Poignée de déplacement de la boîte à outils (souris, toucher ou flèches du clavier) -->
+      <button
+        type="button"
         class="drag-handle ${this.isDragging ? 'dragging' : ''}"
         @pointerdown=${this.handleDragStart}
         @pointermove=${this.handleDragMove}
         @pointerup=${this.handleDragEnd}
         @pointercancel=${this.handleDragEnd}
         @dblclick=${this.resetPosition}
-        title="Glisser pour déplacer la boîte à outils (double-clic : position par défaut)"
+        @keydown=${this.handleDragKeyDown}
+        title=${localize('ui.toolbar.drag')}
+        aria-label=${localize('ui.toolbar.drag_label')}
       >
-        <div class="grip-dots">•••</div>
-      </div>
+        <span class="grip-dots" aria-hidden="true">•••</span>
+      </button>
 
       ${ro ? html`
-        <div class="read-only-badge" title="Lecture seule : l'édition est réservée aux administrateurs Home Assistant">🔒</div>
+        <div
+          class="read-only-badge"
+          role="img"
+          aria-label=${localize('ui.toolbar.read_only')}
+          title=${localize('ui.toolbar.read_only')}
+        >🔒</div>
       ` : nothing}
 
-      <div class="tools">
+      <div class="tools" role="toolbar" aria-orientation="vertical" aria-label=${localize('ui.toolbar.label')}>
         <!-- Assistant Débutant -->
-        <button 
-          class="tool-btn highlight" 
-          ?disabled=${ro}
-          @click=${this.openWizard} 
-          title="Assistant Débutant : Créer une pièce guidée (🪄)"
-        >
-          🪄
-        </button>
+        ${this.renderTool({
+          icon: '🪄',
+          className: 'highlight',
+          label: localize('ui.toolbar.wizard'),
+          title: localize('ui.toolbar.wizard_tooltip'),
+          disabled: ro,
+          onClick: () => { this.activeSubmenu = 'none'; this.openWizard(); },
+        })}
 
-        <div class="divider"></div>
+        <div class="divider" role="separator"></div>
 
         <!-- Annuler & Rétablir -->
-        <button 
-          class="tool-btn" 
-          ?disabled=${ro || !this.canUndo}
-          @click=${() => this.dispatchEvent(new CustomEvent('undo', { bubbles: true, composed: true }))}
-          title="Annuler (Ctrl+Z / Cmd+Z)"
-        >
-          ↩️
-        </button>
-        <button 
-          class="tool-btn" 
-          ?disabled=${ro || !this.canRedo}
-          @click=${() => this.dispatchEvent(new CustomEvent('redo', { bubbles: true, composed: true }))}
-          title="Rétablir (Ctrl+Y / Cmd+Shift+Z)"
-        >
-          ↪️
-        </button>
+        ${this.renderTool({
+          icon: '↩️',
+          label: localize('ui.toolbar.undo'),
+          title: localize('ui.toolbar.undo_tooltip'),
+          disabled: ro || !this.canUndo,
+          onClick: () => this.dispatchEvent(new CustomEvent('undo', { bubbles: true, composed: true })),
+        })}
+        ${this.renderTool({
+          icon: '↪️',
+          label: localize('ui.toolbar.redo'),
+          title: localize('ui.toolbar.redo_tooltip'),
+          disabled: ro || !this.canRedo,
+          onClick: () => this.dispatchEvent(new CustomEvent('redo', { bubbles: true, composed: true })),
+        })}
 
-        <div class="divider"></div>
+        <div class="divider" role="separator"></div>
 
         <!-- Outil Sélection / Pan -->
-        <button 
-          class="tool-btn ${this.activeTool === 'select' ? 'active' : ''}" 
-          @click=${() => { this.activeSubmenu = 'none'; this.selectTool('select'); }} 
-          title=${this.withShortcut('Sélectionner & Déplacer', 'select')}
-        >
-          👆
-        </button>
+        ${this.renderTool({
+          icon: '👆',
+          label: localize('ui.toolbar.select'),
+          title: this.withShortcut(localize('ui.toolbar.select'), 'select'),
+          pressed: this.activeTool === 'select',
+          shortcut: TOOL_SHORTCUTS.select,
+          onClick: () => { this.activeSubmenu = 'none'; this.selectTool('select'); },
+        })}
 
         <!-- Outil Mur -->
-        <button 
-          class="tool-btn ${this.activeTool === 'wall' ? 'active' : ''} ${this.activeSubmenu === 'wall' ? 'menu-open' : ''}" 
-          data-submenu="wall"
-          ?disabled=${ro}
-          @click=${(e: MouseEvent) => { this.selectTool('wall'); this.toggleSubmenu('wall', e); }} 
-          title=${this.withShortcut('Tracer un mur', 'wall') + " - Cliquez pour choisir l'épaisseur (Fin 10cm, Moyen 20cm, Gros 30cm)"}
-        >
-          🧱
-          <span class="submenu-indicator">▾</span>
-        </button>
+        ${this.renderTool({
+          icon: '🧱',
+          label: localize('ui.toolbar.wall'),
+          title: this.withShortcut(localize('ui.toolbar.wall'), 'wall') + localize('ui.toolbar.wall_tooltip_suffix'),
+          pressed: this.activeTool === 'wall',
+          submenu: 'wall',
+          shortcut: TOOL_SHORTCUTS.wall,
+          disabled: ro,
+          onClick: (e) => { this.selectTool('wall'); this.toggleSubmenu('wall', e); },
+        })}
 
         <!-- Outil Pièce (polygone ou rectangle) -->
-        <button 
-          class="tool-btn ${isRoomTool ? 'active' : ''} ${this.activeSubmenu === 'room' ? 'menu-open' : ''}" 
-          data-submenu="room"
-          ?disabled=${ro}
-          @click=${(e: MouseEvent) => { this.selectTool(this.lastRoomTool); this.toggleSubmenu('room', e); }} 
-          title="Tracer une pièce - Cliquez pour choisir : pièce libre (polygone) ou rectangulaire"
-        >
-          <svg viewBox="0 0 24 24" aria-hidden="true">${this.lastRoomTool === 'rect_room' ? ROOM_RECT_ICON : ROOM_POLYGON_ICON}</svg>
-          <span class="submenu-indicator">▾</span>
-        </button>
+        ${this.renderTool({
+          icon: html`<svg viewBox="0 0 24 24" aria-hidden="true">${this.lastRoomTool === 'rect_room' ? ROOM_RECT_ICON : ROOM_POLYGON_ICON}</svg>`,
+          label: localize('ui.toolbar.room'),
+          title: localize('ui.toolbar.room_tooltip'),
+          pressed: isRoomTool,
+          submenu: 'room',
+          disabled: ro,
+          onClick: (e) => { this.selectTool(this.lastRoomTool); this.toggleSubmenu('room', e); },
+        })}
 
-        <div class="divider"></div>
+        <div class="divider" role="separator"></div>
 
         <!-- Outil Porte -->
-        <button 
-          class="tool-btn ${this.activeTool === 'door' ? 'active' : ''} ${this.activeSubmenu === 'door' ? 'menu-open' : ''}" 
-          data-submenu="door"
-          ?disabled=${ro}
-          @click=${(e: MouseEvent) => { this.selectTool('door'); this.toggleSubmenu('door', e); }} 
-          title=${this.withShortcut('Insérer une porte', 'door') + " - Cliquez pour choisir le sens d'ouverture (Droite/Gauche, Intérieur/Extérieur)"}
-        >
-          🚪
-          <span class="submenu-indicator">▾</span>
-        </button>
+        ${this.renderTool({
+          icon: '🚪',
+          label: localize('ui.toolbar.door'),
+          title: this.withShortcut(localize('ui.toolbar.door'), 'door') + localize('ui.toolbar.door_tooltip_suffix'),
+          pressed: this.activeTool === 'door',
+          submenu: 'door',
+          shortcut: TOOL_SHORTCUTS.door,
+          disabled: ro,
+          onClick: (e) => { this.selectTool('door'); this.toggleSubmenu('door', e); },
+        })}
 
         <!-- Outil Fenêtre -->
-        <button 
-          class="tool-btn ${this.activeTool === 'window' ? 'active' : ''} ${this.activeSubmenu === 'window' ? 'menu-open' : ''}" 
-          data-submenu="window"
-          ?disabled=${ro}
-          @click=${(e: MouseEvent) => { this.selectTool('window'); this.toggleSubmenu('window', e); }} 
-          title=${this.withShortcut('Insérer une fenêtre', 'window') + ' - Cliquez pour choisir 1 ouvrant ou 2 battants'}
-        >
-          🪟
-          <span class="submenu-indicator">▾</span>
-        </button>
+        ${this.renderTool({
+          icon: '🪟',
+          label: localize('ui.toolbar.window'),
+          title: this.withShortcut(localize('ui.toolbar.window'), 'window') + localize('ui.toolbar.window_tooltip_suffix'),
+          pressed: this.activeTool === 'window',
+          submenu: 'window',
+          shortcut: TOOL_SHORTCUTS.window,
+          disabled: ro,
+          onClick: (e) => { this.selectTool('window'); this.toggleSubmenu('window', e); },
+        })}
 
         <!-- Outil Baie vitrée / Porte-fenêtre -->
-        <button 
-          class="tool-btn ${this.activeTool === 'french_window' ? 'active' : ''}" 
-          ?disabled=${ro}
-          @click=${() => { this.activeSubmenu = 'none'; this.selectTool('french_window'); }} 
-          title=${this.withShortcut('Insérer une baie coulissante', 'french_window')}
-        >
-          🪞
-        </button>
+        ${this.renderTool({
+          icon: '🪞',
+          label: localize('ui.toolbar.french_window'),
+          title: this.withShortcut(localize('ui.toolbar.french_window'), 'french_window'),
+          pressed: this.activeTool === 'french_window',
+          shortcut: TOOL_SHORTCUTS.french_window,
+          disabled: ro,
+          onClick: () => { this.activeSubmenu = 'none'; this.selectTool('french_window'); },
+        })}
 
-        <div class="divider"></div>
+        <div class="divider" role="separator"></div>
 
         <!-- Import de plan de fond & vectorisation -->
-        <button 
-          class="tool-btn" 
-          ?disabled=${ro}
-          @click=${() => { this.activeSubmenu = 'none'; this.openImportModal(); }} 
-          title="Importer un plan (PNG, JPG, WebP, SVG) ou coller une image (Ctrl+V / Cmd+V)"
-        >
-          🖼️
-        </button>
+        ${this.renderTool({
+          icon: '🖼️',
+          label: localize('ui.toolbar.import'),
+          title: localize('ui.toolbar.import_tooltip'),
+          disabled: ro,
+          onClick: () => { this.activeSubmenu = 'none'; this.openImportModal(); },
+        })}
 
         <!-- Étalonnage d'échelle (calque image) -->
-        <button 
-          class="tool-btn ${this.activeTool === 'calibrate' ? 'active' : ''}" 
-          ?disabled=${ro}
-          @click=${() => { this.activeSubmenu = 'none'; this.selectTool('calibrate'); }} 
-          title=${this.withShortcut("Étalonnage d'échelle : tracer un mur mesuré sur l'image", 'calibrate')}
-        >
-          📏
-        </button>
+        ${this.renderTool({
+          icon: '📏',
+          label: localize('ui.toolbar.calibrate'),
+          title: this.withShortcut(localize('ui.toolbar.calibrate_tooltip'), 'calibrate'),
+          pressed: this.activeTool === 'calibrate',
+          shortcut: TOOL_SHORTCUTS.calibrate,
+          disabled: ro,
+          onClick: () => { this.activeSubmenu = 'none'; this.selectTool('calibrate'); },
+        })}
 
         <!-- Mettre à l'échelle le plan (Recalculer toutes les cotes) -->
-        <button 
-          class="tool-btn ${this.activeTool === 'rescale' ? 'active' : ''}" 
-          ?disabled=${ro}
-          @click=${() => { this.activeSubmenu = 'none'; this.selectTool('rescale'); }} 
-          title=${this.withShortcut("Mettre à l'échelle : mesurer un mur pour recalculer toutes les cotes", 'rescale')}
-        >
-          📐
-        </button>
+        ${this.renderTool({
+          icon: '📐',
+          label: localize('ui.toolbar.rescale'),
+          title: this.withShortcut(localize('ui.toolbar.rescale_tooltip'), 'rescale'),
+          pressed: this.activeTool === 'rescale',
+          shortcut: TOOL_SHORTCUTS.rescale,
+          disabled: ro,
+          onClick: () => { this.activeSubmenu = 'none'; this.selectTool('rescale'); },
+        })}
 
-        <div class="divider"></div>
+        <div class="divider" role="separator"></div>
 
         <!-- Grille et accrochages -->
-        <button 
-          class="tool-btn ${this.activeSubmenu === 'grid' ? 'menu-open' : ''}" 
-          data-submenu="grid"
-          ?disabled=${ro}
-          @click=${(e: MouseEvent) => this.toggleSubmenu('grid', e)} 
-          title="Grille et accrochages (grille ${gridSize}, accrochage ${grid.snapToGrid ? 'activé' : 'désactivé'} ; Alt : sans accrochage)"
-        >
-          <svg viewBox="0 0 24 24" aria-hidden="true" style="opacity: ${grid.snapToGrid ? 1 : 0.45}">${GRID_ICON}</svg>
-          <span class="submenu-indicator">▾</span>
-        </button>
+        ${this.renderTool({
+          icon: html`<svg viewBox="0 0 24 24" aria-hidden="true" style="opacity: ${grid.snapToGrid ? 1 : 0.45}">${GRID_ICON}</svg>`,
+          label: localize('ui.toolbar.grid.title'),
+          title: gridTitle,
+          submenu: 'grid',
+          disabled: ro,
+          onClick: (e) => this.toggleSubmenu('grid', e),
+        })}
       </div>
 
       <!-- ============================================== -->

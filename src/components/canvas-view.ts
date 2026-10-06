@@ -44,6 +44,10 @@ import {
   Camera3D, CameraBasis, cameraBasis, floorMatrix, projectPoint, screenDeltaToFloor, shortestAngleDelta, unprojectFloor
 } from '../canvas/projection';
 import { WallSceneItem, buildWallScene, computeWallHeights } from '../canvas/scene-3d';
+import { isView3DReady, loadView3D, markView3DFailed } from '../view3d/loader';
+import type {
+  HomeArchitect3DView, View3DCameraDetail, View3DHoverDetail, View3DIntro, View3DMessageDetail, View3DPickDetail
+} from '../view3d/view3d-element';
 
 /** Un appui sur le HUD (zoom, cadrage, rotation, 2D/3D, coordonnées, aide) ne trace jamais rien (v1.0.27). */
 const HUD_SELECTOR = '.canvas-hud, .coords-hud, .help-hud, button';
@@ -63,13 +67,14 @@ const CAMERA_ANIMATION_MS = 400;
 /** Sous cette largeur (px), le HUD est compacté : préréglages 3D et coordonnées masqués (constat F126). */
 const COMPACT_WIDTH_PX = 600;
 
-/** Préréglages de caméra 3D (inclinaison 0 = vue de dessus). */
+/** Préréglages de caméra 3D (inclinaison 0 = vue de dessus) : vues isométriques, de dessus et de face. */
 const CAMERA_PRESETS: ReadonlyArray<{ label: string; title: string; camera: Camera3D }> = [
-  { label: 'SO', title: 'Vue Sud-Ouest (défaut)', camera: { pitchDeg: 55, yawDeg: -35 } },
-  { label: 'SE', title: 'Vue Sud-Est', camera: { pitchDeg: 55, yawDeg: 35 } },
-  { label: 'NE', title: 'Vue Nord-Est', camera: { pitchDeg: 55, yawDeg: 125 } },
-  { label: 'NO', title: 'Vue Nord-Ouest', camera: { pitchDeg: 55, yawDeg: -125 } },
-  { label: 'Top', title: 'Vue plongeante (presque de dessus)', camera: { pitchDeg: 20, yawDeg: 0 } }
+  { label: 'SO', title: 'Vue Sud-Ouest (défaut)', camera: { pitchDeg: 45, yawDeg: -35 } },
+  { label: 'SE', title: 'Vue Sud-Est', camera: { pitchDeg: 45, yawDeg: 35 } },
+  { label: 'NE', title: 'Vue Nord-Est', camera: { pitchDeg: 45, yawDeg: 125 } },
+  { label: 'NO', title: 'Vue Nord-Ouest', camera: { pitchDeg: 45, yawDeg: -125 } },
+  { label: 'Top', title: 'Vue de dessus', camera: { pitchDeg: 0, yawDeg: 0 } },
+  { label: 'Face', title: 'Vue de face (depuis le sud)', camera: { pitchDeg: 75, yawDeg: 0 } }
 ];
 
 function prefersReducedMotion(): boolean {
@@ -227,6 +232,8 @@ type Interaction =
 
 const NO_INTERACTION: Interaction = { kind: 'none' };
 
+const NO_OPENINGS: readonly Opening[] = [];
+
 /** Vrai si l'événement vient d'un élément du shadow DOM du canevas correspondant à `selector`. */
 function eventHits(e: Event, host: Element, selector: string): boolean {
   for (const node of e.composedPath()) {
@@ -339,6 +346,10 @@ export class HomeArchitectCanvas extends LitElement {
   @property({ type: String })
   public theme: 'auto' | 'light' | 'dark' = 'auto';
 
+  /** Ombres douces de la vue 3D WebGL (à couper sur les appareils modestes). */
+  @property({ type: Boolean })
+  public shadows: boolean = true;
+
   // État du Viewport (Pan & Zoom)
   @state()
   private viewport: ViewportTransform = { x: 300, y: 300, zoom: 1.0 };
@@ -402,10 +413,29 @@ export class HomeArchitectCanvas extends LitElement {
 
   // État Orbite / Rotation 3D
   @state()
-  private orbitPitch: number = 55;
+  private orbitPitch: number = 45;
 
   @state()
   private orbitYaw: number = -35;
+
+  /**
+   * Vue 3D WebGL (src/view3d, chargée à la demande) : 'loading' pendant le téléchargement de son chunk,
+   * 'ready' quand elle remplace la projection SVG, 'fallback' si WebGL ou le chargement fait défaut
+   * (la projection SVG simplifiée sert alors de repli).
+   */
+  @state()
+  private view3d: 'idle' | 'loading' | 'ready' | 'fallback' = 'idle';
+
+  /** Zoom de la caméra WebGL relatif au cadrage du plan (libellé du HUD). */
+  @state()
+  private view3dZoom = 1;
+
+  /** Murs coupés à mi-hauteur dans la vue 3D WebGL. */
+  @state()
+  private cutWalls = false;
+
+  /** Caméra de départ transmise à la vue WebGL quand elle s'affiche (transition depuis la caméra courante). */
+  private view3dIntro: View3DIntro | null = null;
 
   /** Message bref affiché au-dessus du plan (accrochage refusé, aide à la molette…). */
   @state()
@@ -471,12 +501,23 @@ export class HomeArchitectCanvas extends LitElement {
 
   /** Préréglage de caméra 3D, atteint par une courte transition (immédiat si les animations sont réduites). */
   public setCameraPreset(pitch: number, yaw: number): void {
-    this.animateCamera({ pitchDeg: pitch, yawDeg: yaw });
+    const view = this.view3dElement;
+    if (view) view.setCamera({ pitchDeg: pitch, yawDeg: yaw });
+    else this.animateCamera({ pitchDeg: pitch, yawDeg: yaw });
   }
 
   // ==========================================
   // ÉTATS DÉRIVÉS
   // ==========================================
+
+  /** La vue 3D WebGL est affichée (sinon, en 3D, la projection SVG simplifiée sert de repli). */
+  private get webgl3D(): boolean {
+    return this.is3DMode && this.view3d === 'ready';
+  }
+
+  private get view3dElement(): HomeArchitect3DView | null {
+    return this.webgl3D ? this.renderRoot.querySelector('home-architect-3d-view') : null;
+  }
 
   /** Sélection possible (studio) ; la carte n'expose que les épingles. */
   private get canSelect(): boolean {
@@ -610,6 +651,8 @@ export class HomeArchitectCanvas extends LitElement {
   // ==========================================
 
   private handleWheel(e: WheelEvent): void {
+    // Vue WebGL : la molette est traitée par ses contrôles de caméra.
+    if (this.webgl3D) return;
     const zoomGesture = e.ctrlKey || e.metaKey;
     // Carte : la molette fait défiler le tableau de bord ; seul Ctrl/⌘ + molette (ou le pincement du
     // pavé tactile, qui émet Ctrl + molette) zoome le plan (constat F54).
@@ -637,8 +680,13 @@ export class HomeArchitectCanvas extends LitElement {
     this.viewport = zoomViewportAt(this.viewport, this.clientToView(e.clientX, e.clientY), zoom);
   }
 
-  /** Zoom des boutons du HUD, ancré au centre du canevas (constat F122). */
+  /** Zoom des boutons du HUD, ancré au centre du canevas (constat F122) ; caméra rapprochée en vue WebGL. */
   private zoomBy(factor: number): void {
+    const view = this.view3dElement;
+    if (view) {
+      view.zoomBy(factor);
+      return;
+    }
     const zoom = clampZoom(this.viewport.zoom * factor, this.ppm);
     this.viewport = zoomViewportAt(this.viewport, canvasCenter(this.sizeOrFallback()), zoom);
     this.viewTouched = true;
@@ -697,9 +745,12 @@ export class HomeArchitectCanvas extends LitElement {
     this.endInteraction();
   }
 
-  /** Phase de capture (hôte) : suivi des pointeurs, geste à deux doigts, « toucher pour placer ». */
+  /**
+   * Phase de capture (hôte) : suivi des pointeurs, geste à deux doigts, « toucher pour placer ». La vue
+   * WebGL gère elle-même ses gestes (orbite, pincement) : rien n'est intercepté.
+   */
   private handlePointerDownCapture(e: PointerEvent): void {
-    if (eventHits(e, this, HUD_SELECTOR)) return;
+    if (this.webgl3D || eventHits(e, this, HUD_SELECTOR)) return;
     if (e.isPrimary) {
       // Premier contact d'une nouvelle séquence : un pointeur resté suivi (relâché hors de la page) est oublié.
       this.pointers.clear();
@@ -835,7 +886,8 @@ export class HomeArchitectCanvas extends LitElement {
   private handlePointerDown(e: PointerEvent): void {
     // Clic sur l'interface HUD (zoom, centrage, rotation, presets 3D, coords...) :
     // ne jamais déclencher le traçage d'un mur ou d'un outil sur le canvas !
-    if (eventHits(e, this, HUD_SELECTOR)) return;
+    // Vue WebGL : la caméra et les clics sont gérés par la vue elle-même.
+    if (this.webgl3D || eventHits(e, this, HUD_SELECTOR)) return;
     if (this.interaction.kind !== 'none' || !e.isPrimary) return;
     const container = e.currentTarget as Element;
 
@@ -908,6 +960,8 @@ export class HomeArchitectCanvas extends LitElement {
   // ==========================================
 
   private handlePointerMove(e: PointerEvent): void {
+    // Vue WebGL : les coordonnées viennent de la vue ('view3d-hover').
+    if (this.webgl3D) return;
     const it = this.interaction;
     if (it.kind === 'gesture') {
       if (it.ids.includes(e.pointerId)) this.updateGesture(it);
@@ -1232,6 +1286,11 @@ export class HomeArchitectCanvas extends LitElement {
   private addRoom(room: Room): void {
     this.commitProject(reassignRooms({ ...this.project, rooms: [...this.project.rooms, room] }));
     this.setSelection(selectOnly({ kind: 'room', id: room.id }));
+    this.emitRoomSelected(room);
+  }
+
+  /** Ouvre la fiche de la pièce dans le parent (nom, couleur, hauteur). */
+  private emitRoomSelected(room: Room): void {
     this.dispatchEvent(new CustomEvent('room-selected', {
       detail: { room },
       bubbles: true,
@@ -1952,11 +2011,7 @@ export class HomeArchitectCanvas extends LitElement {
   private handleRoomDblClick(e: MouseEvent, room: Room): void {
     if (!this.canSelect || this.activeTool !== 'select') return;
     e.stopPropagation();
-    this.dispatchEvent(new CustomEvent('room-selected', {
-      detail: { room },
-      bubbles: true,
-      composed: true
-    }));
+    this.emitRoomSelected(room);
   }
 
   // ==========================================
@@ -2100,7 +2155,7 @@ export class HomeArchitectCanvas extends LitElement {
     this.cancelInteraction();
     this.pointers.clear();
     this.pinGestures.dispose();
-    this.stopCameraAnimation();
+    this.finishCameraAnimation();
   }
 
   /**
@@ -2110,7 +2165,7 @@ export class HomeArchitectCanvas extends LitElement {
    */
   protected shouldUpdate(changed: PropertyValues<this>): boolean {
     if (changed.size === 1 && changed.has('hass')) {
-      return hassChangeAffects(changed.get('hass') as HassDisplayContext | undefined, this.hass, this.watchedEntityIds(this.project.bindings));
+      return hassChangeAffects(changed.get('hass') as HassDisplayContext | undefined, this.hass, this.watchedEntities());
     }
     return true;
   }
@@ -2121,15 +2176,17 @@ export class HomeArchitectCanvas extends LitElement {
    */
   private handleResize(rect: DOMRectReadOnly | undefined): void {
     if (!rect) return;
-    const changed = rect.width !== this.canvasSize.width || rect.height !== this.canvasSize.height;
+    const previous = this.canvasSize;
+    const changed = rect.width !== previous.width || rect.height !== previous.height;
     this.canvasSize = { width: rect.width, height: rect.height };
     // HUD compact sur téléphone et carte étroite (constat F126).
     this.toggleAttribute('compact', rect.width > 0 && rect.width < COMPACT_WIDTH_PX);
     if (!changed) return;
     if (rect.width > 0 && rect.height > 0 && (this.pendingFitPadding !== null || !this.viewTouched)) {
-      this.fitToScreen(this.pendingFitPadding ?? undefined);
+      this.fitPlanView(this.pendingFitPadding ?? undefined);
     } else {
-      this.requestUpdate();
+      // Nommé : un nouvel objet hass reçu dans la même micro-tâche ne doit pas faire sauter ce rendu (shouldUpdate).
+      this.requestUpdate('canvasSize', previous);
     }
   }
 
@@ -2140,7 +2197,7 @@ export class HomeArchitectCanvas extends LitElement {
       this.handleProjectReplaced(changed.get('project'));
     }
     if (changed.has('hass') &&
-      hassChangeAffects(changed.get('hass') as HassDisplayContext | undefined, this.hass, this.watchedEntityIds(this.project.bindings))) {
+      hassChangeAffects(changed.get('hass') as HassDisplayContext | undefined, this.hass, this.watchedEntities())) {
       this.entityRevision++;
     }
     if (changed.has('hass') || changed.has('theme')) this.applyColorScheme();
@@ -2153,9 +2210,12 @@ export class HomeArchitectCanvas extends LitElement {
         this.orbitYaw = this.viewRotation;
         this.animateCamera(target);
       } else {
-        this.stopCameraAnimation();
+        // Sortie de la 3D pendant une transition : l'angle visé est conservé (pas un angle intermédiaire,
+        // qui deviendrait la cible du prochain passage en 3D).
+        this.finishCameraAnimation();
       }
     }
+    if (changed.has('is3DMode') && this.is3DMode) this.enterView3D();
     if (changed.has('activeTool')) this.resetToolState();
     if ((changed.has('is3DMode') || changed.has('interactive') || changed.has('readOnly') || changed.has('isDashboardMode')) && !this.canEdit2D) {
       if (this.interaction.kind !== 'gesture' && this.interaction.kind !== 'pan' && this.interaction.kind !== 'orbit') this.cancelInteraction();
@@ -2239,6 +2299,109 @@ export class HomeArchitectCanvas extends LitElement {
     this.cameraTarget = null;
   }
 
+  /** Termine immédiatement la transition en cours sur l'angle qu'elle vise. */
+  private finishCameraAnimation(): void {
+    const target = this.cameraTarget;
+    this.stopCameraAnimation();
+    if (target) {
+      this.orbitPitch = target.pitchDeg;
+      this.orbitYaw = target.yawDeg;
+    }
+  }
+
+  // ==========================================
+  // VUE 3D WEBGL (chargée à la demande)
+  // ==========================================
+
+  /**
+   * Passage en 3D : la vue WebGL est affichée dès que son chunk est chargé (aussitôt s'il l'est déjà) ;
+   * pendant le chargement, ou si WebGL fait défaut, la projection SVG simplifiée est affichée.
+   */
+  private enterView3D(): void {
+    if (isView3DReady()) {
+      this.activateView3D();
+      return;
+    }
+    if (this.view3d === 'loading') return;
+    this.view3d = 'loading';
+    loadView3D().then(
+      () => {
+        if (this.view3d !== 'loading') return;
+        if (this.is3DMode) this.activateView3D();
+        else this.view3d = 'idle';
+      },
+      (err: unknown) => {
+        this.view3d = 'fallback';
+        // Message seulement si la 3D est encore affichée (retour en 2D pendant le chargement : rien à signaler).
+        if (err instanceof Error && this.is3DMode) this.flashHint(err.message);
+      }
+    );
+  }
+
+  /** Affiche la vue WebGL : elle reprend la caméra courante (et la transition en cours) de la 3D simplifiée. */
+  private activateView3D(): void {
+    const to = this.cameraTarget ?? { pitchDeg: this.orbitPitch, yawDeg: this.orbitYaw };
+    const from = this.cameraAnimation !== null ? { pitchDeg: this.orbitPitch, yawDeg: this.orbitYaw } : null;
+    this.stopCameraAnimation();
+    this.orbitPitch = to.pitchDeg;
+    this.orbitYaw = to.yawDeg;
+    this.view3dIntro = { from, to };
+    this.view3d = 'ready';
+  }
+
+  /** Échec de la vue WebGL à l'exécution (contexte refusé) : repli définitif sur la 3D simplifiée. */
+  private handleView3DError(e: CustomEvent<View3DMessageDetail>): void {
+    markView3DFailed(e.detail.message);
+    this.view3d = 'fallback';
+    this.flashHint(e.detail.message);
+  }
+
+  /** Angles et zoom de la caméra WebGL : badge du HUD, et caméra de la 3D simplifiée en cas de repli. */
+  private handleView3DCamera(e: CustomEvent<View3DCameraDetail>): void {
+    this.orbitPitch = e.detail.pitchDeg;
+    this.orbitYaw = e.detail.yawDeg;
+    this.view3dZoom = e.detail.zoom;
+  }
+
+  /** Point du sol sous le pointeur (HUD des coordonnées, sans nouveau rendu). */
+  private handleView3DHover(e: CustomEvent<View3DHoverDetail>): void {
+    this.cursorCoords = {
+      x: SnappingEngine.roundMeters(e.detail.point.x),
+      y: SnappingEngine.roundMeters(e.detail.point.y)
+    };
+    this.paintCoords();
+  }
+
+  private handleView3DHint(e: CustomEvent<View3DMessageDetail>): void {
+    this.flashHint(e.detail.message);
+  }
+
+  /**
+   * Clic dans la vue WebGL (studio) : mêmes règles que les éléments du plan en 3D. Fond : désélection ;
+   * élément : sélection (Maj / Ctrl / ⌘ : ajout ou retrait) ; double clic : fiche more-info d'une entité
+   * (constat F118) ou fiche d'une pièce.
+   */
+  private handleView3DPick(e: CustomEvent<View3DPickDetail>): void {
+    const { ref, modifier, double } = e.detail;
+    if (!ref) {
+      if (this.canSelect && !modifier) this.setSelection(emptySelection());
+      return;
+    }
+    if (!this.selectsElements) return;
+    if (double) {
+      if (ref.kind === 'binding') {
+        const binding = this.project.bindings.find(b => b.id === ref.id);
+        if (binding) this.openMoreInfo(binding.entityId);
+      } else if (ref.kind === 'room' && this.activeTool === 'select') {
+        const room = this.project.rooms.find(r => r.id === ref.id);
+        if (room) this.emitRoomSelected(room);
+      }
+      return;
+    }
+    const sel = this.selectedElements;
+    this.setSelection(modifier ? (isSelected(sel, ref) ? removeFromSelection(sel, ref) : addToSelection(sel, ref)) : selectOnly(ref));
+  }
+
   /**
    * Nouveau projet reçu du parent. Autre plan (id) : tracés et gestes abandonnés, plan recadré. Même plan
    * rechargé (nouvelle révision, ou plan vide remplacé par son contenu chargé) sans que l'utilisateur ait
@@ -2250,13 +2413,14 @@ export class HomeArchitectCanvas extends LitElement {
       this.endInteraction();
       this.resetToolState();
       this.viewTouched = false;
-      this.fitToScreen();
+      // La vue WebGL recadre elle-même un autre plan (nouvel identifiant).
+      this.fitPlanView();
       return;
     }
     if (this.viewTouched || this.isOwnEdit(cur)) return;
     const replaced = cur.walls !== old.walls || cur.rooms !== old.rooms || cur.bindings !== old.bindings ||
       cur.furniture !== old.furniture || cur.background !== old.background;
-    if (replaced && (cur.revision !== old.revision || !hasContent(old))) this.fitToScreen();
+    if (replaced && (cur.revision !== old.revision || !hasContent(old))) this.fitPlanView();
   }
 
   /**
@@ -2312,7 +2476,13 @@ export class HomeArchitectCanvas extends LitElement {
   // leurs données, le zoom ou la sélection changent — jamais à chaque mouvement du pointeur.
 
   /** Entités affichées par le plan : un nouvel objet hass qui n'en touche aucune ne redessine rien. */
-  private readonly watchedEntityIds = memoizeLast((bindings: readonly EntityBinding[]) => boundEntityIds(bindings));
+  private readonly watchedEntityIds = memoizeLast((bindings: readonly EntityBinding[], openings: readonly Opening[]) =>
+    boundEntityIds(bindings, openings));
+
+  /** Épingles, et en 3D les capteurs liés aux ouvertures (battants ouverts ou fermés dans la vue WebGL). */
+  private watchedEntities(): string[] {
+    return this.watchedEntityIds(this.project.bindings, this.is3DMode ? this.project.openings : NO_OPENINGS);
+  }
 
   /** Liaisons affichables (une liaison sans entity_id, venue d'un projet non normalisé, ne doit pas bloquer le rendu). */
   private readonly displayableBindings = memoizeLast((bindings: EntityBinding[]) =>
@@ -2457,8 +2627,7 @@ export class HomeArchitectCanvas extends LitElement {
 
   /**
    * Pièces : remplissage par variable CSS (couleur de la pièce, teinte RVB de la lumière allumée ou
-   * heatmap), contour et halo pour une pièce éclairée sans écraser cette couleur (constat F59) ;
-   * étiquette au point d'étiquette, toujours à l'intérieur de la pièce (constat F124).
+   * heatmap), contour et halo pour une pièce éclairée sans écraser cette couleur (constat F59).
    */
   private renderRooms(looks: ReadonlyMap<string, RoomAppearance>) {
     const k = this.screenPpm;
@@ -2483,21 +2652,29 @@ export class HomeArchitectCanvas extends LitElement {
             points=${pts}
             style=${styleMap(fill ? { '--room-fill': fill } : {})}
           />
-          ${this.is3DMode ? nothing : this.renderRoomLabel(room, look?.temperature ?? null, k)}
         </g>
       `;
     });
   }
 
-  private renderRoomLabel(room: Room, temperature: TemperatureReading | null, k: number) {
-    const p = PolygonUtils.labelPoint(room.polygon);
-    return svg`
-      <g class="room-label-group" transform="translate(${p.x * k}, ${p.y * k})">
-        <text class="room-label-name" y=${temperature ? -10 : -6}>${room.name}</text>
-        <text class="room-label-area" y=${temperature ? 6 : 12}>${room.areaM2.toFixed(1)} m²</text>
-        ${temperature ? svg`<text class="room-label-temp" y="21">🌡️ ${formatTemperature(temperature, this.hass)}</text>` : nothing}
-      </g>
-    `;
+  /**
+   * Étiquettes des pièces en 2D, au point d'étiquette (toujours à l'intérieur de la pièce, constat F124),
+   * dessinées au-dessus des meubles, murs et ouvertures (elles ne captent pas le pointeur).
+   */
+  private renderRoomLabels(looks: ReadonlyMap<string, RoomAppearance>) {
+    const k = this.screenPpm;
+    return this.project.rooms.map(room => {
+      if (!room.polygon || room.polygon.length < 3) return nothing;
+      const p = PolygonUtils.labelPoint(room.polygon);
+      const temperature: TemperatureReading | null = looks.get(room.id)?.temperature ?? null;
+      return svg`
+        <g class="room-label-group" transform="translate(${p.x * k}, ${p.y * k})">
+          <text class="room-label-name" y=${temperature ? -10 : -6}>${room.name}</text>
+          <text class="room-label-area" y=${temperature ? 6 : 12}>${room.areaM2.toFixed(1)} m²</text>
+          ${temperature ? svg`<text class="room-label-temp" y="21">🌡️ ${formatTemperature(temperature, this.hass)}</text>` : nothing}
+        </g>
+      `;
+    });
   }
 
   /** Étiquettes des pièces en 3D : badges toujours face à l'écran, au-dessus des murs. */
@@ -2983,71 +3160,42 @@ export class HomeArchitectCanvas extends LitElement {
       const wPx = wMeters * ppm;
       const lPx = lMeters * ppm;
       const rot = item.rotation || 0;
+      const sizeLabel = `${wMeters.toFixed(2)}×${lMeters.toFixed(2)}m`;
 
       return svg`
         <g class="furniture-handles" transform="translate(${sPos.x}, ${sPos.y}) rotate(${rot})">
           <!-- Ligne de rappel vers la poignée de rotation -->
-          <line x1="0" y1="${-lPx/2}" x2="0" y2="${-lPx/2 - 18}" stroke="#38bdf8" stroke-width="1.5" stroke-dasharray="3,2" />
+          <line class="handle-guide" x1="0" y1="${-lPx/2}" x2="0" y2="${-lPx/2 - 18}" />
           <!-- Poignée interactive de rotation degré par degré -->
           <g
             class="furniture-rotate-handle"
             @pointerdown=${(e: PointerEvent) => this.handleFurnitureRotatePointerDown(item, e)}
-            style="cursor: grab;"
           >
             <!-- Zone cliquable invisible élargie -->
-            <circle cx="0" cy="${-lPx/2 - 18}" r="12" fill="transparent" />
+            <circle class="handle-hit" cx="0" cy="${-lPx/2 - 18}" r="12" />
             <!-- Petit rond bleu clair visible avec contour blanc -->
-            <circle cx="0" cy="${-lPx/2 - 18}" r="6.5" fill="#38bdf8" stroke="#ffffff" stroke-width="2" />
+            <circle class="handle-knob" cx="0" cy="${-lPx/2 - 18}" r="6.5" stroke-width="2" />
             <!-- Indicateur d'angle en direct quand le meuble est sélectionné -->
-            <text
-              x="0"
-              y="${-lPx/2 - 28}"
-              text-anchor="middle"
-              font-size="10"
-              font-weight="700"
-              fill="#38bdf8"
-              style="user-select: none; pointer-events: none; text-shadow: 0 1px 4px rgba(0,0,0,0.8);"
-            >
-              ${Math.round(rot)}°
-            </text>
+            <text class="handle-angle" x="0" y="${-lPx/2 - 28}">${Math.round(rot)}°</text>
           </g>
 
           <!-- Poignée interactive d'étirement / redimensionnement en bas à droite -->
           <g
             class="furniture-resize-handle"
             @pointerdown=${(e: PointerEvent) => this.handleFurnitureResizePointerDown(item, e)}
-            style="cursor: nwse-resize;"
           >
             <!-- Zone cliquable invisible élargie -->
-            <rect x="${wPx/2 - 6}" y="${lPx/2 - 6}" width="20" height="20" fill="transparent" />
-            <!-- Poignée carrée moderne aux coins légèrement arrondis avec bordure blanche -->
-            <rect
-              x="${wPx/2 - 2}"
-              y="${lPx/2 - 2}"
-              width="11"
-              height="11"
-              rx="2.5"
-              fill="#38bdf8"
-              stroke="#ffffff"
-              stroke-width="1.8"
-            />
+            <rect class="handle-hit" x="${wPx/2 - 6}" y="${lPx/2 - 6}" width="20" height="20" />
+            <!-- Poignée carrée aux coins légèrement arrondis avec bordure blanche -->
+            <rect class="handle-knob" x="${wPx/2 - 2}" y="${lPx/2 - 2}" width="11" height="11" rx="2.5" stroke-width="1.8" />
             <!-- 2 stries diagonales symbolisant le grip de redimensionnement -->
-            <line x1="${wPx/2 + 2}" y1="${lPx/2 + 7}" x2="${wPx/2 + 7}" y2="${lPx/2 + 2}" stroke="#0f172a" stroke-width="1.2" stroke-linecap="round" />
-            <line x1="${wPx/2 + 5}" y1="${lPx/2 + 7}" x2="${wPx/2 + 7}" y2="${lPx/2 + 5}" stroke="#0f172a" stroke-width="1.2" stroke-linecap="round" />
+            <line class="handle-grip" x1="${wPx/2 + 2}" y1="${lPx/2 + 7}" x2="${wPx/2 + 7}" y2="${lPx/2 + 2}" />
+            <line class="handle-grip" x1="${wPx/2 + 5}" y1="${lPx/2 + 7}" x2="${wPx/2 + 7}" y2="${lPx/2 + 5}" />
 
             <!-- Badge des dimensions actuelles en bas à droite -->
-            <g transform="translate(${wPx/2 + 14}, ${lPx/2 + 16})" style="user-select: none; pointer-events: none;">
-              <rect x="-2" y="-9" width="${(wMeters.toFixed(2) + '×' + lMeters.toFixed(2) + 'm').length * 6.5 + 8}" height="14" rx="3" fill="rgba(15, 23, 42, 0.85)" stroke="rgba(56, 189, 248, 0.4)" stroke-width="0.8" />
-              <text
-                x="2"
-                y="1.5"
-                font-size="9"
-                font-weight="700"
-                font-family="ui-monospace, SFMono-Regular, monospace"
-                fill="#38bdf8"
-              >
-                ${wMeters.toFixed(2)}×${lMeters.toFixed(2)}m
-              </text>
+            <g class="handle-size-badge" transform="translate(${wPx/2 + 14}, ${lPx/2 + 16})">
+              <rect x="-2" y="-9" width="${sizeLabel.length * 6.5 + 8}" height="14" rx="3" />
+              <text class="handle-size-text" x="2" y="1.5">${sizeLabel}</text>
             </g>
           </g>
         </g>
@@ -3154,22 +3302,35 @@ export class HomeArchitectCanvas extends LitElement {
   }
 
   public rotateQuarterTurn(): void {
-    if (this.is3DMode) {
+    const view = this.view3dElement;
+    if (view) {
+      view.rotateQuarterTurn();
+    } else if (this.is3DMode) {
       // En 3D : pivoter l'orbite d'un quart de tour (depuis l'angle visé si une transition est en cours)
       const from = this.cameraTarget ?? { pitchDeg: this.orbitPitch, yawDeg: this.orbitYaw };
       this.animateCamera({ pitchDeg: from.pitchDeg, yawDeg: (from.yawDeg - 90) % 360 });
     } else {
       // En 2D : pivoter l'angle de vue d'un quart de tour à gauche (↺ -90°)
       this.viewRotation -= 90;
-      this.fitToScreen();
+      this.fitPlanView();
     }
   }
 
   /**
-   * Cadre le plan dans le canevas (rotation de vue normalisée : largeur et hauteur transposées à 90° et
-   * 270°). Avant la mise en page, le cadrage est différé au premier redimensionnement non nul (constat F55).
+   * Cadre le plan dans le canevas (menu « Ajuster » du studio, plan chargé ou importé) : vue 2D et, en
+   * vue WebGL, caméra 3D (angles conservés).
    */
   public fitToScreen(padding: number = 60): void {
+    this.fitPlanView(padding);
+    this.view3dElement?.fitToView();
+  }
+
+  /**
+   * Cadrage de la vue 2D et de la 3D simplifiée (rotation de vue normalisée : largeur et hauteur
+   * transposées à 90° et 270°). Avant la mise en page, le cadrage est différé au premier redimensionnement
+   * non nul (constat F55). La caméra WebGL n'est pas touchée (redimensionnement, plan rechargé).
+   */
+  private fitPlanView(padding: number = 60): void {
     const size = this.measuredSize();
     if (!size) {
       this.pendingFitPadding = padding;
@@ -3189,7 +3350,15 @@ export class HomeArchitectCanvas extends LitElement {
 
   private resetView(): void {
     this.viewRotation = 0;
-    this.fitToScreen();
+    this.fitPlanView();
+    this.view3dElement?.resetView();
+  }
+
+  /** Bouton ⛶ : cadre le plan (caméra recadrée en vue WebGL, qui garde ses angles). */
+  private fitView(): void {
+    const view = this.view3dElement;
+    if (view) view.fitToView();
+    else this.fitPlanView(40);
   }
 
   /** Bouton 2D/3D : le parent possède is3DMode et applique la valeur demandée (constat F100). */
@@ -3206,8 +3375,12 @@ export class HomeArchitectCanvas extends LitElement {
     if (this.pendingPlacement && this.canEdit2D) {
       return "Touchez le plan à l'endroit voulu pour placer l'élément (Échap pour annuler).";
     }
+    if (this.webgl3D) {
+      return "Vue 3D : glisser pour pivoter, clic droit ou Maj+glisser pour déplacer, molette pour zoomer. Clic : sélection, double-clic : fiche. Édition en vue 2D.";
+    }
     if (this.is3DMode) {
-      return "Vue 3D Interactive : Glisser (clic gauche/droit) pour pivoter 360°, Molette pour zoomer, Shift+glisser pour déplacer. Édition en vue 2D.";
+      const prefix = this.view3d === 'fallback' ? 'Vue 3D simplifiée' : 'Vue 3D Interactive';
+      return `${prefix} : Glisser (clic gauche/droit) pour pivoter 360°, Molette pour zoomer, Shift+glisser pour déplacer. Édition en vue 2D.`;
     }
     if (this.readOnly) {
       return 'Lecture seule : vous pouvez parcourir et sélectionner, mais pas modifier le plan.';
@@ -3262,6 +3435,18 @@ export class HomeArchitectCanvas extends LitElement {
           ${is3D ? '🧊' : '📐'}
         </button>
 
+        ${this.webgl3D ? html`
+          <button
+            class="hud-btn ${this.cutWalls ? 'active' : ''}"
+            @click=${() => { this.cutWalls = !this.cutWalls; }}
+            title="Couper les murs à mi-hauteur pour voir l'intérieur"
+            aria-label="Couper les murs à mi-hauteur"
+            aria-pressed=${this.cutWalls ? 'true' : 'false'}
+          >
+            ✂️
+          </button>
+        ` : nothing}
+
         ${is3D ? html`
           <div class="hud-preset-group" role="group" aria-label="Préréglages de la caméra 3D">
             <span class="hud-angle-badge" aria-hidden="true">${Math.round(this.orbitYaw)}° / ${Math.round(this.orbitPitch)}°</span>
@@ -3289,7 +3474,7 @@ export class HomeArchitectCanvas extends LitElement {
         <!-- Zoom automatique et centrage sur l'écran -->
         <button
           class="hud-btn"
-          @click=${() => this.fitToScreen(40)}
+          @click=${this.fitView}
           title="Ajuster automatiquement à la page (zoom auto et centrage)"
           aria-label="Ajuster le plan à l'écran"
         >
@@ -3297,7 +3482,7 @@ export class HomeArchitectCanvas extends LitElement {
         </button>
 
         <button class="hud-btn" @click=${this.zoomOut} title="Zoom Arrière" aria-label="Zoom arrière">−</button>
-        <div class="hud-zoom-label">${Math.round(displayZoom(this.viewport.zoom, this.ppm) * 100)}%</div>
+        <div class="hud-zoom-label">${Math.round((this.webgl3D ? this.view3dZoom : displayZoom(this.viewport.zoom, this.ppm)) * 100)}%</div>
         <button class="hud-btn" @click=${this.zoomIn} title="Zoom Avant" aria-label="Zoom avant">+</button>
         <button class="hud-btn" @click=${this.resetView} title="Recentrer" aria-label="Recentrer la vue">⌖</button>
       </div>
@@ -3351,13 +3536,39 @@ export class HomeArchitectCanvas extends LitElement {
     `;
   }
 
-  render() {
-    const helpMsg = this.getHelpMessage();
-    // Taille mise en cache par le ResizeObserver : centre de la rotation de vue (v1.0.29)
-    const size = this.sizeOrFallback();
+  /**
+   * Vue 3D WebGL (constat F120, lot view3d) : murs, ouvertures, sols, meubles et entités en volume ; le
+   * HUD du canevas pilote sa caméra. Les clics, la caméra et le survol remontent par des événements.
+   */
+  private renderView3D() {
+    return html`
+      <home-architect-3d-view
+        .project=${this.project}
+        .hass=${this.hass}
+        .ghostProject=${this.ghostProject ?? null}
+        .showThermalHeatmap=${this.showThermalHeatmap}
+        .interactive=${this.canSelect}
+        .readOnly=${this.readOnly}
+        .dashboard=${this.isDashboardMode}
+        .selectedElements=${this.selectedElements}
+        .scheme=${this.colorScheme}
+        .animations=${this.animations}
+        .shadows=${this.shadows}
+        .cutWalls=${this.cutWalls}
+        .intro=${this.view3dIntro}
+        @view3d-pick=${this.handleView3DPick}
+        @view3d-camera=${this.handleView3DCamera}
+        @view3d-hover=${this.handleView3DHover}
+        @view3d-hint=${this.handleView3DHint}
+        @view3d-error=${this.handleView3DError}
+      ></home-architect-3d-view>
+    `;
+  }
+
+  /** Plan SVG : vue 2D, ou projection 3D simplifiée (repli de la vue WebGL). */
+  private renderSvgViewport(size: CanvasSize) {
     const cx = size.width / 2;
     const cy = size.height / 2;
-    const it = this.interaction;
     const is3D = this.is3DMode;
     const project = this.project;
     const k = this.screenPpm;
@@ -3366,6 +3577,49 @@ export class HomeArchitectCanvas extends LitElement {
     const bindings = this.displayableBindings(project.bindings);
     const looks = this.roomLooks(project.rooms, bindings, this.showThermalHeatmap, this.entityRevision);
     const views = this.pinViews(bindings, this.entityRevision);
+
+    // Fond, calque fantôme et grille ; puis pièces, meubles, murs et ouvertures (mêmes calques en 2D et
+    // en 3D, où le sol est projeté par la caméra). Un pan ne réévalue aucun de ces calques.
+    const backdrop = svg`
+      <g class="plan-layer" transform=${pan}>
+        ${guard([project.background, this.backgroundSrc, k, this.viewport.zoom], () => this.renderBackgroundLayer())}
+        ${guard([this.ghostProject, k], () => this.renderGhostLayer())}
+      </g>
+      ${this.renderGrid()}
+    `;
+    const floor = svg`
+      <g class="plan-layer" transform=${pan}>
+        ${guard([project.rooms, k, looks, sel], () => this.renderRooms(looks))}
+        ${guard([project.furniture, k, sel, this.canEdit], () => this.renderFurniture())}
+        ${is3D ? nothing : guard([project.walls, k, sel, this.showDimensions], () => this.renderWalls2D())}
+        ${is3D ? nothing : guard([project.openings, project.walls, k, sel], () => this.renderOpenings())}
+        ${is3D ? nothing : guard([project.rooms, k, looks], () => this.renderRoomLabels(looks))}
+      </g>
+    `;
+
+    return html`
+      <div class="viewport-3d-wrapper ${is3D ? 'mode-3d' : ''}">
+        <svg class="main-viewport">
+          <!-- Rotation de vue 2D autour du centre du canevas ; transform-box et transition (0,35 s, coupée
+               si les animations sont réduites) portés par la classe -->
+          <g
+            class="viewport-2d-rotator"
+            style=${styleMap(is3D ? {} : { transform: `rotate(${this.viewRotation}deg)`, 'transform-origin': `${cx}px ${cy}px` })}
+          >
+            ${is3D ? this.renderScene3D(views, backdrop, floor, size) : this.renderScene2D(views, backdrop, floor)}
+          </g>
+        </svg>
+      </div>
+    `;
+  }
+
+  render() {
+    const helpMsg = this.getHelpMessage();
+    // Taille mise en cache par le ResizeObserver : centre de la rotation de vue (v1.0.29)
+    const size = this.sizeOrFallback();
+    const it = this.interaction;
+    const is3D = this.is3DMode;
+    const sel = this.selectedElements;
     const containerClasses = {
       'canvas-container': true,
       'is-panning': it.kind === 'pan',
@@ -3375,24 +3629,6 @@ export class HomeArchitectCanvas extends LitElement {
       'read-only': !this.canEdit,
       'placing': !!this.pendingPlacement && this.canEdit2D
     };
-
-    // Fond, calque fantôme et grille ; puis pièces, meubles, murs et ouvertures (mêmes calques en 2D et
-    // en 3D, où le sol est projeté par la caméra). Un pan ne réévalue aucun de ces calques.
-    const backdrop = svg`
-      <g class="plan-layer" transform=${pan}>
-        ${guard([project.background, this.backgroundSrc, k], () => this.renderBackgroundLayer())}
-        ${guard([this.ghostProject, k], () => this.renderGhostLayer())}
-      </g>
-      ${this.renderGrid()}
-    `;
-    const floor = svg`
-      <g class="plan-layer" transform=${pan}>
-        ${guard([project.rooms, k, looks, sel, is3D], () => this.renderRooms(looks))}
-        ${guard([project.furniture, k, sel, this.canEdit], () => this.renderFurniture())}
-        ${is3D ? nothing : guard([project.walls, k, sel, this.showDimensions], () => this.renderWalls2D())}
-        ${is3D ? nothing : guard([project.openings, project.walls, k, sel], () => this.renderOpenings())}
-      </g>
-    `;
 
     return html`
       <div
@@ -3409,18 +3645,7 @@ export class HomeArchitectCanvas extends LitElement {
         @dragover=${this.handleDragOver}
         @drop=${this.handleDrop}
       >
-        <div class="viewport-3d-wrapper ${is3D ? 'mode-3d' : ''}">
-          <svg class="main-viewport">
-            <g
-              class="viewport-2d-rotator"
-              style="${!is3D
-                ? `transform: rotate(${this.viewRotation}deg); transform-origin: ${cx}px ${cy}px; transform-box: view-box; transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);`
-                : ''}"
-            >
-              ${is3D ? this.renderScene3D(views, backdrop, floor, size) : this.renderScene2D(views, backdrop, floor)}
-            </g>
-          </svg>
-        </div>
+        ${this.webgl3D ? this.renderView3D() : this.renderSvgViewport(size)}
       </div>
 
       <!-- HUD hors du conteneur interactif : un clic sur le HUD n'atteint jamais les outils du plan -->

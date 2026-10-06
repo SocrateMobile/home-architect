@@ -29,6 +29,11 @@ export const canvasStyles = css`
     --arch-accent-faint: var(--ha-arch-accent-faint, rgba(56, 189, 248, 0.12));
     --arch-accent-text: var(--ha-arch-accent-text, #a5f3fc);
     --arch-selection-fill: var(--ha-arch-selection-fill, rgba(6, 182, 212, 0.45));
+    --arch-selection-glow: var(--ha-arch-selection-glow, rgba(6, 182, 212, 0.8));
+    --arch-selection-line: var(--ha-arch-selection-line, #22d3ee);
+    --arch-marquee-fill: var(--ha-arch-marquee-fill, rgba(6, 182, 212, 0.15));
+    --arch-invalid: var(--ha-arch-invalid, #ef4444);
+    --arch-invalid-fill: var(--ha-arch-invalid-fill, rgba(239, 68, 68, 0.3));
     --arch-room-fill: var(--ha-arch-room-fill, rgba(56, 189, 248, 0.12));
     --arch-room-stroke: var(--ha-arch-room-stroke, rgba(56, 189, 248, 0.4));
     --arch-wall-fill: var(--ha-arch-wall-fill, #334155);
@@ -50,8 +55,11 @@ export const canvasStyles = css`
     --arch-hud-btn-border: var(--ha-arch-hud-btn-border, rgba(255, 255, 255, 0.1));
     --arch-hud-text: var(--ha-arch-hud-text, #f1f5f9);
     --arch-hud-active: var(--ha-arch-hud-active, #0284c7);
+    --arch-hud-active-text: var(--ha-arch-hud-active-text, #ffffff);
     --arch-pin-bg: var(--ha-arch-pin-bg, rgba(30, 41, 59, 0.9));
     --arch-pin-border: var(--ha-arch-pin-border, rgba(255, 255, 255, 0.2));
+    --arch-pin-light-bg: var(--ha-arch-pin-light-bg, #0284c7);
+    --arch-media: var(--ha-arch-media, #a855f7);
     --arch-on: var(--ha-arch-on, #34d399);
     --arch-off: var(--ha-arch-off, #94a3b8);
     --arch-alert: var(--ha-arch-alert, #f87171);
@@ -68,12 +76,20 @@ export const canvasStyles = css`
     --arch-hint-border: var(--ha-arch-hint-border, rgba(250, 204, 21, 0.5));
     --arch-hint-text: var(--ha-arch-hint-text, #fde68a);
     --arch-handle-border: var(--ha-arch-handle-border, #ffffff);
+    /* Poignées des meubles (v1.0.22 / v1.0.26) : mêmes couleurs dans les deux palettes */
+    --arch-handle: var(--ha-arch-handle, #38bdf8);
+    --arch-handle-hover: var(--ha-arch-handle-hover, #06b6d4);
+    --arch-handle-grip: var(--ha-arch-handle-grip, #0f172a);
+    --arch-handle-badge-bg: var(--ha-arch-handle-badge-bg, rgba(15, 23, 42, 0.85));
+    --arch-handle-badge-border: var(--ha-arch-handle-badge-border, rgba(56, 189, 248, 0.4));
 
     display: block;
     position: relative;
     width: 100%;
     height: 100%;
     overflow: hidden;
+    /* Le HUD s'adapte à la largeur du canevas (requêtes de conteneur), pas à celle de la fenêtre */
+    container: architect-canvas / inline-size;
     user-select: none;
     touch-action: none;
     background-color: var(--arch-bg);
@@ -96,6 +112,11 @@ export const canvasStyles = css`
     --arch-accent-faint: var(--ha-arch-accent-faint, rgba(2, 132, 199, 0.1));
     --arch-accent-text: var(--ha-arch-accent-text, #0e7490);
     --arch-selection-fill: var(--ha-arch-selection-fill, rgba(8, 145, 178, 0.35));
+    --arch-selection-glow: var(--ha-arch-selection-glow, rgba(8, 145, 178, 0.55));
+    --arch-selection-line: var(--ha-arch-selection-line, #0891b2);
+    --arch-marquee-fill: var(--ha-arch-marquee-fill, rgba(8, 145, 178, 0.12));
+    --arch-invalid: var(--ha-arch-invalid, #dc2626);
+    --arch-invalid-fill: var(--ha-arch-invalid-fill, rgba(220, 38, 38, 0.22));
     --arch-room-fill: var(--ha-arch-room-fill, rgba(2, 132, 199, 0.08));
     --arch-room-stroke: var(--ha-arch-room-stroke, rgba(2, 132, 199, 0.45));
     --arch-wall-fill: var(--ha-arch-wall-fill, #64748b);
@@ -118,6 +139,7 @@ export const canvasStyles = css`
     --arch-hud-text: var(--ha-arch-hud-text, #0f172a);
     --arch-pin-bg: var(--ha-arch-pin-bg, rgba(255, 255, 255, 0.95));
     --arch-pin-border: var(--ha-arch-pin-border, rgba(15, 23, 42, 0.25));
+    --arch-media: var(--ha-arch-media, #9333ea);
     --arch-on: var(--ha-arch-on, #059669);
     --arch-off: var(--ha-arch-off, #64748b);
     --arch-alert: var(--ha-arch-alert, #dc2626);
@@ -212,9 +234,15 @@ export const canvasStyles = css`
     shape-rendering: geometricPrecision;
   }
 
+  /* Rotation de vue 2D (v1.0.29) : quart de tour animé ; origine (centre du canevas) posée par le canevas */
   .viewport-2d-rotator {
     transform-box: view-box;
     transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  /* En 3D la caméra (projetée en JS) reprend l'orientation : le groupe quitte sa rotation sans transition */
+  .viewport-3d-wrapper.mode-3d .viewport-2d-rotator {
+    transition: none;
   }
 
   /* Grille 2D et sol 3D */
@@ -400,7 +428,7 @@ export const canvasStyles = css`
   .wall-cap-3d.selected {
     fill: var(--arch-accent-strong);
     stroke: var(--arch-accent);
-    filter: drop-shadow(0 0 10px rgba(6, 182, 212, 0.6));
+    filter: drop-shadow(0 0 10px var(--arch-selection-glow));
   }
 
   .opening-3d {
@@ -482,12 +510,12 @@ export const canvasStyles = css`
 
   /* Ouverture refusée : mur trop court ou chevauchement d'une ouverture existante */
   .opening-preview.invalid {
-    filter: drop-shadow(0 0 6px #ef4444);
+    filter: drop-shadow(0 0 6px var(--arch-invalid));
   }
 
   .opening-preview.invalid .opening-preview-body {
-    fill: rgba(239, 68, 68, 0.3);
-    stroke: #ef4444;
+    fill: var(--arch-invalid-fill);
+    stroke: var(--arch-invalid);
   }
 
   /* Pièce en cours de tracé (polygone ou rectangle) */
@@ -580,7 +608,7 @@ export const canvasStyles = css`
   }
 
   .rescale-end {
-    fill: #0284c7;
+    fill: var(--arch-hud-active);
     stroke: var(--arch-accent);
     stroke-width: 2;
   }
@@ -590,6 +618,8 @@ export const canvasStyles = css`
     fill: none;
     stroke: var(--arch-accent);
     stroke-width: 2;
+    transform-box: fill-box;
+    transform-origin: center;
     animation: pulseSnap 1.5s infinite alternate ease-in-out;
   }
 
@@ -650,7 +680,59 @@ export const canvasStyles = css`
   }
 
   .furniture-group.selected .furniture-symbol {
-    filter: drop-shadow(0 0 12px rgba(6, 182, 212, 0.8));
+    filter: drop-shadow(0 0 12px var(--arch-selection-glow));
+  }
+
+  /* Poignées des meubles : taille constante à l'écran, au-dessus du plan */
+  .handle-hit {
+    fill: transparent;
+  }
+
+  .handle-guide {
+    stroke: var(--arch-handle);
+    stroke-width: 1.5;
+    stroke-dasharray: 3, 2;
+  }
+
+  .handle-knob {
+    fill: var(--arch-handle);
+    stroke: var(--arch-handle-border);
+  }
+
+  .handle-grip {
+    stroke: var(--arch-handle-grip);
+    stroke-width: 1.2;
+    stroke-linecap: round;
+  }
+
+  .handle-angle,
+  .handle-size-text {
+    fill: var(--arch-handle);
+    font-weight: 700;
+    user-select: none;
+    pointer-events: none;
+  }
+
+  .handle-angle {
+    font-size: 10px;
+    text-anchor: middle;
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
+  }
+
+  .handle-size-badge {
+    user-select: none;
+    pointer-events: none;
+  }
+
+  .handle-size-badge rect {
+    fill: var(--arch-handle-badge-bg);
+    stroke: var(--arch-handle-badge-border);
+    stroke-width: 0.8;
+  }
+
+  .handle-size-text {
+    font-size: 9px;
+    font-family: ui-monospace, SFMono-Regular, monospace;
   }
 
   .furniture-rotate-handle {
@@ -659,9 +741,9 @@ export const canvasStyles = css`
   }
 
   .furniture-rotate-handle:hover circle {
-    fill: #06b6d4 !important;
-    stroke: #ffffff !important;
-    filter: drop-shadow(0 0 8px #06b6d4);
+    fill: var(--arch-handle-hover) !important;
+    stroke: var(--arch-handle-border) !important;
+    filter: drop-shadow(0 0 8px var(--arch-handle-hover));
   }
 
   .furniture-rotate-handle:active {
@@ -674,9 +756,9 @@ export const canvasStyles = css`
   }
 
   .furniture-resize-handle:hover rect {
-    fill: #06b6d4 !important;
-    stroke: #ffffff !important;
-    filter: drop-shadow(0 0 8px #06b6d4);
+    fill: var(--arch-handle-hover) !important;
+    stroke: var(--arch-handle-border) !important;
+    filter: drop-shadow(0 0 8px var(--arch-handle-hover));
   }
 
   .furniture-resize-handle:active {
@@ -744,11 +826,11 @@ export const canvasStyles = css`
     stroke: var(--arch-accent-strong);
     stroke-width: 2.5px;
     fill: var(--arch-selection-fill);
-    filter: drop-shadow(0 0 10px rgba(6, 182, 212, 0.8));
+    filter: drop-shadow(0 0 10px var(--arch-selection-glow));
   }
 
   .wall-element.selected .wall-centerline {
-    stroke: #22d3ee;
+    stroke: var(--arch-selection-line);
     stroke-width: 2px;
     stroke-dasharray: none;
   }
@@ -758,7 +840,7 @@ export const canvasStyles = css`
   .opening-element.selected .opening-glass {
     stroke: var(--arch-accent-strong);
     stroke-width: 3px;
-    filter: drop-shadow(0 0 10px rgba(6, 182, 212, 0.9));
+    filter: drop-shadow(0 0 10px var(--arch-selection-glow));
   }
 
   .opening-element.selected .opening-cutout {
@@ -770,17 +852,17 @@ export const canvasStyles = css`
     stroke: var(--arch-accent-strong);
     stroke-width: 3px;
     stroke-dasharray: 6, 4;
-    filter: drop-shadow(0 0 14px rgba(6, 182, 212, 0.7));
+    filter: drop-shadow(0 0 14px var(--arch-selection-glow));
   }
 
   .entity-pin.selected .entity-pin-bg {
     stroke: var(--arch-accent-strong);
     stroke-width: 3px;
-    filter: drop-shadow(0 0 14px rgba(6, 182, 212, 0.9));
+    filter: drop-shadow(0 0 14px var(--arch-selection-glow));
   }
 
   .marquee-selection-box {
-    fill: rgba(6, 182, 212, 0.15);
+    fill: var(--arch-marquee-fill);
     stroke: var(--arch-accent-strong);
     stroke-width: 1.5;
     stroke-dasharray: 4, 3;
@@ -820,7 +902,7 @@ export const canvasStyles = css`
   }
 
   .entity-pin.active-light .entity-pin-bg {
-    fill: #0284c7;
+    fill: var(--arch-pin-light-bg);
     stroke: var(--arch-light);
   }
 
@@ -858,7 +940,7 @@ export const canvasStyles = css`
 
   .soundwave-pulse {
     fill: none;
-    stroke: #a855f7;
+    stroke: var(--arch-media);
     stroke-width: 1.8;
     vector-effect: non-scaling-stroke;
     transform-box: fill-box;
@@ -890,6 +972,11 @@ export const canvasStyles = css`
     .snap-indicator {
       animation: none;
     }
+
+    /* Quart de tour de la vue 2D appliqué sans animation */
+    .viewport-2d-rotator {
+      transition: none;
+    }
   }
 
   :host([no-animations]) .radar-pulse-ring,
@@ -897,6 +984,11 @@ export const canvasStyles = css`
   :host([no-animations]) .fan-spin,
   :host([no-animations]) .snap-indicator {
     animation: none;
+  }
+
+  /* Animations coupées (option de la carte) : quart de tour immédiat, comme la caméra 3D */
+  :host([no-animations]) .viewport-2d-rotator {
+    transition: none;
   }
 
   /* Hors écran : aucune image calculée pour les animations */
@@ -1009,14 +1101,14 @@ export const canvasStyles = css`
   .hud-btn:hover {
     background: var(--arch-hud-active);
     border-color: var(--arch-accent);
-    color: #ffffff;
+    color: var(--arch-hud-active-text);
     transform: translateY(-1px);
   }
 
   .hud-btn.active {
     background: var(--arch-hud-active);
     border-color: var(--arch-accent);
-    color: #ffffff;
+    color: var(--arch-hud-active-text);
   }
 
   .hud-btn:focus-visible,
@@ -1061,7 +1153,7 @@ export const canvasStyles = css`
   .hud-preset-btn:hover {
     background: var(--arch-hud-active);
     border-color: var(--arch-accent);
-    color: #ffffff;
+    color: var(--arch-hud-active-text);
   }
 
   .hud-angle-badge {
@@ -1101,6 +1193,23 @@ export const canvasStyles = css`
 
   .coords-hud.selection-active {
     bottom: 90px;
+  }
+
+  /*
+   * Largeur insuffisante pour placer les coordonnées (centrées) à côté du HUD (à droite) : elles passent
+   * au-dessus du HUD au lieu de le chevaucher ; le HUD 3D, avec ses préréglages et la coupe des murs, est
+   * plus large (≈ 690 px, constat F126).
+   */
+  @container architect-canvas (max-width: 1080px) {
+    .coords-hud {
+      bottom: 76px;
+    }
+  }
+
+  @container architect-canvas (max-width: 1740px) {
+    .canvas-container.mode-3d ~ .coords-hud:not(.selection-active) {
+      bottom: 76px;
+    }
   }
 
   .coords-key {
@@ -1190,6 +1299,11 @@ export const canvasStyles = css`
 
   :host([compact]) .hud-preset-group,
   :host([compact]) .coords-hud {
+    display: none;
+  }
+
+  /* HUD 3D compact (bouton de coupe des murs en plus) : le pourcentage de zoom cède sa place, + et − restent */
+  :host([compact]) .canvas-container.mode-3d ~ .canvas-hud .hud-zoom-label {
     display: none;
   }
 

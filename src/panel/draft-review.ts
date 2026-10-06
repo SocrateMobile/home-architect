@@ -9,6 +9,8 @@
 import { Draft } from '../core/drafts';
 import { ProjectSummary } from '../core/ha-api';
 import { HomeArchitectProject, PublishInfo } from '../core/types';
+import { localize } from '../i18n';
+import '../i18n/locales/panel';
 
 /**
  * - `unsaved` : plan jamais sauvegardé ;
@@ -38,12 +40,10 @@ export interface ServerState {
   publish?: PublishInfo | null;
 }
 
-export const DRAFT_STATUS_LABELS: Record<DraftStatus, string> = {
-  unsaved: 'Plan jamais sauvegardé',
-  newer: 'Plus récent que la version du serveur',
-  outdated: 'Basé sur une ancienne version du serveur (conflit possible)',
-  deleted: "Le plan n'existe plus sur le serveur",
-};
+/** Libellé traduit de l'état d'un brouillon (dialogue des copies locales, constat F110). */
+export function draftStatusLabel(status: DraftStatus): string {
+  return localize(`panel.drafts.status.${status}`);
+}
 
 /** Classe un brouillon par rapport à la version du serveur. */
 export function reviewDraft(draft: Draft, server: ServerState | null): DraftReview {

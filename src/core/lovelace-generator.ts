@@ -158,6 +158,15 @@ export function toYaml(value: YamlValue): string {
   return `${emitYaml(value, 0).join('\n')}\n`;
 }
 
+/**
+ * Commentaire d'en-tête identifiant le plan. Le YAML ne contient aucun texte dépendant de la langue
+ * de l'interface (il est collé dans des tableaux de bord partagés) : seul le nom choisi par
+ * l'utilisateur (ou l'identifiant du plan) y figure.
+ */
+function planComment(project: HomeArchitectProject): string {
+  return yamlComment(`Home Architect — ${project.name || project.id}`);
+}
+
 /** Configuration d'action : l'action 'navigate' sans chemin retombe sur `fallback`. */
 function actionConfig(action: TapActionType, binding: EntityBinding, fallback: TapActionType): ActionConfig {
   if (action === 'navigate') {
@@ -220,11 +229,7 @@ export class LovelaceGenerator {
    * sont calculées sur le même cadre que le SVG publié.
    */
   public static generatePictureElementsYaml(project: HomeArchitectProject, options: PictureElementsOptions): string {
-    const header = [
-      yamlComment(`Home Architect — carte picture-elements du plan « ${project.name || project.id} »`),
-      yamlComment('Republiez le plan depuis le studio après chaque modification, puis recollez ce code.'),
-    ];
-    return `${header.join('\n')}\n${toYaml(this.buildPictureElementsConfig(project, options))}`;
+    return `${planComment(project)}\n${toYaml(this.buildPictureElementsConfig(project, options))}`;
   }
 
   /** YAML de la carte personnalisée 'home-architect-card' (lit le projet sauvegardé sur le serveur). */
@@ -236,6 +241,6 @@ export class LovelaceGenerator {
       show_header: options?.showHeader ?? true,
       height: options?.height ?? '520px',
     };
-    return `${yamlComment(`Home Architect — carte intégrée du plan « ${project.name || project.id} »`)}\n${toYaml(config)}`;
+    return `${planComment(project)}\n${toYaml(config)}`;
   }
 }

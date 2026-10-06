@@ -12,7 +12,9 @@ import { Point, ViewportTransform } from '../core/types';
  *
  * La rotation de vue 2D est appliquée UNE seule fois, par le groupe SVG, autour du centre du canevas
  * (v1.0.28 / v1.0.29) : worldToView ne tourne pas ; seules les conversions depuis l'écran (clic, zoom
- * molette, pan) compensent la rotation. En 3D la rotation de vue vaut 0 (l'orbite est appliquée au wrapper).
+ * molette, pan) compensent la rotation. En 3D la rotation de vue vaut 0 : la vue WebGL (src/view3d) gère
+ * sa propre caméra ; dans la 3D simplifiée de repli, la caméra est projetée en JS (canvas/projection.ts)
+ * et les conversions passent par le sol déprojeté.
  */
 
 /** Échelle (px/m) de référence : les bornes de zoom sont exprimées pour cette échelle de projet. */

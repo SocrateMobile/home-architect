@@ -11,6 +11,8 @@ import { PolygonUtils } from '../core/polygon';
 import { SnappingEngine } from '../core/snapping';
 import { furnitureBounds } from '../core/furniture-catalog';
 import { generateElementId } from '../core/project-model';
+import { localize } from '../i18n';
+import '../i18n/locales/panel';
 
 /** Hauteur sous plafond utilisée quand le projet n'en définit pas (même repli que le canevas). */
 export const FALLBACK_CEILING_HEIGHT = 2.5;
@@ -189,7 +191,7 @@ export function parseWizardRequest(detail: unknown): WizardRoomRequest | null {
   if (!inRange(d.width, WIZARD_DIMENSION) || !inRange(d.length, WIZARD_DIMENSION) || !inRange(d.height, WIZARD_HEIGHT)) {
     return null;
   }
-  const name = typeof d.name === 'string' && d.name.trim() !== '' ? d.name.trim() : 'Pièce';
+  const name = typeof d.name === 'string' && d.name.trim() !== '' ? d.name.trim() : localize('panel.wizard.default_room_name');
   return {
     name,
     width: d.width,

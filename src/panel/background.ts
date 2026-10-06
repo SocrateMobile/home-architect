@@ -10,6 +10,8 @@ import {
   HaApiError, PayloadTooLargeError, fetchBackgroundObjectUrl, releaseBackgroundObjectUrl, uploadBackground
 } from '../core/ha-api';
 import { compressRasterImage, dataUrlToBlob } from '../core/image-utils';
+import { localize } from '../i18n';
+import '../i18n/locales/panel';
 
 const SVG_MIME = 'image/svg+xml';
 
@@ -47,7 +49,7 @@ export function stripSvgDoctype(svgText: string): string {
   const doc = new DOMParser().parseFromString(svgText, SVG_MIME);
   const root = doc.documentElement;
   if (!root || root.localName !== 'svg' || doc.getElementsByTagName('parsererror').length > 0) {
-    throw new Error('Fichier SVG invalide.');
+    throw new Error(localize('panel.background.invalid_svg'));
   }
   return new XMLSerializer().serializeToString(root);
 }
@@ -68,7 +70,7 @@ export async function prepareBackgroundBlob(blob: Blob): Promise<{ blob: Blob; w
     const compressed = await compressRasterImage(blob);
     return { blob: compressed.blob, width: compressed.width, height: compressed.height };
   } catch (err) {
-    throw new BackgroundRejectedError(`Image de fond illisible : ${errorText(err)}`);
+    throw new BackgroundRejectedError(localize('panel.background.unreadable', { reason: errorText(err) }));
   }
 }
 
@@ -84,7 +86,7 @@ export async function uploadPreparedBackground(
   } catch (err) {
     if (err instanceof PayloadTooLargeError) throw new BackgroundRejectedError(err.message);
     if (err instanceof HaApiError && (err.code === 'invalid_image' || err.code === 'unsupported_media_type')) {
-      throw new BackgroundRejectedError(`Image de fond refusée par le serveur : ${err.message}`);
+      throw new BackgroundRejectedError(localize('panel.background.rejected', { reason: err.message }));
     }
     throw err;
   }
@@ -103,7 +105,7 @@ export async function uploadInlineBackground(hass: any, project: HomeArchitectPr
   try {
     source = dataUrlToBlob(bg.imageUrl);
   } catch (err) {
-    throw new BackgroundRejectedError(`Image de fond illisible : ${errorText(err)}`);
+    throw new BackgroundRejectedError(localize('panel.background.unreadable', { reason: errorText(err) }));
   }
   const prepared = await prepareBackgroundBlob(source);
   const res = await uploadPreparedBackground(hass, project.id, prepared.blob);

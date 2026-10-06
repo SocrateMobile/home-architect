@@ -16,6 +16,8 @@
 import { Opening, OpeningType, Point, Room, Wall } from './types';
 import { PolygonUtils } from './polygon';
 import { generateElementId } from './project-model';
+import { localize } from '../i18n';
+import '../i18n/locales/import';
 
 // ---------------------------------------------------------------------------------------------
 // Types publics
@@ -258,33 +260,54 @@ const MAX_ROOM_VERTICES = 2000;
 /** Étiquettes d'un même contour comparées entre elles (recherche d'une cloison qui les sépare). */
 const MAX_LABEL_PAIRS = 64;
 
-/** Mots-clés des identifiants, classes et calques (comparés mot à mot, sans accents ni pluriel). */
+/**
+ * Mots-clés des identifiants, classes et calques (comparés mot à mot, sans accents ni pluriel). Ce ne
+ * sont pas des libellés d'interface : chaque rôle reconnaît les termes français ET anglais des logiciels
+ * de plan (exports DWG, Inkscape, SketchUp…), quelle que soit la langue de l'utilisateur.
+ */
 const ROLE_WORDS: Record<string, SemanticRole> = {
   // Cotation, annotations, trames : jamais des murs
   dimension: 'measurement', dim: 'measurement', cotation: 'measurement', cote: 'measurement', mesure: 'measurement',
   measure: 'measurement', measurement: 'measurement', guide: 'measurement', guideline: 'measurement', axis: 'measurement',
   axe: 'measurement', fleche: 'measurement', arrow: 'measurement', tick: 'measurement', anno: 'measurement',
-  annotation: 'measurement', grid: 'measurement', grille: 'measurement', trame: 'measurement',
+  annotation: 'measurement', grid: 'measurement', grille: 'measurement', trame: 'measurement', leader: 'measurement',
+  centerline: 'measurement', centreline: 'measurement',
   // Portes
-  door: 'door', porte: 'door', portillon: 'door', swing: 'door', battant: 'door',
+  door: 'door', doorway: 'door', porte: 'door', portillon: 'door', portail: 'door', gate: 'door', swing: 'door',
+  battant: 'door',
   // Fenêtres
   window: 'window', fenetre: 'window', vitrage: 'window', chassis: 'window', baie: 'window', glazing: 'window',
-  glaz: 'window', velux: 'window',
+  glaz: 'window', velux: 'window', skylight: 'window', lucarne: 'window',
   // Mobilier, équipements, hachures, escaliers, cartouche : ni murs ni pièces
   mobilier: 'ignore', meuble: 'ignore', furniture: 'ignore', furn: 'ignore', equipement: 'ignore', equipment: 'ignore',
-  fixture: 'ignore', fixt: 'ignore', sanitaire: 'ignore', appareil: 'ignore', appliance: 'ignore',
-  electromenager: 'ignore', decor: 'ignore', decoration: 'ignore', plante: 'ignore', vegetation: 'ignore',
-  hatch: 'ignore', hachure: 'ignore', escalier: 'ignore', stair: 'ignore', cartouche: 'ignore', titleblock: 'ignore',
-  legend: 'ignore', legende: 'ignore',
+  fixture: 'ignore', fixt: 'ignore', sanitaire: 'ignore', sanitary: 'ignore', plumbing: 'ignore', appareil: 'ignore',
+  appliance: 'ignore', electromenager: 'ignore', decor: 'ignore', decoration: 'ignore', plante: 'ignore',
+  vegetation: 'ignore', hatch: 'ignore', hachure: 'ignore', escalier: 'ignore', stair: 'ignore', staircase: 'ignore',
+  cartouche: 'ignore', titleblock: 'ignore', legend: 'ignore', legende: 'ignore',
   // Murs
   wall: 'wall', mur: 'wall', cloison: 'wall', facade: 'wall', envelope: 'wall', enveloppe: 'wall', structure: 'wall',
-  partition: 'wall', maconnerie: 'wall'
+  partition: 'wall', maconnerie: 'wall', masonry: 'wall'
 };
 
-const ROOM_WORDS = new Set(['room', 'piece', 'espace', 'zone', 'area', 'chambre', 'salon', 'cuisine', 'sdb', 'sejour', 'local']);
+/** Mots qui balisent une forme comme pièce (français et anglais). */
+const ROOM_WORDS = new Set([
+  'room', 'piece', 'espace', 'space', 'zone', 'area', 'local',
+  'chambre', 'bedroom', 'salon', 'sejour', 'living', 'lounge', 'cuisine', 'kitchen', 'sdb', 'bathroom'
+]);
 
-/** Noms de pièces reconnus pour les pièces approximatives créées autour d'une étiquette. */
-const ROOM_NAME_RE = /\b(salon|sejour|living|chambre|bedroom|cuisine|kitchen|sdb|bain|bains|bathroom|wc|toilettes?|bureau|office|entree|hall|garage|couloir|degagement|cellier|buanderie|dressing)\b/;
+/** Noms de pièces (français et anglais) reconnus pour les pièces approximatives créées autour d'une étiquette. */
+const ROOM_NAME_RE = new RegExp('\\b(' + [
+  'salon', 'sejour', 'living', 'lounge', 'salle a manger', 'dining',
+  'chambre', 'bedroom',
+  'cuisine', 'kitchen',
+  'sdb', 'sde', 'bain', 'bains', 'douche', 'bath', 'bathroom', 'shower',
+  'wc', 'toilettes?', 'toilets?', 'restroom',
+  'bureau', 'office', 'study',
+  'entree', 'entry', 'entrance', 'hall', 'hallway', 'couloir', 'corridor', 'degagement', 'palier', 'landing',
+  'garage', 'atelier', 'workshop',
+  'cellier', 'pantry', 'buanderie', 'laundry', 'utility', 'dressing', 'closet', 'placard', 'debarras', 'storage',
+  'cave', 'cellar'
+].join('|') + ')\\b');
 
 /** Tolérances métriques de la reconnaissance (converties en unités racine selon l'échelle). */
 const TOL = {
@@ -932,16 +955,19 @@ function collectTextLines(textEl: Element): string[] {
 /** Vrai pour une cote, une surface, une hauteur ou un niveau (« 12,5 m² », « S = 11 m2 », « HSP 2,50 », « 3.40 x 4.20 »). */
 function isMeasurementText(s: string): boolean {
   const rest = normalizeText(s)
-    .replace(/\b(?:m2|m|cm|mm|dm|ml|s|sh|shab|shon|su|surf|surface|hsp|hsf|ht|h|hp|ep|niv|nf|ngf|alt|env|approx|ca|x)\b/g, ' ')
+    .replace(/\b(?:m2|m|cm|mm|dm|ml|s|sh|shab|shon|su|surf|surface|hsp|hsf|ht|h|hp|ep|niv|nf|ngf|alt|env|approx|ca|x|ft|ft2|sq|sqft|sf|in|area)\b/g, ' ')
     .replace(/[^a-z]+/g, '');
   return rest.length === 0;
 }
 
-/** Nom de pièce à partir des lignes d'un texte, sans les surfaces ni les cotes ; '' si rien d'exploitable. */
+/**
+ * Nom de pièce à partir des lignes d'un texte, sans les surfaces ni les cotes ; '' si rien d'exploitable.
+ * Surfaces retirées : « 12,5 m² », « 150 ft² », « 1,215 sq ft », « 140 sq. ft. », « 95 SF ».
+ */
 function cleanLabel(lines: string[]): string {
   const kept = lines
     .map(l => l
-      .replace(/[\s(\-–—:,]*\d+(?:[.,]\d+)?\s*m(?:²|2)(?![a-z])\s*\)?/gi, ' ')
+      .replace(/[\s(\-–—:,]*\d+(?:[.,]\d+)*\s*(?:m(?:²|2)|ft(?:²|2)|sq\.?\s*ft\.?|sf)(?![a-z])\s*\)?/gi, ' ')
       .replace(/\s+/g, ' ')
       .replace(/[\s\-–—:,;(]+$/, '')
       .trim())
@@ -1031,7 +1057,7 @@ class SvgExtractor {
   }
 
   private addLayer(el: Element, parentLayer: number): number {
-    const own = el.getAttribute('inkscape:label') || el.getAttribute('data-name') || el.getAttribute('id') || `Groupe ${this.layers.length + 1}`;
+    const own = el.getAttribute('inkscape:label') || el.getAttribute('data-name') || el.getAttribute('id') || localize('import.parser.group_generic', { n: this.layers.length + 1 });
     const name = parentLayer >= 0 ? `${this.layers[parentLayer].name} › ${own}` : own;
     this.layers.push({ name, count: 0 });
     return this.layers.length - 1;
@@ -2439,18 +2465,18 @@ interface RoomCandidate {
   label: string | null;
 }
 
-/** Couleur et icône d'après le nom (mots entiers, sans accents). */
+/** Couleur et icône d'après le nom (mots entiers français ou anglais, sans accents). */
 function roomStyle(name: string): { color: string; icon: string } {
   const n = normalizeText(name);
-  if (/\b(salon|sejour|living|sam|salle a manger|lounge)\b/.test(n)) return { color: 'rgba(59, 130, 246, 0.28)', icon: 'mdi:sofa' };
+  if (/\b(salon|sejour|living|sam|salle a manger|lounge|dining)\b/.test(n)) return { color: 'rgba(59, 130, 246, 0.28)', icon: 'mdi:sofa' };
   if (/\b(chambre|ch|bed|bedroom|suite|parentale)\b/.test(n)) return { color: 'rgba(139, 92, 246, 0.28)', icon: 'mdi:bed' };
   if (/\b(cuisine|kitchen|kitchenette)\b/.test(n)) return { color: 'rgba(245, 158, 11, 0.28)', icon: 'mdi:silverware-fork-knife' };
-  if (/\b(sdb|sde|bain|bains|douche|bath|bathroom|salle d ?eau)\b/.test(n)) return { color: 'rgba(6, 182, 212, 0.28)', icon: 'mdi:shower' };
-  if (/\b(wc|toilettes?|toilets?)\b/.test(n)) return { color: 'rgba(16, 185, 129, 0.28)', icon: 'mdi:toilet' };
-  if (/\b(bureau|office|travail)\b/.test(n)) return { color: 'rgba(99, 102, 241, 0.28)', icon: 'mdi:desk' };
-  if (/\b(entree|hall|couloir|degagement|corridor|palier)\b/.test(n)) return { color: 'rgba(100, 116, 139, 0.28)', icon: 'mdi:door' };
-  if (/\b(garage|atelier)\b/.test(n)) return { color: 'rgba(120, 113, 108, 0.28)', icon: 'mdi:garage' };
-  if (/\b(terrasse|balcon|patio|loggia)\b/.test(n)) return { color: 'rgba(20, 184, 166, 0.28)', icon: 'mdi:balcony' };
+  if (/\b(sdb|sde|bain|bains|douche|bath|bathroom|shower|salle d ?eau)\b/.test(n)) return { color: 'rgba(6, 182, 212, 0.28)', icon: 'mdi:shower' };
+  if (/\b(wc|toilettes?|toilets?|restroom|lavatory)\b/.test(n)) return { color: 'rgba(16, 185, 129, 0.28)', icon: 'mdi:toilet' };
+  if (/\b(bureau|office|travail|study)\b/.test(n)) return { color: 'rgba(99, 102, 241, 0.28)', icon: 'mdi:desk' };
+  if (/\b(entree|hall|couloir|degagement|corridor|palier|entry|entrance|hallway|landing|foyer)\b/.test(n)) return { color: 'rgba(100, 116, 139, 0.28)', icon: 'mdi:door' };
+  if (/\b(garage|atelier|workshop)\b/.test(n)) return { color: 'rgba(120, 113, 108, 0.28)', icon: 'mdi:garage' };
+  if (/\b(terrasse|balcon|patio|loggia|veranda|terrace|balcony|deck|porch)\b/.test(n)) return { color: 'rgba(20, 184, 166, 0.28)', icon: 'mdi:balcony' };
   return { color: 'rgba(56, 189, 248, 0.25)', icon: 'mdi:home-outline' };
 }
 
@@ -2649,7 +2675,7 @@ function detectRooms(
   const rooms: DetectedRoom[] = [];
   const generic = (polygon: Point[], areaM2: number, n: number): Room => {
     const style = roomStyle('');
-    return { id: '', name: `Pièce ${n}`, polygon, areaM2, color: style.color, icon: style.icon, height: o.defaultHeight };
+    return { id: '', name: localize('import.parser.room_generic', { n }), polygon, areaM2, color: style.color, icon: style.icon, height: o.defaultHeight };
   };
   accepted.forEach((a, i) => {
     const id = generateElementId('room');
@@ -2753,6 +2779,11 @@ function countStats(walls: Wall[], openings: Opening[], rooms: DetectedRoom[], u
 // Façade
 // ---------------------------------------------------------------------------------------------
 
+/** Message (langue courante) d'une erreur inattendue pendant l'interprétation. */
+function interpretationError(err: unknown): string {
+  return localize('import.parser.failed', { detail: err instanceof Error ? err.message : String(err) });
+}
+
 function failedAnalysis(error: string): SvgAnalysis {
   return {
     success: false,
@@ -2777,10 +2808,10 @@ export class SvgPlanParser {
       const parserError = doc.getElementsByTagName('parsererror')[0];
       if (parserError) {
         const detail = (parserError.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 200);
-        return failedAnalysis(`Fichier SVG invalide${detail ? ` : ${detail}` : '.'}`);
+        return failedAnalysis(detail ? localize('import.parser.invalid_svg_detail', { detail }) : localize('import.error.invalid_svg'));
       }
       const root = doc.documentElement;
-      if (!root || localTag(root) !== 'svg') return failedAnalysis('Aucune balise <svg> racine dans le document.');
+      if (!root || localTag(root) !== 'svg') return failedAnalysis(localize('import.parser.no_root'));
       // Le serveur refuse les DOCTYPE (entités) : le navigateur les a déjà développées, on retire la déclaration.
       if (doc.doctype) doc.removeChild(doc.doctype);
 
@@ -2818,7 +2849,7 @@ export class SvgPlanParser {
         .map((l, i) => ({ id: layerId(i), name: l.name, elementCount: l.count }))
         .filter(l => l.elementCount > 0);
       if (layers.length > 0 && extractor.rootCount > 0) {
-        layers.unshift({ id: layerId(-1), name: 'Éléments hors calque', elementCount: extractor.rootCount });
+        layers.unshift({ id: layerId(-1), name: localize('import.parser.outside_layers'), elementCount: extractor.rootCount });
       }
       return {
         success: true,
@@ -2830,7 +2861,7 @@ export class SvgPlanParser {
         primitives: { segments: extractor.segments, shapes: extractor.shapes, arcs: extractor.arcs, labels: extractor.labels }
       };
     } catch (err) {
-      return failedAnalysis(`Erreur d'interprétation : ${err instanceof Error ? err.message : String(err)}`);
+      return failedAnalysis(interpretationError(err));
     }
   }
 
@@ -2885,7 +2916,7 @@ export class SvgPlanParser {
         if (refBox) reference = 'content';
       }
       mpu = W / (refBox?.width || vb.width);
-      if (!Number.isFinite(mpu) || mpu <= 0) throw new Error('échelle invalide');
+      if (!Number.isFinite(mpu) || mpu <= 0) throw new Error(localize('import.parser.invalid_scale'));
 
       const toWorld = (x: number, y: number): Point => ({ x: round2((x - vb.x) * mpu), y: round2((y - vb.y) * mpu) });
       const walls: Wall[] = [];
@@ -2955,7 +2986,7 @@ export class SvgPlanParser {
         measurementLineCount: prims.segments.filter(s => s.role === 'measurement').length
       };
     } catch (err) {
-      return { ...base, error: `Erreur d'interprétation : ${err instanceof Error ? err.message : String(err)}` };
+      return { ...base, error: interpretationError(err) };
     }
   }
 
