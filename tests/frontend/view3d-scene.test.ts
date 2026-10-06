@@ -578,6 +578,14 @@ describe('view3d / intégration au canevas', () => {
     expect(el.shadowRoot!.querySelector('.help-hud')!.textContent).toContain('Vue 3D simplifiée');
   });
 
+  it('masque le bandeau help-hud quand hasToast est activé pour éviter toute superposition', async () => {
+    const el = await mountCanvas();
+    expect(el.shadowRoot!.querySelector('.help-hud')).not.toBeNull();
+    el.hasToast = true;
+    await el.updateComplete;
+    expect(el.shadowRoot!.querySelector('.help-hud')).toBeNull();
+  });
+
   it('clics de la vue WebGL : sélection, ajout avec Maj, fiche more-info et fiche de pièce au double clic', async () => {
     const el = await mountCanvas();
     const pick = (detail: { ref: { kind: 'wall' | 'room' | 'binding'; id: string } | null; modifier?: boolean; double?: boolean }) =>
