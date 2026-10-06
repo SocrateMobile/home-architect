@@ -20,6 +20,7 @@ No external software, no complex Blender pipelines, and no SVG editing tools nee
 [![HACS Badge](https://img.shields.io/badge/HACS-Custom_Integration-orange.svg?style=for-the-badge)](https://github.com/SocrateMobile/home-architect)
 [![Version](https://img.shields.io/badge/version-1.0.29-blue.svg?style=for-the-badge)](https://github.com/SocrateMobile/home-architect/releases)
 [![License](https://img.shields.io/badge/license-MIT-green.svg?style=for-the-badge)](https://github.com/SocrateMobile/home-architect/blob/main/LICENSE)
+[![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-Socrate-FFDD00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=000000)](https://buymeacoffee.com/Socrate)
 
 ---
 
@@ -73,6 +74,7 @@ No external software, no complex Blender pipelines, and no SVG editing tools nee
 
 * 🐙 **GitHub Repository**: [https://github.com/SocrateMobile/home-architect](https://github.com/SocrateMobile/home-architect)
 * 🐛 **Issue Tracker**: [https://github.com/SocrateMobile/home-architect/issues](https://github.com/SocrateMobile/home-architect/issues)
+* ☕ **Support the Project**: [https://buymeacoffee.com/Socrate](https://buymeacoffee.com/Socrate)
 
 Feedback, feature requests, and bug reports are very welcome! Let me know what you think and what features you'd love to see next!
 ```
@@ -95,6 +97,7 @@ Plus besoin de passer par Sweet Home 3D, Blender, Inkscape ou des éditeurs de S
 [![HACS Badge](https://img.shields.io/badge/HACS-Custom_Integration-orange.svg?style=for-the-badge)](https://github.com/SocrateMobile/home-architect)
 [![Version](https://img.shields.io/badge/version-1.0.29-blue.svg?style=for-the-badge)](https://github.com/SocrateMobile/home-architect/releases)
 [![License](https://img.shields.io/badge/license-MIT-green.svg?style=for-the-badge)](https://github.com/SocrateMobile/home-architect/blob/main/LICENSE)
+[![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-Socrate-FFDD00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=000000)](https://buymeacoffee.com/Socrate)
 
 ---
 
@@ -147,6 +150,7 @@ Plus besoin de passer par Sweet Home 3D, Blender, Inkscape ou des éditeurs de S
 
 * 🐙 **Dépôt GitHub** : [https://github.com/SocrateMobile/home-architect](https://github.com/SocrateMobile/home-architect)
 * 🐞 **Signaler un bug / Proposer une idée** : [https://github.com/SocrateMobile/home-architect/issues](https://github.com/SocrateMobile/home-architect/issues)
+* ☕ **Soutenir le projet** : [https://buymeacoffee.com/Socrate](https://buymeacoffee.com/Socrate)
 
 N'hésitez pas à tester, faire vos retours et partager vos idées d'améliorations !
 ```

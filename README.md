@@ -12,12 +12,10 @@
   <img src="https://img.shields.io/badge/HACS-Custom_Integration-orange.svg?style=flat-square" alt="HACS" />
   <img src="https://img.shields.io/badge/Home_Assistant-2024.1+-blueviolet.svg?style=flat-square" alt="Home Assistant" />
   <img src="https://img.shields.io/badge/license-MIT-green.svg?style=flat-square" alt="License" />
+  <a href="https://buymeacoffee.com/Socrate"><img src="https://img.shields.io/badge/Buy%20Me%20A%20Coffee-Socrate-FFDD00?style=flat-square&logo=buy-me-a-coffee&logoColor=000000" alt="Buy Me A Coffee" /></a>
 </p>
 
 ---
-
-[![Buy Me A Coffee](https://img.buymeacoffee.com/button-api/?text=Buy+me+a+coffee&emoji=☕&slug=Socrate&button_colour=FFDD00&font_colour=000000&font_family=Poppins&outline_colour=000000&coffee_colour=ffffff)](https://www.buymeacoffee.com/Socrate)
-
 ## 🌟 Fonctionnalités
 
 * **Nouveau plan & Réinitialisation sécurisée (Reset)** :
@@ -99,3 +97,13 @@ npm install
 # Build de production vers custom_components/home_architect/frontend/
 npm run build
 ```
+
+---
+
+## ☕ Soutenir le projet / Support
+
+Si vous appréciez cette intégration et souhaitez soutenir son développement continu ainsi que la maintenance des futures versions :
+
+<a href="https://buymeacoffee.com/Socrate" target="_blank">
+  <img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" height="50" width="210">
+</a>
