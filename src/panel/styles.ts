@@ -426,6 +426,46 @@ export const persistenceStyles = css`
     text-decoration: underline;
   }
 
+  .update-progress-box,
+  .update-success-box,
+  .update-error-box {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 24px 16px;
+    gap: 12px;
+  }
+
+  .update-progress-box .spinner {
+    width: 32px;
+    height: 32px;
+    border-width: 3px;
+    margin-bottom: 6px;
+  }
+
+  .update-success-icon,
+  .update-error-icon {
+    font-size: 36px;
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+
+  .update-progress-box h4,
+  .update-success-box h4,
+  .update-error-box h4 {
+    margin: 0;
+    font-size: 1.05rem;
+    font-weight: 700;
+  }
+
+  .update-success-msg {
+    margin: 0;
+    font-size: 0.92rem;
+    font-weight: 600;
+    color: var(--studio-success-text);
+  }
+
   .footer-links {
     display: flex;
     align-items: center;

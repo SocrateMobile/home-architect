@@ -524,6 +524,22 @@ export async function checkUpdates(hass: any, opts: { force?: boolean } = {}): P
   };
 }
 
+/** Installe une mise à jour disponible (téléchargement et extraction dans custom_components). */
+export async function installUpdate(
+  hass: any,
+  version?: string | null
+): Promise<{ success: boolean; installed_version: string; requires_restart: boolean }> {
+  const msg: Rec = { type: 'home_architect/install_update' };
+  if (version) msg.version = version;
+  const res = await ws<Rec>(hass, msg);
+  const r = isRecord(res) ? res : {};
+  return {
+    success: r.success === true,
+    installed_version: optionalString(r.installed_version) ?? '',
+    requires_restart: r.requires_restart !== false,
+  };
+}
+
 /**
  * S'abonne aux modifications d'un projet (sauvegarde, suppression, publication depuis un autre appareil).
  * Résout une fonction de désabonnement idempotente qui ne lève jamais.

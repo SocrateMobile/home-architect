@@ -17,6 +17,8 @@ from homeassistant.helpers import device_registry as dr, entity_registry as er
 
 from custom_components.home_architect.const import DOMAIN, GITHUB_LATEST_RELEASE_URL, PANEL_URL_PATH, VERSION
 
+from unittest.mock import AsyncMock, patch
+
 ENTITY_ID = "update.home_architect"
 
 
@@ -33,14 +35,16 @@ def github_release() -> dict[str, Any]:
     }
 
 
-async def test_entity_notifies_only(hass: HomeAssistant, setup_integration: MockConfigEntry) -> None:
-    """entity_id stable, pas d'INSTALL, titre tronqué, appareil de type service."""
+async def test_entity_supports_install_and_notes(hass: HomeAssistant, setup_integration: MockConfigEntry) -> None:
+    """entity_id stable, support INSTALL et RELEASE_NOTES, titre tronqué, appareil de type service."""
     state = hass.states.get(ENTITY_ID)
     assert state is not None
     assert state.state == STATE_ON
     assert state.attributes["installed_version"] == VERSION
     assert state.attributes["latest_version"] == "9.1.0"
-    assert state.attributes[ATTR_SUPPORTED_FEATURES] == UpdateEntityFeature.RELEASE_NOTES
+    assert state.attributes[ATTR_SUPPORTED_FEATURES] == (
+        UpdateEntityFeature.RELEASE_NOTES | UpdateEntityFeature.INSTALL
+    )
     assert len(state.attributes["release_summary"]) == 255
     assert state.attributes["release_url"].endswith("/v9.1.0")
 
@@ -49,8 +53,10 @@ async def test_entity_notifies_only(hass: HomeAssistant, setup_integration: Mock
     device = dr.async_get(hass).async_get(entity.device_id)
     assert device is not None and device.entry_type is dr.DeviceEntryType.SERVICE
 
-    with pytest.raises(HomeAssistantError):
+    with patch("custom_components.home_architect.installer.async_install_update", new_callable=AsyncMock) as mock_install:
         await hass.services.async_call("update", "install", {"entity_id": ENTITY_ID}, blocking=True)
+        mock_install.assert_awaited_once_with(hass, "9.1.0")
+        assert hass.states.get(ENTITY_ID).attributes["installed_version"] == "9.1.0"
 
 
 async def test_release_notes_and_panel_badge(
@@ -89,6 +95,7 @@ async def test_check_updates_command(
         "release_url": "https://github.com/SocrateMobile/home-architect/releases/tag/v9.1.0",
         "release_notes": "## Nouveautés\n- tout",
         "update_entity_id": ENTITY_ID,
+        "in_progress": False,
     }
     assert aioclient_mock.call_count == calls  # servi depuis le cache
 

@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   ConflictError, HaApiError, PayloadTooLargeError, PermissionDeniedError,
-  checkUpdates, deleteProject, fetchBackgroundObjectUrl, getProject, isAdmin, listProjects, publishSvg,
+  checkUpdates, deleteProject, fetchBackgroundObjectUrl, getProject, isAdmin, installUpdate, listProjects, publishSvg,
   readLegacyLocalProjects, releaseBackgroundObjectUrl, removeLegacyLocalProject, saveProject,
   subscribeProject, toHaApiError, unpublish, uploadBackground
 } from '../../src/core/ha-api';
@@ -291,6 +291,29 @@ describe('checkUpdates', () => {
     expect(ok.release_url).toBe('https://github.com/x/releases/tag/v1.2.0');
     expect(ok.update_available).toBe(false);
     expect(ok.latest_version).toBeNull();
+  });
+});
+
+describe('installUpdate', () => {
+  it('appelle home_architect/install_update et retourne le statut', async () => {
+    const hass = mockHass(() => Promise.resolve({
+      success: true,
+      installed_version: '1.2.0',
+      requires_restart: true,
+    }));
+    const res = await installUpdate(hass, '1.2.0');
+    expect(hass.callWS).toHaveBeenCalledWith({ type: 'home_architect/install_update', version: '1.2.0' });
+    expect(res).toEqual({ success: true, installed_version: '1.2.0', requires_restart: true });
+  });
+
+  it('gère l’appel sans version spécifiée', async () => {
+    const hass = mockHass(() => Promise.resolve({
+      success: true,
+      installed_version: '1.2.0',
+    }));
+    const res = await installUpdate(hass);
+    expect(hass.callWS).toHaveBeenCalledWith({ type: 'home_architect/install_update' });
+    expect(res).toEqual({ success: true, installed_version: '1.2.0', requires_restart: true });
   });
 });
 

@@ -23,7 +23,7 @@ import {
 } from './core/keyboard';
 import { CUSTOM_CATEGORY_DEF, DEFAULT_LEVEL, KNOWN_LEVELS, getLevelBelow, getLevelLabel, isKnownLevel } from './core/levels';
 import { bindingDisplayName } from './core/project-model';
-import { isAdmin } from './core/ha-api';
+import { isAdmin, installUpdate } from './core/ha-api';
 import { dataUrlToBlob } from './core/image-utils';
 import { findFurnitureTemplate, furnitureDisplayName } from './core/furniture-catalog';
 import {
@@ -38,7 +38,7 @@ import { PlanEntry, isEmptyProject } from './panel/workspace';
 import { isInlineDataUrl } from './panel/background';
 import { PersistenceController, ProjectPreferences } from './panel/persistence-controller';
 import { HA_UPDATES_PATH, UpdateInfo, describeLoadedBundles, fetchUpdateInfo, navigateInHa, updateEntitySignature } from './panel/update-check';
-import { PanelNotice, renderAboutDialog, renderUpdateDialog } from './panel/dialogs';
+import { PanelNotice, UpdateInstallStatus, renderAboutDialog, renderUpdateDialog } from './panel/dialogs';
 import { panelBaseStyles } from './panel/base-styles';
 import { persistenceStyles } from './panel/styles';
 import { studioLayoutStyles } from './panel/layout-styles';
@@ -310,6 +310,12 @@ export class HomeArchitectPanel extends LitElement {
 
   @state()
   private isUpdateModalOpen: boolean = false;
+
+  @state()
+  private updateInstallStatus: UpdateInstallStatus = 'idle';
+
+  @state()
+  private updateInstallError: string | null = null;
 
   private logoClickTimes: number[] = [];
   private secretKeySequence: string = '';
@@ -864,6 +870,40 @@ export class HomeArchitectPanel extends LitElement {
 
   public closeUpdateModal() {
     this.isUpdateModalOpen = false;
+    this.updateInstallStatus = 'idle';
+    this.updateInstallError = null;
+  }
+
+  private async handleInstallUpdate() {
+    if (!this.updateInfo?.latestVersion) return;
+    this.updateInstallStatus = 'installing';
+    this.updateInstallError = null;
+    try {
+      this.persistence.flushDrafts();
+      const res = await installUpdate(this.hass, this.updateInfo.latestVersion);
+      if (res.success) {
+        this.updateInstallStatus = 'success';
+        this.showToast(localize('panel.update.success_title'));
+      } else {
+        this.updateInstallStatus = 'error';
+        this.updateInstallError = localize('panel.update.error_title');
+      }
+    } catch (err: any) {
+      console.error('[home-architect] Update installation error:', err);
+      this.updateInstallStatus = 'error';
+      this.updateInstallError = err?.message || String(err);
+    }
+  }
+
+  private async handleRestartHa() {
+    try {
+      this.showToast(localize('panel.update.restarting'));
+      await this.hass.callService('homeassistant', 'restart');
+      this.closeUpdateModal();
+    } catch (err: any) {
+      console.error('[home-architect] Failed to restart Home Assistant:', err);
+      this.showToast(err?.message || 'Erreur lors du redémarrage');
+    }
   }
 
   /** Dialogue « À propos » : version, état des mises à jour, liens (release, soutien du projet). */
@@ -1635,7 +1675,9 @@ export class HomeArchitectPanel extends LitElement {
 
   /** Ferme la modale du studio au premier plan ; false s'il n'y en a aucune. */
   private closeTopModal(): boolean {
-    if (this.isUpdateModalOpen) this.isUpdateModalOpen = false;
+    if (this.isUpdateModalOpen) {
+      if (this.updateInstallStatus !== 'installing') this.closeUpdateModal();
+    }
     else if (this.isAboutOpen) this.isAboutOpen = false;
     else if (this.isNewPlanModalOpen) this.isNewPlanModalOpen = false;
     else if (this.isResetModalOpen) this.isResetModalOpen = false;
@@ -2747,11 +2789,22 @@ export class HomeArchitectPanel extends LitElement {
 
         ${this.isResetModalOpen ? this.renderResetDialog() : nothing}
 
-        <!-- Modale Mise à jour (notification seulement : l'installation passe par HA) -->
-        ${this.isUpdateModalOpen && this.updateInfo?.available ? renderUpdateDialog(this.updateInfo, dirtyCount, {
-          onClose: () => this.closeUpdateModal(),
-          onOpenUpdates: () => this.openHaUpdates()
-        }) : nothing}
+        <!-- Modale Mise à jour (installation 1-clic ou redirection Paramètres HA) -->
+        ${this.isUpdateModalOpen && this.updateInfo?.available ? renderUpdateDialog(
+          this.updateInfo,
+          dirtyCount,
+          {
+            onClose: () => this.closeUpdateModal(),
+            onOpenUpdates: () => this.openHaUpdates(),
+            onInstallUpdate: () => void this.handleInstallUpdate(),
+            onRestartHa: () => void this.handleRestartHa(),
+          },
+          {
+            canManageUpdates: !this.readOnly,
+            installStatus: this.updateInstallStatus,
+            installError: this.updateInstallError,
+          }
+        ) : nothing}
 
         <!-- À propos : version, état des mises à jour, liens (release, soutien du projet) -->
         ${this.isAboutOpen ? renderAboutDialog({

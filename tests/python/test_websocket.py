@@ -4,7 +4,7 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 from typing import Any
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
@@ -83,6 +83,7 @@ async def test_read_commands_are_open_to_all_users(admin_ws: MockHAClientWebSock
         {"type": "home_architect/unpublish", "project_id": "plan_abcd1234"},
         {"type": "home_architect/save_svg_to_www", "filename": "plan_rdc.svg", "svg_content": SIMPLE_SVG},
         {"type": "home_architect/check_updates"},
+        {"type": "home_architect/install_update"},
     ],
 )
 async def test_write_commands_require_admin(user_ws: MockHAClientWebSocket, message: dict[str, Any]) -> None:
@@ -392,3 +393,17 @@ async def test_project_count_is_limited(admin_ws: MockHAClientWebSocket) -> None
         # La mise à jour d'un projet existant reste possible
         updated = await _call(admin_ws, type="home_architect/save_project", project=make_project(), expected_revision=1)
         assert updated["success"] is True
+
+
+async def test_install_update_command(admin_ws: MockHAClientWebSocket) -> None:
+    """La commande install_update installe la version et renvoie requires_restart."""
+    with patch("custom_components.home_architect.installer.async_install_update", new_callable=AsyncMock) as mock_install:
+        res = await _call(admin_ws, type="home_architect/install_update", version="9.2.0")
+        assert res["success"] is True
+        assert res["result"] == {
+            "success": True,
+            "installed_version": "9.2.0",
+            "requires_restart": True,
+        }
+        mock_install.assert_awaited_once()
+

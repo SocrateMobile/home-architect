@@ -183,14 +183,126 @@ export function renderDraftsDialog(reviews: DraftReview[], handlers: DraftsDialo
 
 // --- Mise à jour ---------------------------------------------------------------------------------
 
+export type UpdateInstallStatus = 'idle' | 'installing' | 'success' | 'error';
+
 export interface UpdateDialogHandlers {
   onClose: () => void;
   onOpenUpdates: () => void;
+  onInstallUpdate?: () => void;
+  onRestartHa?: () => void;
 }
 
-export function renderUpdateDialog(info: UpdateInfo, dirtyCount: number, handlers: UpdateDialogHandlers): TemplateResult {
+export interface UpdateDialogOptions {
+  canManageUpdates?: boolean;
+  installStatus?: UpdateInstallStatus;
+  installError?: string | null;
+}
+
+export function renderUpdateDialog(
+  info: UpdateInfo,
+  dirtyCount: number,
+  handlers: UpdateDialogHandlers,
+  options: UpdateDialogOptions = {}
+): TemplateResult {
+  const { canManageUpdates = true, installStatus = 'idle', installError = null } = options;
+  const isInstalling = installStatus === 'installing';
+  const isSuccess = installStatus === 'success';
+  const isError = installStatus === 'error';
+
+  let bodyContent: TemplateResult;
+  let footerButtons: TemplateResult;
+
+  if (isInstalling) {
+    bodyContent = html`
+      <div class="update-progress-box" role="status" aria-live="polite">
+        <span class="spinner" aria-hidden="true"></span>
+        <h4>${localize('panel.update.installing')}</h4>
+        <p class="dialog-hint">${localize('panel.update.installing_hint')}</p>
+      </div>
+    `;
+    footerButtons = html`
+      <button class="btn-dialog-cancel" disabled>${localize('panel.common.close')}</button>
+    `;
+  } else if (isSuccess) {
+    bodyContent = html`
+      <div class="update-success-box" role="status">
+        <span class="update-success-icon" aria-hidden="true">✅</span>
+        <h4>${localize('panel.update.success_title')}</h4>
+        <p class="update-success-msg">${localize('panel.update.success_message', { version: info.latestVersion ?? '' })}</p>
+        <p class="dialog-hint">${localize('panel.update.success_hint')}</p>
+      </div>
+    `;
+    footerButtons = html`
+      <button class="btn-dialog-cancel" @click=${handlers.onClose}>${localize('panel.common.close')}</button>
+      ${handlers.onRestartHa ? html`
+        <button class="btn-dialog-confirm primary" data-initial-focus @click=${handlers.onRestartHa}>
+          <span aria-hidden="true">🔄</span>
+          <span>${localize('panel.update.restart_ha')}</span>
+        </button>
+      ` : nothing}
+    `;
+  } else if (isError) {
+    bodyContent = html`
+      <div class="update-error-box" role="alert">
+        <span class="update-error-icon" aria-hidden="true">⚠️</span>
+        <h4>${localize('panel.update.error_title')}</h4>
+        <p class="dialog-warning">${installError || localize('panel.update.error_title')}</p>
+        <p class="dialog-hint">${localize('panel.update.how_to')}</p>
+      </div>
+    `;
+    footerButtons = html`
+      <button class="btn-dialog-cancel" @click=${handlers.onClose}>${localize('panel.common.close')}</button>
+      <button class="btn-dialog-confirm secondary" @click=${handlers.onOpenUpdates}>
+        <span aria-hidden="true">⚙️</span>
+        <span>${localize('panel.update.open_updates')}</span>
+      </button>
+      ${handlers.onInstallUpdate && canManageUpdates ? html`
+        <button class="btn-dialog-confirm primary" data-initial-focus @click=${handlers.onInstallUpdate}>
+          <span aria-hidden="true">⚡</span>
+          <span>${localize('panel.update.retry')}</span>
+        </button>
+      ` : nothing}
+    `;
+  } else {
+    // idle
+    bodyContent = html`
+      <div class="version-compare">
+        <div>
+          <div class="version-label">${localize('panel.update.installed')}</div>
+          <div class="version-value">v${info.installedVersion || VERSION}</div>
+        </div>
+        <div class="version-arrow" aria-hidden="true">➔</div>
+        <div>
+          <div class="version-label new">${localize('panel.update.latest')}</div>
+          <div class="version-value new">v${info.latestVersion}</div>
+        </div>
+      </div>
+      <div>
+        <div class="update-notes-title"><span aria-hidden="true">📋</span> ${localize('panel.update.notes')}</div>
+        <div class="update-notes">${info.releaseNotes || localize('panel.update.notes_empty')}</div>
+      </div>
+      <p class="dialog-hint">${localize('panel.update.how_to')}</p>
+      ${dirtyCount > 0 ? html`
+        <p class="dialog-warning">${localizeCount('panel.update.dirty_warning', dirtyCount)}</p>
+      ` : nothing}
+    `;
+    footerButtons = html`
+      <button class="btn-dialog-cancel" @click=${handlers.onClose}>${localize('panel.common.close')}</button>
+      <button class="btn-dialog-confirm secondary" @click=${handlers.onOpenUpdates}>
+        <span aria-hidden="true">⚙️</span>
+        <span>${localize('panel.update.open_updates')}</span>
+      </button>
+      ${handlers.onInstallUpdate && canManageUpdates ? html`
+        <button class="btn-dialog-confirm primary" data-initial-focus @click=${handlers.onInstallUpdate}>
+          <span aria-hidden="true">⚡</span>
+          <span>${localize('panel.update.install_button', { version: info.latestVersion ?? '' })}</span>
+        </button>
+      ` : nothing}
+    `;
+  }
+
   return html`
-    <div class="modal-backdrop" @click=${onBackdrop(handlers.onClose)}>
+    <div class="modal-backdrop" @click=${isInstalling ? undefined : onBackdrop(handlers.onClose)}>
       <div class="modal-dialog update" data-modal tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="update-title">
         <div class="modal-dialog-header update">
           <div class="modal-dialog-title-group">
@@ -200,28 +312,10 @@ export function renderUpdateDialog(info: UpdateInfo, dirtyCount: number, handler
               <p class="modal-dialog-subtitle">${localize('panel.update.subtitle')}</p>
             </div>
           </div>
-          ${renderCloseButton(handlers.onClose)}
+          ${isInstalling ? nothing : renderCloseButton(handlers.onClose)}
         </div>
         <div class="modal-dialog-body">
-          <div class="version-compare">
-            <div>
-              <div class="version-label">${localize('panel.update.installed')}</div>
-              <div class="version-value">v${info.installedVersion || VERSION}</div>
-            </div>
-            <div class="version-arrow" aria-hidden="true">➔</div>
-            <div>
-              <div class="version-label new">${localize('panel.update.latest')}</div>
-              <div class="version-value new">v${info.latestVersion}</div>
-            </div>
-          </div>
-          <div>
-            <div class="update-notes-title"><span aria-hidden="true">📋</span> ${localize('panel.update.notes')}</div>
-            <div class="update-notes">${info.releaseNotes || localize('panel.update.notes_empty')}</div>
-          </div>
-          <p class="dialog-hint">${localize('panel.update.how_to')}</p>
-          ${dirtyCount > 0 ? html`
-            <p class="dialog-warning">${localizeCount('panel.update.dirty_warning', dirtyCount)}</p>
-          ` : nothing}
+          ${bodyContent}
         </div>
         <div class="modal-dialog-footer spread">
           <div class="footer-links">
@@ -231,11 +325,7 @@ export function renderUpdateDialog(info: UpdateInfo, dirtyCount: number, handler
             ${renderSupportLink()}
           </div>
           <div class="footer-buttons">
-            <button class="btn-dialog-cancel" @click=${handlers.onClose}>${localize('panel.common.close')}</button>
-            <button class="btn-dialog-confirm primary" data-initial-focus @click=${handlers.onOpenUpdates}>
-              <span aria-hidden="true">⚙️</span>
-              <span>${localize('panel.update.open_updates')}</span>
-            </button>
+            ${footerButtons}
           </div>
         </div>
       </div>

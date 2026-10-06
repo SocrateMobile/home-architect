@@ -1,7 +1,6 @@
 """Update platform for Home Architect.
 
-L'entité ne fait que NOTIFIER (version, notes de version) : l'installation se
-fait par HACS. Aucun téléchargement, extraction ni redémarrage n'est effectué ici.
+Notification et installation des mises à jour de Home Architect.
 """
 from __future__ import annotations
 
@@ -11,6 +10,7 @@ from typing import Any
 from homeassistant.components.update import UpdateEntity, UpdateEntityFeature
 from homeassistant.const import STATE_ON
 from homeassistant.core import Event, EventStateChangedData, HomeAssistant, callback
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.event import (
@@ -38,13 +38,15 @@ async def async_setup_entry(
 
 
 class HomeArchitectUpdateEntity(UpdateEntity):
-    """Notifie qu'une nouvelle version de Home Architect est publiée."""
+    """Notifie et installe les nouvelles versions de Home Architect."""
 
     _attr_has_entity_name = True
     _attr_name = None
     _attr_translation_key = "update"
     _attr_should_poll = False
-    _attr_supported_features = UpdateEntityFeature.RELEASE_NOTES
+    _attr_supported_features = (
+        UpdateEntityFeature.RELEASE_NOTES | UpdateEntityFeature.INSTALL
+    )
     _attr_title = NAME
     _attr_installed_version = VERSION
 
@@ -111,23 +113,50 @@ class HomeArchitectUpdateEntity(UpdateEntity):
         release = self._checker.release
         return release.notes if release is not None else None
 
+    async def async_install(
+        self, version: str | None = None, backup: bool = False, **kwargs: Any
+    ) -> None:
+        """Installe la version spécifiée ou la dernière version disponible."""
+        target_version = version or self.latest_version
+        if target_version is None:
+            raise HomeAssistantError("Aucune version disponible pour l'installation")
+
+        self._attr_in_progress = True
+        self.async_write_ha_state()
+        try:
+            from .installer import async_install_update
+
+            await async_install_update(self.hass, target_version)
+            self._attr_installed_version = target_version
+        except Exception:
+            self._attr_in_progress = False
+            self.async_write_ha_state()
+            raise
+        finally:
+            self._attr_in_progress = False
+            self.async_write_ha_state()
+
     @callback
     def async_status(self) -> dict[str, Any]:
         """Réponse de la commande WS check_updates."""
         release = self._checker.release
         state = self.hass.states.get(self.entity_id) if self.hass and self.entity_id else None
+        installed = self.installed_version or VERSION
         if state is not None:
             update_available = state.state == STATE_ON
             skipped_version = state.attributes.get(_ATTR_SKIPPED_VERSION)
+            in_progress = state.attributes.get("in_progress", False)
         else:  # entité désactivée
-            update_available = release is not None and is_newer_version(release.version, VERSION)
+            update_available = release is not None and is_newer_version(release.version, installed)
             skipped_version = None
+            in_progress = False
         return {
-            "installed_version": VERSION,
+            "installed_version": installed,
             "latest_version": release.version if release is not None else None,
             "update_available": update_available,
             "skipped_version": skipped_version,
             "release_url": release.url if release is not None else None,
             "release_notes": release.notes if release is not None else "",
             "update_entity_id": self.entity_id,
+            "in_progress": in_progress,
         }
