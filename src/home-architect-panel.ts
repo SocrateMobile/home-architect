@@ -2606,6 +2606,7 @@ export class HomeArchitectPanel extends LitElement {
               .showDimensions=${this.showDimensions}
               .showThermalHeatmap=${this.showThermalHeatmap}
               .ghostProject=${this.persistence.ghostProject(this.ghostLevel())}
+              ?has-toast=${!!this.toastMessage}
               @selection-changed=${(e: CustomEvent<{ selectedElements: SelectedElements }>) => {
                 this.selectedElements = e.detail.selectedElements;
                 if (this.selectedElements.bindingIds.length > 0) {

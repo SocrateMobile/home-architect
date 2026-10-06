@@ -1319,4 +1319,10 @@ export const canvasStyles = css`
     top: 52px;
     max-width: calc(100% - 24px);
   }
+
+  /* Quand un toast du studio est affiché, masquer l'aide pour éviter toute superposition */
+  :host([has-toast]) .help-hud,
+  :host([has-toast]) .canvas-hint {
+    display: none !important;
+  }
 `;

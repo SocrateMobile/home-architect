@@ -18,7 +18,7 @@ I'm thrilled to share **Home Architect**, a full-featured architectural CAD stud
 No external software, no complex Blender pipelines, and no SVG editing tools needed. Everything is drawn, measured, furnished, and linked to your entities directly inside your browser!
 
 [![HACS Badge](https://img.shields.io/badge/HACS-Custom_Integration-orange.svg?style=for-the-badge)](https://github.com/SocrateMobile/home-architect)
-[![Version](https://img.shields.io/badge/version-1.1.0-blue.svg?style=for-the-badge)](https://github.com/SocrateMobile/home-architect/releases)
+[![Version](https://img.shields.io/badge/version-1.1.1-blue.svg?style=for-the-badge)](https://github.com/SocrateMobile/home-architect/releases)
 [![License](https://img.shields.io/badge/license-MIT-green.svg?style=for-the-badge)](https://github.com/SocrateMobile/home-architect/blob/main/LICENSE)
 [![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-Socrate-FFDD00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=000000)](https://buymeacoffee.com/Socrate)
 
@@ -95,7 +95,7 @@ Je vous présente **Home Architect**, une intégration et studio complet de dess
 Plus besoin de passer par Sweet Home 3D, Blender, Inkscape ou des éditeurs de SVG externes complexes : vous dessinez vos murs, placez vos meubles, cotez vos pièces et associez vos entités domotiques en quelques clics dans votre navigateur !
 
 [![HACS Badge](https://img.shields.io/badge/HACS-Custom_Integration-orange.svg?style=for-the-badge)](https://github.com/SocrateMobile/home-architect)
-[![Version](https://img.shields.io/badge/version-1.1.0-blue.svg?style=for-the-badge)](https://github.com/SocrateMobile/home-architect/releases)
+[![Version](https://img.shields.io/badge/version-1.1.1-blue.svg?style=for-the-badge)](https://github.com/SocrateMobile/home-architect/releases)
 [![License](https://img.shields.io/badge/license-MIT-green.svg?style=for-the-badge)](https://github.com/SocrateMobile/home-architect/blob/main/LICENSE)
 [![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-Socrate-FFDD00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=000000)](https://buymeacoffee.com/Socrate)
 

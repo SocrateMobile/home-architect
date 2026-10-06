@@ -307,6 +307,10 @@ export class HomeArchitectCanvas extends LitElement {
   @property({ type: Boolean })
   public modalOpen: boolean = false;
 
+  /** Une notification toast du studio est affichée : masque le bandeau d'aide pour éviter toute superposition. */
+  @property({ type: Boolean, attribute: 'has-toast' })
+  public hasToast: boolean = false;
+
   /** URL affichable de l'image de fond (object URL d'un asset, ou URL externe), prioritaire sur background.imageUrl. */
   @property({ attribute: false })
   public backgroundSrc?: string;
@@ -3649,7 +3653,7 @@ export class HomeArchitectCanvas extends LitElement {
       </div>
 
       <!-- HUD hors du conteneur interactif : un clic sur le HUD n'atteint jamais les outils du plan -->
-      ${helpMsg ? html`<div class="help-hud">${helpMsg}</div>` : nothing}
+      ${helpMsg && !this.hasToast ? html`<div class="help-hud">${helpMsg}</div>` : nothing}
 
       <div class="canvas-hint" role="status" ?hidden=${!this.hint}>${this.hint ?? ''}</div>
 
