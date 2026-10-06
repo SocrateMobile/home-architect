@@ -5,7 +5,7 @@ import { live } from 'lit/directives/live.js';
 import { defineElement } from '../core/define';
 import {
   FURNITURE_CATALOG, FURNITURE_CATEGORY_LABELS, FURNITURE_FILTER_CATEGORIES, FurnitureCatalogTemplate,
-  renderFurnitureSymbol
+  furnitureBounds, renderFurnitureSymbol
 } from '../core/furniture-catalog';
 import { entityDomain } from '../core/project-model';
 
@@ -122,13 +122,20 @@ const PREVIEW_HEIGHT = 64;
 const PREVIEW_MARGIN = 4;
 const PREVIEW_MAX_PIXELS_PER_METER = 48;
 
+/** Échelle de l'aperçu, d'après l'emprise du symbole (décors débordants compris, ex. chaises de la table). */
 function previewPixelsPerMeter(item: FurnitureCatalogTemplate): number {
+  const b = furnitureBounds({ type: item.type, position: { x: 0, y: 0 } });
+  // Symbole centré sur l'origine du cadre : demi-emprise la plus grande de chaque côté.
+  const halfWidth = Math.max(-b.minX, b.maxX, 0.01);
+  const halfLength = Math.max(-b.minY, b.maxY, 0.01);
   return Math.min(
     PREVIEW_MAX_PIXELS_PER_METER,
-    (PREVIEW_WIDTH - 2 * PREVIEW_MARGIN) / item.width,
-    (PREVIEW_HEIGHT - 2 * PREVIEW_MARGIN) / item.length
+    (PREVIEW_WIDTH / 2 - PREVIEW_MARGIN) / halfWidth,
+    (PREVIEW_HEIGHT / 2 - PREVIEW_MARGIN) / halfLength
   );
 }
+
+const PREVIEW_PIXELS_PER_METER = new Map(FURNITURE_CATALOG.map(t => [t.type, previewPixelsPerMeter(t)]));
 
 export class HomeArchitectEntityDrawer extends LitElement {
   static styles = css`
@@ -940,7 +947,7 @@ export class HomeArchitectEntityDrawer extends LitElement {
                 height=${PREVIEW_HEIGHT}
                 viewBox="${-PREVIEW_WIDTH / 2} ${-PREVIEW_HEIGHT / 2} ${PREVIEW_WIDTH} ${PREVIEW_HEIGHT}"
                 aria-hidden="true"
-              >${renderFurnitureSymbol({ type: item.type }, { pixelsPerMeter: previewPixelsPerMeter(item) })}</svg>
+              >${renderFurnitureSymbol({ type: item.type }, { pixelsPerMeter: PREVIEW_PIXELS_PER_METER.get(item.type) ?? PREVIEW_MAX_PIXELS_PER_METER })}</svg>
               <span class="furniture-card-name">${item.name}</span>
               <span class="furniture-card-dim">${item.width.toFixed(2)} × ${item.length.toFixed(2)} m</span>
             </div>

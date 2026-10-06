@@ -145,6 +145,16 @@ function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v);
 }
 
+/** Champs qui ne reçoivent pas de texte (cases, curseur, fichier) : le collage d'un plan y reste possible. */
+const NON_TEXT_INPUT_TYPES = new Set(['checkbox', 'radio', 'range', 'file', 'button', 'submit', 'reset', 'color', 'image']);
+
+/** L'événement vise un champ de saisie de texte (collage et dépôt de texte natifs à préserver). */
+function isTextEntryEvent(e: Event): boolean {
+  const target = getEventTarget(e);
+  if (target instanceof HTMLInputElement && NON_TEXT_INPUT_TYPES.has(target.type)) return false;
+  return isEditableTarget(e);
+}
+
 function hasFiles(e: DragEvent): boolean {
   return Array.from(e.dataTransfer?.types ?? []).includes('Files');
 }
@@ -182,6 +192,9 @@ function projectFromBackup(text: string): { project: HomeArchitectProject; dropp
   if (project.background && !project.background.imageUrl) {
     delete project.background;
     droppedBackground = true;
+  } else if (project.background) {
+    // Image embarquée (ou URL externe) : un assetId restant désignerait l'image du plan d'origine.
+    delete project.background.assetId;
   }
   return { project, droppedBackground };
 }
@@ -1187,7 +1200,7 @@ export class HomeArchitectImportModal extends LitElement {
 
   /** Collage hors des champs de saisie uniquement : image, fichier ou code SVG (F127). */
   private handleWindowPaste = (e: ClipboardEvent) => {
-    if (e.defaultPrevented || !e.clipboardData || isEditableTarget(e)) return;
+    if (e.defaultPrevented || !e.clipboardData || isTextEntryEvent(e)) return;
     const file = clipboardFile(e.clipboardData);
     if (file) {
       e.preventDefault();
@@ -1204,7 +1217,7 @@ export class HomeArchitectImportModal extends LitElement {
   private handleWindowDragOver = (e: DragEvent) => {
     const files = hasFiles(e);
     // Texte glissé dans un champ : comportement natif (insertion).
-    if (!files && isEditableTarget(e)) return;
+    if (!files && isTextEntryEvent(e)) return;
     e.preventDefault();
     if (e.dataTransfer) e.dataTransfer.dropEffect = files ? 'copy' : 'none';
     if (files && !this.isDragOver) this.isDragOver = true;
@@ -1218,7 +1231,7 @@ export class HomeArchitectImportModal extends LitElement {
   /** Un fichier déposé n'importe où (zone de dépôt, aperçu ou hors de la modale) remplace le fichier en cours. */
   private handleWindowDrop = (e: DragEvent) => {
     const files = hasFiles(e);
-    if (!files && isEditableTarget(e)) return;
+    if (!files && isTextEntryEvent(e)) return;
     e.preventDefault();
     this.isDragOver = false;
     const file = e.dataTransfer?.files?.[0];

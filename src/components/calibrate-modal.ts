@@ -302,6 +302,13 @@ export class HomeArchitectCalibrateModal extends LitElement {
   @property({ type: Number })
   public worldDistance: number = 0;
 
+  /**
+   * Ancien contrat (`request-calibration` { pixelDistance }) : longueur en pixels monde, convertie en mètres
+   * avec `pixelsPerMeter` quand `worldDistance` n'est pas fourni (transition, voir les relais panneau/canevas).
+   */
+  @property({ type: Number })
+  public pixelDistance: number = 0;
+
   /** Longueur proposée par défaut (m). */
   @property({ type: Number })
   public defaultMeters: number = 4.0;
@@ -387,8 +394,16 @@ export class HomeArchitectCalibrateModal extends LitElement {
     }
   };
 
+  /** Longueur mesurée en mètres monde (worldDistance, sinon pixelDistance ÷ pixelsPerMeter), 0 si inconnue. */
+  private get measuredMeters(): number {
+    if (Number.isFinite(this.worldDistance) && this.worldDistance > 0) return this.worldDistance;
+    const px = this.pixelDistance;
+    const ppm = this.pixelsPerMeter;
+    return Number.isFinite(px) && px > 0 && Number.isFinite(ppm) && ppm > 0 ? px / ppm : 0;
+  }
+
   private evaluate(): CalibrationEvaluation {
-    const measured = this.worldDistance;
+    const measured = this.measuredMeters;
     if (!(Number.isFinite(measured) && measured > 0)) {
       return { value: null, error: 'Le segment tracé est invalide : recommencez la mesure sur le plan.' };
     }
@@ -486,7 +501,8 @@ export class HomeArchitectCalibrateModal extends LitElement {
 
   render() {
     const ev = this.evaluate();
-    const measuredValid = Number.isFinite(this.worldDistance) && this.worldDistance > 0;
+    const measured = this.measuredMeters;
+    const measuredValid = measured > 0;
 
     return html`
       <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="calibrate-title">
@@ -522,7 +538,7 @@ export class HomeArchitectCalibrateModal extends LitElement {
           ${ev.error ? html`<span class="field-error" role="alert">${ev.error}</span>` : null}
 
           <div class="measured-info">
-            Segment tracé : ${measuredValid ? `${formatMeters(this.worldDistance)} m à l'échelle actuelle` : '--'}
+            Segment tracé : ${measuredValid ? `${formatMeters(measured)} m à l'échelle actuelle` : '--'}
             ${ev.value ? html`<br />Facteur appliqué : × ${ev.value.factor.toFixed(3)}` : null}
           </div>
         </div>
