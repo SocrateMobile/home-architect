@@ -15,14 +15,19 @@ export const MAX_HISTORY = 40;
 const COALESCE_WINDOW_MS = 1500;
 
 /**
- * Champs d'identité, champs possédés par le serveur et cadre du plan publié : jamais restaurés
- * par Annuler / Rétablir. Un instantané antérieur à une sauvegarde porte une ancienne révision, qui
- * provoquerait un faux conflit à la sauvegarde suivante ; le nom et la catégorie ne changent que
- * via la sauvegarde ; le cadre d'export décrit le SVG déjà publié (le restaurer décalerait
- * silencieusement les entités du YAML picture-elements).
+ * Champs jamais restaurés par Annuler / Rétablir :
+ * - identité et champs possédés par le serveur : un instantané antérieur à une sauvegarde porte une
+ *   ancienne révision, qui provoquerait un faux conflit à la sauvegarde suivante ; le nom et la
+ *   catégorie ne changent que via la sauvegarde ;
+ * - cadre du plan publié : il décrit le SVG déjà publié (le restaurer décalerait silencieusement
+ *   les entités du YAML picture-elements) ;
+ * - préférences d'affichage et réglages de la grille (constats F47, F104) : enregistrées avec le
+ *   plan mais modifiées sans entrée d'historique, elles ne doivent pas changer quand on annule une
+ *   modification du dessin.
  */
-const IDENTITY_KEYS = [
-  'id', 'name', 'category', 'revision', 'publish', 'created_at', 'updated_at', 'schema_version', 'exportFrame'
+const PRESERVED_KEYS = [
+  'id', 'name', 'category', 'revision', 'publish', 'created_at', 'updated_at', 'schema_version', 'exportFrame',
+  'grid', 'showDimensions', 'showThermalHeatmap', 'showGhostLevel', 'ghostLevelId'
 ] as const;
 
 interface Stacks {
@@ -33,11 +38,11 @@ interface Stacks {
   coalescedAt: number;
 }
 
-/** Instantané restauré, avec l'identité et les champs serveur du projet courant. */
+/** Instantané restauré, avec l'identité, les champs serveur et les préférences du projet courant. */
 function withIdentity(snapshot: HomeArchitectProject, current: HomeArchitectProject): HomeArchitectProject {
   const restored: Record<string, unknown> = { ...snapshot };
   const source = current as unknown as Record<string, unknown>;
-  for (const key of IDENTITY_KEYS) {
+  for (const key of PRESERVED_KEYS) {
     if (source[key] === undefined) delete restored[key];
     else restored[key] = source[key];
   }
@@ -82,7 +87,7 @@ export class ProjectHistory {
     return (this.stacks.get(projectId)?.redo.length ?? 0) > 0;
   }
 
-  /** État précédent de `current` (identité et champs serveur conservés), ou null si la pile est vide. */
+  /** État précédent de `current` (identité, champs serveur et préférences conservés), ou null si la pile est vide. */
   undo(current: HomeArchitectProject): HomeArchitectProject | null {
     const stacks = this.stacks.get(current.id);
     if (!stacks || stacks.undo.length === 0) return null;
@@ -93,7 +98,7 @@ export class ProjectHistory {
     return withIdentity(previous, current);
   }
 
-  /** État suivant de `current` (identité et champs serveur conservés), ou null si la pile est vide. */
+  /** État suivant de `current` (identité, champs serveur et préférences conservés), ou null si la pile est vide. */
   redo(current: HomeArchitectProject): HomeArchitectProject | null {
     const stacks = this.stacks.get(current.id);
     if (!stacks || stacks.redo.length === 0) return null;

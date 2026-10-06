@@ -7,54 +7,152 @@ import './components/room-modal';
 import './components/calibrate-modal';
 import './components/entity-drawer';
 import './components/import-modal';
+import type { ImportModalResult, ImportProjectBackupDetail } from './components/import-modal';
 import './components/rescale-modal';
-import { RescaleModalResult } from './components/rescale-modal';
+import { RescaleModalResult, isValidRescaleFactor } from './components/rescale-modal';
+import type { CalibrateConfirmedDetail } from './components/calibrate-modal';
+import type { RoomModalSaveDetail } from './components/room-modal';
+import { TOOL_SHORTCUTS } from './components/toolbar';
+import type { DrawerItemPayload } from './components/entity-drawer';
 import './components/export-modal';
 import './components/save-load-modal';
-import { SnappingEngine } from './core/snapping';
-import { PolygonUtils } from './core/polygon';
 import { VERSION } from './version';
-import { launchSocrateRulesEasterEgg } from './core/easter-egg';
 import { defineElement } from './core/define';
-import { hasPrimaryModifier, isEventFromHost, shouldHandleShortcut } from './core/keyboard';
-import { CUSTOM_CATEGORY_DEF, DEFAULT_LEVEL, KNOWN_LEVELS, getLevelBelow, getLevelLabel, isKnownLevel } from './core/levels';
-import { generateElementId } from './core/project-model';
-import { isAdmin } from './core/ha-api';
 import {
-  ActiveTool, BackgroundPlan, ExportFrame, HomeArchitectProject, Wall, Opening, Room, Point, EntityBinding,
-  PublishInfo, SelectedElements
+  getEventTarget, hasCommandModifier, hasPrimaryModifier, isEditableTarget, isEventFromHost, shouldHandleShortcut
+} from './core/keyboard';
+import { CUSTOM_CATEGORY_DEF, DEFAULT_LEVEL, KNOWN_LEVELS, getLevelBelow, getLevelLabel, isKnownLevel } from './core/levels';
+import { bindingDisplayName } from './core/project-model';
+import { isAdmin } from './core/ha-api';
+import { dataUrlToBlob } from './core/image-utils';
+import { findFurnitureTemplate, furnitureDisplayName } from './core/furniture-catalog';
+import {
+  ActiveTool, BackgroundPlan, ExportFrame, GridConfig, HomeArchitectProject, Point, PublishInfo, Room, SelectedElements,
+  Wall
 } from './core/types';
-import { SvgParseResult } from './core/svg-parser';
+import type { SvgParseResult } from './core/svg-parser';
 import { PlanEntry, isEmptyProject } from './panel/workspace';
-import { ImportedBackground, isInlineDataUrl } from './panel/background';
-import { PersistenceController } from './panel/persistence-controller';
+import { isInlineDataUrl } from './panel/background';
+import { PersistenceController, ProjectPreferences } from './panel/persistence-controller';
 import { HA_UPDATES_PATH, UpdateInfo, fetchUpdateInfo, navigateInHa, updateEntitySignature } from './panel/update-check';
-import { PanelNotice, renderUpdateDialog } from './panel/dialogs';
+import { PanelNotice, renderAboutDialog, renderUpdateDialog } from './panel/dialogs';
 import { persistenceStyles } from './panel/styles';
+import { studioLayoutStyles } from './panel/layout-styles';
+import {
+  PlanGeometry, assignRooms, buildWizardRoom, cleanImportedGeometry, contentBounds, countWithHeight,
+  effectiveCeilingHeight, geometryStats, inheritDefaultHeight, mapChanged, parseWizardRequest, reshapeOpenings,
+  scaleBackgroundLayer, scalePlan, sideBySideOffset, translateGeometry, wizardRoomOrigin
+} from './panel/plan-edits';
 
-/**
- * Détail de `import-confirmed` (SPEC §6) : l'image de fond arrive déjà compressée sous forme de
- * Blob, le panneau la téléverse puis ne garde que sa référence (assetId).
- */
-interface ImportConfirmedDetail {
-  background?: ImportedBackground;
-  opacity?: number;
-  mode: 'auto_dimension' | 'interactive_calibrate';
-  totalWidthMeters?: number;
-  isSvgVectorized?: boolean;
-  svgInterpretation?: SvgParseResult;
-  keepSvgBackground?: boolean;
+/** URL d'image de fond externe conservée par normalizeProject (http(s) ou chemin absolu, sans espace ni caractère de contrôle). */
+const EXTERNAL_IMAGE_URL = /^(?:https?:\/\/|\/)[^\s\p{Cc}]*$/iu;
+const MAX_EXTERNAL_IMAGE_URL_LENGTH = 2048;
+
+/** Préférence locale (par appareil) du volet des entités : replié ou non. Hors du préfixe des anciens projets. */
+const DRAWER_STORAGE_KEY = 'home-architect:drawer-collapsed';
+
+/** Éléments du studio qui reçoivent `hass` (propagé sans re-rendre le panneau, constat F34). */
+const HASS_CONSUMERS = [
+  'home-architect-canvas', 'home-architect-entity-drawer', 'home-architect-export-modal',
+  'home-architect-save-load-modal', 'home-architect-room-modal'
+].join(', ');
+
+/** Séquence secrète de l'easter egg. */
+const SECRET_WORD = 'socrate';
+
+/** Choix d'une liste de la barre supérieure (valeur en mètres). */
+interface MeasureOption {
+  value: number;
+  label: string;
 }
 
-/** Remplace dans un élément de liste ce que `fn` modifie ; null si rien n'a changé. */
-function mapChanged<T>(list: T[], fn: (item: T) => T): T[] | null {
-  let changed = false;
-  const next = list.map(item => {
-    const updated = fn(item);
-    if (updated !== item) changed = true;
-    return updated;
-  });
-  return changed ? next : null;
+const THICKNESS_OPTIONS: readonly MeasureOption[] = [
+  { value: 0.10, label: 'Cloison 10 cm' },
+  { value: 0.15, label: 'Mur 15 cm' },
+  { value: 0.20, label: 'Porteur 20 cm' },
+  { value: 0.30, label: 'Extérieur 30 cm' }
+];
+
+const OPENING_WIDTH_OPTIONS: readonly MeasureOption[] = [
+  { value: 0.73, label: '73 cm (Étroite)' },
+  { value: 0.83, label: '83 cm (Chambre)' },
+  { value: 0.90, label: '90 cm (Standard)' },
+  { value: 1.20, label: '1.20 m (Fenêtre)' },
+  { value: 1.40, label: '1.40 m (Double)' },
+  { value: 2.00, label: '2.00 m (Baie)' },
+  { value: 2.40, label: '2.40 m (Grande baie)' }
+];
+
+const CEILING_OPTIONS: readonly MeasureOption[] = [
+  { value: 2.10, label: '2.10 m (Sous-sol)' },
+  { value: 2.30, label: '2.30 m (Combles)' },
+  { value: 2.50, label: '2.50 m (Standard)' },
+  { value: 2.70, label: '2.70 m (Élevé)' },
+  { value: 3.00, label: '3.00 m (Haussmann)' },
+  { value: 3.50, label: '3.50 m (Cathédrale)' }
+];
+
+/**
+ * Options d'une liste dont la sélection suit la valeur réellement utilisée (constat F134) ; une
+ * valeur absente de la liste (réglée par la barre d'outils, le HUD ou un ancien plan) y est ajoutée.
+ * `.selected` (propriété) : l'attribut `selected` n'a plus d'effet une fois la liste modifiée à la main.
+ */
+function selectOptions(options: readonly MeasureOption[], value: number, format: (v: number) => string) {
+  const same = (v: number) => Math.abs(v - value) < 1e-6;
+  const all = !Number.isFinite(value) || options.some(o => same(o.value))
+    ? options
+    : [...options, { value, label: `${format(value)} (actuelle)` }].sort((a, b) => a.value - b.value);
+  return all.map(o => html`<option value=${String(o.value)} .selected=${same(o.value)}>${o.label}</option>`);
+}
+
+/** Couleur choisie dans le HUD (format du sélecteur de couleur natif, conservé par normalizeProject). */
+const HEX_COLOR = /^#[0-9a-f]{6}$/i;
+
+/** Couleur affichée par le sélecteur du HUD pour un meuble (sa couleur, celle du modèle, sinon un gris neutre). */
+function furnitureColorValue(item: { type: string; color?: string } | undefined): string {
+  const color = item?.color ?? (item ? findFurnitureTemplate(item.type)?.defaultColor : undefined);
+  return color && HEX_COLOR.test(color) ? color : '#94a3b8';
+}
+
+/** Nombre total d'éléments d'une sélection. */
+function countSelection(s: SelectedElements): number {
+  return s.wallIds.length + s.openingIds.length + s.roomIds.length + s.bindingIds.length + (s.furnitureIds?.length ?? 0);
+}
+
+/** Outil associé à une touche seule : table TOOL_SHORTCUTS de la barre d'outils (raccourcis annoncés = raccourcis réels). */
+function toolForShortcut(key: string): ActiveTool | null {
+  const entry = (Object.entries(TOOL_SHORTCUTS) as Array<[ActiveTool, string | undefined]>).find(([, k]) => k === key);
+  return entry ? entry[0] : null;
+}
+
+/** Code SVG collé tel quel (texte) : ouvert dans la modale d'import (constat F127). */
+function looksLikeSvgCode(text: string): boolean {
+  return text.startsWith('<svg') || (text.startsWith('<?xml') && text.includes('<svg'));
+}
+
+/** Mètres réels par pixel du calque importé (largeur saisie dans la modale), null si l'import n'en fournit pas. */
+function importMetersPerPixel(detail: ImportModalResult, background: BackgroundPlan): number | null {
+  const mpp = detail.metersPerPixel;
+  if (typeof mpp === 'number' && Number.isFinite(mpp) && mpp > 0) return mpp;
+  const width = detail.totalWidthMeters;
+  return typeof width === 'number' && Number.isFinite(width) && width > 0 && background.widthPx ? width / background.widthPx : null;
+}
+
+function readDrawerPreference(): boolean | null {
+  try {
+    const raw = localStorage.getItem(DRAWER_STORAGE_KEY);
+    return raw === 'true' ? true : raw === 'false' ? false : null;
+  } catch {
+    return null; // Stockage bloqué (navigation privée, app compagnon) : comportement par défaut.
+  }
+}
+
+function writeDrawerPreference(collapsed: boolean): void {
+  try {
+    localStorage.setItem(DRAWER_STORAGE_KEY, String(collapsed));
+  } catch {
+    // Stockage bloqué : la préférence ne sera simplement pas mémorisée.
+  }
 }
 
 export interface TypologyIcon {
@@ -202,43 +300,62 @@ export const TYPOLOGY_ICONS: Record<string, { title: string; tabLabel: string; i
 
 export class HomeArchitectPanel extends LitElement {
   static styles = [css`
+    /* Dans le flux de la zone de contenu de HA, comme les panneaux natifs : HA place déjà cette zone
+       à côté de sa barre latérale (aucune lecture de son DOM interne, constats F37 et F135).
+       Hauteur : ha-panel-custom, parent du panneau, n'a pas de hauteur définie (HA donne lui-même
+       100vh / 100dvh à ses panneaux iframe) : un pourcentage n'y serait pas résolu et le studio
+       s'écraserait. Hauteur de la fenêtre, moins les marges de zone sûre que ha-panel-custom applique. */
     :host {
       display: flex;
       flex-direction: column;
-      position: absolute;
-      top: 0;
-      bottom: 0;
-      left: var(--ha-sidebar-width, 0px);
-      right: 0;
-      height: 100%;
-      max-height: 100%;
+      position: relative;
+      width: 100%;
+      height: 100vh;
+      height: calc(100dvh - var(--safe-area-inset-top, 0px) - var(--safe-area-inset-bottom, 0px));
+      min-height: 0;
       overflow: hidden;
       background: #0f172a;
       color: #f8fafc;
       font-family: var(--ha-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
       box-sizing: border-box;
-      transition: left 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      outline: none;
     }
 
+    /* Plein écran de repli (API Fullscreen indisponible, ex. iPhone) : le studio recouvre la page. */
     :host(.is-fullscreen) {
       position: fixed !important;
       inset: 0 !important;
-      top: 0 !important;
-      left: 0 !important;
-      right: 0 !important;
-      bottom: 0 !important;
       width: 100vw !important;
       height: 100vh !important;
+      height: 100dvh !important;
       max-width: 100vw !important;
-      max-height: 100vh !important;
+      max-height: 100dvh !important;
       z-index: 99999 !important;
-      transition: none !important;
     }
 
-    :host:fullscreen, :host:-webkit-full-screen {
-      width: 100vw !important;
-      height: 100vh !important;
-      background: #0f172a !important;
+    /* Règles séparées : un sélecteur inconnu d'un navigateur invaliderait toute la liste. */
+    :host(:fullscreen) {
+      width: 100vw;
+      height: 100vh;
+      background: #0f172a;
+    }
+
+    :host(:-webkit-full-screen) {
+      width: 100vw;
+      height: 100vh;
+      background: #0f172a;
+    }
+
+    /* Colonne du studio : ne dépend pas du display imposé à l'hôte par la page qui l'insère. */
+    .studio {
+      display: flex;
+      flex-direction: column;
+      flex: 1 1 auto;
+      position: relative;
+      width: 100%;
+      height: 100%;
+      min-height: 0;
+      overflow: hidden;
     }
 
     header.top-bar {
@@ -248,15 +365,16 @@ export class HomeArchitectPanel extends LitElement {
       backdrop-filter: blur(12px);
       border-bottom: 1px solid rgba(255, 255, 255, 0.1);
       display: flex;
+      flex-wrap: wrap;
       align-items: center;
       justify-content: space-between;
-      padding: 0 14px;
+      padding: 6px 14px;
       position: relative;
       z-index: 85;
       flex-shrink: 0;
       overflow: visible;
       box-sizing: border-box;
-      gap: 10px;
+      gap: 8px 10px;
     }
 
     .brand {
@@ -586,7 +704,6 @@ export class HomeArchitectPanel extends LitElement {
       display: flex;
       flex-direction: row;
       width: 100%;
-      height: calc(100% - 56px);
       min-height: 0;
       min-width: 0;
       overflow: hidden;
@@ -1249,12 +1366,13 @@ export class HomeArchitectPanel extends LitElement {
       background: rgba(239, 68, 68, 0.15);
       color: #f87171;
     }
-  `, persistenceStyles];
+  `, persistenceStyles, studioLayoutStyles];
 
   @property({ type: Object })
   public hass: any;
 
-  @property({ type: Boolean })
+  /** Mode étroit de HA (mobile) : la barre latérale est masquée et le panneau fournit son bouton. */
+  @property({ type: Boolean, reflect: true })
   public narrow: boolean = false;
 
   @state()
@@ -1276,28 +1394,34 @@ export class HomeArchitectPanel extends LitElement {
   private windowSashCount: number = 1;
 
   @state()
-  private showDimensions: boolean = true;
-
-  @state()
-  private showThermalHeatmap: boolean = false;
-
-  @state()
-  private showGhostLevel: boolean = false;
-
-  @state()
   private is3DMode: boolean = false;
 
   @state()
   private isFullscreen: boolean = false;
 
+  /** Volet replié ; préférence mémorisée par appareil (replié par défaut en mode étroit). */
   @state()
   private isDrawerCollapsed: boolean = false;
+
+  /** Élément choisi dans le volet (« toucher pour placer »), posé au prochain appui sur le plan. */
+  @state()
+  private pendingPlacement: DrawerItemPayload | null = null;
 
   @state()
   private isWizardOpen: boolean = false;
 
   @state()
   private isImportModalOpen: boolean = false;
+
+  /** Fichier (image déposée ou collée) ou code SVG collé transmis à la modale d'import (constats F127, F167). */
+  @state()
+  private importInitialFile: Blob | null = null;
+
+  @state()
+  private importInitialSvg: string | null = null;
+
+  @state()
+  private isAboutOpen: boolean = false;
 
   @state()
   private isExportModalOpen: boolean = false;
@@ -1323,8 +1447,9 @@ export class HomeArchitectPanel extends LitElement {
   @state()
   private isCalibrateModalOpen: boolean = false;
 
+  /** Segment tracé avec l'outil Étalonner, en mètres monde (`request-calibration`). */
   @state()
-  private calibrationData: { pixelDistance: number; defaultMeters: number } | null = null;
+  private calibrationData: { worldDistance: number; defaultMeters: number } | null = null;
 
   @state()
   private isRescaleModalOpen: boolean = false;
@@ -1361,11 +1486,28 @@ export class HomeArchitectPanel extends LitElement {
   private isUpdateModalOpen: boolean = false;
 
   private logoClickTimes: number[] = [];
-  private socrateKeySequence: string = '';
-  private _boundEasterEggKeyDown: ((e: KeyboardEvent) => void) | null = null;
+  private secretKeySequence: string = '';
+  /** Fermeture de l'easter egg affiché (module chargé à la demande), appelée à la déconnexion. */
+  private easterEggCleanup: (() => void) | null = null;
   private updateCheckStarted: boolean = false;
   /** Signature de l'entité update au dernier contrôle (réévaluation quand elle change). */
   private updateEntitySig: string | null = null;
+  /** Le volet a été replié ou ouvert par l'utilisateur sur cet appareil (sinon il suit le mode étroit). */
+  private drawerPreference: boolean | null = null;
+  /** requestUpdate() appelé sans propriété depuis le dernier rendu (voir shouldUpdate). */
+  private explicitUpdateRequested = false;
+
+  private readonly onDocumentKeyDown = (e: KeyboardEvent) => this.handleKeyDown(e);
+  private readonly onDocumentPaste = (e: ClipboardEvent) => this.handlePaste(e);
+  private readonly onWindowClick = (e: MouseEvent) => this.closeDropdownOnOutsideClick(e);
+  private readonly onFullscreenChange = () => this.syncFullscreenState();
+  /**
+   * Un appui dans le studio lui donne le focus (s'il ne l'a pas déjà) : les raccourcis clavier
+   * suivent alors le studio et non l'élément de HA qui avait le focus (constat F4).
+   */
+  private readonly onHostPointerDown = () => {
+    if (!this.matches(':focus-within')) this.focus({ preventScroll: true });
+  };
 
   /**
    * Persistance (src/panel/persistence-controller.ts) : plans ouverts indexés par id, chargement,
@@ -1373,7 +1515,10 @@ export class HomeArchitectPanel extends LitElement {
    */
   private readonly persistence = new PersistenceController(this, {
     toast: message => this.showToast(message),
-    activeProjectChanged: () => this.clearSelection()
+    activeProjectChanged: () => {
+      this.clearSelection();
+      this.pendingPlacement = null;
+    }
   });
 
   /** Projet affiché et édité. */
@@ -1392,15 +1537,51 @@ export class HomeArchitectPanel extends LitElement {
     return this.persistence.readOnly;
   }
 
-  private fileInputRef: HTMLInputElement | null = null;
+  /** Préférences d'affichage enregistrées avec le plan (constat F104) ; valeurs par défaut du studio. */
+  private get showDimensions(): boolean {
+    return this.project.showDimensions ?? true;
+  }
+
+  private get showThermalHeatmap(): boolean {
+    return this.project.showThermalHeatmap ?? false;
+  }
+
+  private get showGhostLevel(): boolean {
+    return this.project.showGhostLevel ?? false;
+  }
+
+  private setPreferences(patch: ProjectPreferences) {
+    this.persistence.setPreferences(patch);
+  }
+
+  /** Barre d'outils : réglages de la grille (taille, accrochages), enregistrés avec le plan (constat F47). */
+  private handleGridConfigChanged(e: CustomEvent<{ grid: Partial<GridConfig> }>) {
+    const patch = e.detail?.grid;
+    if (!patch || typeof patch !== 'object') return;
+    const current = this.project.grid;
+    const next: GridConfig = { ...current };
+    // Mêmes bornes que normalizeProject : la valeur reste identique après rechargement.
+    if (typeof patch.size === 'number' && Number.isFinite(patch.size)) next.size = Math.min(2, Math.max(0.05, patch.size));
+    for (const key of ['snapToGrid', 'snapToAngles', 'snapToElements'] as const) {
+      const value = patch[key];
+      if (typeof value === 'boolean') next[key] = value;
+    }
+    const changed = next.size !== current.size || next.snapToGrid !== current.snapToGrid ||
+      next.snapToAngles !== current.snapToAngles || next.snapToElements !== current.snapToElements;
+    if (changed) this.setPreferences({ grid: next });
+  }
 
   private handleToolSelected(e: CustomEvent<{ tool: ActiveTool }>) {
-    this.activeTool = e.detail.tool;
-    if (this.activeTool === 'door') {
+    this.selectTool(e.detail.tool);
+  }
+
+  private selectTool(tool: ActiveTool) {
+    this.activeTool = tool;
+    if (tool === 'door') {
       this.currentOpeningWidth = 0.90;
-    } else if (this.activeTool === 'window') {
+    } else if (tool === 'window') {
       this.currentOpeningWidth = this.windowSashCount === 2 ? 1.40 : 0.90;
-    } else if (this.activeTool === 'french_window') {
+    } else if (tool === 'french_window') {
       this.currentOpeningWidth = 2.00;
     }
   }
@@ -1435,29 +1616,33 @@ export class HomeArchitectPanel extends LitElement {
   }
 
   private handleWindowConfigChanged(e: CustomEvent<{ type: 'window' | 'french_window'; sashCount: number; width: number }>) {
-    this.activeTool = e.detail.type;
-    this.currentOpeningWidth = e.detail.width;
-    this.windowSashCount = e.detail.sashCount;
+    const { type, sashCount, width } = e.detail;
+    this.activeTool = type;
+    this.currentOpeningWidth = width;
+    this.windowSashCount = sashCount;
+    // Fenêtres sélectionnées : mises à jour seulement si l'une d'elles change réellement.
+    if (this.selectedElements.openingIds.length > 0 && !this.readOnly) this.applyWindowFormat(type, sashCount, width);
+  }
 
-    // Mettre à jour les fenêtres sélectionnées (seulement si l'une d'elles change réellement)
-    if (this.selectedElements.openingIds.length > 0 && !this.readOnly) {
-      let updated = 0;
-      const newOpenings = mapChanged(this.project.openings, op => {
-        if (this.selectedElements.openingIds.includes(op.id) && (op.type === 'window' || op.type === 'french_window') &&
-            (op.type !== e.detail.type || op.width !== e.detail.width || op.sashCount !== e.detail.sashCount)) {
-          updated++;
-          return {
-            ...op,
-            type: e.detail.type,
-            width: e.detail.width,
-            sashCount: e.detail.sashCount
-          };
-        }
-        return op;
-      });
-      if (newOpenings && this.commitProject({ ...this.project, openings: newOpenings })) {
-        this.showToast(`🪟 ${updated} fenêtre(s) mise(s) à jour`);
-      }
+  /**
+   * Nouveau format des fenêtres sélectionnées, borné à leur mur (constat F44) : une fenêtre qui ne
+   * tiendrait pas sur son mur ou chevaucherait une autre ouverture garde son format.
+   */
+  private applyWindowFormat(type: 'window' | 'french_window', sashCount: number, width: number) {
+    const reshape = reshapeOpenings(this.project, this.selectedElements.openingIds, op =>
+      (op.type === 'window' || op.type === 'french_window') &&
+      (op.type !== type || op.width !== width || op.sashCount !== sashCount)
+        ? { ...op, type, width, sashCount }
+        : op
+    );
+    const committed = !!reshape.openings && this.commitProject({ ...this.project, openings: reshape.openings });
+    const notes: string[] = [];
+    if (reshape.adjusted > 0) notes.push(`${reshape.adjusted} réduite(s) pour tenir dans le mur`);
+    if (reshape.refused > 0) notes.push(`${reshape.refused} inchangée(s) : mur trop court ou ouverture voisine`);
+    if (committed) {
+      this.showToast(`🪟 ${reshape.updated} fenêtre(s) mise(s) à jour${notes.length ? ` (${notes.join(', ')})` : ''}`);
+    } else if (reshape.refused > 0) {
+      this.showToast(`⚠️ Format non appliqué : ${notes.join(', ')}.`);
     }
   }
 
@@ -1498,15 +1683,7 @@ export class HomeArchitectPanel extends LitElement {
   private updateSelectedWindowConfig(type: 'window' | 'french_window', sashCount: number, width: number) {
     this.windowSashCount = sashCount;
     this.currentOpeningWidth = width;
-    const newOpenings = mapChanged(this.project.openings, op =>
-      this.selectedElements.openingIds.includes(op.id) && (op.type === 'window' || op.type === 'french_window') &&
-      (op.type !== type || op.sashCount !== sashCount || op.width !== width)
-        ? { ...op, type, sashCount, width }
-        : op
-    );
-    if (newOpenings && this.commitProject({ ...this.project, openings: newOpenings })) {
-      this.showToast('🪟 Format de fenêtre mis à jour');
-    }
+    this.applyWindowFormat(type, sashCount, width);
   }
 
   private updateSelectedWallsThickness(thickness: number) {
@@ -1521,18 +1698,27 @@ export class HomeArchitectPanel extends LitElement {
     const changed = e.detail?.project;
     // Un événement tardif d'un plan qui n'est plus affiché (changement de plan pendant un glisser) est ignoré.
     if (!changed || changed === this.project || changed.id !== this.project.id) return;
-    this.commitProject({
+    const committed = this.commitProject({
       ...changed,
       furniture: changed.furniture || []
     });
+    // Modification refusée en lecture seule : le canevas, qui l'affiche déjà, revient au plan du panneau
+    // (la liaison .project ne le ferait pas, sa valeur n'ayant pas changé côté panneau).
+    if (!committed && this.readOnly) {
+      const canvas = this.shadowRoot?.querySelector('home-architect-canvas');
+      if (canvas) canvas.project = this.project;
+    }
   }
 
   /**
    * Applique une modification de l'utilisateur au plan actif (historique, drapeau « modifié »,
-   * brouillon local). Renvoie false si rien n'a été appliqué.
+   * brouillon local). Quand les pièces changent (assistant, import, suppression, contour modifié
+   * dans le canevas), la pièce de chaque entité et de chaque meuble est recalculée (constat F147).
+   * Renvoie false si rien n'a été appliqué.
    */
   private commitProject(next: HomeArchitectProject, opts: { coalesceKey?: string } = {}): boolean {
-    return this.persistence.commit(next, opts);
+    const project = next.rooms !== this.project.rooms ? assignRooms(next) : next;
+    return this.persistence.commit(project, opts);
   }
 
   private notifyReadOnly() {
@@ -1540,274 +1726,188 @@ export class HomeArchitectPanel extends LitElement {
   }
 
   private handleThicknessChange(e: Event) {
-    this.currentThickness = parseFloat((e.target as HTMLSelectElement).value);
+    const value = parseFloat((e.target as HTMLSelectElement).value);
+    if (Number.isFinite(value) && value > 0) this.currentThickness = value;
   }
 
   private handleOpeningWidthChange(e: Event) {
-    this.currentOpeningWidth = parseFloat((e.target as HTMLSelectElement).value);
+    const value = parseFloat((e.target as HTMLSelectElement).value);
+    if (Number.isFinite(value) && value > 0) this.currentOpeningWidth = value;
   }
 
-  private handleCreateRoomFromWizard(e: CustomEvent<any>) {
+  /** Canevas affiché (absent tant que le panneau n'est pas rendu). */
+  private get canvas(): HTMLElementTagNameMap['home-architect-canvas'] | null {
+    return this.renderRoot.querySelector('home-architect-canvas');
+  }
+
+  /** Recadre le plan une fois la modification rendue par le canevas (constat F55). */
+  private async fitCanvasAfterUpdate() {
+    await this.updateComplete;
+    const canvas = this.canvas;
+    if (!canvas) return;
+    await canvas.updateComplete;
+    canvas.fitToScreen();
+  }
+
+  /** Point du plan au centre de la vue 2D, null en 3D ou tant que le canevas n'a pas de taille. */
+  private viewCenter(): Point | null {
+    const canvas = this.canvas;
+    if (!canvas || this.is3DMode) return null;
+    const rect = canvas.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return null;
+    return canvas.clientToWorld(rect.left + rect.width / 2, rect.top + rect.height / 2);
+  }
+
+  /**
+   * Assistant pièce : dimensions revalidées (constat F63), pièce placée à côté du contenu existant
+   * ou au centre de la vue (constat F5), dimensions intérieures (F148), hauteur par défaut héritée (F150).
+   */
+  private handleCreateRoomFromWizard(e: CustomEvent<unknown>) {
     if (this.readOnly) {
       this.isWizardOpen = false;
       this.notifyReadOnly();
       return;
     }
-    const { name, width, length, thickness, height, color, icon, addDoor, addWindow } = e.detail;
-    const roomH = height || 2.50;
-
-    const startX = 2.0;
-    const startY = 2.0;
-
-    const p1: Point = { x: startX, y: startY };
-    const p2: Point = { x: startX + width, y: startY };
-    const p3: Point = { x: startX + width, y: startY + length };
-    const p4: Point = { x: startX, y: startY + length };
-
-    const wTop: Wall = {
-      id: generateElementId('w'),
-      start: p1,
-      end: p2,
-      thickness,
-      height: roomH,
-      type: 'standard'
-    };
-    const wRight: Wall = {
-      id: generateElementId('w'),
-      start: p2,
-      end: p3,
-      thickness,
-      height: roomH,
-      type: 'standard'
-    };
-    const wBottom: Wall = {
-      id: generateElementId('w'),
-      start: p3,
-      end: p4,
-      thickness,
-      height: roomH,
-      type: 'standard'
-    };
-    const wLeft: Wall = {
-      id: generateElementId('w'),
-      start: p4,
-      end: p1,
-      thickness,
-      height: roomH,
-      type: 'standard'
-    };
-
-    const newOpenings: Opening[] = [];
-
-    if (addDoor) {
-      newOpenings.push({
-        id: generateElementId('op'),
-        wallId: wBottom.id,
-        type: 'door',
-        offset: width / 2,
-        width: 0.90,
-        flipSide: false,
-        flipDirection: false
-      });
+    const request = parseWizardRequest(e.detail);
+    if (!request) {
+      this.showToast('❌ Dimensions de pièce invalides : vérifiez la largeur, la longueur et la hauteur.');
+      return;
     }
-
-    if (addWindow) {
-      newOpenings.push({
-        id: generateElementId('op'),
-        wallId: wTop.id,
-        type: 'window',
-        offset: width / 2,
-        width: 1.20,
-        flipSide: false,
-        flipDirection: false
-      });
-    }
-
-    const newRoom: Room = {
-      id: generateElementId('room'),
-      name,
-      polygon: [p1, p2, p3, p4],
-      areaM2: width * length,
-      color,
-      icon,
-      height: roomH
-    };
-
-    this.commitProject({
+    const origin = wizardRoomOrigin(this.project, request, this.viewCenter());
+    const { walls, openings, room } = buildWizardRoom(this.project, request, origin);
+    const committed = this.commitProject({
       ...this.project,
-      walls: [...this.project.walls, wTop, wRight, wBottom, wLeft],
-      openings: [...this.project.openings, ...newOpenings],
-      rooms: [...this.project.rooms, newRoom]
+      walls: [...this.project.walls, ...walls],
+      openings: [...this.project.openings, ...openings],
+      rooms: [...this.project.rooms, room]
     });
-
     this.isWizardOpen = false;
+    if (!committed) return;
     this.activeTool = 'select';
+    const missing = (request.addDoor ? 1 : 0) + (request.addWindow ? 1 : 0) - openings.length;
+    this.showToast(`✨ Pièce « ${room.name} » créée (${room.areaM2.toLocaleString('fr-FR')} m²)` +
+      (missing > 0 ? ' : pièce trop petite pour y placer la porte ou la fenêtre.' : ''));
+    void this.fitCanvasAfterUpdate();
   }
 
   @state()
   private toastMessage: string | null = null;
-  private toastTimeout: any = null;
-  private _boundPaste: any = null;
-  private _boundKeyDown: any = null;
-  private _boundClickOutside: any = null;
-  private _boundFullscreenChange: any = null;
-  private _boundResize: any = null;
-  private _boundDocumentClick: any = null;
-  private _sidebarResizeObserver: ResizeObserver | null = null;
-
-  public updateSidebarOffset(): void {
-    if (this.isFullscreen) {
-      this.style.setProperty('--ha-sidebar-width', '0px');
-      return;
-    }
-
-    let sidebarW = 0;
-
-    // 1. Détection via Shadow DOM Home Assistant (structure standard ha-sidebar)
-    try {
-      const ha = document.querySelector('home-assistant');
-      const main = ha?.shadowRoot?.querySelector('home-assistant-main');
-      const sidebar = main?.shadowRoot?.querySelector('ha-sidebar');
-      if (sidebar) {
-        const rect = sidebar.getBoundingClientRect();
-        if (rect.width > 0 && rect.right > 0 && window.getComputedStyle(sidebar).display !== 'none') {
-          sidebarW = Math.round(rect.width);
-        }
-
-        if (!this._sidebarResizeObserver && typeof ResizeObserver !== 'undefined') {
-          this._sidebarResizeObserver = new ResizeObserver(() => {
-            this.updateSidebarOffset();
-          });
-          this._sidebarResizeObserver.observe(sidebar);
-        }
-      }
-    } catch (_) {}
-
-    // 2. Recherche directe de l'élément ha-sidebar dans le document
-    if (sidebarW === 0) {
-      try {
-        const sidebar = document.querySelector('ha-sidebar');
-        if (sidebar) {
-          const rect = sidebar.getBoundingClientRect();
-          if (rect.width > 0 && rect.right > 0 && window.getComputedStyle(sidebar).display !== 'none') {
-            sidebarW = Math.round(rect.width);
-          }
-        }
-      } catch (_) {}
-    }
-
-    // 3. Fallback sur les variables CSS officielles de Home Assistant
-    if (sidebarW === 0) {
-      try {
-        const docStyles = getComputedStyle(document.documentElement);
-        const drawerW = docStyles.getPropertyValue('--app-drawer-width') || docStyles.getPropertyValue('--mdc-drawer-width');
-        if (drawerW && drawerW.trim().endsWith('px')) {
-          const val = parseFloat(drawerW);
-          if (!isNaN(val) && val > 0) sidebarW = val;
-        }
-      } catch (_) {}
-    }
-
-    // 4. Calcul de l'empiètement réel sur l'élément hôte
-    let neededOffset = 0;
-    if (sidebarW > 0) {
-      const hostRect = this.getBoundingClientRect();
-      const currentApplied = parseFloat(this.style.getPropertyValue('--ha-sidebar-width') || '0') || 0;
-      const baselineLeft = hostRect.left - currentApplied;
-
-      if (baselineLeft < sidebarW) {
-        neededOffset = Math.max(0, sidebarW - Math.max(0, baselineLeft));
-      }
-    }
-
-    this.style.setProperty('--ha-sidebar-width', `${neededOffset}px`);
-  }
+  private toastTimeout: ReturnType<typeof setTimeout> | null = null;
 
   connectedCallback() {
     super.connectedCallback();
-    this._boundPaste = this.handlePaste.bind(this);
-    window.addEventListener('paste', this._boundPaste);
-    this._boundKeyDown = this.handleKeyDown.bind(this);
-    window.addEventListener('keydown', this._boundKeyDown);
-
-    this._boundClickOutside = (e: MouseEvent) => {
-      if (this.activeDropdown) {
-        const path = e.composedPath();
-        const isInside = path.some((el: any) => el?.classList?.contains('dropdown-menu-wrapper'));
-        if (!isInside) {
-          this.activeDropdown = null;
-        }
-      }
-    };
-    window.addEventListener('click', this._boundClickOutside);
-
-    this._boundFullscreenChange = () => {
-      const isFs = !!(
-        document.fullscreenElement ||
-        (document as any).webkitFullscreenElement ||
-        (document as any).mozFullScreenElement ||
-        (document as any).msFullscreenElement
-      );
-      this.isFullscreen = isFs;
-      if (isFs) {
-        this.classList.add('is-fullscreen');
-      } else {
-        this.classList.remove('is-fullscreen');
-      }
-      this.updateSidebarOffset();
-    };
-    document.addEventListener('fullscreenchange', this._boundFullscreenChange);
-    document.addEventListener('webkitfullscreenchange', this._boundFullscreenChange);
-    document.addEventListener('mozfullscreenchange', this._boundFullscreenChange);
-    document.addEventListener('MSFullscreenChange', this._boundFullscreenChange);
-
-    this._boundResize = () => this.updateSidebarOffset();
-    window.addEventListener('resize', this._boundResize);
-
-    this._boundDocumentClick = () => {
-      setTimeout(() => this.updateSidebarOffset(), 50);
-      setTimeout(() => this.updateSidebarOffset(), 320);
-    };
-    document.addEventListener('click', this._boundDocumentClick, { passive: true });
-
-    this.updateSidebarOffset();
-    setTimeout(() => this.updateSidebarOffset(), 100);
-
-    // Easter Egg: Écoute globale du mot-clé secret "socrate" au clavier
-    this._boundEasterEggKeyDown = (e: KeyboardEvent) => {
-      const tag = (e.target as HTMLElement)?.tagName?.toLowerCase();
-      if (tag === 'input' || tag === 'textarea' || (e.target as HTMLElement)?.isContentEditable) {
-        return;
-      }
-      if (e.key && e.key.length === 1) {
-        this.socrateKeySequence = (this.socrateKeySequence + e.key.toLowerCase()).slice(-7);
-        if (this.socrateKeySequence === 'socrate') {
-          this.socrateKeySequence = '';
-          this.triggerEasterEgg();
-        }
-      }
-    };
-    window.addEventListener('keydown', this._boundEasterEggKeyDown);
+    // Hôte focalisable sans entrer dans l'ordre de tabulation : les raccourcis suivent le studio (constat F4).
+    if (!this.hasAttribute('tabindex')) this.setAttribute('tabindex', '-1');
+    this.addEventListener('pointerdown', this.onHostPointerDown);
+    // Sur document (bouillonnement) : avant les raccourcis globaux de HA, posés sur window, qui ignorent
+    // une touche déjà traitée (defaultPrevented). Rien n'est traité si le focus est ailleurs dans HA.
+    document.addEventListener('keydown', this.onDocumentKeyDown);
+    document.addEventListener('paste', this.onDocumentPaste);
+    window.addEventListener('click', this.onWindowClick);
+    document.addEventListener('fullscreenchange', this.onFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', this.onFullscreenChange);
+    // Volet : préférence de cet appareil, sinon replié en mode étroit (constat F60).
+    this.drawerPreference = readDrawerPreference();
+    this.isDrawerCollapsed = this.drawerPreference ?? this.narrow;
   }
 
-  firstUpdated() {
-    this.updateSidebarOffset();
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    this.removeEventListener('pointerdown', this.onHostPointerDown);
+    document.removeEventListener('keydown', this.onDocumentKeyDown);
+    document.removeEventListener('paste', this.onDocumentPaste);
+    window.removeEventListener('click', this.onWindowClick);
+    document.removeEventListener('fullscreenchange', this.onFullscreenChange);
+    document.removeEventListener('webkitfullscreenchange', this.onFullscreenChange);
+    if (this.toastTimeout) clearTimeout(this.toastTimeout);
+    this.toastTimeout = null;
+    this.toastMessage = null;
+    // L'easter egg s'arrête avec le panneau : ni animation ni écouteur après un retour arrière (constat F162).
+    this.easterEggCleanup?.();
+    this.easterEggCleanup = null;
+    this.secretKeySequence = '';
+  }
+
+  /**
+   * Un nouvel objet hass arrive à chaque changement d'état de N'IMPORTE QUELLE entité : le panneau
+   * ne se re-rend pas pour autant (constat F34). Le nouvel hass est transmis directement aux éléments
+   * qui l'utilisent (canevas, volet, modales), qui ne se mettent à jour que pour ce qui les concerne.
+   */
+  protected shouldUpdate(changed: PropertyValues<this>): boolean {
+    if (this.hasUpdated && !this.explicitUpdateRequested && changed.size === 1 && changed.has('hass')) {
+      const previous = changed.get('hass');
+      if (previous && this.hass && !this.hassAffectsPanel(previous, this.hass)) {
+        this.propagateHass();
+        this.handleHassChange();
+        // Une mise à jour demandée pendant ce suivi (chargement lancé, état modifié) serait perdue si
+        // le cycle était abandonné (Lit vide alors les changements en attente) : le panneau est rendu.
+        if (!this.explicitUpdateRequested && changed.size === 1) return false;
+      }
+    }
+    this.explicitUpdateRequested = false;
+    return super.shouldUpdate(changed);
+  }
+
+  /**
+   * Une mise à jour demandée sans propriété (contrôleur de persistance : plan modifié, chargement,
+   * dialogue…) est toujours rendue, même si un nouvel hass arrive dans le même cycle.
+   */
+  requestUpdate(...args: Parameters<LitElement['requestUpdate']>): void {
+    if (args[0] === undefined) this.explicitUpdateRequested = true;
+    super.requestUpdate(...args);
+  }
+
+  /** Changements de hass visibles dans le panneau lui-même (droits, barre latérale, langue, entité affichée dans le HUD). */
+  private hassAffectsPanel(previous: any, next: any): boolean {
+    if (isAdmin(previous) !== isAdmin(next) || previous.dockedSidebar !== next.dockedSidebar || previous.language !== next.language) {
+      return true;
+    }
+    const bindingId = this.selectedElements.bindingIds[0];
+    const entityId = bindingId ? this.project.bindings.find(b => b.id === bindingId)?.entityId : undefined;
+    return entityId !== undefined && previous.states?.[entityId] !== next.states?.[entityId];
+  }
+
+  private propagateHass() {
+    for (const el of this.renderRoot.querySelectorAll(HASS_CONSUMERS)) {
+      (el as HTMLElement & { hass?: unknown }).hass = this.hass;
+    }
+  }
+
+  /** Suivi de hass sans rendu : chargement initial des plans, puis contrôle de mise à jour. */
+  private handleHassChange() {
+    this.persistence.start();
+    this.maybeRefreshUpdateInfo();
   }
 
   willUpdate(changedProps: PropertyValues<this>) {
     super.willUpdate(changedProps);
-    // Lecture seule (constat F11) : aucun outil de tracé actif, seule la sélection reste possible.
-    if (this.readOnly && this.activeTool !== 'select') this.activeTool = 'select';
+    // Lecture seule (constat F11) : aucun outil de tracé actif ni placement en attente, seule la sélection reste possible.
+    // Tant que hass n'est pas reçu, les droits sont inconnus : l'outil par défaut (Mur) est conservé.
+    if (this.hass && this.readOnly) {
+      if (this.activeTool !== 'select') this.activeTool = 'select';
+      if (this.pendingPlacement) this.pendingPlacement = null;
+    }
+    // Volet non réglé par l'utilisateur : il suit le mode étroit.
+    if (changedProps.has('narrow') && this.drawerPreference === null) this.isDrawerCollapsed = this.narrow;
     if (this.isConnected) this.persistence.prefetchGhost(this.ghostLevel());
   }
 
   updated(changedProps: PropertyValues<this>) {
     super.updated(changedProps);
-    if (changedProps.has('hass') && this.hass) {
-      this.persistence.start();
-      this.maybeRefreshUpdateInfo();
-      this.syncSidebarBadge(!!this.updateInfo?.available);
-    }
+    if (changedProps.has('hass') && this.hass) this.handleHassChange();
+  }
+
+  /** Plein écran natif quitté (Échap du navigateur, geste système) : état et classe synchronisés. */
+  private syncFullscreenState() {
+    const isFs = !!(document.fullscreenElement || (document as any).webkitFullscreenElement);
+    this.isFullscreen = isFs;
+    this.classList.toggle('is-fullscreen', isFs);
+  }
+
+  private closeDropdownOnOutsideClick(e: MouseEvent) {
+    if (!this.activeDropdown) return;
+    const inside = e.composedPath().some(el => el instanceof HTMLElement && el.classList.contains('dropdown-menu-wrapper'));
+    if (!inside) this.activeDropdown = null;
   }
 
   // ==========================================
@@ -1834,7 +1934,6 @@ export class HomeArchitectPanel extends LitElement {
       // L'entité peut n'être connue qu'après la première réponse : mémoriser sa signature actuelle.
       this.updateEntitySig = updateEntitySignature(this.hass, info?.entityId ?? null);
       if (!info?.available) this.isUpdateModalOpen = false;
-      this.syncSidebarBadge(!!info?.available);
     } catch (err) {
       console.debug('[home-architect] Vérification des mises à jour impossible :', err);
     }
@@ -1843,6 +1942,7 @@ export class HomeArchitectPanel extends LitElement {
   /** Ouvre la page HA des mises à jour (les brouillons des plans modifiés sont écrits avant de quitter). */
   private openHaUpdates() {
     this.isUpdateModalOpen = false;
+    this.isAboutOpen = false;
     this.persistence.flushDrafts();
     navigateInHa(HA_UPDATES_PATH);
   }
@@ -1853,59 +1953,17 @@ export class HomeArchitectPanel extends LitElement {
   }
 
   /**
-   * Synchronise le badge rouge "MAJ" dans le volet latéral Home Assistant
+   * Easter egg « Socrate Rules » : module chargé à la demande, hors du code du studio (constat F162).
+   * Sa fermeture est conservée pour l'arrêter si le panneau est quitté.
    */
-  public syncSidebarBadge(hasUpdate: boolean) {
+  public async triggerEasterEgg() {
     try {
-      const ha = document.querySelector('home-assistant');
-      const main = ha && ha.shadowRoot && ha.shadowRoot.querySelector('home-assistant-main');
-      const sidebar = main && main.shadowRoot && main.shadowRoot.querySelector('ha-sidebar');
-      if (!sidebar || !sidebar.shadowRoot) return;
-
-      const container = sidebar.shadowRoot.querySelector('paper-listbox, ha-md-list, nav, div.menu, div.items');
-      const items = (container || sidebar.shadowRoot).querySelectorAll('paper-icon-item, ha-md-list-item, ha-sidebar-item, a');
-
-      const patterns = ['home-architect', 'home_architect', 'home architect'];
-
-      for (const item of Array.from(items)) {
-        const href = item.getAttribute('href') || (item as any).dataset?.panel || (item as any).dataset?.href || '';
-        const id = item.id || '';
-        const ariaLabel = item.getAttribute('aria-label') || '';
-        const text = (item.textContent || '').toLowerCase();
-
-        const isMatch = patterns.some((p) =>
-          href.toLowerCase().includes(p) ||
-          id.toLowerCase().includes(p) ||
-          ariaLabel.toLowerCase().includes(p) ||
-          text.includes(p)
-        );
-
-        if (isMatch) {
-          let badge = item.querySelector('.domolink-sidebar-badge');
-          if (hasUpdate) {
-            if (!badge) {
-              badge = document.createElement('span');
-              badge.className = 'badge domolink-sidebar-badge';
-              badge.setAttribute('slot', 'end');
-              badge.setAttribute('style', 'background: linear-gradient(135deg, #ef4444, #f59e0b); color: white; border-radius: 9999px; padding: 2px 7px; font-size: 10px; font-weight: 800; box-shadow: 0 2px 6px rgba(239,68,68,0.4); margin-left: auto; letter-spacing: 0.5px; z-index: 10; display: inline-block;');
-              badge.textContent = 'MAJ';
-              badge.setAttribute('title', 'Mise à jour disponible !');
-              item.appendChild(badge);
-            }
-          } else if (badge) {
-            badge.remove();
-          }
-        }
-      }
-    } catch (_) {}
-  }
-
-  /**
-   * Déclenche l'easter egg Socrate Rules
-   */
-  public triggerEasterEgg() {
-    const root = this.shadowRoot || this;
-    launchSocrateRulesEasterEgg(root);
+      const { launchSocrateRulesEasterEgg } = await import('./core/easter-egg');
+      if (!this.isConnected) return;
+      this.easterEggCleanup = launchSocrateRulesEasterEgg(this.shadowRoot ?? this);
+    } catch (err) {
+      console.debug('[home-architect] Easter egg indisponible :', err);
+    }
   }
 
   /**
@@ -1918,7 +1976,17 @@ export class HomeArchitectPanel extends LitElement {
 
     if (this.logoClickTimes.length >= 5) {
       this.logoClickTimes = [];
-      this.triggerEasterEgg();
+      void this.triggerEasterEgg();
+    }
+  }
+
+  /** Mot secret tapé hors des champs de saisie, sans modificateur (même garde que les raccourcis). */
+  private trackSecretWord(e: KeyboardEvent) {
+    if (e.key.length !== 1) return;
+    this.secretKeySequence = (this.secretKeySequence + e.key.toLowerCase()).slice(-SECRET_WORD.length);
+    if (this.secretKeySequence === SECRET_WORD) {
+      this.secretKeySequence = '';
+      void this.triggerEasterEgg();
     }
   }
 
@@ -1933,39 +2001,28 @@ export class HomeArchitectPanel extends LitElement {
     this.isUpdateModalOpen = false;
   }
 
-  disconnectedCallback() {
-    super.disconnectedCallback();
-    if (this._boundPaste) {
-      window.removeEventListener('paste', this._boundPaste);
-    }
-    if (this._boundKeyDown) {
-      window.removeEventListener('keydown', this._boundKeyDown);
-    }
-    if (this._boundEasterEggKeyDown) {
-      window.removeEventListener('keydown', this._boundEasterEggKeyDown);
-    }
-    if (this._boundClickOutside) {
-      window.removeEventListener('click', this._boundClickOutside);
-    }
-    if (this._boundFullscreenChange) {
-      document.removeEventListener('fullscreenchange', this._boundFullscreenChange);
-      document.removeEventListener('webkitfullscreenchange', this._boundFullscreenChange);
-      document.removeEventListener('mozfullscreenchange', this._boundFullscreenChange);
-      document.removeEventListener('MSFullscreenChange', this._boundFullscreenChange);
-    }
-    if (this._boundResize) {
-      window.removeEventListener('resize', this._boundResize);
-    }
-    if (this._boundDocumentClick) {
-      document.removeEventListener('click', this._boundDocumentClick);
-    }
-    if (this._sidebarResizeObserver) {
-      this._sidebarResizeObserver.disconnect();
-      this._sidebarResizeObserver = null;
-    }
-    if (this.toastTimeout) {
-      clearTimeout(this.toastTimeout);
-    }
+  /** Dialogue « À propos » : version, état des mises à jour, liens (release, soutien du projet). */
+  private openAbout(e: Event) {
+    // Le badge de version fait partie du logo : ce clic ne compte pas pour l'easter egg.
+    e.stopPropagation();
+    this.activeDropdown = null;
+    this.isAboutOpen = true;
+  }
+
+  /** Bouton de menu de HA (mode étroit ou barre latérale masquée) : ouvre la barre latérale (constat F60). */
+  private toggleHaSidebar() {
+    this.dispatchEvent(new CustomEvent('hass-toggle-menu', { bubbles: true, composed: true }));
+  }
+
+  /** Le panneau fournit le bouton de la barre latérale quand HA la masque (mode étroit, barre « toujours masquée »). */
+  private get showMenuButton(): boolean {
+    return this.narrow || this.hass?.dockedSidebar === 'always_hidden';
+  }
+
+  private toggleDrawer() {
+    this.isDrawerCollapsed = !this.isDrawerCollapsed;
+    this.drawerPreference = this.isDrawerCollapsed;
+    writeDrawerPreference(this.isDrawerCollapsed);
   }
 
   public showToast(msg: string) {
@@ -1973,34 +2030,113 @@ export class HomeArchitectPanel extends LitElement {
     if (this.toastTimeout) clearTimeout(this.toastTimeout);
     this.toastTimeout = setTimeout(() => {
       this.toastMessage = null;
+      this.toastTimeout = null;
     }, 4500);
   }
 
+  // ==========================================
+  // IMPORT, COLLAGE ET DÉPÔT (un seul chemin : la modale d'import ; constats F127, F167)
+  // ==========================================
+
+  /** Ouvre la modale d'import, éventuellement avec un fichier ou un code SVG venus d'ailleurs (dépôt, collage). */
+  private openImportModal(initial: { file?: Blob; svg?: string } = {}) {
+    this.activeDropdown = null;
+    if (this.readOnly) {
+      this.notifyReadOnly();
+      return;
+    }
+    this.importInitialFile = initial.file ?? null;
+    this.importInitialSvg = initial.svg ?? null;
+    this.isImportModalOpen = true;
+  }
+
+  private closeImportModal() {
+    this.isImportModalOpen = false;
+    this.importInitialFile = null;
+    this.importInitialSvg = null;
+  }
+
   /**
-   * Nouvelle image de fond (collage, glisser-déposer) : une image brute (Blob ou data-URL) est
-   * compressée puis téléversée, une URL externe est référencée telle quelle (constat F1).
+   * Image déposée sur le canevas : ouverte dans la modale d'import (validation, compression,
+   * vectorisation d'un SVG, mise à l'échelle) comme un fichier choisi dans la modale.
    */
-  public async loadBackgroundImage(source: string | Blob, sourceLabel: string = 'Plan chargé !') {
+  private handleBackgroundDropped(e: CustomEvent<{ file?: Blob; dataUrl?: string }>) {
+    const { file, dataUrl } = e.detail ?? {};
+    let blob: Blob | null = file instanceof Blob ? file : null;
+    if (!blob && isInlineDataUrl(dataUrl)) {
+      try {
+        blob = dataUrlToBlob(dataUrl);
+      } catch {
+        blob = null;
+      }
+    }
+    if (blob) this.openImportModal({ file: blob });
+    else this.showToast('❌ Image illisible.');
+  }
+
+  /** L'événement concerne le studio : il vient de son contenu, ou de la page sans focus particulier (studio affiché). */
+  private isStudioEvent(e: Event): boolean {
+    if (isEventFromHost(e, this)) return true;
+    const target = getEventTarget(e);
+    return (target === document.body || target === document.documentElement) && this.isConnected && this.getClientRects().length > 0;
+  }
+
+  /**
+   * Collage dans le studio, hors des champs de saisie et des modales (constat F127) : image ou code
+   * SVG → modale d'import (qui reçoit le contenu collé) ; URL d'image → fond externe à étalonner.
+   */
+  private handlePaste(e: ClipboardEvent) {
+    if (e.defaultPrevented || !e.clipboardData || this.isModalOpen() || isEditableTarget(e) || !this.isStudioEvent(e)) return;
+    const item = Array.from(e.clipboardData.items).find(i => i.kind === 'file' && i.type.startsWith('image/'));
+    const file = item?.getAsFile() ?? null;
+    if (file) {
+      e.preventDefault();
+      this.openImportModal({ file });
+      return;
+    }
+    const text = e.clipboardData.getData('text/plain')?.trim() ?? '';
+    if (looksLikeSvgCode(text)) {
+      e.preventDefault();
+      this.openImportModal({ svg: text });
+    } else if (isInlineDataUrl(text) && /^data:image\//i.test(text)) {
+      e.preventDefault();
+      try {
+        this.openImportModal({ file: dataUrlToBlob(text) });
+      } catch {
+        this.showToast('❌ Image collée illisible.');
+      }
+    } else if (/\.(png|jpe?g|gif|svg|webp)(\?.*)?$/i.test(text)) {
+      e.preventDefault();
+      void this.loadExternalBackground(text);
+    }
+  }
+
+  /** Image de fond référencée par une URL collée (aucun téléversement), puis outil Étalonner. */
+  private async loadExternalBackground(url: string) {
     if (!this.persistence.ready) return;
     if (this.readOnly) {
       this.notifyReadOnly();
       return;
     }
     const projectId = this.project.id;
-    const background = typeof source === 'string' && !isInlineDataUrl(source)
-      ? await this.externalBackground(source)
-      : await this.persistence.withBusy('Téléversement de l\'image de fond…', () =>
-        this.persistence.prepareAndUploadBackground(projectId, source)
-      );
+    const background = await this.externalBackground(url);
     if (!background || this.project.id !== projectId) return;
     if (this.commitProject({ ...this.project, background })) {
       this.activeTool = 'calibrate';
-      this.showToast(`${sourceLabel} Tracez un segment sur un mur mesuré pour étalonner l'échelle (📏).`);
+      this.showToast('📋 Image chargée depuis l\'URL collée ! Tracez un segment sur un mur mesuré pour étalonner l\'échelle (📏).');
     }
   }
 
-  /** Image référencée par une URL externe : dimensions lues par le navigateur, aucun téléversement. */
+  /**
+   * Image référencée par une URL externe : dimensions lues par le navigateur, aucun téléversement.
+   * Seules les URL que normalizeProject conserve (http(s) ou chemin du serveur HA) sont acceptées :
+   * une autre adresse collée (fichier local, schéma inconnu) disparaîtrait au prochain chargement.
+   */
   private externalBackground(url: string): Promise<BackgroundPlan | null> {
+    if (url.length > MAX_EXTERNAL_IMAGE_URL_LENGTH || !EXTERNAL_IMAGE_URL.test(url)) {
+      this.showToast('❌ Adresse d\'image non prise en charge : utilisez une URL http(s) ou importez le fichier.');
+      return Promise.resolve(null);
+    }
     return new Promise(resolve => {
       const img = new Image();
       img.onload = () => resolve({
@@ -2021,249 +2157,238 @@ export class HomeArchitectPanel extends LitElement {
     });
   }
 
-  private async handleImportConfirmed(e: CustomEvent<ImportConfirmedDetail>) {
-    this.isImportModalOpen = false;
+  /** Téléverse l'image fournie par la modale d'import pour `projectId` (null : échec déjà signalé). */
+  private uploadImportBackground(projectId: string, detail: ImportModalResult, defaultOpacity: number): Promise<BackgroundPlan | null> {
+    const imported = detail.background;
+    if (!imported) return Promise.resolve(null);
+    const opacity = Number.isFinite(detail.opacity) ? detail.opacity : defaultOpacity;
+    return this.persistence.withBusy('Téléversement de l\'image de fond…', () =>
+      this.persistence.uploadImportedBackground(projectId, imported, opacity)
+    );
+  }
+
+  /**
+   * Import confirmé (SPEC §6) : l'image arrive déjà compressée ; elle est téléversée et le plan n'en
+   * garde que la référence. pixelsPerMeter (échelle d'affichage et d'export) ne dépend jamais du
+   * fichier : la largeur saisie règle l'échelle du calque, background.scale (constats F70, F71, F72).
+   */
+  private async handleImportConfirmed(e: CustomEvent<ImportModalResult>) {
+    this.closeImportModal();
+    const detail = e.detail;
+    if (!detail) return;
     if (this.readOnly) {
       this.notifyReadOnly();
       return;
     }
-    const {
-      background: imported, opacity, mode, totalWidthMeters,
-      isSvgVectorized, svgInterpretation, keepSvgBackground
-    } = e.detail;
-    const projectId = this.project.id;
-    const vectorized = !!(isSvgVectorized && svgInterpretation && svgInterpretation.success);
-
-    // L'image est téléversée avant de modifier le plan : le projet n'en garde que la référence.
-    let background: BackgroundPlan | undefined;
-    if (imported && (!vectorized || keepSvgBackground)) {
-      const defaultOpacity = vectorized ? 0.25 : 0.40;
-      const uploaded = await this.persistence.withBusy('Téléversement de l\'image de fond…', () =>
-        this.persistence.uploadImportedBackground(projectId, imported, opacity !== undefined ? opacity : defaultOpacity)
-      );
-      if (!uploaded) return;
-      background = uploaded;
-    }
-    if (this.project.id !== projectId) return;
-
-    // Traitement du mode Vectorisation Intelligente SVG
-    if (vectorized && svgInterpretation) {
-      const { walls, openings, rooms, metersPerUnit, stats } = svgInterpretation;
-      // L'échelle du projet ne dépend pas des unités du SVG : le calque d'origine (1 px = 1 unité de la
-      // viewBox) est aligné sur les murs vectorisés par son facteur d'échelle.
-      const alignedBackground = background && Number.isFinite(metersPerUnit) && metersPerUnit > 0
-        ? { ...background, scale: metersPerUnit * this.project.pixelsPerMeter }
-        : background;
-      const committed = this.commitProject({
-        ...this.project,
-        walls: [...this.project.walls, ...walls],
-        openings: [...this.project.openings, ...openings],
-        rooms: [...this.project.rooms, ...rooms],
-        background: alignedBackground
-      });
-      if (!committed) return;
-
-      this.activeTool = 'select';
-      this.showToast(
-        `✨ Plan SVG converti : ${stats.wallCount} mur${stats.wallCount > 1 ? 's' : ''}, ${stats.doorCount} porte${stats.doorCount > 1 ? 's' : ''}, ${stats.windowCount} fenêtre${stats.windowCount > 1 ? 's' : ''} et ${stats.roomCount} pièce${stats.roomCount > 1 ? 's' : ''} créés !`
-      );
+    const interpretation = detail.isSvgVectorized && detail.svgInterpretation?.success ? detail.svgInterpretation : null;
+    if (interpretation) {
+      await this.importVectorizedPlan(detail, interpretation);
       return;
     }
 
-    // Traitement standard (image de fond ou calque passif)
-    if (!background) return;
-    let calculatedPpm = this.project.pixelsPerMeter;
-    if (mode === 'auto_dimension' && totalWidthMeters && totalWidthMeters > 0 && background.widthPx) {
-      calculatedPpm = Math.round((background.widthPx / totalWidthMeters) * 10) / 10;
-    }
+    const projectId = this.project.id;
+    const background = await this.uploadImportBackground(projectId, detail, 0.40);
+    if (!background || this.project.id !== projectId) return;
+    const metersPerPixel = detail.mode === 'auto_dimension' ? importMetersPerPixel(detail, background) : null;
+    const placed = metersPerPixel !== null ? { ...background, scale: metersPerPixel * this.project.pixelsPerMeter } : background;
+    if (!this.commitProject({ ...this.project, background: placed })) return;
 
-    if (!this.commitProject({ ...this.project, pixelsPerMeter: calculatedPpm, background })) return;
-
-    if (mode === 'auto_dimension') {
+    if (metersPerPixel !== null) {
       this.activeTool = 'wall';
-      this.showToast(`✅ Plan importé et étalonné automatiquement (1 m = ${calculatedPpm} px) ! Vous pouvez tracer vos murs (🧱).`);
+      this.showToast('✅ Plan importé et mis à l\'échelle ! Vous pouvez tracer vos murs (🧱).');
     } else {
       this.activeTool = 'calibrate';
       this.showToast('📏 Plan importé ! Tracez un segment sur un mur mesuré pour étalonner l\'échelle.');
     }
+    void this.fitCanvasAfterUpdate();
   }
 
-  private handlePaste(e: ClipboardEvent) {
-    if (this.isImportModalOpen) return; // Le modal gère lui-même son collage si ouvert
-    if (!e.clipboardData) return;
-
-    // 1. Image brute dans le presse-papier
-    const items = e.clipboardData.items;
-    for (let i = 0; i < items.length; i++) {
-      if (items[i].type.indexOf('image') !== -1) {
-        const file = items[i].getAsFile();
-        if (file) {
-          e.preventDefault();
-          void this.loadBackgroundImage(file, '📋 Image collée depuis le presse-papier !');
-          return;
-        }
-      }
-    }
-
-    // 2. Traitement du texte dans le presse-papier (Code SVG ou URL)
-    const text = e.clipboardData.getData('text/plain')?.trim();
-
-    // 2a. Code SVG brut
-    if (text && (text.startsWith('<svg') || (text.startsWith('<?xml') && text.includes('<svg')))) {
-      e.preventDefault();
-      this.openImportModal();
-      if (this.isImportModalOpen) this.showToast('📥 Code SVG détecté ! Configurez la vectorisation automatique.');
+  /**
+   * Import d'un SVG vectorisé (murs, ouvertures, pièces). Sur un plan qui a déjà du contenu,
+   * l'utilisateur choisit : remplacer le dessin, l'ajouter à côté, ou l'ouvrir dans un nouveau plan
+   * du niveau courant (constat F158). L'image de fond existante n'est jamais retirée sans calque
+   * de remplacement.
+   */
+  private async importVectorizedPlan(detail: ImportModalResult, interpretation: SvgParseResult) {
+    const geometry = cleanImportedGeometry(interpretation, effectiveCeilingHeight(this.project));
+    const wantsBackground = !!detail.background && detail.keepSvgBackground !== false;
+    if (geometry.walls.length + geometry.rooms.length === 0 && !wantsBackground) {
+      this.showToast('ℹ️ Aucun mur ni aucune pièce à importer.');
       return;
     }
 
-    // 3. URL ou data-url en texte brut
-    if (text && (text.startsWith('data:image/') || text.match(/\.(png|jpe?g|svg|webp)(\?.*)?$/i))) {
-      e.preventDefault();
-      void this.loadBackgroundImage(text, '📋 Image chargée depuis l\'URL collée !');
+    let mode: 'replace' | 'add' | 'new' = 'replace';
+    if (!isEmptyProject(this.project)) {
+      const choice = await this.askVectorizedImportMode(geometry, detail.targetLevel);
+      if (choice === null) return;
+      mode = choice;
     }
+    if (mode === 'new') {
+      const category = detail.targetLevel || this.project.category || DEFAULT_LEVEL;
+      if (!(await this.persistence.createPlan('Plan importé', category, { confirmed: true }))) return;
+    }
+
+    const projectId = this.project.id;
+    // « Ajouter à côté » d'un plan qui a déjà un calque : le calque du SVG ne le remplace pas.
+    const keepCurrentBackground = mode === 'add' && !!this.project.background;
+    const uploaded = wantsBackground && !keepCurrentBackground
+      ? await this.uploadImportBackground(projectId, detail, 0.25)
+      : null;
+    if (this.project.id !== projectId) return;
+
+    const project = this.project;
+    let offset: Point = { x: 0, y: 0 };
+    if (mode === 'add') {
+      const existing = contentBounds(project);
+      const imported = contentBounds({ walls: geometry.walls, rooms: geometry.rooms, bindings: [], furniture: [] });
+      if (existing && imported) offset = sideBySideOffset(existing, imported);
+    }
+    const placed = translateGeometry(geometry, offset);
+    // Calque d'origine (1 px = 1 unité de la viewBox) aligné sur les murs vectorisés par son échelle.
+    const metersPerUnit = Number.isFinite(detail.metersPerPixel) && (detail.metersPerPixel as number) > 0
+      ? detail.metersPerPixel as number
+      : interpretation.metersPerUnit;
+    const background = uploaded && Number.isFinite(metersPerUnit) && metersPerUnit > 0
+      ? { ...uploaded, scale: metersPerUnit * project.pixelsPerMeter, offset }
+      : uploaded ?? project.background;
+
+    const merged: PlanGeometry = mode === 'add'
+      ? {
+        walls: [...project.walls, ...placed.walls],
+        openings: [...project.openings, ...placed.openings],
+        rooms: [...project.rooms, ...placed.rooms]
+      }
+      : placed;
+    if (!this.commitProject({ ...project, ...merged, background })) return;
+
+    this.activeTool = 'select';
+    const stats = geometryStats(placed);
+    const plural = (n: number, word: string) => `${n} ${word}${n > 1 ? 's' : ''}`;
+    let message = `✨ Plan SVG converti : ${plural(stats.walls, 'mur')}, ${plural(stats.doors, 'porte')}, ` +
+      `${plural(stats.windows, 'fenêtre')} et ${plural(stats.rooms, 'pièce')} ${mode === 'add' ? 'ajoutés à côté du plan' : 'importés'}.`;
+    if (wantsBackground && keepCurrentBackground) message += ' Le calque du SVG n\'a pas été repris : le plan a déjà une image de fond.';
+    else if (wantsBackground && !uploaded) message += ' Calque de fond non importé.';
+    this.showToast(message);
+    void this.fitCanvasAfterUpdate();
   }
 
-  private triggerFileInput() {
-    if (!this.fileInputRef) {
-      const input = document.createElement('input');
-      input.type = 'file';
-      input.accept = 'image/*';
-      input.style.display = 'none';
-      input.addEventListener('change', (e: any) => this.handleFileSelected(e));
-      document.body.appendChild(input);
-      this.fileInputRef = input;
-    }
-    this.fileInputRef.click();
+  /** Plan non vide : remplacer le dessin, l'ajouter à côté ou créer un nouveau plan (null : annulé). */
+  private async askVectorizedImportMode(geometry: PlanGeometry, targetLevel: string | undefined): Promise<'replace' | 'add' | 'new' | null> {
+    const stats = geometryStats(geometry);
+    const level = getLevelLabel(targetLevel || this.project.category);
+    const choice = await this.persistence.ask({
+      icon: '📐',
+      title: 'Le plan contient déjà des éléments',
+      subtitle: `« ${this.project.name} »`,
+      message: `Le SVG apporte ${stats.walls} mur(s), ${stats.doors + stats.windows} ouverture(s) et ${stats.rooms} pièce(s). ` +
+        `Le plan actuel contient ${this.project.walls.length} mur(s) et ${this.project.rooms.length} pièce(s). Que faire ?`,
+      details: [
+        'Remplacer : les murs, ouvertures et pièces actuels sont remplacés ; entités, meubles et image de fond sont conservés (l\'image est remplacée si le SVG fournit son calque).',
+        'Ajouter à côté : le dessin importé est placé à droite du plan actuel, sans rien supprimer.',
+        `Nouveau plan : le dessin est ouvert dans un nouveau plan distinct du niveau ${level}, le plan actuel reste inchangé.`,
+        'Dans tous les cas, Annuler (Ctrl+Z) reste possible.'
+      ],
+      actions: [
+        { id: 'new', label: 'Nouveau plan', icon: '📄', kind: 'secondary' },
+        { id: 'add', label: 'Ajouter à côté', icon: '➕', kind: 'secondary' },
+        { id: 'replace', label: 'Remplacer', icon: '♻️', kind: 'danger' }
+      ],
+      tone: 'warning'
+    });
+    return choice === 'replace' || choice === 'add' || choice === 'new' ? choice : null;
   }
 
-  private handleFileSelected(e: Event) {
-    const file = (e.target as HTMLInputElement).files?.[0];
-    if (!file) return;
+  /** Sauvegarde JSON réimportée (modale d'import) : ouverte comme un nouveau plan, rien n'est écrasé (constat F112). */
+  private async handleImportProjectBackup(e: CustomEvent<ImportProjectBackupDetail>) {
+    this.closeImportModal();
+    const project = e.detail?.project;
+    if (project) await this.persistence.importProject(project);
+  }
 
-    const reader = new FileReader();
-    reader.onload = (loadEvent) => {
-      const dataUrl = loadEvent.target?.result as string;
-      void this.loadBackgroundImage(dataUrl, '🖼️ Image importée depuis votre ordinateur !');
+  // ==========================================
+  // ÉTALONNAGE ET MISE À L'ÉCHELLE (constats F49, F51, F141, F142)
+  // ==========================================
+
+  private handleRequestCalibration(e: CustomEvent<{ worldDistance: number; defaultMeters: number }>) {
+    const { worldDistance, defaultMeters } = e.detail ?? {};
+    if (!(Number.isFinite(worldDistance) && worldDistance > 0)) return;
+    this.calibrationData = {
+      worldDistance,
+      defaultMeters: Number.isFinite(defaultMeters) && defaultMeters > 0 ? defaultMeters : worldDistance
     };
-    reader.readAsDataURL(file);
-  }
-
-  private handleRequestCalibration(e: CustomEvent<{ pixelDistance: number; defaultMeters: number }>) {
-    this.calibrationData = e.detail;
     this.isCalibrateModalOpen = true;
   }
 
-  private handleCalibrateConfirmed(e: CustomEvent<{ pixelsPerMeter: number }>) {
-    const { pixelsPerMeter } = e.detail;
-    const rounded = Math.round(pixelsPerMeter * 10) / 10;
-    if (rounded !== this.project.pixelsPerMeter) {
-      this.commitProject({
-        ...this.project,
-        pixelsPerMeter: rounded
-      });
-    }
+  private closeCalibrateModal() {
     this.isCalibrateModalOpen = false;
     this.calibrationData = null;
+  }
+
+  /**
+   * Étalonnage confirmé (SPEC §6) : 'background' ne change que l'échelle du calque de fond (géométrie
+   * intacte) ; 'project' met tout le plan à l'échelle, calque compris, comme « Mettre à l'échelle ».
+   * Le facteur est revalidé ; pixelsPerMeter ne change pas (constat F71).
+   */
+  private handleCalibrateConfirmed(e: CustomEvent<CalibrateConfirmedDetail>) {
+    const detail = e.detail;
+    this.closeCalibrateModal();
+    if (!detail) return;
+    const k = Number.isFinite(detail.scaleFactor) && detail.scaleFactor > 0
+      ? detail.scaleFactor
+      : this.project.pixelsPerMeter / detail.pixelsPerMeter;
+    if (!isValidRescaleFactor(k)) {
+      this.showToast('❌ Étalonnage refusé : facteur d\'échelle hors limites (×0,01 à ×100).');
+      return;
+    }
+    if (Math.abs(k - 1) >= 1e-4) {
+      if (detail.mode === 'project') {
+        if (!this.applyScale(k, true, 'Plan étalonné')) return;
+      } else {
+        const bg = this.project.background;
+        if (!bg) {
+          this.showToast('ℹ️ Aucun calque de fond à étalonner.');
+          return;
+        }
+        if (!this.commitProject({ ...this.project, background: scaleBackgroundLayer(bg, k) })) return;
+        this.showToast(`📏 Calque de fond étalonné (×${k.toFixed(3)}) : le dessin existant n'est pas modifié.`);
+      }
+    }
     this.activeTool = 'wall';
   }
 
   private handleRequestRescale(e: CustomEvent<{ measuredMeters: number }>) {
-    this.rescaleMeasuredMeters = e.detail.measuredMeters;
+    const measured = e.detail?.measuredMeters;
+    if (!(Number.isFinite(measured) && measured > 0)) return;
+    this.rescaleMeasuredMeters = measured;
     this.isRescaleModalOpen = true;
   }
 
   private handleRescaleConfirmed(e: CustomEvent<RescaleModalResult>) {
-    const { scaleFactor, adjustBackground } = e.detail;
+    const { scaleFactor, adjustBackground } = e.detail ?? {};
     this.isRescaleModalOpen = false;
-
-    if (!Number.isFinite(scaleFactor) || scaleFactor <= 0 || scaleFactor === 1) return;
-
-    // 1. Recalcul de tous les murs (coordonnées et cotes)
-    const newWalls: Wall[] = this.project.walls.map(w => ({
-      ...w,
-      start: {
-        x: SnappingEngine.roundMeters(w.start.x * scaleFactor),
-        y: SnappingEngine.roundMeters(w.start.y * scaleFactor)
-      },
-      end: {
-        x: SnappingEngine.roundMeters(w.end.x * scaleFactor),
-        y: SnappingEngine.roundMeters(w.end.y * scaleFactor)
-      }
-    }));
-
-    // 2. Recalcul de toutes les ouvertures
-    const newOpenings: Opening[] = this.project.openings.map(op => ({
-      ...op,
-      offset: SnappingEngine.roundMeters(op.offset * scaleFactor),
-      width: SnappingEngine.roundMeters(op.width * scaleFactor)
-    }));
-
-    // 3. Recalcul de toutes les pièces et de leurs surfaces en m²
-    const newRooms: Room[] = this.project.rooms.map(room => {
-      const newPolygon = room.polygon.map(p => ({
-        x: SnappingEngine.roundMeters(p.x * scaleFactor),
-        y: SnappingEngine.roundMeters(p.y * scaleFactor)
-      }));
-      const newArea = PolygonUtils.computeArea(newPolygon);
-      return {
-        ...room,
-        polygon: newPolygon,
-        areaM2: newArea || SnappingEngine.roundMeters(room.areaM2 * scaleFactor * scaleFactor)
-      };
-    });
-
-    // 4. Recalcul des liaisons d'entités domotiques
-    const newBindings: EntityBinding[] = this.project.bindings.map(b => ({
-      ...b,
-      position: {
-        x: SnappingEngine.roundMeters(b.position.x * scaleFactor),
-        y: SnappingEngine.roundMeters(b.position.y * scaleFactor)
-      }
-    }));
-
-    // 4b. Recalcul des meubles
-    const newFurniture = (this.project.furniture || []).map(f => ({
-      ...f,
-      position: {
-        x: SnappingEngine.roundMeters(f.position.x * scaleFactor),
-        y: SnappingEngine.roundMeters(f.position.y * scaleFactor)
-      },
-      width: SnappingEngine.roundMeters(f.width * scaleFactor),
-      length: SnappingEngine.roundMeters(f.length * scaleFactor)
-    }));
-
-    // 5. Ajustement de l'échelle du calque de fond (si présent)
-    let newPpm = this.project.pixelsPerMeter;
-    let newBg = this.project.background ? { ...this.project.background } : undefined;
-    if (adjustBackground && newBg) {
-      newPpm = Math.round((this.project.pixelsPerMeter / scaleFactor) * 10) / 10;
-      if (newBg.offset) {
-        newBg = {
-          ...newBg,
-          offset: {
-            x: SnappingEngine.roundMeters(newBg.offset.x * scaleFactor),
-            y: SnappingEngine.roundMeters(newBg.offset.y * scaleFactor)
-          }
-        };
-      }
+    // Revalidé avant toute modification : facteur fini et borné (constat F141).
+    if (!isValidRescaleFactor(scaleFactor)) {
+      this.showToast('❌ Mise à l\'échelle refusée : facteur hors limites (×0,01 à ×100).');
+      return;
     }
+    if (Math.abs(scaleFactor - 1) < 1e-4) return;
+    if (this.applyScale(scaleFactor, adjustBackground === true, 'Plan mis à l\'échelle')) this.activeTool = 'select';
+  }
 
-    const committed = this.commitProject({
-      ...this.project,
-      pixelsPerMeter: newPpm,
-      walls: newWalls,
-      openings: newOpenings,
-      rooms: newRooms,
-      bindings: newBindings,
-      furniture: newFurniture,
-      background: newBg
-    });
-    if (!committed) return;
-
-    this.activeTool = 'select';
-    this.showToast(
-      `✅ Plan mis à l'échelle (×${scaleFactor.toFixed(3)}) : ${newWalls.length} murs et ${newRooms.length} pièces recalculés !`
-    );
+  /**
+   * Met le plan à l'échelle (positions × k) en conservant les dimensions physiques : épaisseurs,
+   * hauteurs, largeurs des ouvertures et meubles (constat F49). Renvoie false si rien n'a été appliqué.
+   */
+  private applyScale(k: number, adjustBackground: boolean, label: string): boolean {
+    const { project, openingConflicts } = scalePlan(this.project, k, { adjustBackground });
+    if (!this.commitProject(project)) return false;
+    const conflicts = openingConflicts > 0
+      ? ` ⚠️ ${openingConflicts} ouverture(s) à vérifier (mur trop court ou chevauchement).`
+      : '';
+    this.showToast(`✅ ${label} (×${k.toFixed(3)}) : ${project.walls.length} murs et ${project.rooms.length} pièces recalculés ; ` +
+      `épaisseurs, ouvertures et meubles gardent leurs dimensions.${conflicts}`);
+    void this.fitCanvasAfterUpdate();
+    return true;
   }
 
   private handleOpacityChange(e: Event) {
@@ -2277,33 +2402,66 @@ export class HomeArchitectPanel extends LitElement {
     }
   }
 
-  private handleDefaultCeilingChange(val: number) {
-    if (!Number.isFinite(val) || val === this.project.defaultCeilingHeight) return;
-    if (this.commitProject({ ...this.project, defaultCeilingHeight: val })) {
-      this.showToast(`📐 Hauteur plafond 3D par défaut : ${val.toFixed(2)} m`);
-    }
+  /**
+   * Hauteur sous plafond par défaut : les pièces sans hauteur propre la suivent ; celles qui avaient
+   * l'ancienne valeur par défaut peuvent la suivre aussi, sur confirmation (constat F150).
+   */
+  private async handleDefaultCeilingChange(val: number) {
+    const previous = effectiveCeilingHeight(this.project);
+    if (!Number.isFinite(val) || val <= 0 || Math.abs(val - previous) < 1e-6) return;
+    if (!this.commitProject({ ...this.project, defaultCeilingHeight: val })) return;
+    this.showToast(`📐 Hauteur plafond 3D par défaut : ${val.toFixed(2)} m`);
+    // Pièces ET murs : les murs de l'ancien assistant portent la hauteur de leur pièce (3D cohérente).
+    const count = countWithHeight(this.project, previous);
+    if (count.rooms + count.walls === 0) return;
+    const parts = [
+      ...(count.rooms > 0 ? [`${count.rooms} pièce(s)`] : []),
+      ...(count.walls > 0 ? [`${count.walls} mur(s)`] : [])
+    ].join(' et ');
+    const choice = await this.persistence.ask({
+      icon: '📐',
+      title: 'Appliquer la nouvelle hauteur ?',
+      message: `${parts} ont une hauteur de ${previous.toFixed(2)} m, l'ancienne valeur par défaut. ` +
+        `Doivent-ils suivre la nouvelle hauteur par défaut (${val.toFixed(2)} m) ?`,
+      details: ['Les pièces et murs dont la hauteur a été réglée sur une autre valeur ne changent pas.'],
+      actions: [{ id: 'apply', label: 'Appliquer', icon: '✅', kind: 'primary' }],
+      cancelLabel: 'Conserver leur hauteur'
+    });
+    if (choice !== 'apply') return;
+    const next = inheritDefaultHeight(this.project, previous);
+    if (next !== this.project && this.commitProject(next)) this.showToast(`📐 ${parts} suivent la hauteur par défaut.`);
   }
 
-  private handleSaveRoom(e: CustomEvent<any>) {
-    const { roomId, name, height, color } = e.detail;
+  /** Modale pièce : nom, couleur, hauteur (propre ou héritée du projet, constat F150) et zone HA. */
+  private handleSaveRoom(e: CustomEvent<RoomModalSaveDetail>) {
+    const detail = e.detail;
     this.selectedRoomForEdit = null;
-    const updatedRooms = mapChanged(this.project.rooms, r =>
-      r.id === roomId && (r.name !== name || r.height !== height || r.color !== color)
-        ? { ...r, name, height, color }
-        : r
-    );
+    if (!detail) return;
+    const updatedRooms = mapChanged(this.project.rooms, r => {
+      if (r.id !== detail.roomId) return r;
+      const next: Room = { ...r, name: detail.name, color: detail.color };
+      if (detail.inheritHeight) delete next.height;
+      else next.height = detail.height;
+      if (detail.area_id) next.area_id = detail.area_id;
+      else delete next.area_id;
+      const unchanged = next.name === r.name && next.color === r.color && next.height === r.height && next.area_id === r.area_id;
+      return unchanged ? r : next;
+    });
     if (updatedRooms && this.commitProject({ ...this.project, rooms: updatedRooms })) {
-      this.showToast(`✨ Pièce "${name}" mise à jour (H: ${height.toFixed(2)} m) !`);
+      this.showToast(`✨ Pièce "${detail.name}" mise à jour (H: ${detail.height.toFixed(2)} m) !`);
     }
   }
 
-  private handleDeleteRoom(e: CustomEvent<any>) {
-    const { roomId } = e.detail;
+  private handleDeleteRoom(e: CustomEvent<{ roomId: string }>) {
+    const roomId = e.detail?.roomId;
     this.selectedRoomForEdit = null;
     const rooms = this.project.rooms.filter(r => r.id !== roomId);
-    if (rooms.length !== this.project.rooms.length && this.commitProject({ ...this.project, rooms })) {
-      this.showToast('🗑️ Pièce supprimée');
+    if (rooms.length === this.project.rooms.length || !this.commitProject({ ...this.project, rooms })) return;
+    // La sélection ne garde pas l'identifiant de la pièce supprimée (constat F130).
+    if (this.selectedElements.roomIds.includes(roomId)) {
+      this.selectedElements = { ...this.selectedElements, roomIds: this.selectedElements.roomIds.filter(id => id !== roomId) };
     }
+    this.showToast('🗑️ Pièce supprimée');
   }
 
   private handleUndo() {
@@ -2318,52 +2476,80 @@ export class HomeArchitectPanel extends LitElement {
     this.showToast('↪️ Action rétablie');
   }
 
-  /** Niveau affiché en filigrane : celui situé sous le niveau du plan actif (d'après sa catégorie, constat F15). */
+  /**
+   * Niveau affiché en filigrane : celui choisi pour le plan (ghostLevelId), sinon celui situé sous
+   * le niveau du plan actif (d'après sa catégorie, constat F15).
+   */
   private ghostLevel(): string | null {
-    return this.showGhostLevel ? getLevelBelow(this.activeLevel) : null;
+    if (!this.showGhostLevel) return null;
+    const chosen = this.project.ghostLevelId;
+    return chosen && isKnownLevel(chosen) && chosen !== this.activeLevel ? chosen : getLevelBelow(this.activeLevel);
   }
 
+  /** Bouton « Pivoter 90° » du HUD (la touche R est gérée par le canevas seul, constat F40). */
   private rotateSelectedFurniture() {
-    if (!this.selectedElements.furnitureIds || this.selectedElements.furnitureIds.length === 0) return;
-    const furnIds = this.selectedElements.furnitureIds;
-    const newFurniture = (this.project.furniture || []).map(f => {
-      if (furnIds.includes(f.id)) {
-        return {
-          ...f,
-          rotation: ((f.rotation || 0) + 90) % 360
-        };
-      }
-      return f;
-    });
-    if (this.commitProject({ ...this.project, furniture: newFurniture })) {
+    const furnIds = this.selectedElements.furnitureIds ?? [];
+    if (furnIds.length === 0) return;
+    const furniture = mapChanged(this.project.furniture ?? [], f =>
+      furnIds.includes(f.id) ? { ...f, rotation: (((f.rotation || 0) % 360) + 450) % 360 } : f
+    );
+    if (furniture && this.commitProject({ ...this.project, furniture })) {
       this.showToast('🔄 Meuble pivoté de 90°');
     }
   }
 
+  /** Couleur des meubles sélectionnés (HUD) ; null rétablit la couleur du modèle (constat F151). */
+  private updateSelectedFurnitureColor(color: string | null) {
+    const ids = this.selectedElements.furnitureIds ?? [];
+    if (ids.length === 0 || (color !== null && !HEX_COLOR.test(color))) return;
+    const furniture = mapChanged(this.project.furniture ?? [], f => {
+      if (!ids.includes(f.id) || (f.color ?? null) === color) return f;
+      const next = { ...f };
+      if (color) next.color = color;
+      else delete next.color;
+      return next;
+    });
+    // Glisser dans le sélecteur de couleur : une seule entrée d'historique.
+    if (furniture) this.commitProject({ ...this.project, furniture }, { coalesceKey: 'furniture-color' });
+  }
+
+  /** Sélection limitée aux éléments qui existent encore dans le plan (identifiants périmés ignorés, constat F130). */
+  private liveSelection(): SelectedElements {
+    const { walls, openings, rooms, bindings, furniture = [] } = this.project;
+    const s = this.selectedElements;
+    const existing = (list: Array<{ id: string }>) => {
+      const ids = new Set(list.map(item => item.id));
+      return (id: string) => ids.has(id);
+    };
+    return {
+      wallIds: s.wallIds.filter(existing(walls)),
+      openingIds: s.openingIds.filter(existing(openings)),
+      roomIds: s.roomIds.filter(existing(rooms)),
+      bindingIds: s.bindingIds.filter(existing(bindings)),
+      furnitureIds: (s.furnitureIds ?? []).filter(existing(furniture))
+    };
+  }
+
   private handleDeleteSelected() {
-    const { wallIds, openingIds, roomIds, bindingIds, furnitureIds = [] } = this.selectedElements;
-    const total = wallIds.length + openingIds.length + roomIds.length + bindingIds.length + furnitureIds.length;
-    if (total === 0) return;
-
-    const remainingWalls = this.project.walls.filter(w => !wallIds.includes(w.id));
-    const remainingOpenings = this.project.openings.filter(
-      op => !openingIds.includes(op.id) && !wallIds.includes(op.wallId)
-    );
-    const remainingRooms = this.project.rooms.filter(r => !roomIds.includes(r.id));
-    const remainingBindings = this.project.bindings.filter(b => !bindingIds.includes(b.id));
-    const remainingFurniture = (this.project.furniture || []).filter(f => !furnitureIds.includes(f.id));
-
+    const selection = this.liveSelection();
+    const total = countSelection(selection);
+    if (total === 0) {
+      this.clearSelection();
+      return;
+    }
+    const { wallIds, openingIds, roomIds, bindingIds } = selection;
+    const furnitureIds = selection.furnitureIds ?? [];
     const committed = this.commitProject({
       ...this.project,
-      walls: remainingWalls,
-      openings: remainingOpenings,
-      rooms: remainingRooms,
-      bindings: remainingBindings,
-      furniture: remainingFurniture
+      walls: this.project.walls.filter(w => !wallIds.includes(w.id)),
+      openings: this.project.openings.filter(op => !openingIds.includes(op.id) && !wallIds.includes(op.wallId)),
+      rooms: this.project.rooms.filter(r => !roomIds.includes(r.id)),
+      bindings: this.project.bindings.filter(b => !bindingIds.includes(b.id)),
+      furniture: (this.project.furniture || []).filter(f => !furnitureIds.includes(f.id))
     });
     if (!committed) return;
 
-    this.selectedElements = { wallIds: [], openingIds: [], roomIds: [], bindingIds: [], furnitureIds: [] };
+    this.clearSelection();
     this.showToast(`🗑️ ${total} élément${total > 1 ? 's' : ''} supprimé${total > 1 ? 's' : ''} !`);
   }
 
@@ -2404,98 +2590,169 @@ export class HomeArchitectPanel extends LitElement {
     }
   }
 
-  private getSelectedSummary(): string {
+  /** Résumé du HUD : éléments existants seulement ; nom live des entités et nom actuel des meubles (constat F172). */
+  private getSelectedSummary(selection: SelectedElements): string {
+    const plural = (n: number, one: string, many: string) => `${n} ${n > 1 ? many : one}`;
     const parts: string[] = [];
-    if (this.selectedElements.wallIds.length > 0) {
-      parts.push(`${this.selectedElements.wallIds.length} mur${this.selectedElements.wallIds.length > 1 ? 's' : ''}`);
+    if (selection.wallIds.length > 0) parts.push(plural(selection.wallIds.length, 'mur', 'murs'));
+    if (selection.openingIds.length > 0) parts.push(plural(selection.openingIds.length, 'ouvrant', 'ouvrants'));
+    if (selection.roomIds.length > 0) parts.push(plural(selection.roomIds.length, 'pièce', 'pièces'));
+    if (selection.bindingIds.length === 1) {
+      const b = this.project.bindings.find(item => item.id === selection.bindingIds[0]);
+      parts.push(b ? bindingDisplayName(b, this.hass?.states) : '1 entité');
+    } else if (selection.bindingIds.length > 1) {
+      parts.push(`${selection.bindingIds.length} entités`);
     }
-    if (this.selectedElements.openingIds.length > 0) {
-      parts.push(`${this.selectedElements.openingIds.length} ouvrant${this.selectedElements.openingIds.length > 1 ? 's' : ''}`);
-    }
-    if (this.selectedElements.roomIds.length > 0) {
-      parts.push(`${this.selectedElements.roomIds.length} pièce${this.selectedElements.roomIds.length > 1 ? 's' : ''}`);
-    }
-    if (this.selectedElements.bindingIds.length > 0) {
-      if (this.selectedElements.bindingIds.length === 1) {
-        const b = this.project.bindings.find(item => item.id === this.selectedElements.bindingIds[0]);
-        parts.push(b ? (b.customName || b.entityId.split('.')[1] || b.entityId) : '1 entité');
-      } else {
-        parts.push(`${this.selectedElements.bindingIds.length} entités`);
-      }
-    }
-    if (this.selectedElements.furnitureIds && this.selectedElements.furnitureIds.length > 0) {
-      parts.push(`${this.selectedElements.furnitureIds.length} meuble${this.selectedElements.furnitureIds.length > 1 ? 's' : ''}`);
+    const furnitureIds = selection.furnitureIds ?? [];
+    if (furnitureIds.length === 1) {
+      const item = (this.project.furniture ?? []).find(f => f.id === furnitureIds[0]);
+      parts.push(item ? furnitureDisplayName(item) : '1 meuble');
+    } else if (furnitureIds.length > 1) {
+      parts.push(`${furnitureIds.length} meubles`);
     }
     return parts.join(', ');
   }
 
+  // ==========================================
+  // CLAVIER (constats F4, F40, F128, F129)
+  // ==========================================
+
+  /**
+   * Raccourcis du studio, écoutés sur document :
+   * - uniquement pour un événement du studio (focus dans le studio, ou nulle part et studio affiché) ;
+   * - Ctrl/Cmd+S aussi depuis un champ du studio ; Échap ferme d'abord la modale ou le menu ouvert ;
+   * - les autres jamais dans un champ de saisie ni sous une modale ;
+   * - touches simples (outils de TOOL_SHORTCUTS, Suppr) jamais avec Ctrl/Cmd/Alt ; R (rotation),
+   *   Espace/F (sens d'ouverture) et les flèches appartiennent au canevas.
+   */
   private handleKeyDown(e: KeyboardEvent) {
+    // Événements synthétiques sans touche (remplissage automatique du navigateur) : rien à traiter.
+    if (typeof e.key !== 'string' || e.defaultPrevented) return;
+    if (!isEventFromHost(e, this) && !shouldHandleShortcut(e, { host: this, allowWhenModalOpen: true })) return;
+    const key = e.key.toLowerCase();
+
     // Ctrl/Cmd+S : sauvegarde du plan actif, y compris depuis un champ du studio (constat F2).
-    if (hasPrimaryModifier(e) && !e.shiftKey && typeof e.key === 'string' && e.key.toLowerCase() === 's') {
-      if (!isEventFromHost(e, this) && !shouldHandleShortcut(e, { host: this })) return;
+    if (hasPrimaryModifier(e) && !e.shiftKey && key === 's') {
       e.preventDefault();
       if (!this.isModalOpen()) void this.quickSave();
       return;
     }
-
     // Dialogues de persistance et écrans d'attente : seule Échap est traitée (fermeture).
     if (this.persistence.handleBlockingKey(e)) return;
-
     if (e.key === 'Escape') {
-      if (this.isUpdateModalOpen) {
-        this.isUpdateModalOpen = false;
-        return;
-      }
-      if (this.isNewPlanModalOpen) {
-        this.isNewPlanModalOpen = false;
-        return;
-      }
-      if (this.isResetModalOpen) {
-        this.isResetModalOpen = false;
-        return;
-      }
-      if (this.isFullscreen) {
-        this.toggleFullscreen();
-      }
-      if (this.activeDropdown) {
-        this.activeDropdown = null;
-      }
-      this.clearSelection();
+      this.handleEscape(e);
       return;
     }
+    if (!shouldHandleShortcut(e, { host: this, modalOpen: this.isModalOpen() })) return;
 
-    const tag = (e.target as HTMLElement)?.tagName?.toLowerCase();
-    if (tag === 'input' || tag === 'textarea' || (e.target as HTMLElement)?.isContentEditable) {
+    if (hasPrimaryModifier(e)) {
+      if (key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        this.handleUndo();
+      } else if (key === 'y' || (key === 'z' && e.shiftKey)) {
+        e.preventDefault();
+        this.handleRedo();
+      }
       return;
     }
-
-    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'n') {
+    // Alt+N : nouveau plan (Ctrl+N est réservé par le navigateur). Touche physique : sur macOS, Alt+N saisit un accent.
+    if (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey && e.code === 'KeyN') {
       e.preventDefault();
       this.openNewPlanModal();
-    } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !e.shiftKey) {
-      e.preventDefault();
-      this.handleUndo();
-    } else if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 'y' || (e.key.toLowerCase() === 'z' && e.shiftKey))) {
-      e.preventDefault();
-      this.handleRedo();
-    } else if (e.key === 'Delete' || e.key === 'Backspace') {
-      const total = this.selectedElements.wallIds.length + 
-                    this.selectedElements.openingIds.length + 
-                    this.selectedElements.roomIds.length + 
-                    this.selectedElements.bindingIds.length +
-                    (this.selectedElements.furnitureIds?.length || 0);
-      if (total > 0) {
+      return;
+    }
+    if (hasCommandModifier(e)) return;
+
+    this.trackSecretWord(e);
+    if (e.key === 'Delete' || e.key === 'Backspace') {
+      if (countSelection(this.liveSelection()) > 0) {
         e.preventDefault();
         this.handleDeleteSelected();
       }
-    } else if (e.key.toLowerCase() === 'r') {
-      if (this.selectedElements.furnitureIds && this.selectedElements.furnitureIds.length > 0) {
-        e.preventDefault();
-        this.rotateSelectedFurniture();
-      }
-    } else if (e.key.toLowerCase() === 'v') {
-      this.activeTool = 'select';
+      return;
     }
+    if (e.shiftKey) return;
+    const tool = toolForShortcut(key);
+    if (!tool) return;
+    // Traitée ici (defaultPrevented), répétition automatique comprise : les raccourcis globaux de HA
+    // (ex. « d ») ne s'ouvrent pas en plus quand la touche reste enfoncée.
+    e.preventDefault();
+    if (e.repeat) return;
+    if (tool !== 'select' && this.readOnly) {
+      this.notifyReadOnly();
+      return;
+    }
+    this.selectTool(tool);
+  }
+
+  /**
+   * Échap : ferme la modale ou le menu ouvert ; sinon (hors champ de saisie) annule le placement en
+   * attente, quitte le plein écran de repli et vide la sélection. Une touche qui a seulement fermé
+   * un menu ou annulé un placement est marquée traitée : le canevas ne vide pas en plus la sélection.
+   */
+  private handleEscape(e: KeyboardEvent) {
+    if (this.closeTopModal()) {
+      e.preventDefault();
+      return;
+    }
+    if (this.activeDropdown) {
+      e.preventDefault();
+      this.activeDropdown = null;
+      return;
+    }
+    if (isEditableTarget(e)) return;
+    if (this.pendingPlacement) {
+      e.preventDefault();
+      this.pendingPlacement = null;
+      return;
+    }
+    if (this.isFullscreen) void this.toggleFullscreen();
+    this.clearSelection();
+  }
+
+  /** Ferme la modale du studio au premier plan ; false s'il n'y en a aucune. */
+  private closeTopModal(): boolean {
+    if (this.isUpdateModalOpen) this.isUpdateModalOpen = false;
+    else if (this.isAboutOpen) this.isAboutOpen = false;
+    else if (this.isNewPlanModalOpen) this.isNewPlanModalOpen = false;
+    else if (this.isResetModalOpen) this.isResetModalOpen = false;
+    else if (this.isWizardOpen) this.isWizardOpen = false;
+    else if (this.isExportModalOpen) this.isExportModalOpen = false;
+    else if (this.isSaveLoadModalOpen) this.isSaveLoadModalOpen = false;
+    else if (this.selectedRoomForEdit) this.selectedRoomForEdit = null;
+    else if (this.isCalibrateModalOpen) this.closeCalibrateModal();
+    else if (this.isRescaleModalOpen) this.isRescaleModalOpen = false;
+    else if (this.isImportModalOpen) this.closeImportModal();
+    else return false;
+    return true;
+  }
+
+  // ==========================================
+  // VOLET : « TOUCHER POUR PLACER » (constat F60)
+  // ==========================================
+
+  /** Élément choisi dans le volet : posé au prochain appui sur le plan (alternative tactile au glisser-déposer). */
+  private handleDrawerItemPicked(e: CustomEvent<{ payload: DrawerItemPayload }>) {
+    const payload = e.detail?.payload;
+    if (!payload) return;
+    if (this.readOnly) {
+      this.notifyReadOnly();
+      return;
+    }
+    this.pendingPlacement = payload;
+    // Le placement se fait sur le plan 2D ; en mode étroit, le volet superposé libère le plan.
+    this.is3DMode = false;
+    if (this.narrow) this.isDrawerCollapsed = true;
+    this.showToast(`📍 Touchez le plan pour placer « ${this.placementLabel(payload)} » (Échap pour annuler).`);
+  }
+
+  private placementLabel(payload: DrawerItemPayload): string {
+    if (payload.kind === 'furniture') return findFurnitureTemplate(payload.furnitureType)?.name ?? payload.furnitureType;
+    return bindingDisplayName({ entityId: payload.entityId }, this.hass?.states);
+  }
+
+  private handlePlacementDone() {
+    this.pendingPlacement = null;
   }
 
   public async toggleFullscreen() {
@@ -2523,7 +2780,6 @@ export class HomeArchitectPanel extends LitElement {
       }
       this.isFullscreen = true;
       this.classList.add('is-fullscreen');
-      this.updateSidebarOffset();
       this.showToast('⛶ Mode plein écran activé (Échap pour sortir)');
     } else {
       try {
@@ -2544,7 +2800,6 @@ export class HomeArchitectPanel extends LitElement {
       }
       this.isFullscreen = false;
       this.classList.remove('is-fullscreen');
-      this.updateSidebarOffset();
       this.showToast('🗗 Sortie du plein écran');
     }
   }
@@ -2595,9 +2850,7 @@ export class HomeArchitectPanel extends LitElement {
     if (!committed) return;
     this.clearSelection();
     this.showToast(`🗑️ Plan effacé (Réinitialisé). Annulez avec Ctrl+Z si besoin.`);
-    setTimeout(() => {
-      (this.shadowRoot?.querySelector('home-architect-canvas') as any)?.fitToScreen();
-    }, 80);
+    void this.fitCanvasAfterUpdate();
   }
 
   private openWizard() {
@@ -2607,15 +2860,6 @@ export class HomeArchitectPanel extends LitElement {
       return;
     }
     this.isWizardOpen = true;
-  }
-
-  private openImportModal() {
-    this.activeDropdown = null;
-    if (this.readOnly) {
-      this.notifyReadOnly();
-      return;
-    }
-    this.isImportModalOpen = true;
   }
 
   private openSaveModal() {
@@ -2705,7 +2949,7 @@ export class HomeArchitectPanel extends LitElement {
   private isModalOpen(): boolean {
     return this.isWizardOpen || this.isImportModalOpen || this.isExportModalOpen || this.isSaveLoadModalOpen ||
       this.isNewPlanModalOpen || this.isResetModalOpen || this.isCalibrateModalOpen || this.isRescaleModalOpen ||
-      this.isUpdateModalOpen || this.selectedRoomForEdit !== null || this.persistence.isBlocking();
+      this.isUpdateModalOpen || this.isAboutOpen || this.selectedRoomForEdit !== null || this.persistence.isBlocking();
   }
 
   /** Bandeau « rechargez la page » quand une nouvelle version a été installée pendant la session (F106). */
@@ -2779,684 +3023,719 @@ export class HomeArchitectPanel extends LitElement {
     const dirtyIds = ws.dirtyIds();
     const dirtyCount = dirtyIds.length;
     const saving = this.persistence.isSaving(this.project.id);
+    const modalOpen = this.isModalOpen();
+    const selection = this.liveSelection();
 
     return html`
-      <header class="top-bar">
-        <div class="brand" @click=${this.handleLogoClick} style="cursor: pointer;" title="Home Architect Studio (Cliquez pour secret)">
-          <span class="brand-icon">
-            <svg viewBox="0 0 512 512" width="28" height="28" style="vertical-align: middle; border-radius: 7px; overflow: hidden; box-shadow: 0 2px 8px rgba(56, 189, 248, 0.25);">
-              <rect width="512" height="512" rx="108" fill="#0f172a" stroke="#38bdf8" stroke-width="14" />
-              <g stroke="rgba(56, 189, 248, 0.15)" stroke-width="6">
-                <line x1="0" y1="170" x2="512" y2="170" />
-                <line x1="0" y1="340" x2="512" y2="340" />
-                <line x1="170" y1="0" x2="170" y2="512" />
-                <line x1="340" y1="0" x2="340" y2="512" />
-              </g>
-              <polygon points="120,310 256,230 392,310 256,390" fill="rgba(56, 189, 248, 0.15)" stroke="#38bdf8" stroke-width="8" stroke-dasharray="8,8" />
-              <polygon points="120,310 120,250 256,170 256,230" fill="rgba(15, 23, 42, 0.9)" stroke="#38bdf8" stroke-width="10" stroke-linejoin="round" />
-              <polygon points="256,230 256,170 392,250 392,310" fill="rgba(30, 41, 59, 0.9)" stroke="#0284c7" stroke-width="10" stroke-linejoin="round" />
-              <polygon points="120,310 120,250 200,298 200,358" fill="rgba(30, 41, 59, 0.9)" stroke="#38bdf8" stroke-width="8" />
-              <polygon points="200,358 200,298 256,330 256,390" fill="rgba(15, 23, 42, 0.9)" stroke="#38bdf8" stroke-width="8" />
-              <line x1="195" y1="255" x2="235" y2="280" stroke="#f59e0b" stroke-width="5" stroke-dasharray="6,6" />
-              <circle cx="195" cy="255" r="14" fill="#f59e0b" stroke="#ffffff" stroke-width="5" />
-              <line x1="235" y1="280" x2="295" y2="245" stroke="#38bdf8" stroke-width="5" stroke-dasharray="6,6" />
-              <circle cx="235" cy="280" r="18" fill="#06b6d4" stroke="#ffffff" stroke-width="6" />
-              <circle cx="295" cy="245" r="14" fill="#38bdf8" stroke="#ffffff" stroke-width="5" />
-            </svg>
-          </span>
-          <span>Home Architect</span>
-          <span class="brand-tag">Studio</span>
-          <span class="brand-version" title="Version unique du composant">v${VERSION}</span>
-        </div>
-
-        ${this.updateInfo?.available && !this.readOnly ? html`
-          <button class="btn-update-auto" @click=${() => this.openUpdateModal()} title="Nouvelle version ${this.updateInfo.latestVersion} disponible">
-            <span>🚀</span>
-            <span>Mise à jour dispo</span>
-            <span class="update-version-tag">v${this.updateInfo.latestVersion}</span>
-          </button>
-        ` : null}
-
-        <!-- 3 Menus Déroulants Principaux : Fichier, Plan, Pièce -->
-        <div style="display: flex; align-items: center; gap: 8px;">
-          <!-- 1. Menu Fichier (Ouvrir, Sauvegarder, Importer, Exporter) -->
-          <div class="dropdown-menu-wrapper">
-            <button class="btn-dropdown-trigger ${this.activeDropdown === 'file' ? 'active' : ''}" @click=${(e: Event) => this.toggleDropdown('file', e)}>
-              <span>📁</span>
-              <span>Fichier</span>
-              <span class="chevron">▾</span>
+      <div class="studio">
+        <header class="top-bar">
+          ${this.showMenuButton ? html`
+            <button class="ha-menu-btn" title="Menu Home Assistant" aria-label="Ouvrir la barre latérale de Home Assistant" @click=${this.toggleHaSidebar}>
+              <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M3,6H21V8H3V6M3,11H21V13H3V11M3,16H21V18H3V16Z" /></svg>
             </button>
-            ${this.activeDropdown === 'file' ? html`
-              <div class="dropdown-menu-popup">
-                <button class="dropdown-item" ?disabled=${this.readOnly} @click=${() => this.openNewPlanModal()}>
-                  <span>📄</span>
-                  <span>Nouveau plan...</span>
-                </button>
-                <button class="dropdown-item" @click=${() => this.openLoadModal()}>
-                  <span>📂</span>
-                  <span>Ouvrir / Recharger un plan...</span>
-                </button>
-                <button class="dropdown-item" ?disabled=${this.readOnly || !ready} @click=${() => this.openSaveModal()}>
-                  <span>💾</span>
-                  <span>Sauvegarder le plan... (Ctrl+S)</span>
-                </button>
-                ${dirtyCount > 1 || (dirtyCount === 1 && !activeDirty) ? html`
-                  <button class="dropdown-item" ?disabled=${this.readOnly || !ready} @click=${() => void this.saveAllDirty()}>
-                    <span>🗂️</span>
-                    <span>Sauvegarder tous les plans modifiés (${dirtyCount})</span>
+          ` : null}
+          <div class="brand" @click=${this.handleLogoClick} style="cursor: pointer;" title="Home Architect Studio (Cliquez pour secret)">
+            <span class="brand-icon">
+              <svg viewBox="0 0 512 512" width="28" height="28" style="vertical-align: middle; border-radius: 7px; overflow: hidden; box-shadow: 0 2px 8px rgba(56, 189, 248, 0.25);">
+                <rect width="512" height="512" rx="108" fill="#0f172a" stroke="#38bdf8" stroke-width="14" />
+                <g stroke="rgba(56, 189, 248, 0.15)" stroke-width="6">
+                  <line x1="0" y1="170" x2="512" y2="170" />
+                  <line x1="0" y1="340" x2="512" y2="340" />
+                  <line x1="170" y1="0" x2="170" y2="512" />
+                  <line x1="340" y1="0" x2="340" y2="512" />
+                </g>
+                <polygon points="120,310 256,230 392,310 256,390" fill="rgba(56, 189, 248, 0.15)" stroke="#38bdf8" stroke-width="8" stroke-dasharray="8,8" />
+                <polygon points="120,310 120,250 256,170 256,230" fill="rgba(15, 23, 42, 0.9)" stroke="#38bdf8" stroke-width="10" stroke-linejoin="round" />
+                <polygon points="256,230 256,170 392,250 392,310" fill="rgba(30, 41, 59, 0.9)" stroke="#0284c7" stroke-width="10" stroke-linejoin="round" />
+                <polygon points="120,310 120,250 200,298 200,358" fill="rgba(30, 41, 59, 0.9)" stroke="#38bdf8" stroke-width="8" />
+                <polygon points="200,358 200,298 256,330 256,390" fill="rgba(15, 23, 42, 0.9)" stroke="#38bdf8" stroke-width="8" />
+                <line x1="195" y1="255" x2="235" y2="280" stroke="#f59e0b" stroke-width="5" stroke-dasharray="6,6" />
+                <circle cx="195" cy="255" r="14" fill="#f59e0b" stroke="#ffffff" stroke-width="5" />
+                <line x1="235" y1="280" x2="295" y2="245" stroke="#38bdf8" stroke-width="5" stroke-dasharray="6,6" />
+                <circle cx="235" cy="280" r="18" fill="#06b6d4" stroke="#ffffff" stroke-width="6" />
+                <circle cx="295" cy="245" r="14" fill="#38bdf8" stroke="#ffffff" stroke-width="5" />
+              </svg>
+            </span>
+            <span class="brand-name">Home Architect</span>
+            <span class="brand-tag">Studio</span>
+            <button class="brand-version" title="À propos de Home Architect (version, mises à jour, soutien)" @click=${this.openAbout}>v${VERSION}</button>
+          </div>
+
+          ${this.updateInfo?.available && !this.readOnly ? html`
+            <button class="btn-update-auto" @click=${() => this.openUpdateModal()} title="Nouvelle version ${this.updateInfo.latestVersion} disponible">
+              <span>🚀</span>
+              <span class="btn-label">Mise à jour dispo</span>
+              <span class="update-version-tag">v${this.updateInfo.latestVersion}</span>
+            </button>
+          ` : null}
+
+          <!-- 3 Menus Déroulants Principaux : Fichier, Plan, Pièce -->
+          <div class="menu-group">
+            <!-- 1. Menu Fichier (Ouvrir, Sauvegarder, Importer, Exporter) -->
+            <div class="dropdown-menu-wrapper">
+              <button class="btn-dropdown-trigger ${this.activeDropdown === 'file' ? 'active' : ''}" title="Fichier" @click=${(e: Event) => this.toggleDropdown('file', e)}>
+                <span>📁</span>
+                <span class="btn-label">Fichier</span>
+                <span class="chevron">▾</span>
+              </button>
+              ${this.activeDropdown === 'file' ? html`
+                <div class="dropdown-menu-popup">
+                  <button class="dropdown-item" ?disabled=${this.readOnly} @click=${() => this.openNewPlanModal()}>
+                    <span>📄</span>
+                    <span>Nouveau plan... (Alt+N)</span>
                   </button>
-                ` : null}
-                <div class="dropdown-divider"></div>
-                <button class="dropdown-item" ?disabled=${this.readOnly} @click=${() => this.openImportModal()}>
-                  <span>📥</span>
-                  <span>Importer un plan...</span>
-                </button>
-                <button class="dropdown-item" @click=${() => { this.isExportModalOpen = true; this.activeDropdown = null; }}>
-                  <span>📤</span>
-                  <span>Exporter Lovelace...</span>
-                </button>
-                <div class="dropdown-divider"></div>
-                <button class="dropdown-item danger" ?disabled=${this.readOnly} @click=${() => this.openResetModal()}>
-                  <span>🗑️</span>
-                  <span>Effacer le plan (Reset)...</span>
-                </button>
-              </div>
-            ` : null}
-          </div>
-
-          <!-- 2. Menu Plan (Demande 4: Mettre à l'échelle, Vue 2D/3D, Assistant Pièce, Cotes, etc.) -->
-          <div class="dropdown-menu-wrapper">
-            <button class="btn-dropdown-trigger ${this.activeDropdown === 'plan' ? 'active' : ''}" @click=${(e: Event) => this.toggleDropdown('plan', e)}>
-              <span>📐</span>
-              <span>Plan</span>
-              <span class="chevron">▾</span>
-            </button>
-            ${this.activeDropdown === 'plan' ? html`
-              <div class="dropdown-menu-popup" style="min-width: 250px;">
-                <button class="dropdown-item ${this.activeTool === 'rescale' ? 'active' : ''}" ?disabled=${this.readOnly} @click=${() => { this.activeTool = 'rescale'; this.activeDropdown = null; }}>
-                  <span>📐</span>
-                  <span>Mettre à l'échelle (S)</span>
-                  ${this.activeTool === 'rescale' ? html`<span class="dropdown-item-check">✓</span>` : null}
-                </button>
-                <button class="dropdown-item ${this.is3DMode ? 'active' : ''}" @click=${() => { this.is3DMode = !this.is3DMode; this.activeDropdown = null; }}>
-                  <span>${this.is3DMode ? '🧊' : '📐'}</span>
-                  <span>${this.is3DMode ? 'Vue 3D (Active)' : 'Vue 2D / 3D'}</span>
-                  ${this.is3DMode ? html`<span class="dropdown-item-check">✓</span>` : null}
-                </button>
-                <button class="dropdown-item" ?disabled=${this.readOnly} @click=${() => this.openWizard()}>
-                  <span>🪄</span>
-                  <span>Assistant Pièce</span>
-                </button>
-                <div class="dropdown-divider"></div>
-                <button class="dropdown-item ${this.showDimensions ? 'active' : ''}" @click=${() => { this.showDimensions = !this.showDimensions; }}>
-                  <span>📏</span>
-                  <span>Cotes dynamiques</span>
-                  ${this.showDimensions ? html`<span class="dropdown-item-check">✓</span>` : null}
-                </button>
-                <button class="dropdown-item ${this.showThermalHeatmap ? 'active' : ''}" @click=${() => { this.showThermalHeatmap = !this.showThermalHeatmap; }}>
-                  <span>🌡️</span>
-                  <span>Carte thermique</span>
-                  ${this.showThermalHeatmap ? html`<span class="dropdown-item-check">✓</span>` : null}
-                </button>
-                <button class="dropdown-item ${this.showGhostLevel ? 'active' : ''}" @click=${() => { this.showGhostLevel = !this.showGhostLevel; }}>
-                  <span>👁️</span>
-                  <span>Filigrane niveau inf.</span>
-                  ${this.showGhostLevel ? html`<span class="dropdown-item-check">✓</span>` : null}
-                </button>
-                <div class="dropdown-divider"></div>
-                <button class="dropdown-item" @click=${() => { (this.shadowRoot?.querySelector('home-architect-canvas') as any)?.fitToScreen(); this.activeDropdown = null; }}>
-                  <span>⛶</span>
-                  <span>Ajuster à l'écran (Zoom auto)</span>
-                </button>
-                <button class="dropdown-item" @click=${() => { (this.shadowRoot?.querySelector('home-architect-canvas') as any)?.rotateQuarterTurn(); this.activeDropdown = null; }}>
-                  <span>↺</span>
-                  <span>Pivoter la vue de 90° à gauche</span>
-                </button>
-                <button class="dropdown-item ${this.isFullscreen ? 'active' : ''}" @click=${() => { this.toggleFullscreen(); this.activeDropdown = null; }}>
-                  <span>${this.isFullscreen ? '🗗' : '⛶'}</span>
-                  <span>${this.isFullscreen ? 'Sortir du plein écran' : 'Plein écran'}</span>
-                  ${this.isFullscreen ? html`<span class="dropdown-item-check">✓</span>` : null}
-                </button>
-                <div class="dropdown-divider"></div>
-                <button class="dropdown-item danger" ?disabled=${this.readOnly} @click=${() => this.openResetModal()}>
-                  <span>🗑️</span>
-                  <span>Effacer le plan (Reset)...</span>
-                </button>
-              </div>
-            ` : null}
-          </div>
-
-          <!-- 3. Menu Pièce : plans rangés par niveau (catégorie), puis plans « Autre » -->
-          <div class="dropdown-menu-wrapper">
-            <button class="btn-dropdown-trigger ${this.activeDropdown === 'level' ? 'active' : ''}" @click=${(e: Event) => this.toggleDropdown('level', e)}>
-              <span>🏢</span>
-              <span>Pièce : <strong>${getLevelLabel(this.project.category)}</strong></span>
-              <span class="level-plan-name" title=${this.project.name}>${this.project.name}</span>
-              ${activeDirty ? html`<span class="dirty-dot" title="Modifications non sauvegardées">●</span>` : null}
-              <span class="chevron">▾</span>
-            </button>
-            ${this.activeDropdown === 'level' ? this.renderLevelMenu() : null}
-          </div>
-        </div>
-
-        <div class="top-controls">
-          <!-- Historique Annuler / Rétablir -->
-          <div class="control-group" style="padding: 2px 4px; gap: 4px;">
-            <button 
-              class="btn-history" 
-              @click=${this.handleUndo} 
-              ?disabled=${this.readOnly || !ws.canUndo()}
-              title="Annuler la dernière action (Ctrl+Z / Cmd+Z)"
-            >
-              ↩️ Annuler
-            </button>
-            <button 
-              class="btn-history" 
-              @click=${this.handleRedo} 
-              ?disabled=${this.readOnly || !ws.canRedo()}
-              title="Rétablir l'action (Ctrl+Y / Cmd+Shift+Z)"
-            >
-              ↪️ Rétablir
-            </button>
-          </div>
-
-          <!-- Épaisseur mur contextuelle -->
-          ${this.activeTool === 'wall' ? html`
-            <div class="control-group">
-              <label>Épaisseur :</label>
-              <select @change=${this.handleThicknessChange}>
-                <option value="0.10">Cloison 10 cm</option>
-                <option value="0.15">Mur 15 cm</option>
-                <option value="0.20" selected>Porteur 20 cm</option>
-                <option value="0.30">Extérieur 30 cm</option>
-              </select>
-            </div>
-          ` : null}
-
-          <!-- Largeur ouvrant contextuelle -->
-          ${this.activeTool === 'door' || this.activeTool === 'window' || this.activeTool === 'french_window' ? html`
-            <div class="control-group">
-              <label>Largeur :</label>
-              <select @change=${this.handleOpeningWidthChange}>
-                <option value="0.73">73 cm (Étroite)</option>
-                <option value="0.83">83 cm (Chambre)</option>
-                <option value="0.90" selected>90 cm (Standard)</option>
-                <option value="1.20">1.20 m (Fenêtre)</option>
-                <option value="1.40">1.40 m (Double)</option>
-                <option value="2.00">2.00 m (Baie)</option>
-                <option value="2.40">2.40 m (Grande baie)</option>
-              </select>
-            </div>
-          ` : null}
-
-          <!-- Hauteur sous plafond globale en mode 3D -->
-          ${this.is3DMode ? html`
-            <div class="control-group" title="Hauteur sous plafond par défaut (3D)">
-              <label>Plafond 3D :</label>
-              <select @change=${(e: any) => this.handleDefaultCeilingChange(parseFloat(e.target.value))}>
-                <option value="2.10" ?selected=${(this.project.defaultCeilingHeight || 2.50) === 2.10}>2.10 m (Sous-sol)</option>
-                <option value="2.30" ?selected=${(this.project.defaultCeilingHeight || 2.50) === 2.30}>2.30 m (Combles)</option>
-                <option value="2.50" ?selected=${!this.project.defaultCeilingHeight || this.project.defaultCeilingHeight === 2.50}>2.50 m (Standard)</option>
-                <option value="2.70" ?selected=${(this.project.defaultCeilingHeight || 2.50) === 2.70}>2.70 m (Élevé)</option>
-                <option value="3.00" ?selected=${(this.project.defaultCeilingHeight || 2.50) === 3.00}>3.00 m (Haussmann)</option>
-                <option value="3.50" ?selected=${(this.project.defaultCeilingHeight || 2.50) === 3.50}>3.50 m (Cathédrale)</option>
-              </select>
-            </div>
-          ` : null}
-
-          <!-- Opacité du fond -->
-          ${hasBg ? html`
-            <div class="control-group">
-              <label>Fond :</label>
-              <input 
-                type="range" 
-                min="0.05" 
-                max="1.0" 
-                step="0.05" 
-                .value=${this.project.background?.opacity || 0.4}
-                @input=${this.handleOpacityChange}
-                style="width: 70px;"
-                title="Opacité du plan de fond"
-              />
-            </div>
-          ` : null}
-
-          <!-- Volet Entités HA -->
-          <button 
-            class="btn-drawer ${!this.isDrawerCollapsed ? 'active' : ''}" 
-            @click=${() => this.isDrawerCollapsed = !this.isDrawerCollapsed}
-            title="Afficher / Masquer le volet des entités"
-          >
-            ⚡ Entités HA (${this.project.bindings.length})
-          </button>
-
-          <div class="scale-indicator" title="Échelle : pixels par mètre">
-            1 m = ${this.project.pixelsPerMeter} px
-          </div>
-
-          <!-- Bouton Plein Écran -->
-          <button 
-            class="btn-fullscreen ${this.isFullscreen ? 'active' : ''}" 
-            @click=${() => this.toggleFullscreen()}
-            title="${this.isFullscreen ? 'Sortir du plein écran (Échap)' : 'Passer en plein écran'}"
-          >
-            <span style="font-size: 1.05rem; line-height: 1;">${this.isFullscreen ? '🗗' : '⛶'}</span>
-            <span>${this.isFullscreen ? 'Sortir du plein écran' : 'Plein écran'}</span>
-          </button>
-
-          <!-- Sauvegarde (indicateur des modifications non sauvegardées) -->
-          <button
-            class="btn-primary ${activeDirty ? 'is-dirty' : ''}"
-            ?disabled=${this.readOnly || !ready || saving}
-            @click=${this.openSaveModal}
-            title=${activeDirty ? 'Modifications non sauvegardées (Ctrl+S / Cmd+S)' : 'Sauvegarder le plan (Ctrl+S / Cmd+S)'}
-          >
-            ${saving ? '⏳ Sauvegarde…' : html`💾 Sauvegarder${activeDirty ? html` <span class="dirty-dot">●</span>` : null}`}
-          </button>
-        </div>
-      </header>
-
-      ${this.persistence.renderBanners(this.updateBanners())}
-
-      <div class="workspace">
-        <div class="canvas-area">
-          <home-architect-toolbar 
-            .activeTool=${this.activeTool}
-            .currentThickness=${this.currentThickness}
-            .doorFlipSide=${this.doorFlipSide}
-            .doorFlipDirection=${this.doorFlipDirection}
-            .windowSashCount=${this.windowSashCount}
-            .canUndo=${!this.readOnly && ws.canUndo()}
-            .canRedo=${!this.readOnly && ws.canRedo()}
-            .readOnly=${this.readOnly}
-            @undo=${this.handleUndo}
-            @redo=${this.handleRedo}
-            @tool-selected=${this.handleToolSelected}
-            @door-config-changed=${this.handleDoorConfigChanged}
-            @window-config-changed=${this.handleWindowConfigChanged}
-            @wall-thickness-changed=${this.handleWallThicknessChanged}
-            @open-wizard=${() => this.openWizard()}
-            @open-import-modal=${() => this.openImportModal()}
-            @trigger-upload-background=${() => this.openImportModal()}
-          ></home-architect-toolbar>
-
-          <home-architect-canvas
-            .hass=${this.hass}
-            .project=${this.project}
-            .backgroundSrc=${this.persistence.background.src}
-            .readOnly=${this.readOnly}
-            .activeTool=${this.activeTool}
-            .currentWallThickness=${this.currentThickness}
-            .currentOpeningWidth=${this.currentOpeningWidth}
-            .openingFlipSide=${this.doorFlipSide}
-            .openingFlipDirection=${this.doorFlipDirection}
-            .windowSashCount=${this.windowSashCount}
-            .is3DMode=${this.is3DMode}
-            .selectedElements=${this.selectedElements}
-            .showDimensions=${this.showDimensions}
-            .showThermalHeatmap=${this.showThermalHeatmap}
-            .ghostProject=${this.persistence.ghostProject(this.ghostLevel())}
-            @selection-changed=${(e: any) => {
-              this.selectedElements = e.detail.selectedElements;
-              if (this.selectedElements.bindingIds.length > 0) {
-                const b = this.project.bindings.find(item => item.id === this.selectedElements.bindingIds[0]);
-                if (b) {
-                  const domain = b.entityId.split('.')[0];
-                  if (TYPOLOGY_ICONS[domain]) {
-                    this.selectedTypologyTab = domain;
-                  }
-                }
-                this.isIconPickerOpen = true;
-              }
-            }}
-            @request-delete-selected=${this.handleDeleteSelected}
-            @toggle-3d=${(e: any) => this.is3DMode = e.detail.is3DMode}
-            @opening-config-changed=${this.handleOpeningConfigChanged}
-            @room-selected=${(e: any) => this.selectedRoomForEdit = e.detail.room}
-            @project-changed=${this.handleProjectChanged}
-            @request-calibration=${this.handleRequestCalibration}
-            @request-rescale=${this.handleRequestRescale}
-            @background-image-loaded=${(e: any) => void this.loadBackgroundImage(e.detail.dataUrl, '🖼️ Image de plan glissée-déposée !')}
-          ></home-architect-canvas>
-
-          <!-- Floating HUD de sélection multi-éléments repositionné en bas -->
-          ${(() => {
-            const hasSelection = (this.selectedElements.wallIds.length + 
-               this.selectedElements.openingIds.length + 
-               this.selectedElements.roomIds.length + 
-               this.selectedElements.bindingIds.length + 
-               (this.selectedElements.furnitureIds?.length || 0)) > 0;
-            if (!hasSelection) return null;
-
-            const selectedBinding = this.selectedElements.bindingIds.length > 0
-              ? this.project.bindings.find(b => b.id === this.selectedElements.bindingIds[0])
-              : null;
-
-            return html`
-              <div class="selection-hud">
-                <div class="selection-hud-main">
-                  <span class="selection-info">
-                    <span>🎯</span>
-                    <span>${this.getSelectedSummary()}</span>
-                  </span>
-
-                  ${this.selectedElements.wallIds.length > 0 ? html`
-                    <div class="hud-options-group">
-                      <span class="hud-label">Épaisseur :</span>
-                      <button class="hud-opt-btn ${this.currentThickness === 0.10 ? 'active' : ''}" @click=${() => this.updateSelectedWallsThickness(0.10)} title="Cloison 10 cm">Fin 10cm</button>
-                      <button class="hud-opt-btn ${this.currentThickness === 0.20 ? 'active' : ''}" @click=${() => this.updateSelectedWallsThickness(0.20)} title="Standard 20 cm">Moyen 20cm</button>
-                      <button class="hud-opt-btn ${this.currentThickness === 0.30 ? 'active' : ''}" @click=${() => this.updateSelectedWallsThickness(0.30)} title="Porteur 30 cm">Gros 30cm</button>
-                    </div>
+                  <button class="dropdown-item" @click=${() => this.openLoadModal()}>
+                    <span>📂</span>
+                    <span>Ouvrir / Recharger un plan...</span>
+                  </button>
+                  <button class="dropdown-item" ?disabled=${this.readOnly || !ready} @click=${() => this.openSaveModal()}>
+                    <span>💾</span>
+                    <span>Sauvegarder le plan... (Ctrl+S)</span>
+                  </button>
+                  ${dirtyCount > 1 || (dirtyCount === 1 && !activeDirty) ? html`
+                    <button class="dropdown-item" ?disabled=${this.readOnly || !ready} @click=${() => void this.saveAllDirty()}>
+                      <span>🗂️</span>
+                      <span>Sauvegarder tous les plans modifiés (${dirtyCount})</span>
+                    </button>
                   ` : null}
-
-                  ${this.selectedElements.openingIds.some(id => this.project.openings.find(op => op.id === id)?.type === 'door') ? html`
-                    <div class="hud-options-group">
-                      <span class="hud-label">Porte :</span>
-                      <button class="hud-opt-btn ${!this.doorFlipSide && this.doorFlipDirection ? 'active' : ''}" @click=${() => this.updateSelectedDoorConfig(false, true)} title="Ouverture Droite Intérieure (Poussant Droit)">Droite Int.</button>
-                      <button class="hud-opt-btn ${!this.doorFlipSide && !this.doorFlipDirection ? 'active' : ''}" @click=${() => this.updateSelectedDoorConfig(false, false)} title="Ouverture Gauche Intérieure (Poussant Gauche)">Gauche Int.</button>
-                      <button class="hud-opt-btn ${this.doorFlipSide && !this.doorFlipDirection ? 'active' : ''}" @click=${() => this.updateSelectedDoorConfig(true, false)} title="Ouverture Gauche Extérieure (Tirant Gauche)">Gauche Ext.</button>
-                      <button class="hud-opt-btn ${this.doorFlipSide && this.doorFlipDirection ? 'active' : ''}" @click=${() => this.updateSelectedDoorConfig(true, true)} title="Ouverture Droite Extérieure (Tirant Droit)">Droite Ext.</button>
-                    </div>
-                  ` : null}
-
-                  ${this.selectedElements.openingIds.some(id => {
-                    const op = this.project.openings.find(o => o.id === id);
-                    return op && (op.type === 'window' || op.type === 'french_window');
-                  }) ? html`
-                    <div class="hud-options-group">
-                      <span class="hud-label">Fenêtre :</span>
-                      <button class="hud-opt-btn ${this.windowSashCount === 1 ? 'active' : ''}" @click=${() => this.updateSelectedWindowConfig('window', 1, 0.90)} title="Fenêtre 1 ouvrant (90 cm)">1 Ouvrant</button>
-                      <button class="hud-opt-btn ${this.windowSashCount === 2 ? 'active' : ''}" @click=${() => this.updateSelectedWindowConfig('window', 2, 1.40)} title="Fenêtre 2 battants (1.40 m)">2 Battants</button>
-                      <button class="hud-opt-btn" @click=${() => this.updateSelectedWindowConfig('french_window', 2, 2.00)} title="Baie vitrée coulissante (2.00 m)">Baie vitrée</button>
-                    </div>
-                  ` : null}
-
-                  ${(this.selectedElements.furnitureIds?.length || 0) > 0 ? html`
-                    <div class="hud-options-group">
-                      <span class="hud-label">Meuble :</span>
-                      <button class="hud-opt-btn active" @click=${this.rotateSelectedFurniture} title="Pivoter les meubles de 90° (Touche R)">🔄 Pivoter 90° (R)</button>
-                    </div>
-                  ` : null}
-
-                  ${selectedBinding ? html`
-                    <div class="hud-options-group">
-                      <button 
-                        class="hud-opt-btn ${this.isIconPickerOpen ? 'active' : ''}" 
-                        @click=${() => this.isIconPickerOpen = !this.isIconPickerOpen}
-                        title="Choisir l'icône pour le plan et la card Lovelace"
-                      >
-                        <span style="font-size: 1.05rem;">${selectedBinding.icon || '🎨'}</span>
-                        <span>Choisir l'icône ${this.isIconPickerOpen ? '▴' : '▾'}</span>
-                      </button>
-                    </div>
-                  ` : null}
-
-                  <button class="btn-delete-selection" ?disabled=${this.readOnly} @click=${this.handleDeleteSelected} title="Supprimer les éléments sélectionnés (Touche Suppr / Retour)">
+                  <div class="dropdown-divider"></div>
+                  <button class="dropdown-item" ?disabled=${this.readOnly} @click=${() => this.openImportModal()}>
+                    <span>📥</span>
+                    <span>Importer un plan...</span>
+                  </button>
+                  <button class="dropdown-item" @click=${() => { this.isExportModalOpen = true; this.activeDropdown = null; }}>
+                    <span>📤</span>
+                    <span>Exporter Lovelace...</span>
+                  </button>
+                  <div class="dropdown-divider"></div>
+                  <button class="dropdown-item danger" ?disabled=${this.readOnly} @click=${() => this.openResetModal()}>
                     <span>🗑️</span>
-                    <span>Supprimer</span>
-                  </button>
-                  <button class="btn-clear-selection" @click=${this.clearSelection} title="Désélectionner tout (Échap)">
-                    ✕
+                    <span>Effacer le plan (Reset)...</span>
                   </button>
                 </div>
-
-                <!-- Onglet / Palette Choisir l'icône pour l'entité sélectionnée -->
-                ${selectedBinding && this.isIconPickerOpen ? html`
-                  <div class="hud-icon-picker-panel">
-                    <div class="icon-category-tabs">
-                      ${Object.entries(TYPOLOGY_ICONS).map(([key, group]) => html`
-                        <button 
-                          class="icon-category-tab ${this.getActiveTypology() === key ? 'active' : ''}"
-                          @click=${() => this.selectedTypologyTab = key}
-                        >
-                          ${group.tabLabel}
-                        </button>
-                      `)}
-                    </div>
-
-                    <div class="icon-grid">
-                      ${(TYPOLOGY_ICONS[this.getActiveTypology()] || TYPOLOGY_ICONS['light']).icons.map(item => html`
-                        <button 
-                          class="icon-item-btn ${selectedBinding.icon === item.icon ? 'active' : ''}"
-                          @click=${() => this.updateSelectedBindingIcon(item.icon, item.mdi)}
-                          title="${item.label} (${item.mdi})"
-                        >
-                          <span class="icon-item-emoji">${item.icon}</span>
-                          <span>${item.label}</span>
-                        </button>
-                      `)}
-                    </div>
-
-                    <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 0.78rem; color: #94a3b8; border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 4px;">
-                      <span>Icône active : <strong style="color: #38bdf8;">${selectedBinding.icon || 'Défaut'}</strong> (${selectedBinding.mdiIcon || 'Automatique'})</span>
-                      <div style="display: flex; align-items: center; gap: 4px;">
-                        <span>Saisie libre :</span>
-                        <input 
-                          type="text" 
-                          style="width: 55px; background: rgba(30, 41, 59, 0.9); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 6px; color: #fff; padding: 2px 4px; font-size: 0.85rem; text-align: center;" 
-                          placeholder="Emoji"
-                          maxlength="4"
-                          @keydown=${(e: KeyboardEvent) => {
-                            if (e.key === 'Enter') {
-                              const val = (e.target as HTMLInputElement).value.trim();
-                              if (val) this.updateSelectedBindingIcon(val);
-                            }
-                          }}
-                          @change=${(e: any) => {
-                            const val = e.target.value.trim();
-                            if (val) this.updateSelectedBindingIcon(val);
-                          }}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                ` : null}
-              </div>
-            `;
-          })()}
-
-          <!-- Notification Toast -->
-          ${this.toastMessage ? html`
-            <div class="toast-notification">
-              ${this.toastMessage}
+              ` : null}
             </div>
-          ` : null}
-        </div>
 
-        <!-- Volet latéral des entités HA : Toujours visible et docké -->
-        <home-architect-entity-drawer
-          .hass=${this.hass}
-          ?collapsed=${this.isDrawerCollapsed}
-          @toggle-collapse=${() => this.isDrawerCollapsed = !this.isDrawerCollapsed}
-        ></home-architect-entity-drawer>
-      </div>
-
-      <!-- Modal d'Import Automatisé -->
-      ${this.isImportModalOpen ? html`
-        <home-architect-import-modal
-          .currentLevel=${this.activeLevel ?? DEFAULT_LEVEL}
-          @import-confirmed=${this.handleImportConfirmed}
-          @close=${() => this.isImportModalOpen = false}
-        ></home-architect-import-modal>
-      ` : null}
-
-      <!-- Modal Assistant Pièce Débutant -->
-      ${this.isWizardOpen ? html`
-        <home-architect-wizard-modal
-          @create-room=${this.handleCreateRoomFromWizard}
-          @close=${() => this.isWizardOpen = false}
-        ></home-architect-wizard-modal>
-      ` : null}
-
-      <!-- Modal Propriétés de la Pièce (Hauteur sous plafond 3D, etc.) -->
-      ${this.selectedRoomForEdit ? html`
-        <home-architect-room-modal
-          .room=${this.selectedRoomForEdit}
-          @save-room=${this.handleSaveRoom}
-          @delete-room=${this.handleDeleteRoom}
-          @close=${() => this.selectedRoomForEdit = null}
-        ></home-architect-room-modal>
-      ` : null}
-
-      <!-- Modal Étalonnage Mesure de Mur -->
-      ${this.isCalibrateModalOpen && this.calibrationData ? html`
-        <home-architect-calibrate-modal
-          .pixelDistance=${this.calibrationData.pixelDistance}
-          .defaultMeters=${this.calibrationData.defaultMeters}
-          @calibrate-confirmed=${this.handleCalibrateConfirmed}
-          @close=${() => this.isCalibrateModalOpen = false}
-        ></home-architect-calibrate-modal>
-      ` : null}
-
-      <!-- Modal Mettre à l'échelle (Recalcul de toutes les cotes) -->
-      ${this.isRescaleModalOpen ? html`
-        <home-architect-rescale-modal
-          .measuredMeters=${this.rescaleMeasuredMeters}
-          .wallCount=${this.project.walls.length}
-          .roomCount=${this.project.rooms.length}
-          .openingCount=${this.project.openings.length}
-          @rescale-confirmed=${this.handleRescaleConfirmed}
-          @close=${() => this.isRescaleModalOpen = false}
-        ></home-architect-rescale-modal>
-      ` : null}
-
-      <!-- Modal Exporter vers Lovelace -->
-      ${this.isExportModalOpen ? html`
-        <home-architect-export-modal
-          .project=${this.project}
-          .hass=${this.hass}
-          .backgroundSrc=${this.persistence.background.src}
-          .readOnly=${this.readOnly}
-          .dirty=${activeDirty}
-          @export-frame-changed=${this.handleExportFrameChanged}
-          @project-published=${this.handleProjectPublished}
-          @project-unpublished=${this.handleProjectUnpublished}
-          @save-requested=${this.handleExportSaveRequested}
-          @close=${() => this.isExportModalOpen = false}
-        ></home-architect-export-modal>
-      ` : null}
-
-      <!-- Modal Sauvegarder & Recharger un Plan -->
-      ${this.isSaveLoadModalOpen ? html`
-        <home-architect-save-load-modal
-          .hass=${this.hass}
-          .project=${this.project}
-          .mode=${this.saveLoadModalTab}
-          .readOnly=${this.readOnly}
-          .dirtyProjectIds=${dirtyIds}
-          @save-confirmed=${this.handleSaveConfirmed}
-          @load-project=${this.handleLoadProject}
-          @project-deleted=${(e: CustomEvent<{ projectId: string }>) => this.persistence.projectDeleted(e.detail.projectId, { remote: false })}
-          @close=${() => this.isSaveLoadModalOpen = false}
-        ></home-architect-save-load-modal>
-      ` : null}
-
-      <!-- Modal Nouveau Plan -->
-      ${this.isNewPlanModalOpen ? html`
-        <div class="modal-backdrop" @click=${(e: MouseEvent) => { if (e.target === e.currentTarget) this.isNewPlanModalOpen = false; }}>
-          <div class="modal-dialog">
-            <div class="modal-dialog-header">
-              <div class="modal-dialog-title-group">
-                <span class="modal-dialog-icon">📄</span>
-                <div>
-                  <h3 class="modal-dialog-title">Nouveau Plan</h3>
-                  <p class="modal-dialog-subtitle">Créer une feuille de dessin vierge</p>
+            <!-- 2. Menu Plan (Demande 4: Mettre à l'échelle, Vue 2D/3D, Assistant Pièce, Cotes, etc.) -->
+            <div class="dropdown-menu-wrapper">
+              <button class="btn-dropdown-trigger ${this.activeDropdown === 'plan' ? 'active' : ''}" title="Plan" @click=${(e: Event) => this.toggleDropdown('plan', e)}>
+                <span>📐</span>
+                <span class="btn-label">Plan</span>
+                <span class="chevron">▾</span>
+              </button>
+              ${this.activeDropdown === 'plan' ? html`
+                <div class="dropdown-menu-popup" style="min-width: 250px;">
+                  <button class="dropdown-item ${this.activeTool === 'rescale' ? 'active' : ''}" ?disabled=${this.readOnly} @click=${() => { this.activeTool = 'rescale'; this.activeDropdown = null; }}>
+                    <span>📐</span>
+                    <span>Mettre à l'échelle (S)</span>
+                    ${this.activeTool === 'rescale' ? html`<span class="dropdown-item-check">✓</span>` : null}
+                  </button>
+                  <button class="dropdown-item ${this.is3DMode ? 'active' : ''}" @click=${() => { this.is3DMode = !this.is3DMode; this.activeDropdown = null; }}>
+                    <span>${this.is3DMode ? '🧊' : '📐'}</span>
+                    <span>${this.is3DMode ? 'Vue 3D (Active)' : 'Vue 2D / 3D'}</span>
+                    ${this.is3DMode ? html`<span class="dropdown-item-check">✓</span>` : null}
+                  </button>
+                  <button class="dropdown-item" ?disabled=${this.readOnly} @click=${() => this.openWizard()}>
+                    <span>🪄</span>
+                    <span>Assistant Pièce</span>
+                  </button>
+                  <div class="dropdown-divider"></div>
+                  <!-- Préférences d'affichage enregistrées avec le plan (reprises par la carte, constat F104) -->
+                  <button class="dropdown-item ${this.showDimensions ? 'active' : ''}" @click=${() => this.setPreferences({ showDimensions: !this.showDimensions })}>
+                    <span>📏</span>
+                    <span>Cotes dynamiques</span>
+                    ${this.showDimensions ? html`<span class="dropdown-item-check">✓</span>` : null}
+                  </button>
+                  <button class="dropdown-item ${this.showThermalHeatmap ? 'active' : ''}" @click=${() => this.setPreferences({ showThermalHeatmap: !this.showThermalHeatmap })}>
+                    <span>🌡️</span>
+                    <span>Carte thermique</span>
+                    ${this.showThermalHeatmap ? html`<span class="dropdown-item-check">✓</span>` : null}
+                  </button>
+                  <button class="dropdown-item ${this.showGhostLevel ? 'active' : ''}" @click=${() => this.setPreferences({ showGhostLevel: !this.showGhostLevel })}>
+                    <span>👁️</span>
+                    <span>Filigrane niveau inf.</span>
+                    ${this.showGhostLevel ? html`<span class="dropdown-item-check">✓</span>` : null}
+                  </button>
+                  <div class="dropdown-divider"></div>
+                  <button class="dropdown-item" @click=${() => { this.canvas?.fitToScreen(); this.activeDropdown = null; }}>
+                    <span>⛶</span>
+                    <span>Ajuster à l'écran (Zoom auto)</span>
+                  </button>
+                  <!-- Quart de tour de la vue 2D (acquis 1.0.28 / 1.0.29 : rotation gérée par le canevas) -->
+                  <button class="dropdown-item" @click=${() => { this.canvas?.rotateQuarterTurn(); this.activeDropdown = null; }}>
+                    <span>↺</span>
+                    <span>Pivoter la vue de 90° à gauche</span>
+                  </button>
+                  <button class="dropdown-item ${this.isFullscreen ? 'active' : ''}" @click=${() => { void this.toggleFullscreen(); this.activeDropdown = null; }}>
+                    <span>${this.isFullscreen ? '🗗' : '⛶'}</span>
+                    <span>${this.isFullscreen ? 'Sortir du plein écran' : 'Plein écran'}</span>
+                    ${this.isFullscreen ? html`<span class="dropdown-item-check">✓</span>` : null}
+                  </button>
+                  <div class="dropdown-divider"></div>
+                  <button class="dropdown-item danger" ?disabled=${this.readOnly} @click=${() => this.openResetModal()}>
+                    <span>🗑️</span>
+                    <span>Effacer le plan (Reset)...</span>
+                  </button>
                 </div>
-              </div>
-              <button class="btn-dialog-close" @click=${() => this.isNewPlanModalOpen = false}>✕</button>
+              ` : null}
             </div>
-            <div class="modal-dialog-body">
-              <div class="dialog-form-group">
-                <label class="dialog-label">Nom du plan :</label>
+
+            <!-- 3. Menu Pièce : plans rangés par niveau (catégorie), puis plans « Autre » -->
+            <div class="dropdown-menu-wrapper">
+              <button class="btn-dropdown-trigger ${this.activeDropdown === 'level' ? 'active' : ''}" title="Niveau et plan affichés" @click=${(e: Event) => this.toggleDropdown('level', e)}>
+                <span>🏢</span>
+                <span><span class="btn-label">Pièce : </span><strong>${getLevelLabel(this.project.category)}</strong></span>
+                <span class="level-plan-name" title=${this.project.name}>${this.project.name}</span>
+                ${activeDirty ? html`<span class="dirty-dot" title="Modifications non sauvegardées">●</span>` : null}
+                <span class="chevron">▾</span>
+              </button>
+              ${this.activeDropdown === 'level' ? this.renderLevelMenu() : null}
+            </div>
+          </div>
+
+          <div class="top-controls">
+            <!-- Historique Annuler / Rétablir -->
+            <div class="control-group" style="padding: 2px 4px; gap: 4px;">
+              <button
+                class="btn-history"
+                @click=${this.handleUndo}
+                ?disabled=${this.readOnly || !ws.canUndo()}
+                title="Annuler la dernière action (Ctrl+Z / Cmd+Z)"
+              >
+                ↩️<span class="btn-label"> Annuler</span>
+              </button>
+              <button
+                class="btn-history"
+                @click=${this.handleRedo}
+                ?disabled=${this.readOnly || !ws.canRedo()}
+                title="Rétablir l'action (Ctrl+Y / Cmd+Shift+Z)"
+              >
+                ↪️<span class="btn-label"> Rétablir</span>
+              </button>
+            </div>
+
+            <!-- Épaisseur mur contextuelle : reflète la valeur réellement utilisée (constat F134) -->
+            ${this.activeTool === 'wall' ? html`
+              <div class="control-group">
+                <label>Épaisseur :</label>
+                <select @change=${this.handleThicknessChange}>
+                  ${selectOptions(THICKNESS_OPTIONS, this.currentThickness, v => `${Math.round(v * 100)} cm`)}
+                </select>
+              </div>
+            ` : null}
+
+            <!-- Largeur ouvrant contextuelle -->
+            ${this.activeTool === 'door' || this.activeTool === 'window' || this.activeTool === 'french_window' ? html`
+              <div class="control-group">
+                <label>Largeur :</label>
+                <select @change=${this.handleOpeningWidthChange}>
+                  ${selectOptions(OPENING_WIDTH_OPTIONS, this.currentOpeningWidth, v => `${v.toFixed(2)} m`)}
+                </select>
+              </div>
+            ` : null}
+
+            <!-- Hauteur sous plafond globale en mode 3D -->
+            ${this.is3DMode ? html`
+              <div class="control-group" title="Hauteur sous plafond par défaut (3D)">
+                <label>Plafond 3D :</label>
+                <select ?disabled=${this.readOnly} @change=${(e: Event) => void this.handleDefaultCeilingChange(parseFloat((e.target as HTMLSelectElement).value))}>
+                  ${selectOptions(CEILING_OPTIONS, effectiveCeilingHeight(this.project), v => `${v.toFixed(2)} m`)}
+                </select>
+              </div>
+            ` : null}
+
+            <!-- Opacité du fond -->
+            ${hasBg ? html`
+              <div class="control-group">
+                <label>Fond :</label>
                 <input
-                  type="text"
-                  class="dialog-input"
-                  .value=${this.newPlanName}
-                  @input=${(e: any) => this.newPlanName = e.target.value}
-                  placeholder="Ex: Mon Appartement, RDC..."
-                  autofocus
+                  type="range"
+                  min="0.05"
+                  max="1.0"
+                  step="0.05"
+                  .value=${String(this.project.background?.opacity ?? 0.4)}
+                  ?disabled=${this.readOnly}
+                  @input=${this.handleOpacityChange}
+                  style="width: 70px;"
+                  title="Opacité du plan de fond"
                 />
               </div>
+            ` : null}
 
-              <div class="dialog-form-group">
-                <label class="dialog-label">Catégorie / Niveau :</label>
-                <div class="category-grid">
-                  ${[...KNOWN_LEVELS, CUSTOM_CATEGORY_DEF].map(cat => html`
-                    <button
-                      type="button"
-                      class="category-btn ${this.newPlanCategory === cat.id ? 'active' : ''}"
-                      @click=${() => this.newPlanCategory = cat.id}
-                    >
-                      <span>${cat.icon}</span>
-                      <span>${cat.label}</span>
+            <!-- Volet Entités HA -->
+            <button
+              class="btn-drawer ${!this.isDrawerCollapsed ? 'active' : ''}"
+              @click=${this.toggleDrawer}
+              title="Afficher / Masquer le volet des entités et des meubles"
+            >
+              ⚡<span class="btn-label"> Entités HA</span> (${this.project.bindings.length})
+            </button>
+
+            <div class="scale-indicator" title="Échelle d'affichage : pixels par mètre">
+              1 m = ${Number(this.project.pixelsPerMeter.toFixed(2))} px
+            </div>
+
+            <!-- Bouton Plein Écran -->
+            <button
+              class="btn-fullscreen ${this.isFullscreen ? 'active' : ''}"
+              @click=${() => void this.toggleFullscreen()}
+              title="${this.isFullscreen ? 'Sortir du plein écran (Échap)' : 'Passer en plein écran'}"
+            >
+              <span style="font-size: 1.05rem; line-height: 1;">${this.isFullscreen ? '🗗' : '⛶'}</span>
+              <span class="btn-label">${this.isFullscreen ? 'Sortir du plein écran' : 'Plein écran'}</span>
+            </button>
+
+            <!-- Sauvegarde (indicateur des modifications non sauvegardées) -->
+            <button
+              class="btn-primary ${activeDirty ? 'is-dirty' : ''}"
+              ?disabled=${this.readOnly || !ready || saving}
+              @click=${this.openSaveModal}
+              title=${activeDirty ? 'Modifications non sauvegardées (Ctrl+S / Cmd+S)' : 'Sauvegarder le plan (Ctrl+S / Cmd+S)'}
+            >
+              ${saving ? html`⏳<span class="btn-label"> Sauvegarde…</span>` : html`💾<span class="btn-label"> Sauvegarder</span>${activeDirty ? html` <span class="dirty-dot">●</span>` : null}`}
+            </button>
+          </div>
+        </header>
+
+        ${this.persistence.renderBanners(this.updateBanners())}
+
+        <div class="workspace">
+          <div class="canvas-area">
+            <home-architect-toolbar
+              .activeTool=${this.activeTool}
+              .currentThickness=${this.currentThickness}
+              .doorFlipSide=${this.doorFlipSide}
+              .doorFlipDirection=${this.doorFlipDirection}
+              .windowSashCount=${this.windowSashCount}
+              .canUndo=${!this.readOnly && ws.canUndo()}
+              .canRedo=${!this.readOnly && ws.canRedo()}
+              .grid=${this.project.grid}
+              .narrow=${this.narrow}
+              .readOnly=${this.readOnly}
+              @undo=${this.handleUndo}
+              @redo=${this.handleRedo}
+              @tool-selected=${this.handleToolSelected}
+              @door-config-changed=${this.handleDoorConfigChanged}
+              @window-config-changed=${this.handleWindowConfigChanged}
+              @wall-thickness-changed=${this.handleWallThicknessChanged}
+              @grid-config-changed=${this.handleGridConfigChanged}
+              @open-wizard=${() => this.openWizard()}
+              @open-import-modal=${() => this.openImportModal()}
+            ></home-architect-toolbar>
+
+            <home-architect-canvas
+              .hass=${this.hass}
+              .project=${this.project}
+              .backgroundSrc=${this.persistence.background.src}
+              .readOnly=${this.readOnly}
+              .modalOpen=${modalOpen}
+              .pendingPlacement=${this.pendingPlacement}
+              .activeTool=${this.activeTool}
+              .currentWallThickness=${this.currentThickness}
+              .currentOpeningWidth=${this.currentOpeningWidth}
+              .openingFlipSide=${this.doorFlipSide}
+              .openingFlipDirection=${this.doorFlipDirection}
+              .windowSashCount=${this.windowSashCount}
+              .is3DMode=${this.is3DMode}
+              .selectedElements=${this.selectedElements}
+              .showDimensions=${this.showDimensions}
+              .showThermalHeatmap=${this.showThermalHeatmap}
+              .ghostProject=${this.persistence.ghostProject(this.ghostLevel())}
+              @selection-changed=${(e: CustomEvent<{ selectedElements: SelectedElements }>) => {
+                this.selectedElements = e.detail.selectedElements;
+                if (this.selectedElements.bindingIds.length > 0) {
+                  const b = this.project.bindings.find(item => item.id === this.selectedElements.bindingIds[0]);
+                  if (b) {
+                    const domain = b.entityId.split('.')[0];
+                    if (TYPOLOGY_ICONS[domain]) {
+                      this.selectedTypologyTab = domain;
+                    }
+                  }
+                  this.isIconPickerOpen = true;
+                }
+              }}
+              @toggle-3d=${(e: CustomEvent<{ is3DMode: boolean }>) => this.is3DMode = e.detail.is3DMode}
+              @opening-config-changed=${this.handleOpeningConfigChanged}
+              @room-selected=${(e: CustomEvent<{ room: Room }>) => this.selectedRoomForEdit = e.detail.room}
+              @project-changed=${this.handleProjectChanged}
+              @request-calibration=${this.handleRequestCalibration}
+              @request-rescale=${this.handleRequestRescale}
+              @background-image-loaded=${this.handleBackgroundDropped}
+              @placement-done=${this.handlePlacementDone}
+            ></home-architect-canvas>
+
+            <!-- Floating HUD de sélection multi-éléments repositionné en bas -->
+            ${(() => {
+              // Éléments encore présents dans le plan uniquement (identifiants périmés ignorés, constat F130).
+              if (countSelection(selection) === 0) return null;
+
+              const selectedBinding = selection.bindingIds.length > 0
+                ? this.project.bindings.find(b => b.id === selection.bindingIds[0])
+                : null;
+              const selectedFurniture = (selection.furnitureIds ?? []).length > 0
+                ? (this.project.furniture ?? []).find(f => f.id === selection.furnitureIds?.[0])
+                : undefined;
+
+              return html`
+                <div class="selection-hud">
+                  <div class="selection-hud-main">
+                    <span class="selection-info">
+                      <span>🎯</span>
+                      <span>${this.getSelectedSummary(selection)}</span>
+                    </span>
+
+                    ${selection.wallIds.length > 0 ? html`
+                      <div class="hud-options-group">
+                        <span class="hud-label">Épaisseur :</span>
+                        <button class="hud-opt-btn ${this.currentThickness === 0.10 ? 'active' : ''}" @click=${() => this.updateSelectedWallsThickness(0.10)} title="Cloison 10 cm">Fin 10cm</button>
+                        <button class="hud-opt-btn ${this.currentThickness === 0.20 ? 'active' : ''}" @click=${() => this.updateSelectedWallsThickness(0.20)} title="Standard 20 cm">Moyen 20cm</button>
+                        <button class="hud-opt-btn ${this.currentThickness === 0.30 ? 'active' : ''}" @click=${() => this.updateSelectedWallsThickness(0.30)} title="Porteur 30 cm">Gros 30cm</button>
+                      </div>
+                    ` : null}
+
+                    ${selection.openingIds.some(id => this.project.openings.find(op => op.id === id)?.type === 'door') ? html`
+                      <div class="hud-options-group">
+                        <span class="hud-label">Porte :</span>
+                        <button class="hud-opt-btn ${!this.doorFlipSide && this.doorFlipDirection ? 'active' : ''}" @click=${() => this.updateSelectedDoorConfig(false, true)} title="Ouverture Droite Intérieure (Poussant Droit)">Droite Int.</button>
+                        <button class="hud-opt-btn ${!this.doorFlipSide && !this.doorFlipDirection ? 'active' : ''}" @click=${() => this.updateSelectedDoorConfig(false, false)} title="Ouverture Gauche Intérieure (Poussant Gauche)">Gauche Int.</button>
+                        <button class="hud-opt-btn ${this.doorFlipSide && !this.doorFlipDirection ? 'active' : ''}" @click=${() => this.updateSelectedDoorConfig(true, false)} title="Ouverture Gauche Extérieure (Tirant Gauche)">Gauche Ext.</button>
+                        <button class="hud-opt-btn ${this.doorFlipSide && this.doorFlipDirection ? 'active' : ''}" @click=${() => this.updateSelectedDoorConfig(true, true)} title="Ouverture Droite Extérieure (Tirant Droit)">Droite Ext.</button>
+                      </div>
+                    ` : null}
+
+                    ${selection.openingIds.some(id => {
+                      const op = this.project.openings.find(o => o.id === id);
+                      return op && (op.type === 'window' || op.type === 'french_window');
+                    }) ? html`
+                      <div class="hud-options-group">
+                        <span class="hud-label">Fenêtre :</span>
+                        <button class="hud-opt-btn ${this.windowSashCount === 1 ? 'active' : ''}" @click=${() => this.updateSelectedWindowConfig('window', 1, 0.90)} title="Fenêtre 1 ouvrant (90 cm)">1 Ouvrant</button>
+                        <button class="hud-opt-btn ${this.windowSashCount === 2 ? 'active' : ''}" @click=${() => this.updateSelectedWindowConfig('window', 2, 1.40)} title="Fenêtre 2 battants (1.40 m)">2 Battants</button>
+                        <button class="hud-opt-btn" @click=${() => this.updateSelectedWindowConfig('french_window', 2, 2.00)} title="Baie vitrée coulissante (2.00 m)">Baie vitrée</button>
+                      </div>
+                    ` : null}
+
+                    ${selectedFurniture ? html`
+                      <div class="hud-options-group">
+                        <span class="hud-label">Meuble :</span>
+                        <button class="hud-opt-btn active" ?disabled=${this.readOnly} @click=${this.rotateSelectedFurniture} title="Pivoter les meubles de 90° (Touche R)">🔄 Pivoter 90° (R)</button>
+                        <label class="hud-color" title="Couleur du meuble (plan, export et carte)">
+                          <span class="hud-label">Couleur</span>
+                          <input
+                            type="color"
+                            .value=${furnitureColorValue(selectedFurniture)}
+                            ?disabled=${this.readOnly}
+                            @input=${(e: Event) => this.updateSelectedFurnitureColor((e.target as HTMLInputElement).value)}
+                          />
+                        </label>
+                        ${selectedFurniture.color ? html`
+                          <button class="hud-opt-btn" ?disabled=${this.readOnly} @click=${() => this.updateSelectedFurnitureColor(null)} title="Revenir à la couleur du modèle">↺</button>
+                        ` : null}
+                      </div>
+                    ` : null}
+
+                    ${selectedBinding ? html`
+                      <div class="hud-options-group">
+                        <button 
+                          class="hud-opt-btn ${this.isIconPickerOpen ? 'active' : ''}" 
+                          @click=${() => this.isIconPickerOpen = !this.isIconPickerOpen}
+                          title="Choisir l'icône pour le plan et la card Lovelace"
+                        >
+                          <span style="font-size: 1.05rem;">${selectedBinding.icon || '🎨'}</span>
+                          <span>Choisir l'icône ${this.isIconPickerOpen ? '▴' : '▾'}</span>
+                        </button>
+                      </div>
+                    ` : null}
+
+                    <button class="btn-delete-selection" ?disabled=${this.readOnly} @click=${this.handleDeleteSelected} title="Supprimer les éléments sélectionnés (Touche Suppr / Retour)">
+                      <span>🗑️</span>
+                      <span>Supprimer</span>
                     </button>
-                  `)}
+                    <button class="btn-clear-selection" @click=${this.clearSelection} title="Désélectionner tout (Échap)">
+                      ✕
+                    </button>
+                  </div>
+
+                  <!-- Onglet / Palette Choisir l'icône pour l'entité sélectionnée -->
+                  ${selectedBinding && this.isIconPickerOpen ? html`
+                    <div class="hud-icon-picker-panel">
+                      <div class="icon-category-tabs">
+                        ${Object.entries(TYPOLOGY_ICONS).map(([key, group]) => html`
+                          <button 
+                            class="icon-category-tab ${this.getActiveTypology() === key ? 'active' : ''}"
+                            @click=${() => this.selectedTypologyTab = key}
+                          >
+                            ${group.tabLabel}
+                          </button>
+                        `)}
+                      </div>
+
+                      <div class="icon-grid">
+                        ${(TYPOLOGY_ICONS[this.getActiveTypology()] || TYPOLOGY_ICONS['light']).icons.map(item => html`
+                          <button 
+                            class="icon-item-btn ${selectedBinding.icon === item.icon ? 'active' : ''}"
+                            @click=${() => this.updateSelectedBindingIcon(item.icon, item.mdi)}
+                            title="${item.label} (${item.mdi})"
+                          >
+                            <span class="icon-item-emoji">${item.icon}</span>
+                            <span>${item.label}</span>
+                          </button>
+                        `)}
+                      </div>
+
+                      <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 0.78rem; color: #94a3b8; border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 4px;">
+                        <span>Icône active : <strong style="color: #38bdf8;">${selectedBinding.icon || 'Défaut'}</strong> (${selectedBinding.mdiIcon || 'Automatique'})</span>
+                        <div style="display: flex; align-items: center; gap: 4px;">
+                          <span>Saisie libre :</span>
+                          <input 
+                            type="text" 
+                            style="width: 55px; background: rgba(30, 41, 59, 0.9); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 6px; color: #fff; padding: 2px 4px; font-size: 0.85rem; text-align: center;" 
+                            placeholder="Emoji"
+                            maxlength="4"
+                            @keydown=${(e: KeyboardEvent) => {
+                              if (e.key === 'Enter') {
+                                const val = (e.target as HTMLInputElement).value.trim();
+                                if (val) this.updateSelectedBindingIcon(val);
+                              }
+                            }}
+                            @change=${(e: any) => {
+                              const val = e.target.value.trim();
+                              if (val) this.updateSelectedBindingIcon(val);
+                            }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ` : null}
+                </div>
+              `;
+            })()}
+
+            <!-- Notification Toast -->
+            ${this.toastMessage ? html`
+              <div class="toast-notification">
+                ${this.toastMessage}
+              </div>
+            ` : null}
+          </div>
+
+          <!-- Volet des entités HA et des meubles : colonne, ou tiroir superposé sur écran étroit -->
+          <home-architect-entity-drawer
+            .hass=${this.hass}
+            ?collapsed=${this.isDrawerCollapsed}
+            @toggle-collapse=${this.toggleDrawer}
+            @drawer-item-picked=${this.handleDrawerItemPicked}
+          ></home-architect-entity-drawer>
+        </div>
+
+        <!-- Modal d'Import Automatisé -->
+        ${this.isImportModalOpen ? html`
+          <home-architect-import-modal
+            .currentLevel=${this.project.category || DEFAULT_LEVEL}
+            .initialFile=${this.importInitialFile}
+            .initialSvg=${this.importInitialSvg}
+            @import-confirmed=${this.handleImportConfirmed}
+            @import-project-backup=${this.handleImportProjectBackup}
+            @close=${this.closeImportModal}
+          ></home-architect-import-modal>
+        ` : null}
+
+        <!-- Modal Assistant Pièce Débutant -->
+        ${this.isWizardOpen ? html`
+          <home-architect-wizard-modal
+            @create-room=${this.handleCreateRoomFromWizard}
+            @close=${() => this.isWizardOpen = false}
+          ></home-architect-wizard-modal>
+        ` : null}
+
+        <!-- Modal Propriétés de la Pièce (Hauteur sous plafond 3D, etc.) -->
+        ${this.selectedRoomForEdit ? html`
+          <home-architect-room-modal
+            .room=${this.selectedRoomForEdit}
+            .hass=${this.hass}
+            .defaultCeilingHeight=${this.project.defaultCeilingHeight}
+            .walls=${this.project.walls}
+            @save-room=${this.handleSaveRoom}
+            @delete-room=${this.handleDeleteRoom}
+            @close=${() => this.selectedRoomForEdit = null}
+          ></home-architect-room-modal>
+        ` : null}
+
+        <!-- Modal Étalonnage Mesure de Mur -->
+        ${this.isCalibrateModalOpen && this.calibrationData ? html`
+          <home-architect-calibrate-modal
+            .worldDistance=${this.calibrationData.worldDistance}
+            .defaultMeters=${this.calibrationData.defaultMeters}
+            .pixelsPerMeter=${this.project.pixelsPerMeter}
+            .hasGeometry=${!isEmptyProject({ ...this.project, background: undefined })}
+            .hasBackground=${!!this.project.background}
+            @calibrate-confirmed=${this.handleCalibrateConfirmed}
+            @close=${this.closeCalibrateModal}
+          ></home-architect-calibrate-modal>
+        ` : null}
+
+        <!-- Modal Mettre à l'échelle (Recalcul de toutes les cotes) -->
+        ${this.isRescaleModalOpen ? html`
+          <home-architect-rescale-modal
+            .measuredMeters=${this.rescaleMeasuredMeters}
+            .wallCount=${this.project.walls.length}
+            .roomCount=${this.project.rooms.length}
+            .openingCount=${this.project.openings.length}
+            .furnitureCount=${(this.project.furniture || []).length}
+            .bindingCount=${this.project.bindings.length}
+            .hasBackground=${!!(this.project.background && (this.project.background.assetId || this.project.background.imageUrl))}
+            @rescale-confirmed=${this.handleRescaleConfirmed}
+            @close=${() => this.isRescaleModalOpen = false}
+          ></home-architect-rescale-modal>
+        ` : null}
+
+        <!-- Modal Exporter vers Lovelace -->
+        ${this.isExportModalOpen ? html`
+          <home-architect-export-modal
+            .project=${this.project}
+            .hass=${this.hass}
+            .backgroundSrc=${this.persistence.background.src}
+            .readOnly=${this.readOnly}
+            .dirty=${activeDirty}
+            @export-frame-changed=${this.handleExportFrameChanged}
+            @project-published=${this.handleProjectPublished}
+            @project-unpublished=${this.handleProjectUnpublished}
+            @save-requested=${this.handleExportSaveRequested}
+            @close=${() => this.isExportModalOpen = false}
+          ></home-architect-export-modal>
+        ` : null}
+
+        <!-- Modal Sauvegarder & Recharger un Plan -->
+        ${this.isSaveLoadModalOpen ? html`
+          <home-architect-save-load-modal
+            .hass=${this.hass}
+            .project=${this.project}
+            .mode=${this.saveLoadModalTab}
+            .readOnly=${this.readOnly}
+            .dirtyProjectIds=${dirtyIds}
+            @save-confirmed=${this.handleSaveConfirmed}
+            @load-project=${this.handleLoadProject}
+            @project-deleted=${(e: CustomEvent<{ projectId: string }>) => this.persistence.projectDeleted(e.detail.projectId, { remote: false })}
+            @close=${() => this.isSaveLoadModalOpen = false}
+          ></home-architect-save-load-modal>
+        ` : null}
+
+        <!-- Modal Nouveau Plan -->
+        ${this.isNewPlanModalOpen ? html`
+          <div class="modal-backdrop" @click=${(e: MouseEvent) => { if (e.target === e.currentTarget) this.isNewPlanModalOpen = false; }}>
+            <div class="modal-dialog">
+              <div class="modal-dialog-header">
+                <div class="modal-dialog-title-group">
+                  <span class="modal-dialog-icon">📄</span>
+                  <div>
+                    <h3 class="modal-dialog-title">Nouveau Plan</h3>
+                    <p class="modal-dialog-subtitle">Créer une feuille de dessin vierge</p>
+                  </div>
+                </div>
+                <button class="btn-dialog-close" @click=${() => this.isNewPlanModalOpen = false}>✕</button>
+              </div>
+              <div class="modal-dialog-body">
+                <div class="dialog-form-group">
+                  <label class="dialog-label">Nom du plan :</label>
+                  <input
+                    type="text"
+                    class="dialog-input"
+                    .value=${this.newPlanName}
+                    @input=${(e: any) => this.newPlanName = e.target.value}
+                    placeholder="Ex: Mon Appartement, RDC..."
+                    autofocus
+                  />
+                </div>
+
+                <div class="dialog-form-group">
+                  <label class="dialog-label">Catégorie / Niveau :</label>
+                  <div class="category-grid">
+                    ${[...KNOWN_LEVELS, CUSTOM_CATEGORY_DEF].map(cat => html`
+                      <button
+                        type="button"
+                        class="category-btn ${this.newPlanCategory === cat.id ? 'active' : ''}"
+                        @click=${() => this.newPlanCategory = cat.id}
+                      >
+                        <span>${cat.icon}</span>
+                        <span>${cat.label}</span>
+                      </button>
+                    `)}
+                  </div>
                 </div>
               </div>
-            </div>
-            <div class="modal-dialog-footer">
-              <button class="btn-dialog-cancel" @click=${() => this.isNewPlanModalOpen = false}>Annuler</button>
-              <button class="btn-dialog-confirm primary" @click=${() => void this.handleConfirmNewPlan()}>
-                <span>✨</span>
-                <span>Créer le plan</span>
-              </button>
+              <div class="modal-dialog-footer">
+                <button class="btn-dialog-cancel" @click=${() => this.isNewPlanModalOpen = false}>Annuler</button>
+                <button class="btn-dialog-confirm primary" @click=${() => void this.handleConfirmNewPlan()}>
+                  <span>✨</span>
+                  <span>Créer le plan</span>
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      ` : null}
+        ` : null}
 
-      <!-- Modal Effacer le Plan (Reset) -->
-      ${this.isResetModalOpen ? html`
-        <div class="modal-backdrop" @click=${(e: MouseEvent) => { if (e.target === e.currentTarget) this.isResetModalOpen = false; }}>
-          <div class="modal-dialog danger">
-            <div class="modal-dialog-header danger">
-              <div class="modal-dialog-title-group">
-                <span class="modal-dialog-icon">🗑️</span>
-                <div>
-                  <h3 class="modal-dialog-title" style="color: #f87171;">Effacer le Plan</h3>
-                  <p class="modal-dialog-subtitle">Réinitialisation de l'espace de travail</p>
+        <!-- Modal Effacer le Plan (Reset) -->
+        ${this.isResetModalOpen ? html`
+          <div class="modal-backdrop" @click=${(e: MouseEvent) => { if (e.target === e.currentTarget) this.isResetModalOpen = false; }}>
+            <div class="modal-dialog danger">
+              <div class="modal-dialog-header danger">
+                <div class="modal-dialog-title-group">
+                  <span class="modal-dialog-icon">🗑️</span>
+                  <div>
+                    <h3 class="modal-dialog-title" style="color: #f87171;">Effacer le Plan</h3>
+                    <p class="modal-dialog-subtitle">Réinitialisation de l'espace de travail</p>
+                  </div>
                 </div>
+                <button class="btn-dialog-close" @click=${() => this.isResetModalOpen = false}>✕</button>
               </div>
-              <button class="btn-dialog-close" @click=${() => this.isResetModalOpen = false}>✕</button>
-            </div>
-            <div class="modal-dialog-body">
-              <p style="color: #f1f5f9; margin: 0; line-height: 1.5; font-size: 0.92rem;">
-                Êtes-vous sûr de vouloir <strong>effacer tout le contenu</strong> du plan actuel
-                (<strong>${this.project.name || getLevelLabel(this.project.category)}</strong>) ?
-              </p>
+              <div class="modal-dialog-body">
+                <p style="color: #f1f5f9; margin: 0; line-height: 1.5; font-size: 0.92rem;">
+                  Êtes-vous sûr de vouloir <strong>effacer tout le contenu</strong> du plan actuel
+                  (<strong>${this.project.name || getLevelLabel(this.project.category)}</strong>) ?
+                </p>
 
-              <div class="reset-summary-box">
-                <div>🧱 <strong>Murs :</strong> ${this.project.walls.length}</div>
-                <div>🚪 <strong>Ouvrants :</strong> ${this.project.openings.length}</div>
-                <div>🏷️ <strong>Pièces :</strong> ${this.project.rooms.length}</div>
-                <div>⚡ <strong>Entités HA :</strong> ${this.project.bindings.length}</div>
-                <div>🛋️ <strong>Meubles :</strong> ${this.project.furniture?.length || 0}</div>
-                <div>🖼️ <strong>Image de fond :</strong> ${this.project.background ? 'Oui' : 'Non'}</div>
+                <div class="reset-summary-box">
+                  <div>🧱 <strong>Murs :</strong> ${this.project.walls.length}</div>
+                  <div>🚪 <strong>Ouvrants :</strong> ${this.project.openings.length}</div>
+                  <div>🏷️ <strong>Pièces :</strong> ${this.project.rooms.length}</div>
+                  <div>⚡ <strong>Entités HA :</strong> ${this.project.bindings.length}</div>
+                  <div>🛋️ <strong>Meubles :</strong> ${this.project.furniture?.length || 0}</div>
+                  <div>🖼️ <strong>Image de fond :</strong> ${this.project.background ? 'Oui' : 'Non'}</div>
+                </div>
+
+                <p style="color: #94a3b8; font-size: 0.8rem; margin: 0;">
+                  ℹ️ Cette action est réversible avec le bouton Annuler (Ctrl+Z).
+                </p>
               </div>
-
-              <p style="color: #94a3b8; font-size: 0.8rem; margin: 0;">
-                ℹ️ Cette action est réversible avec le bouton Annuler (Ctrl+Z).
-              </p>
-            </div>
-            <div class="modal-dialog-footer">
-              <button class="btn-dialog-cancel" @click=${() => this.isResetModalOpen = false}>Annuler</button>
-              <button class="btn-dialog-confirm danger" @click=${() => this.handleConfirmResetPlan()}>
-                <span>🗑️</span>
-                <span>Effacer tout</span>
-              </button>
+              <div class="modal-dialog-footer">
+                <button class="btn-dialog-cancel" @click=${() => this.isResetModalOpen = false}>Annuler</button>
+                <button class="btn-dialog-confirm danger" @click=${() => this.handleConfirmResetPlan()}>
+                  <span>🗑️</span>
+                  <span>Effacer tout</span>
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      ` : null}
+        ` : null}
 
-      <!-- Modale Mise à jour (notification seulement : l'installation passe par HA) -->
-      ${this.isUpdateModalOpen && this.updateInfo?.available ? renderUpdateDialog(this.updateInfo, dirtyCount, {
-        onClose: () => this.closeUpdateModal(),
-        onOpenUpdates: () => this.openHaUpdates()
-      }) : null}
+        <!-- Modale Mise à jour (notification seulement : l'installation passe par HA) -->
+        ${this.isUpdateModalOpen && this.updateInfo?.available ? renderUpdateDialog(this.updateInfo, dirtyCount, {
+          onClose: () => this.closeUpdateModal(),
+          onOpenUpdates: () => this.openHaUpdates()
+        }) : null}
 
-      <!-- Chargement bloquant, opération en cours, copies locales à restaurer, dialogue de choix -->
-      ${this.persistence.renderOverlays()}
+        <!-- À propos : version, état des mises à jour, liens (release, soutien du projet) -->
+        ${this.isAboutOpen ? renderAboutDialog({
+          info: this.updateInfo,
+          canManageUpdates: !this.readOnly,
+          onClose: () => { this.isAboutOpen = false; },
+          onShowUpdate: () => { this.isAboutOpen = false; this.isUpdateModalOpen = true; },
+          onOpenUpdates: () => this.openHaUpdates()
+        }) : null}
+
+        <!-- Chargement bloquant, opération en cours, copies locales à restaurer, dialogue de choix -->
+        ${this.persistence.renderOverlays()}
+      </div>
     `;
   }
 }

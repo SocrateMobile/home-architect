@@ -8,6 +8,8 @@
  * - Drapeau « modifié » par plan, brouillons IndexedDB différés, migration unique des anciennes
  *   copies localStorage, proposition de restauration au chargement (constats F2, F12, F105).
  * - Image de fond hors du JSON : téléversement et URL affichable (constat F1).
+ * - Préférences d'affichage et de grille enregistrées avec le plan, hors historique (F47, F104).
+ * - Sauvegarde JSON réimportée comme nouveau plan (constat F112).
  * - Abonnement aux modifications du plan actif faites ailleurs (constat F13) et suppression (F16).
  * - Lecture seule pour les non-administrateurs (constat F11).
  */
@@ -18,15 +20,15 @@ import {
   getProject, isAdmin, listProjects, readLegacyLocalProjects, removeLegacyLocalProject, saveProject, subscribeProject
 } from '../core/ha-api';
 import { deleteDraft, listDrafts, loadDraft, saveDraft } from '../core/drafts';
-import { blobToDataUrl, dataUrlToBlob, readImageSize } from '../core/image-utils';
+import { blobToDataUrl } from '../core/image-utils';
 import { DEFAULT_LEVEL, getLevelLabel, isKnownLevel } from '../core/levels';
 import {
-  clearRedundantCustomNames, cloneProject, createEmptyProject, generateProjectId, normalizePublishInfo
+  clearRedundantCustomNames, cloneProject, createEmptyProject, generateProjectId, normalizeProject, normalizePublishInfo
 } from '../core/project-model';
 import { ProjectWorkspace, isEmptyProject } from './workspace';
 import {
-  BackgroundRejectedError, BackgroundSource, ImportedBackground, isInlineDataUrl, prepareBackgroundBlob,
-  svgWithoutDoctype, uploadInlineBackground, uploadPreparedBackground
+  BackgroundRejectedError, BackgroundSource, ImportedBackground, isInlineDataUrl, svgWithoutDoctype,
+  uploadInlineBackground, uploadPreparedBackground
 } from './background';
 import { DRAFT_STATUS_LABELS, DraftReview, projectFromDraft, reviewDraft, reviewDrafts } from './draft-review';
 import {
@@ -37,6 +39,9 @@ import {
 /** Délai d'écriture du brouillon local après la dernière modification d'un plan. */
 const DRAFT_DEBOUNCE_MS = 2000;
 
+/** Délai avant de redemander le plan du filigrane après un échec (coupure, serveur indisponible). */
+const GHOST_RETRY_MS = 30000;
+
 /** Codes d'erreur qui laissent espérer qu'un nouvel essai réussira (coupure, serveur indisponible). */
 const TRANSIENT_ERROR_CODES = new Set([
   'connection_lost', 'not_connected', 'network_error', 'not_ready', 'save_failed', 'unknown_error', 'http_error'
@@ -44,6 +49,9 @@ const TRANSIENT_ERROR_CODES = new Set([
 
 type RemoteEvent = { project_id: string; revision: number; deleted?: boolean };
 type LoadState = 'idle' | 'loading' | 'ready' | 'error';
+
+/** Préférences enregistrées avec le plan, modifiées sans entrée d'historique (voir setPreferences). */
+export type ProjectPreferences = Partial<Pick<HomeArchitectProject, 'grid' | 'showDimensions' | 'showThermalHeatmap' | 'showGhostLevel'>>;
 
 /** Élément hôte : le panneau du studio. */
 export type PersistenceHost = ReactiveControllerHost & { readonly hass: any; readonly isConnected: boolean };
@@ -77,6 +85,25 @@ function describeFailure(err: unknown): string {
     }
   }
   return errorMessage(err);
+}
+
+/** Champs possédés par le serveur, absents de la comparaison des modifications de l'utilisateur. */
+const SERVER_OWNED_KEYS = new Set(['publish', 'revision', 'updated_at']);
+
+/**
+ * Vrai si les deux versions d'un plan ne diffèrent que par des champs du serveur (publication
+ * reçue pendant une sauvegarde…). Les mises à jour étant immuables, une comparaison par référence
+ * de chaque champ suffit.
+ */
+function sameUserContent(a: HomeArchitectProject, b: HomeArchitectProject): boolean {
+  if (a === b) return true;
+  const ra = a as unknown as Record<string, unknown>;
+  const rb = b as unknown as Record<string, unknown>;
+  const keys = new Set([...Object.keys(ra), ...Object.keys(rb)]);
+  for (const key of keys) {
+    if (!SERVER_OWNED_KEYS.has(key) && ra[key] !== rb[key]) return false;
+  }
+  return true;
 }
 
 function updatedTime(s: ProjectSummary): number {
@@ -114,6 +141,8 @@ export class PersistenceController implements ReactiveController {
   /** Plans des niveaux inférieurs chargés pour le filigrane (lecture seule), avec leur révision. */
   private ghostCache = new Map<string, { revision: number; project: HomeArchitectProject }>();
   private ghostLoading = new Set<string>();
+  /** Dernier échec de chargement d'un plan du filigrane (horodatage), pour espacer les nouveaux essais. */
+  private ghostFailedAt = new Map<string, number>();
   private readOnlyToastAt = 0;
 
   private readonly onBeforeUnload = (e: BeforeUnloadEvent) => {
@@ -220,12 +249,14 @@ export class PersistenceController implements ReactiveController {
    * chargement en cours, aucune modification, plan qui n'est plus actif).
    */
   commit(next: HomeArchitectProject, opts: { coalesceKey?: string } = {}): boolean {
+    // Avant la fin du chargement (hass pas encore reçu), rien n'est appliqué ni signalé.
+    if (!this.ready) return false;
     if (this.readOnly) {
       this.notifyReadOnly();
       return false;
     }
     const current = this.ws.active;
-    if (!this.ready || next === current || next.id !== current.id) return false;
+    if (next === current || next.id !== current.id) return false;
     this.ws.commit(next, opts.coalesceKey);
     this.placeholderIds.delete(next.id);
     this.scheduleDraft(next.id);
@@ -241,11 +272,11 @@ export class PersistenceController implements ReactiveController {
   }
 
   private restore(step: () => HomeArchitectProject | null): HomeArchitectProject | null {
+    if (!this.ready) return null;
     if (this.readOnly) {
       this.notifyReadOnly();
       return null;
     }
-    if (!this.ready) return null;
     const restored = step();
     if (restored) this.scheduleDraft(restored.id);
     return restored;
@@ -274,6 +305,27 @@ export class PersistenceController implements ReactiveController {
     this.ws.markDirty(project.id);
     this.placeholderIds.delete(project.id);
     this.scheduleDraft(project.id);
+  }
+
+  /**
+   * Préférences enregistrées avec le plan (affichage, grille ; constats F47, F104) : appliquées sans
+   * entrée d'historique (Annuler / Rétablir ne les restaurent pas, voir history.ts). En lecture
+   * seule, elles ne changent que l'affichage local (rien n'est marqué modifié ni enregistré).
+   * Renvoie false si rien n'a changé.
+   */
+  setPreferences(patch: ProjectPreferences): boolean {
+    if (!this.ready) return false;
+    const project = this.ws.active;
+    const current = project as unknown as Record<string, unknown>;
+    const entries = Object.entries(patch).filter(([key, value]) => value !== undefined && current[key] !== value);
+    if (entries.length === 0) return false;
+    const next: HomeArchitectProject = { ...project, ...Object.fromEntries(entries) };
+    this.ws.replace(next);
+    if (this.readOnly) return true;
+    this.ws.markDirty(project.id);
+    this.placeholderIds.delete(project.id);
+    this.scheduleDraft(project.id);
+    return true;
   }
 
   /** Publication du SVG : champ possédé par le serveur, mis à jour sans marquer le plan comme modifié. */
@@ -322,6 +374,7 @@ export class PersistenceController implements ReactiveController {
       this.placeholderIds.clear();
       if (!loaded) this.placeholderIds.add(project.id);
       this.ghostCache.clear();
+      this.ghostFailedAt.clear();
       this.setLoadState('ready');
       this.ui.activeProjectChanged();
       this.syncActiveResources();
@@ -479,15 +532,43 @@ export class PersistenceController implements ReactiveController {
   /**
    * Nouveau plan : identifiant immuable généré, catégorie séparée (constat F3). Le plan en cours
    * reste ouvert avec ses modifications et aucun plan existant n'est remplacé.
+   * `confirmed` : l'utilisateur vient d'accepter un plan distinct dans ce niveau (pas de seconde question).
    * Renvoie false si l'utilisateur a renoncé.
    */
-  async createPlan(name: string, category: string): Promise<boolean> {
+  async createPlan(name: string, category: string, opts: { confirmed?: boolean } = {}): Promise<boolean> {
     if (this.readOnly || !this.ready) return false;
-    if (!(await this.confirmAdditionalPlan(category, name))) return false;
+    if (!opts.confirmed && !(await this.confirmAdditionalPlan(category, name))) return false;
     const project = createEmptyProject({ name, category });
     this.ws.open(project);
     this.activateProject(project.id);
     this.ui.toast(`📄 Nouveau plan "${project.name}" créé : pensez à le sauvegarder.`);
+    return true;
+  }
+
+  /**
+   * Sauvegarde JSON complète réimportée (`import-project-backup`, constat F112) : ouverte comme un
+   * nouveau plan non sauvegardé, sous un nouvel identifiant, sans révision ni publication : aucun
+   * plan existant n'est remplacé, ce qui sert aussi à dupliquer ou restaurer un plan. Le projet
+   * repasse par normalizeProject. Une image de fond embarquée (data-URL) est téléversée aussitôt ;
+   * si c'est impossible, elle reste dans le plan et part à la sauvegarde. Renvoie false si
+   * l'utilisateur a renoncé.
+   */
+  async importProject(raw: unknown): Promise<boolean> {
+    if (this.readOnly) {
+      this.notifyReadOnly();
+      return false;
+    }
+    if (!this.ready) return false;
+    const now = new Date().toISOString();
+    const project: HomeArchitectProject = { ...normalizeProject(raw), id: generateProjectId(), created_at: now, updated_at: now };
+    delete project.revision;
+    delete project.publish;
+    if (project.category && !(await this.confirmAdditionalPlan(project.category, project.name))) return false;
+    this.ws.open(project, { dirty: true });
+    this.activateProject(project.id);
+    this.scheduleDraft(project.id);
+    if (isInlineDataUrl(project.background?.imageUrl)) await this.uploadInlineBackgroundNow(project.id);
+    this.ui.toast(`📥 « ${project.name} » importé comme nouveau plan : sauvegardez-le pour le conserver sur le serveur.`);
     return true;
   }
 
@@ -593,19 +674,34 @@ export class PersistenceController implements ReactiveController {
     return this.ws.get(id) ?? this.ghostCache.get(id)?.project ?? null;
   }
 
-  /** Charge (en lecture seule) le plan d'un niveau pour le filigrane s'il n'est pas ouvert ou a changé. */
+  /**
+   * Charge (en lecture seule) le plan d'un niveau pour le filigrane s'il n'est pas ouvert ou a changé.
+   * Appelé à chaque rendu : un plan absent du serveur est retiré de la liste et un échec n'est pas
+   * réessayé avant GHOST_RETRY_MS, sinon chaque réponse relancerait aussitôt la même requête.
+   */
   prefetchGhost(level: string | null) {
     const id = level ? this.ws.projectIdForLevel(level) : null;
     if (!id || this.ws.has(id) || this.ghostLoading.has(id) || !this.host.hass || !this.ready) return;
     const revision = this.ws.summary(id)?.revision ?? 0;
     if (this.ghostCache.get(id)?.revision === revision) return;
+    const failedAt = this.ghostFailedAt.get(id);
+    if (failedAt !== undefined && Date.now() - failedAt < GHOST_RETRY_MS) return;
     this.ghostLoading.add(id);
     getProject(this.host.hass, id).then(
       project => {
-        if (project) this.ghostCache.set(id, { revision, project });
-        else this.ghostCache.delete(id);
+        this.ghostFailedAt.delete(id);
+        if (project) {
+          this.ghostCache.set(id, { revision, project });
+          return;
+        }
+        // Supprimé depuis la dernière lecture de la liste : il n'est plus proposé pour ce niveau.
+        this.ghostCache.delete(id);
+        this.ws.removeSummary(id);
       },
-      err => console.warn(`[home-architect] Filigrane ${id} indisponible :`, err)
+      err => {
+        this.ghostFailedAt.set(id, Date.now());
+        console.warn(`[home-architect] Filigrane ${id} indisponible :`, err);
+      }
     ).finally(() => {
       this.ghostLoading.delete(id);
       this.host.requestUpdate();
@@ -755,7 +851,8 @@ export class PersistenceController implements ReactiveController {
     this.ws.upsertSummary(next);
     this.clearProjectNotices(id);
     this.placeholderIds.delete(id);
-    if (current === saved) {
+    // Plan inchangé pendant la sauvegarde (une publication, champ serveur, ne compte pas) : il est à jour.
+    if (sameUserContent(current, saved)) {
       this.ws.markClean(id);
       this.cancelDraft(id);
       void deleteDraft(id);
@@ -1132,20 +1229,25 @@ export class PersistenceController implements ReactiveController {
 
   // --- Image de fond -------------------------------------------------------------------------------
 
-  /** Image brute (collée, déposée) : SVG sans DOCTYPE ou raster recompressé, puis téléversement. */
-  async prepareAndUploadBackground(projectId: string, source: string | Blob): Promise<BackgroundPlan | null> {
-    let prepared: { blob: Blob; width?: number; height?: number };
-    let size: { width: number; height: number };
+  /**
+   * Téléverse sans attendre la sauvegarde l'image embarquée (data-URL) d'un plan importé. En cas
+   * d'échec, elle reste dans le plan (bandeau) : la sauvegarde la téléversera ou proposera de la retirer.
+   */
+  private async uploadInlineBackgroundNow(id: string) {
     try {
-      prepared = await prepareBackgroundBlob(typeof source === 'string' ? dataUrlToBlob(source) : source);
-      size = prepared.width && prepared.height
-        ? { width: prepared.width, height: prepared.height }
-        : await readImageSize(prepared.blob);
+      await this.withBusy('Téléversement de l\'image de fond…', () => this.uploadPendingBackground(id));
     } catch (err) {
-      this.showError(err instanceof BackgroundRejectedError ? err.message : `Image de fond illisible : ${errorMessage(err)}`);
-      return null;
+      if (err instanceof PermissionDeniedError) {
+        this.enterReadOnly();
+        return;
+      }
+      const reason = err instanceof BackgroundRejectedError ? err.message : describeFailure(err);
+      this.setNotice({
+        key: `background:${id}`,
+        kind: 'warning',
+        message: `⚠️ Image de fond non téléversée (${reason}) : elle est gardée dans le plan et sera envoyée au serveur à la prochaine sauvegarde.`
+      });
     }
-    return this.uploadNewBackground(projectId, prepared.blob, { widthPx: size.width, heightPx: size.height, opacity: 0.40 });
   }
 
   /** Image fournie par la modale d'import, déjà compressée (un SVG est seulement débarrassé de son DOCTYPE). */

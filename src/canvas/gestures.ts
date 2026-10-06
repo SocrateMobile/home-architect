@@ -36,10 +36,6 @@ export class PointerTracker {
     return this.pointers.size;
   }
 
-  has(id: number): boolean {
-    return this.pointers.has(id);
-  }
-
   set(id: number, x: number, y: number, type: string): void {
     this.pointers.set(id, { x, y, type });
   }

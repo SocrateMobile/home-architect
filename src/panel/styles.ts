@@ -416,4 +416,75 @@ export const persistenceStyles = css`
   .release-link:hover {
     text-decoration: underline;
   }
+
+  .footer-links {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px 14px;
+  }
+
+  /* Lien de soutien (Buy Me A Coffee) : style local, aucune image externe chargée. */
+  .support-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    border-radius: 9999px;
+    background: #ffdd00;
+    color: #000000;
+    font-size: 12px;
+    font-weight: 700;
+    text-decoration: none;
+    white-space: nowrap;
+    border: 1px solid rgba(0, 0, 0, 0.25);
+  }
+
+  .support-link:hover,
+  .support-link:focus-visible {
+    background: #ffe94d;
+    box-shadow: 0 0 0 2px rgba(255, 221, 0, 0.35);
+  }
+
+  /* Dialogue « À propos » */
+  .about-version {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .about-status {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px 12px;
+    padding: 9px 12px;
+    border-radius: 10px;
+    background: rgba(16, 185, 129, 0.1);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    color: #a7f3d0;
+    font-size: 0.86rem;
+  }
+
+  .about-status.update {
+    background: rgba(245, 158, 11, 0.1);
+    border-color: rgba(245, 158, 11, 0.35);
+    color: #fde68a;
+  }
+
+  .about-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 16px;
+  }
+
+  .about-support {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px 12px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+  }
 `;
