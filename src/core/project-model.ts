@@ -4,8 +4,10 @@ import {
   PublishInfo, Room, TAP_ACTION_TYPES, TapActionType, WALL_TYPES, Wall, WallType
 } from './types';
 import { PolygonUtils } from './polygon';
-import { findFurnitureTemplate } from './furniture-catalog';
+import { canonicalFurnitureName, findFurnitureTemplate } from './furniture-catalog';
 import { getLevel, isKnownLevel } from './levels';
+import { localize } from '../i18n';
+import '../i18n/locales/levels';
 
 /** Taille maximale d'un projet sauvegardé (JSON UTF-8) ; le backend applique la même limite. */
 export const MAX_PROJECT_BYTES = 2 * 1024 * 1024;
@@ -197,8 +199,9 @@ export function legacyCategory(projectId: string | undefined | null): string | u
   return projectId && isKnownLevel(projectId) ? projectId : undefined;
 }
 
+/** Nom par défaut d'un plan (dans la langue courante, enregistré tel quel) : libellé long du niveau, sinon « Nouveau plan ». */
 function defaultProjectName(category: string | undefined): string {
-  return getLevel(category)?.fullLabel ?? 'Nouveau plan';
+  return getLevel(category)?.fullLabel ?? localize('ui.project.default_name');
 }
 
 /** Crée un projet vide avec un nouvel identifiant immuable (la catégorie est un champ séparé). */
@@ -326,7 +329,7 @@ function normalizeRooms(list: unknown): Room[] {
     const area = toFinite(r.areaM2);
     const room: Room = {
       id: uniqueId(r.id, 'room', used),
-      name: typeof r.name === 'string' ? r.name : 'Pièce',
+      name: typeof r.name === 'string' ? r.name : localize('ui.project.default_room_name'),
       polygon,
       areaM2: area !== undefined && area >= 0 ? area : PolygonUtils.computeArea(polygon),
     };
@@ -396,7 +399,10 @@ function normalizeFurniture(list: unknown): FurnitureItem[] {
     const item: FurnitureItem = {
       id: uniqueId(f.id, 'furn', used),
       type,
-      name: typeof f.name === 'string' ? f.name : (template?.name ?? type),
+      // Un nom par défaut du modèle (ancien nom du catalogue, ou traduction affichée dans une autre
+      // langue) est enregistré sous le nom par défaut actuel, indépendant de la langue de l'interface ;
+      // un nom choisi par l'utilisateur est conservé.
+      name: typeof f.name === 'string' ? canonicalFurnitureName({ type, name: f.name }) : (template?.name ?? type),
       category: oneOf<FurnitureCategory>(f.category, FURNITURE_CATEGORIES) ?? template?.category ?? 'other',
       position,
       width: width !== undefined && width > 0 ? Math.min(width, MAX_DIMENSION) : (template?.width ?? 1),

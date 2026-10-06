@@ -18,6 +18,12 @@ const LABEL_CENTROID_ATTRACTION = 0.5;
 /** Garde-fou : nombre maximal de cellules examinées par le pôle d'inaccessibilité. */
 const MAX_POLE_CELLS = 5000;
 
+/**
+ * Garde-fou : nombre maximal de cellules initiales sur le grand côté de la boîte englobante. Sans
+ * lui, un polygone très allongé (ex. 10 m × 1 µm, issu d'un SVG) créerait des millions de cellules.
+ */
+const MAX_INITIAL_CELLS_PER_AXIS = 256;
+
 /** Cache des points d'étiquette, indexé par le contenu du polygone (sûr même si le tableau est muté). */
 const labelCache = new Map<string, Point>();
 const LABEL_CACHE_LIMIT = 512;
@@ -281,8 +287,12 @@ export class PolygonUtils {
     }
     const width = maxX - minX;
     const height = maxY - minY;
-    const cellSize = Math.min(width, height);
-    if (cellSize <= 0) return { point: this.calculateCentroid(poly), distance: 0 };
+    if (!(width > 0 && height > 0) || Math.abs(this.signedArea(poly)) < 1e-12) {
+      return { point: this.calculateCentroid(poly), distance: 0 };
+    }
+    // Côté des cellules initiales : le petit côté, mais jamais sous la précision ni au point de
+    // dépasser MAX_INITIAL_CELLS_PER_AXIS cellules sur le grand côté (polygone en lame).
+    const cellSize = Math.max(Math.min(width, height), precision, Math.max(width, height) / MAX_INITIAL_CELLS_PER_AXIS);
 
     const eps = Math.max(precision, cellSize * 1e-6);
     const c = this.calculateCentroid(poly);
@@ -296,9 +306,12 @@ export class PolygonUtils {
 
     const queue = new CellQueue();
     const h0 = cellSize / 2;
-    for (let x = minX; x < maxX; x += cellSize) {
-      for (let y = minY; y < maxY; y += cellSize) {
-        queue.push(makeCell(x + h0, y + h0, h0));
+    // Compteurs entiers : `x += cellSize` ne progresserait plus avec de très grandes coordonnées.
+    const nx = Math.ceil(width / cellSize);
+    const ny = Math.ceil(height / cellSize);
+    for (let i = 0; i < nx; i++) {
+      for (let j = 0; j < ny; j++) {
+        queue.push(makeCell(minX + i * cellSize + h0, minY + j * cellSize + h0, h0));
       }
     }
 
@@ -338,9 +351,11 @@ export class PolygonUtils {
     const centroid = this.calculateCentroid(polygon);
     const pole = this.poleOfInaccessibility(polygon);
     const centroidClearance = this.isPointInPolygon(centroid, polygon) ? this.distanceToBoundary(centroid, polygon) : -1;
-    const result = centroidClearance >= pole.distance * 0.5
+    let result = centroidClearance >= pole.distance * 0.5
       ? centroid
       : this.searchInteriorPoint(polygon, LABEL_PRECISION, LABEL_CENTROID_ATTRACTION).point;
+    // Garde-fou (recherche interrompue par MAX_POLE_CELLS) : jamais hors de la pièce si le pôle y est.
+    if (!this.isPointInPolygon(result, polygon) && this.isPointInPolygon(pole.point, polygon)) result = pole.point;
 
     if (labelCache.size >= LABEL_CACHE_LIMIT) labelCache.clear();
     labelCache.set(key, result);

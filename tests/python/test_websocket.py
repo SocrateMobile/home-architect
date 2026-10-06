@@ -1,6 +1,7 @@
 """Commandes WebSocket : droits, révisions, limites, fichiers."""
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Any
 from unittest.mock import patch
@@ -13,6 +14,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.util.file import WriteError
 
+from custom_components.home_architect import websocket
 from custom_components.home_architect.const import MAX_PROJECT_BYTES
 
 from factories import PNG_DATA_URL, make_project
@@ -79,6 +81,7 @@ async def test_read_commands_are_open_to_all_users(admin_ws: MockHAClientWebSock
         {"type": "home_architect/delete_project", "project_id": "plan_abcd1234"},
         {"type": "home_architect/publish_svg", "project_id": "plan_abcd1234", "svg_content": SIMPLE_SVG},
         {"type": "home_architect/unpublish", "project_id": "plan_abcd1234"},
+        {"type": "home_architect/save_svg_to_www", "filename": "plan_rdc.svg", "svg_content": SIMPLE_SVG},
         {"type": "home_architect/check_updates"},
     ],
 )
@@ -230,6 +233,113 @@ async def test_publish_updates_legacy_www_file(hass: HomeAssistant, admin_ws: Mo
     # Republier sans modification externe : pas de nouvelle copie
     await _call(admin_ws, type="home_architect/publish_svg", project_id="plan_abcd1234", svg_content=SIMPLE_SVG.replace("1", "2"))
     assert len(list(Path(hass.config.path("home_architect", "backups")).iterdir())) == 1
+
+
+@pytest.mark.parametrize("command", ["publish_svg", "save_svg_to_www"])
+async def test_svg_size_is_counted_in_bytes(admin_ws: MockHAClientWebSocket, command: str) -> None:
+    """Le SVG est limité en octets UTF-8 (le schéma ne compte que des caractères)."""
+    await _call(admin_ws, type="home_architect/save_project", project=make_project())
+    target = {"project_id": "plan_abcd1234"} if command == "publish_svg" else {"filename": "plan_plan_abcd1234.svg"}
+    svg = SIMPLE_SVG.replace("<rect", "<!-- é --><rect")
+    # Limite = nombre de caractères : seul le décompte en octets (« é » = 2 octets) la dépasse
+    with patch.object(websocket, "MAX_PUBLISH_BYTES", len(svg)):
+        response = await _call(admin_ws, type=f"home_architect/{command}", svg_content=svg, **target)
+    assert response["error"]["code"] == "payload_too_large"
+    size, limit = response["error"]["message"].split(":")[1:]
+    assert int(size) == len(svg.encode("utf-8")) == int(limit) + 1
+
+
+async def test_save_svg_to_www_writes_sanitized_legacy_plan(
+    hass: HomeAssistant,
+    admin_ws: MockHAClientWebSocket,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Commande dépréciée des anciens frontends : www/plan_<id>.svg assaini, images conservées.
+
+    Le projet n'a pas besoin d'exister (plan pas encore enregistré dans un ancien frontend).
+    """
+    monkeypatch.setattr(websocket, "_DEPRECATION_LOGGED", set())
+    image = f'<image href="{PNG_DATA_URL}" width="1" height="1"/>'
+    malicious = SIMPLE_SVG.replace("<rect", f'<script>alert(1)</script>{image}<rect onload="alert(2)"')
+    legacy = Path(hass.config.path("www", "plan_rdc.svg"))
+
+    with caplog.at_level(logging.WARNING, logger=websocket.__name__):
+        saved = await _call(admin_ws, type="home_architect/save_svg_to_www", filename="plan_rdc.svg", svg_content=malicious)
+        assert saved["result"] == {"success": True, "path": "/local/plan_rdc.svg"}
+        content = legacy.read_text()
+        assert "script" not in content and "onload" not in content
+        assert "data:image/png;base64," in content and "<rect" in content
+
+        again = await _call(admin_ws, type="home_architect/save_svg_to_www", filename="plan_rdc.svg", svg_content=SIMPLE_SVG)
+        assert again["success"] is True
+        assert "<image" not in legacy.read_text()
+
+    # Un seul avertissement de dépréciation par démarrage
+    assert sum("save_svg_to_www" in record.getMessage() for record in caplog.records) == 1
+    # Le fichier remplacé avait été écrit par l'outil : aucune copie de sauvegarde
+    assert not Path(hass.config.path("home_architect", "backups")).exists()
+
+
+@pytest.mark.parametrize(
+    "filename",
+    [
+        "configuration.yaml",
+        "../plan_rdc.svg",
+        "plan_rdc",
+        "plan_.svg",
+        "plan_rdc.svg.svg",
+        "plan_a/b.svg",
+        "plan_rdc.svg\n",
+        "other.svg",
+        f"plan_{'a' * 65}.svg",
+    ],
+)
+async def test_save_svg_to_www_rejects_other_file_names(
+    hass: HomeAssistant, admin_ws: MockHAClientWebSocket, filename: str
+) -> None:
+    """Seul l'ancien format plan_<id>.svg est accepté : aucun autre fichier de www/ ne peut être écrasé."""
+    response = await _call(admin_ws, type="home_architect/save_svg_to_www", filename=filename, svg_content=SIMPLE_SVG)
+    assert response["success"] is False
+    assert response["error"]["code"] == "invalid_format"
+    www = Path(hass.config.path("www"))
+    assert not www.exists() or list(www.iterdir()) == []
+
+
+async def test_save_svg_to_www_backs_up_modified_file(hass: HomeAssistant, admin_ws: MockHAClientWebSocket) -> None:
+    """Même routine que la publication : un fichier retouché hors de l'outil est recopié dans backups/."""
+    await _call(admin_ws, type="home_architect/save_project", project=make_project())
+    legacy = Path(hass.config.path("www", "plan_plan_abcd1234.svg"))
+    legacy.parent.mkdir(parents=True, exist_ok=True)
+    legacy.write_text('<svg xmlns="http://www.w3.org/2000/svg"><!-- retouché dans Inkscape --></svg>')
+    backups = Path(hass.config.path("home_architect", "backups"))
+
+    saved = await _call(admin_ws, type="home_architect/save_svg_to_www", filename="plan_plan_abcd1234.svg", svg_content=SIMPLE_SVG)
+    assert saved["result"]["path"] == "/local/plan_plan_abcd1234.svg"
+    assert "<rect" in legacy.read_text()
+    [backup] = backups.iterdir()
+    assert "Inkscape" in backup.read_text()
+
+    # Contenus écrits par l'outil (save_svg_to_www puis publication) : pas de nouvelle copie
+    await _call(admin_ws, type="home_architect/save_svg_to_www", filename="plan_plan_abcd1234.svg", svg_content=SIMPLE_SVG.replace("1", "2"))
+    published = await _call(admin_ws, type="home_architect/publish_svg", project_id="plan_abcd1234", svg_content=SIMPLE_SVG.replace("1", "3"))
+    assert published["result"]["legacy_path"] == "/local/plan_plan_abcd1234.svg"
+    await _call(admin_ws, type="home_architect/save_svg_to_www", filename="plan_plan_abcd1234.svg", svg_content=SIMPLE_SVG)
+    assert len(list(backups.iterdir())) == 1
+
+
+async def test_save_svg_to_www_errors(hass: HomeAssistant, admin_ws: MockHAClientWebSocket) -> None:
+    """SVG refusé (invalid_svg) et échec d'écriture (write_failed, sans détail système)."""
+    doctype = '<!DOCTYPE svg [<!ENTITY x "y">]><svg xmlns="http://www.w3.org/2000/svg">&x;</svg>'
+    invalid = await _call(admin_ws, type="home_architect/save_svg_to_www", filename="plan_rdc.svg", svg_content=doctype)
+    assert invalid["error"]["code"] == "invalid_svg"
+
+    with patch("custom_components.home_architect.assets.atomic_write", side_effect=OSError("disk full")):
+        failed = await _call(admin_ws, type="home_architect/save_svg_to_www", filename="plan_rdc.svg", svg_content=SIMPLE_SVG)
+    assert failed["success"] is False
+    assert failed["error"]["code"] == "write_failed"
+    assert "disk full" not in failed["error"]["message"]
+    assert not Path(hass.config.path("www", "plan_rdc.svg")).exists()
 
 
 async def test_delete_project_removes_files(hass: HomeAssistant, admin_ws: MockHAClientWebSocket) -> None:

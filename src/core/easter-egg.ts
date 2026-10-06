@@ -7,10 +7,30 @@
  * - L'animation s'arrête d'elle-même dès que l'overlay quitte le document (panneau détaché) ;
  *   la fonction renvoyée par launchSocrateRulesEasterEgg permet aussi de la fermer explicitement.
  * - prefers-reduced-motion : image fixe, sans boucle d'animation ni étincelles.
+ * - Accessibilité : dialogue modal qui garde le focus (Tab) et le rend à l'élément qui l'avait à la
+ *   fermeture ; textes traduits (espace `ui.easter.*`), le titre « Socrate Rules » restant tel quel.
  */
 import { hasCommandModifier, isEditableTarget } from './keyboard';
+import { localize, registerTranslations } from '../i18n';
+
+registerTranslations('fr', {
+  'ui.easter.subtitle': 'Une expérience visuelle {emphasis}.',
+  'ui.easter.subtitle_emphasis': 'hautement philosophique',
+  'ui.easter.exit_hint': 'Cliquez 3 fois sur {title} ou appuyez sur Échap pour quitter',
+  'ui.easter.instructions': "Bougez le pointeur & touchez n'importe où",
+});
+
+registerTranslations('en', {
+  'ui.easter.subtitle': 'A {emphasis} visual experience.',
+  'ui.easter.subtitle_emphasis': 'highly philosophical',
+  'ui.easter.exit_hint': 'Click {title} 3 times or press Esc to exit',
+  'ui.easter.instructions': 'Move the pointer & tap anywhere',
+});
 
 const OVERLAY_ID = 'socrate-rules-overlay';
+const EXIT_HINT_ID = 'socrate-rules-exit-hint';
+/** Nom de l'œuvre, affiché tel quel dans toutes les langues. */
+const TITLE_TEXT = 'SOCRATE RULES';
 
 /** Fermeture de chaque overlay actif (une relance sur la même racine renvoie la fermeture existante). */
 const activeOverlays = new WeakMap<HTMLElement, () => void>();
@@ -206,6 +226,22 @@ function createEl<K extends keyof HTMLElementTagNameMap>(
   return el;
 }
 
+/**
+ * Paragraphe traduit dont le marqueur `{marker}` est remplacé par un élément <strong> (texte brut,
+ * sans interprétation HTML) : l'ordre des mots reste celui de la traduction.
+ */
+function createTemplated(className: string, key: string, marker: string, strongText: string): HTMLParagraphElement {
+  const [before, after = ''] = localize(key).split(`{${marker}}`);
+  return createEl('p', className, before, createEl('strong', null, strongText), after);
+}
+
+/** Élément qui a réellement le focus, en traversant les shadow roots ouvertes. */
+function deepActiveElement(): HTMLElement | null {
+  let active: Element | null = document.activeElement;
+  while (active?.shadowRoot?.activeElement) active = active.shadowRoot.activeElement;
+  return active instanceof HTMLElement && active !== document.body ? active : null;
+}
+
 function findOverlay(container: ParentNode): HTMLElement | null {
   return container.querySelector<HTMLElement>(`#${OVERLAY_ID}`);
 }
@@ -231,6 +267,7 @@ export function launchSocrateRulesEasterEgg(targetRoot: OverlayRoot): () => void
   }
 
   const reduceMotion = prefersReducedMotion();
+  const returnFocusTo = deepActiveElement();
 
   // 1. Construction de l'overlay (styles statiques, textes via textContent)
   const overlay = createEl('div', null);
@@ -239,6 +276,7 @@ export function launchSocrateRulesEasterEgg(targetRoot: OverlayRoot): () => void
   overlay.setAttribute('role', 'dialog');
   overlay.setAttribute('aria-modal', 'true');
   overlay.setAttribute('aria-label', 'Socrate Rules');
+  overlay.setAttribute('aria-describedby', EXIT_HINT_ID);
 
   const style = document.createElement('style');
   style.textContent = OVERLAY_STYLES;
@@ -247,6 +285,8 @@ export function launchSocrateRulesEasterEgg(targetRoot: OverlayRoot): () => void
   canvas.setAttribute('aria-hidden', 'true');
 
   const title = createEl('h1', 'socrate-title');
+  // Lettres animées une à une : le titre est annoncé d'un seul tenant.
+  title.setAttribute('aria-label', 'Socrate Rules');
   let globalCharIndex = 0;
   for (const lineText of ['Socrate', 'Rules']) {
     const line = createEl('span', 'socrate-line');
@@ -259,14 +299,15 @@ export function launchSocrateRulesEasterEgg(targetRoot: OverlayRoot): () => void
     title.appendChild(line);
   }
 
-  const sub = createEl('p', 'socrate-sub',
-    'Une expérience visuelle ', createEl('strong', null, 'hautement philosophique'), '.');
-  const exitHint = createEl('p', 'socrate-exit-hint',
-    'Cliquez 3 fois sur ', createEl('strong', null, 'SOCRATE RULES'), ' ou appuyez sur Échap pour quitter');
+  const sub = createTemplated('socrate-sub', 'ui.easter.subtitle', 'emphasis', localize('ui.easter.subtitle_emphasis'));
+  const exitHint = createTemplated('socrate-exit-hint', 'ui.easter.exit_hint', 'title', TITLE_TEXT);
+  exitHint.id = EXIT_HINT_ID;
   const content = createEl('div', 'socrate-container', title, sub, exitHint);
   overlay.append(style, canvas, content);
   if (!reduceMotion) {
-    overlay.appendChild(createEl('div', 'socrate-instructions', 'Bougez le pointeur & touchez n\'importe où'));
+    const instructions = createEl('div', 'socrate-instructions', localize('ui.easter.instructions'));
+    instructions.setAttribute('aria-hidden', 'true');
+    overlay.appendChild(instructions);
   }
 
   container.appendChild(overlay);
@@ -515,6 +556,12 @@ export function launchSocrateRulesEasterEgg(targetRoot: OverlayRoot): () => void
       cleanup();
       return;
     }
+    if (e.key === 'Tab') {
+      // Rien d'autre à atteindre dans l'overlay : le focus y reste (dialogue modal).
+      e.preventDefault();
+      overlay.focus({ preventScroll: true });
+      return;
+    }
     if (isEditableTarget(e) || hasCommandModifier(e)) return;
     if (e.key === 'Escape') {
       cleanup();
@@ -560,7 +607,9 @@ export function launchSocrateRulesEasterEgg(targetRoot: OverlayRoot): () => void
     window.removeEventListener('resize', onResize);
     window.removeEventListener('keydown', onKeyDown);
     activeOverlays.delete(overlay);
+    const hadFocus = overlay.contains(deepActiveElement());
     overlay.remove();
+    if (hadFocus && returnFocusTo?.isConnected) returnFocusTo.focus({ preventScroll: true });
   }
 
   activeOverlays.set(overlay, cleanup);

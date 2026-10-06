@@ -116,6 +116,23 @@ describe('labelPoint / poleOfInaccessibility (F124)', () => {
     expect(PolygonUtils.labelPoint([])).toEqual({ x: 0, y: 0 });
     expect(PolygonUtils.poleOfInaccessibility([{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 2, y: 0 }]).distance).toBe(0);
   });
+
+  it('polygone en lame (SVG importé) : réponse immédiate, sans millions de cellules', () => {
+    const t0 = Date.now();
+    for (const thickness of [1e-3, 1e-6, 1e-9]) {
+      const sliver = [{ x: 0, y: 0 }, { x: 10, y: thickness / 2 }, { x: 0, y: thickness }];
+      const p = PolygonUtils.labelPoint(sliver);
+      expect(Number.isFinite(p.x) && Number.isFinite(p.y)).toBe(true);
+      expect(PolygonUtils.poleOfInaccessibility(sliver).distance).toBeLessThanOrEqual(thickness);
+    }
+    expect(Date.now() - t0).toBeLessThan(1000);
+  });
+
+  it('très grandes coordonnées : étiquette à l’intérieur', () => {
+    const far = rectPoly(1e15, 1e15, 4, 3);
+    const p = PolygonUtils.labelPoint(far);
+    expect(PolygonUtils.containsPoint(p, far, 1)).toBe(true);
+  });
 });
 
 describe('containsPoint / findRoomContainingPoint (F146)', () => {

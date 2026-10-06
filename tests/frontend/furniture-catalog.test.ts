@@ -1,10 +1,14 @@
 import { render } from 'lit';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import {
   FURNITURE_CATALOG, FURNITURE_CATEGORY_LABELS, FURNITURE_FILTER_CATEGORIES, MIN_SYMBOL_DETAIL_PX, SymbolShape,
-  findFurnitureTemplate, furnitureBounds, furnitureDisplayName, furnitureSymbolMarkup, renderFurnitureSymbol
+  canonicalFurnitureName, findFurnitureTemplate, furnitureBounds, furnitureDisplayName, furnitureSymbolMarkup,
+  furnitureSymbolStyles, furnitureTemplateName, renderFurnitureSymbol
 } from '../../src/core/furniture-catalog';
 import { FURNITURE_CATEGORIES } from '../../src/core/types';
+import { hasTranslation, setLanguage } from '../../src/i18n';
+
+afterEach(() => setLanguage('fr'));
 
 const SIZES = [0.05, 0.1, 0.2, 0.35, 0.5, 0.9, 1.6, 2.2, 3.5];
 
@@ -64,6 +68,53 @@ describe('catalogue', () => {
   });
 });
 
+describe('traductions du catalogue (F110)', () => {
+  it('chaque modèle et chaque catégorie a un nom fr et en ; le nom fr est le nom enregistré par défaut', () => {
+    setLanguage('fr');
+    for (const t of FURNITURE_CATALOG) {
+      expect(hasTranslation(`geometry.furniture.${t.type}`, 'fr'), t.type).toBe(true);
+      expect(hasTranslation(`geometry.furniture.${t.type}`, 'en'), t.type).toBe(true);
+      expect(furnitureTemplateName(t.type)).toBe(t.name);
+    }
+    for (const c of FURNITURE_CATEGORIES) {
+      expect(hasTranslation(`geometry.furniture_category.${c}`, 'fr'), c).toBe(true);
+      expect(hasTranslation(`geometry.furniture_category.${c}`, 'en'), c).toBe(true);
+    }
+  });
+
+  it('noms et catégories suivent la langue courante, à la lecture', () => {
+    setLanguage('en');
+    expect(furnitureTemplateName('sofa_3p')).toBe('3-seat sofa');
+    expect(furnitureTemplateName('inconnu')).toBe('inconnu');
+    expect(FURNITURE_CATEGORY_LABELS.storage).toBe('Storage');
+    expect(Object.keys(FURNITURE_CATEGORY_LABELS).sort()).toEqual([...FURNITURE_CATEGORIES].sort());
+    setLanguage('fr');
+    expect(FURNITURE_CATEGORY_LABELS.storage).toBe('Rangements');
+  });
+
+  it('un nom par défaut (enregistré, ancien ou dans une autre langue) est affiché traduit, un nom choisi reste tel quel', () => {
+    setLanguage('en');
+    expect(furnitureDisplayName({ type: 'sofa_3p', name: 'Canapé 3 places' })).toBe('3-seat sofa');
+    expect(furnitureDisplayName({ type: 'chair_starck', name: 'Chaise Starck (Ghost)' })).toBe('Clear medallion chair');
+    expect(furnitureDisplayName({ type: 'sofa_3p', name: '' })).toBe('3-seat sofa');
+    expect(furnitureDisplayName({ type: 'sofa_3p', name: 'Mon canapé' })).toBe('Mon canapé');
+    setLanguage('fr');
+    expect(furnitureDisplayName({ type: 'sofa_3p', name: '3-seat sofa' })).toBe('Canapé 3 places');
+  });
+
+  it('le nom à enregistrer ne dépend jamais de la langue de l’interface', () => {
+    for (const lang of ['fr', 'en']) {
+      setLanguage(lang);
+      expect(canonicalFurnitureName({ type: 'sofa_3p', name: '3-seat sofa' })).toBe('Canapé 3 places');
+      expect(canonicalFurnitureName({ type: 'sofa_3p', name: 'Canapé 3 places' })).toBe('Canapé 3 places');
+      expect(canonicalFurnitureName({ type: 'chair_starck', name: 'Chaise Starck (Ghost)' })).toBe('Chaise médaillon transparente');
+      expect(canonicalFurnitureName({ type: 'sofa_3p', name: '' })).toBe('Canapé 3 places');
+      expect(canonicalFurnitureName({ type: 'sofa_3p', name: 'Mon canapé' })).toBe('Mon canapé');
+      expect(canonicalFurnitureName({ type: 'inconnu', name: '' })).toBe('inconnu');
+    }
+  });
+});
+
 describe('primitives en mètres (F139)', () => {
   it('dimensions finies et jamais négatives, à toutes les tailles', () => {
     for (const t of FURNITURE_CATALOG) {
@@ -73,6 +124,24 @@ describe('primitives en mètres (F139)', () => {
             for (const v of numbers(shape)) expect(Number.isFinite(v), `${t.type} ${w}×${l}`).toBe(true);
             for (const v of sizes(shape)) expect(v, `${t.type} ${w}×${l} ${shape.kind}`).toBeGreaterThanOrEqual(0);
             if (shape.kind === 'rect') expect(shape.r ?? 0).toBeLessThanOrEqual(Math.min(shape.w, shape.h) / 2 + 1e-12);
+          }
+        }
+      }
+    }
+  });
+
+  it('meubles rembourrés très petits : dossier et accoudoirs restent dans l’emprise', () => {
+    for (const type of ['sofa_3p', 'sofa_2p', 'divan', 'divan_right', 'armchair']) {
+      const t = findFurnitureTemplate(type);
+      for (const w of SIZES) {
+        for (const l of SIZES) {
+          for (const s of t?.shapes(w, l) ?? []) {
+            if (s.kind !== 'rect') continue;
+            const where = `${type} ${w}×${l}`;
+            expect(s.x, where).toBeGreaterThanOrEqual(-w / 2 - 1e-9);
+            expect(s.x + s.w, where).toBeLessThanOrEqual(w / 2 + 1e-9);
+            expect(s.y, where).toBeGreaterThanOrEqual(-l / 2 - 1e-9);
+            expect(s.y + s.h, where).toBeLessThanOrEqual(l / 2 + 1e-9);
           }
         }
       }
@@ -148,9 +217,22 @@ describe('rendu SVG (markup)', () => {
     expect(root.querySelector('text')?.textContent).toBe('<b>&"');
   });
 
+  it('type inconnu sans icône : 📦 comme l’ancien rendu du canevas ; pas d’icône sous MIN_SYMBOL_DETAIL_PX', () => {
+    const root = renderToSvg(furnitureSymbolMarkup({ type: 'inconnu', width: 1, length: 1 }, { pixelsPerMeter: 50 }));
+    expect(root.querySelector('text')?.textContent).toBe('📦');
+    const tiny = renderToSvg(furnitureSymbolMarkup({ type: 'inconnu', width: 0.1, length: 0.1 }, { pixelsPerMeter: 50 }));
+    expect(tiny.querySelector('text')).toBeNull();
+  });
+
   it('couleur échappée dans le balisage', () => {
     const markup = furnitureSymbolMarkup({ type: 'fridge', color: '"/><script>' }, { pixelsPerMeter: 50 });
     expect(markup).not.toContain('<script>');
+  });
+
+  it('SVG exporté autonome : couleurs littérales, aucun jeton CSS', () => {
+    for (const t of FURNITURE_CATALOG) {
+      expect(furnitureSymbolMarkup({ type: t.type }, { pixelsPerMeter: 50, selected: true })).not.toContain('var(');
+    }
   });
 });
 
@@ -165,6 +247,26 @@ describe('rendu Lit', () => {
     expect(host.querySelector('rect')?.getAttribute('stroke-dasharray')).toBeNull();
   });
 
+  it('couleurs thémables : jeton --arch-furniture-* avec la couleur sombre en repli (F56, F169)', () => {
+    const host = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    render(renderFurnitureSymbol({ type: 'bed_double' }, { pixelsPerMeter: 50 }), host);
+    const style = host.querySelector('rect')?.getAttribute('style') ?? '';
+    expect(style).toContain('fill: var(--arch-furniture-fill, rgba(30, 41, 59, 0.85))');
+    expect(style).toContain('stroke: var(--arch-furniture-stroke, #94a3b8)');
+    const cssText = furnitureSymbolStyles.cssText;
+    expect(cssText).toContain('--arch-furniture-fill: var(--ha-arch-furniture-fill, rgba(30, 41, 59, 0.85));');
+    expect(cssText).toContain(":host([scheme='light'])");
+  });
+
+  it('couleur propre au meuble conservée, valeur non sûre ignorée dans le style', () => {
+    const host = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    render(renderFurnitureSymbol({ type: 'bed_double', color: '#a855f7' }, { pixelsPerMeter: 50 }), host);
+    expect(host.querySelector('rect')?.getAttribute('style')).toContain('fill: #a855f7;');
+    const unsafe = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    render(renderFurnitureSymbol({ type: 'bed_double', color: 'red; background: url(x)' }, { pixelsPerMeter: 50 }), unsafe);
+    expect(unsafe.querySelector('rect')?.getAttribute('style')).toContain('fill: var(--arch-furniture-fill,');
+  });
+
   it('ancienne signature renderSvg(wPx, lPx, sélection) : contour aux dimensions en pixels, sans valeur négative', () => {
     const sink = findFurnitureTemplate('kitchen_sink');
     for (const [w, l] of [[50, 30], [20, 12], [140, 30], [8, 5]]) {
@@ -173,7 +275,7 @@ describe('rendu Lit', () => {
       const outline = host.querySelector('rect');
       expect(Number(outline?.getAttribute('width'))).toBeCloseTo(w, 1);
       expect(Number(outline?.getAttribute('height'))).toBeCloseTo(l, 1);
-      expect(outline?.getAttribute('stroke')).toBe('#38bdf8');
+      expect(outline?.getAttribute('style')).toContain('stroke: var(--arch-furniture-selected, #38bdf8)');
       host.querySelectorAll('rect, ellipse').forEach(el => {
         for (const a of ['width', 'height', 'rx', 'ry']) {
           const v = el.getAttribute(a);

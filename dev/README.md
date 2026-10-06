@@ -8,7 +8,7 @@ instance réelle. Le rechargement de la page remet toutes les données simulées
 
 | Élément | Comportement |
 |---|---|
-| Commandes WebSocket | `list_projects`, `get_project`, `get_projects` (déprécié), `save_project` (mêmes règles que le backend : sans `expected_revision` le projet ne doit pas exister, sinon conflit `conflict:<rev>` sauf `force` ; 100 projets au plus ; champs serveur et clés `_*` ignorés ; limite 2 Mio ; data-URL de fond extraite en asset ; image d'un autre projet copiée lors d'un « Enregistrer sous » et `asset_id` renvoyé ; images non référencées conservées 24 h), `delete_project` (`removed_files`), `publish_svg` (assainissement approximatif, `<image>` retirées sans `include_background`, limite 3,5 Mio), `unpublish` (`removed_files`, ancien fichier www compris), `check_updates`, `subscribe_project`. Commande inconnue : `unknown_command`. |
+| Commandes WebSocket | `list_projects`, `get_project`, `get_projects` (déprécié), `save_project` (mêmes règles que le backend : sans `expected_revision` le projet ne doit pas exister, sinon conflit `conflict:<rev>` sauf `force` ; 100 projets au plus ; champs serveur et clés `_*` ignorés ; limite 2 Mio ; data-URL de fond extraite en asset ; image d'un autre projet copiée lors d'un « Enregistrer sous » et `asset_id` renvoyé ; images non référencées conservées 24 h), `delete_project` (`removed_files`), `publish_svg` (assainissement approximatif : `<image>` retirées sans `include_background`, sinon limitées à une data-URL raster ou à un SVG imbriqué assaini à son tour ; limite 3,5 Mio), `unpublish` (`removed_files`, ancien fichier www compris), `save_svg_to_www` (commande dépréciée des frontends 1.0.x : nom `plan_<id>.svg` uniquement, SVG assaini, crée l'ancien fichier www simulé), `check_updates`, `subscribe_project`. Commande inconnue : `unknown_command`. |
 | Droits | Case **Administrateur** : sans elle, les commandes d'écriture renvoient `unauthorized` et le téléversement HTTP 403. |
 | `fetchWithAuth` | `POST /api/home_architect/background/{project_id}` (types, 12 Mio, 403/413/415) et `GET …/{project_id}/{asset_id}` ; les images restent en mémoire. |
 | Publication | Le SVG publié est servi par le serveur Vite sous `/api/home_architect/published/<fichier>.svg?v=<hash>` avec les en-têtes du backend (CSP, `nosniff`, `ETag`). Le projet `rdc` simule un ancien fichier `/local/plan_rdc.svg` (`legacy_path`). |
@@ -21,6 +21,10 @@ Les données de démonstration (`fixtures.ts`) comprennent une quarantaine d'ent
 RGB, prises, porte de garage, serrures, thermostats, capteurs °C et °F, capteurs de porte et de
 mouvement, lecteurs multimédia, caméra, scènes, script, boutons, une entité `unavailable`…) et deux
 plans : `rdc` (ancien identifiant de niveau) et `plan_etage001` (avec une image de fond en asset).
+
+Dans l'onglet **Carte**, le bouton **Éditeur visuel** ouvre l'éditeur de la carte tel que Home
+Assistant l'obtient (`getConfigElement()`, qui lui fournit la validation de la hauteur) : il modifie
+la première carte du YAML, réécrit celui-ci et recrée les cartes à chaque changement.
 
 Le journal en bas de page liste les appels WebSocket, HTTP et services ainsi que les événements
 émis par les composants (`hass-more-info` ouvre une fenêtre d'état simplifiée).

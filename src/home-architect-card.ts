@@ -9,6 +9,12 @@ import {
   ProjectSummary, fetchBackgroundObjectUrl, getProject, listProjects, releaseBackgroundObjectUrl,
   subscribeProject, toHaApiError
 } from './core/ha-api';
+import { LANGUAGE_CHANGED_KEY, LocalizeController, formatNumber, localize, setLanguage } from './i18n/index';
+import './i18n/locales/card';
+import { applyColorScheme, uiThemeStyles } from './styles/theme.styles';
+
+/** Palette du dessin : 'auto' suit le mode sombre de Home Assistant (constat F56). */
+export type CardTheme = 'auto' | 'light' | 'dark';
 
 /** Configuration YAML de la carte, telle que saisie dans le tableau de bord. */
 export interface HomeArchitectCardConfig {
@@ -20,6 +26,11 @@ export interface HomeArchitectCardConfig {
   show_header?: boolean;
   show_dimensions?: boolean;
   show_heatmap?: boolean;
+  /** Commandes de la vue (zoom, rotation, 2D/3D) dessinées sur le plan (constat F126). */
+  show_controls?: boolean;
+  /** Animations des entités (mouvement, ventilateurs, lecture) ; false pour les tablettes murales (constat F133). */
+  animations?: boolean;
+  theme?: CardTheme;
   /** Clés gérées par Home Assistant ou des modules tiers (grid_options, card_mod…), conservées telles quelles. */
   [key: string]: unknown;
 }
@@ -36,6 +47,9 @@ export interface NormalizedCardConfig {
   showDimensions: boolean;
   /** Absent : préférence enregistrée dans le plan. */
   showHeatmap?: boolean;
+  showControls: boolean;
+  animations: boolean;
+  theme: CardTheme;
 }
 
 export const DEFAULT_CARD_HEIGHT_PX = 480;
@@ -51,8 +65,29 @@ const RETRY_DELAYS_MS = [5_000, 15_000, 30_000, 60_000];
 /** Nombre de plans listés dans le message « plan introuvable ». */
 const MAX_LISTED_PROJECTS = 8;
 
+const CARD_THEMES: readonly CardTheme[] = ['auto', 'light', 'dark'];
+
 const LENGTH_WITH_UNIT = /^(\d+(?:\.\d+)?|\.\d+)([a-z%]+)$/i;
 const PLAIN_NUMBER = /^(\d+(?:\.\d+)?|\.\d+)$/;
+
+/**
+ * Langue des textes produits sans hass (erreurs de setConfig, appelé avant que HA ne transmette hass ;
+ * description du sélecteur de cartes) : celle de l'interface Home Assistant (hass de l'élément racine
+ * <home-assistant>), sinon l'attribut lang de la page, que HA aligne sur hass.language une fois
+ * l'interface chargée. `browserFallback` : à défaut, langue du navigateur (évaluation du module,
+ * qui peut précéder l'initialisation de l'interface). Corrigée par willUpdate dès que hass arrive.
+ */
+function syncLanguageWithoutHass(browserFallback = false): void {
+  if (typeof document === 'undefined') return;
+  const root = document.querySelector('home-assistant') as { hass?: { language?: unknown } } | null;
+  const rootLanguage = root?.hass?.language;
+  const language = typeof rootLanguage === 'string' && rootLanguage !== ''
+    ? rootLanguage
+    : document.documentElement.lang || (browserFallback && typeof navigator !== 'undefined' ? navigator.language : '');
+  if (language) setLanguage(language);
+}
+
+syncLanguageWithoutHass(true);
 
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -80,27 +115,27 @@ export function parseCardHeight(value: unknown): string | undefined {
   if (value === undefined || value === null) return undefined;
   if (typeof value === 'number') {
     if (Number.isFinite(value) && value > 0) return `${value}px`;
-    throw new Error(`height invalide : ${value} (nombre de pixels supérieur à 0 attendu).`);
+    throw new Error(localize('card.config.height_number_invalid', { value: String(value) }));
   }
   if (typeof value !== 'string') {
-    throw new Error('height doit être un nombre de pixels ou une longueur CSS (ex. 480, 480px, 60vh).');
+    throw new Error(localize('card.config.height_type'));
   }
   const text = value.trim();
   if (text === '') return undefined;
   if (PLAIN_NUMBER.test(text)) {
     // « 0 » est une longueur CSS valide (CSS.supports l'accepte) mais effondrerait la carte.
     if (Number(text) > 0) return `${Number(text)}px`;
-    throw new Error(`height invalide : « ${text} » (nombre de pixels supérieur à 0 attendu).`);
+    throw new Error(localize('card.config.height_not_positive', { value: text }));
   }
   if (isCssLength(text)) return text;
-  throw new Error(`height invalide : « ${text} » (exemples valides : 480, 480px, 60vh, calc(100vh - 200px)).`);
+  throw new Error(localize('card.config.height_invalid', { value: text }));
 }
 
 function parseProjectId(value: unknown): string | undefined {
   if (value === undefined || value === null || value === '') return undefined;
   const id = typeof value === 'number' && Number.isInteger(value) ? String(value) : value;
   if (typeof id !== 'string' || !PROJECT_ID_PATTERN.test(id.trim())) {
-    throw new Error(`project_id invalide : « ${displayValue(value)} » (lettres, chiffres, « _ » et « - », 64 caractères au plus).`);
+    throw new Error(localize('card.config.project_id_invalid', { value: displayValue(value) }));
   }
   return id.trim();
 }
@@ -108,7 +143,7 @@ function parseProjectId(value: unknown): string | undefined {
 function parseTitle(value: unknown): string | undefined {
   if (value === undefined || value === null) return undefined;
   if (typeof value === 'number') return String(value);
-  if (typeof value !== 'string') throw new Error('title doit être un texte.');
+  if (typeof value !== 'string') throw new Error(localize('card.config.title_type'));
   return value.trim() === '' ? undefined : value;
 }
 
@@ -116,19 +151,27 @@ function parseViewMode(value: unknown): '2d' | '3d' {
   if (value === undefined || value === null || value === '') return '2d';
   const mode = typeof value === 'string' ? value.trim().toLowerCase() : value;
   if (mode === '2d' || mode === '3d') return mode;
-  throw new Error(`view_mode invalide : « ${displayValue(value)} » (valeurs possibles : 2d, 3d).`);
+  throw new Error(localize('card.config.view_mode_invalid', { value: displayValue(value) }));
+}
+
+function parseTheme(value: unknown): CardTheme {
+  if (value === undefined || value === null || value === '') return 'auto';
+  const theme = typeof value === 'string' ? value.trim().toLowerCase() : value;
+  const known = CARD_THEMES.find(t => t === theme);
+  if (known) return known;
+  throw new Error(localize('card.config.theme_invalid', { value: displayValue(value) }));
 }
 
 function parseBoolean(config: Record<string, unknown>, key: string): boolean | undefined {
   const value = config[key];
   if (value === undefined || value === null) return undefined;
   if (typeof value === 'boolean') return value;
-  throw new Error(`${key} doit valoir true ou false.`);
+  throw new Error(localize('card.config.boolean_type', { key }));
 }
 
 /** Valide la configuration YAML de la carte ; lève une Error lisible (affichée par HA) si elle est invalide. */
 export function normalizeCardConfig(raw: unknown): NormalizedCardConfig {
-  if (!isRecord(raw)) throw new Error('Configuration invalide : un objet YAML est attendu.');
+  if (!isRecord(raw)) throw new Error(localize('card.config.not_object'));
   return {
     projectId: parseProjectId(raw.project_id),
     title: parseTitle(raw.title),
@@ -137,6 +180,9 @@ export function normalizeCardConfig(raw: unknown): NormalizedCardConfig {
     showHeader: parseBoolean(raw, 'show_header') ?? true,
     showDimensions: parseBoolean(raw, 'show_dimensions') ?? false,
     showHeatmap: parseBoolean(raw, 'show_heatmap'),
+    showControls: parseBoolean(raw, 'show_controls') ?? true,
+    animations: parseBoolean(raw, 'animations') ?? true,
+    theme: parseTheme(raw.theme),
   };
 }
 
@@ -176,7 +222,7 @@ interface BackgroundRequest {
 }
 
 export class HomeArchitectCard extends LitElement {
-  static styles = css`
+  static styles = [uiThemeStyles, css`
     :host {
       display: block;
     }
@@ -201,13 +247,14 @@ export class HomeArchitectCard extends LitElement {
       min-height: 200px;
     }
 
-    /* Repli hors de Home Assistant (ha-card non défini) : mêmes variables de thème. */
+    /* Repli hors de Home Assistant (ha-card non défini) : mêmes variables que ha-card, puis jetons du thème. */
     ha-card:not(:defined) {
-      background: var(--ha-card-background, var(--card-background-color, #fff));
-      border: var(--ha-card-border-width, 1px) solid var(--ha-card-border-color, var(--divider-color, #e0e0e0));
-      border-radius: var(--ha-card-border-radius, 12px);
+      background: var(--ha-card-background, var(--arch-ui-surface));
+      border: var(--ha-card-border-width, 1px) solid var(--ha-card-border-color, var(--arch-ui-border));
+      border-radius: var(--arch-ui-radius);
       box-shadow: var(--ha-card-box-shadow, none);
-      color: var(--primary-text-color);
+      color: var(--arch-ui-text);
+      font-family: var(--arch-ui-font);
     }
 
     .card-header {
@@ -217,9 +264,10 @@ export class HomeArchitectCard extends LitElement {
       justify-content: space-between;
       gap: 12px;
       min-height: 48px;
-      padding: 6px 12px 6px 16px;
+      padding-block: 6px;
+      padding-inline: 16px 12px;
       box-sizing: border-box;
-      border-bottom: 1px solid var(--divider-color, rgba(0, 0, 0, 0.12));
+      border-bottom: 1px solid var(--arch-ui-border);
     }
 
     .card-title {
@@ -231,13 +279,13 @@ export class HomeArchitectCard extends LitElement {
       font-size: 1.1rem;
       font-weight: 500;
       line-height: 1.4;
-      color: var(--ha-card-header-color, var(--primary-text-color));
+      color: var(--ha-card-header-color, var(--arch-ui-text));
     }
 
     .view-toggle {
       flex: none;
       display: inline-flex;
-      border: 1px solid var(--divider-color, rgba(0, 0, 0, 0.12));
+      border: 1px solid var(--arch-ui-border);
       border-radius: 18px;
       overflow: hidden;
     }
@@ -248,21 +296,28 @@ export class HomeArchitectCard extends LitElement {
       padding: 0 12px;
       border: none;
       background: transparent;
-      color: var(--secondary-text-color);
+      color: var(--arch-ui-text-muted);
       font: inherit;
       font-size: 0.85rem;
       font-weight: 500;
       cursor: pointer;
     }
 
-    .view-toggle button[aria-pressed='true'] {
-      background: var(--primary-color);
-      color: var(--text-primary-color, #fff);
+    /* Anneau intérieur : le conteneur arrondi (overflow: hidden) rognerait un anneau extérieur. */
+    .view-toggle button:focus-visible {
+      outline: 2px solid var(--arch-ui-accent);
+      outline-offset: -2px;
+      box-shadow: none;
     }
 
-    .view-toggle button:focus-visible {
-      outline: 2px solid var(--primary-color);
-      outline-offset: -2px;
+    /* Vue active : texte principal sur fond secondaire (contraste suffisant quelle que soit la couleur
+       primaire du thème), soulignée par la couleur primaire. Déclarée après :focus-visible pour garder
+       le soulignement sur le bouton actif ciblé au clavier. */
+    .view-toggle button[aria-pressed='true'] {
+      background: var(--arch-ui-surface-2);
+      color: var(--arch-ui-text);
+      font-weight: 700;
+      box-shadow: inset 0 -3px 0 var(--arch-ui-accent);
     }
 
     .content {
@@ -286,7 +341,7 @@ export class HomeArchitectCard extends LitElement {
       justify-content: center;
       gap: 8px;
       padding: 16px;
-      color: var(--primary-text-color);
+      color: var(--arch-ui-text);
     }
 
     .message p,
@@ -295,25 +350,25 @@ export class HomeArchitectCard extends LitElement {
     }
 
     .message ul {
-      padding-left: 20px;
+      padding-inline-start: 20px;
     }
 
     .message code {
-      font-family: var(--code-font-family, monospace);
+      font-family: var(--ha-font-family-code, var(--code-font-family, monospace));
     }
 
     .loading {
       align-items: center;
       flex-direction: row;
       justify-content: center;
-      color: var(--secondary-text-color);
+      color: var(--arch-ui-text-muted);
     }
 
     .spinner {
       width: 18px;
       height: 18px;
-      border: 2px solid var(--divider-color, rgba(0, 0, 0, 0.12));
-      border-top-color: var(--primary-color);
+      border: 2px solid var(--arch-ui-border);
+      border-top-color: var(--arch-ui-accent);
       border-radius: 50%;
       animation: spin 0.9s linear infinite;
     }
@@ -334,13 +389,14 @@ export class HomeArchitectCard extends LitElement {
     ha-alert:not(:defined) {
       display: block;
       padding: 8px 12px;
-      border-left: 4px solid var(--warning-color, #ffa600);
+      border-inline-start: 4px solid var(--arch-ui-warning);
       border-radius: 4px;
-      background: var(--secondary-background-color, rgba(0, 0, 0, 0.04));
+      background: var(--arch-ui-surface-2);
+      color: var(--arch-ui-text);
     }
 
     ha-alert[alert-type='error']:not(:defined) {
-      border-left-color: var(--error-color, #db4437);
+      border-inline-start-color: var(--arch-ui-danger);
     }
 
     .stale {
@@ -351,24 +407,30 @@ export class HomeArchitectCard extends LitElement {
       z-index: 1;
     }
 
+    /* Texte principal (et non la couleur primaire, souvent trop claire pour du texte) ; bordure primaire. */
     .retry {
       align-self: flex-start;
       min-height: 36px;
       padding: 0 16px;
-      border: 1px solid var(--primary-color);
+      border: 1px solid var(--arch-ui-accent);
       border-radius: 18px;
       background: transparent;
-      color: var(--primary-color);
+      color: var(--arch-ui-text);
       font: inherit;
       font-weight: 500;
       cursor: pointer;
     }
 
-    .retry:focus-visible {
-      outline: 2px solid var(--primary-color);
-      outline-offset: 2px;
+    .retry:hover {
+      background: var(--arch-ui-surface-2);
     }
-  `;
+
+    .retry:focus-visible {
+      outline: 2px solid var(--arch-ui-accent);
+      outline-offset: 2px;
+      box-shadow: none;
+    }
+  `];
 
   @property({ attribute: false })
   public hass?: any;
@@ -417,6 +479,8 @@ export class HomeArchitectCard extends LitElement {
   private _retryCount = 0;
   private _entityIdsSource?: HomeArchitectProject;
   private _entityIdsCache: string[] = [];
+  /** Nouveau rendu au changement de langue (clé LANGUAGE_CHANGED_KEY). */
+  private readonly _i18n = new LocalizeController(this);
 
   /** Configuration proposée par le sélecteur de cartes : le premier plan enregistré. */
   public static async getStubConfig(hass: unknown): Promise<Partial<HomeArchitectCardConfig>> {
@@ -440,6 +504,8 @@ export class HomeArchitectCard extends LitElement {
   }
 
   public setConfig(config: HomeArchitectCardConfig): void {
+    // HA appelle setConfig avant de transmettre hass : les erreurs levées ici suivent sa langue.
+    if (!this.hass) syncLanguageWithoutHass();
     const next = normalizeCardConfig(config);
     const previous = this._config;
     this._config = next;
@@ -482,6 +548,7 @@ export class HomeArchitectCard extends LitElement {
   }
 
   protected shouldUpdate(changed: PropertyValues): boolean {
+    if (changed.has(LANGUAGE_CHANGED_KEY)) return true;
     if (changed.size !== 1 || !changed.has('hass')) return true;
     const oldHass: any = changed.get('hass');
     const hass = this.hass;
@@ -503,6 +570,11 @@ export class HomeArchitectCard extends LitElement {
     super.willUpdate(changed);
     if (!changed.has('hass') && !changed.has('_config')) return;
     const oldHass: any = changed.get('hass');
+    if (changed.has('hass') && this.hass) {
+      // Racine de l'interface sur le tableau de bord : langue et palette suivent Home Assistant.
+      if (oldHass?.language !== this.hass.language) setLanguage(this.hass.language);
+      if (oldHass?.themes !== this.hass.themes) applyColorScheme(this, this.hass);
+    }
     const reconnected = changed.has('hass') && oldHass?.connected === false && this.hass?.connected !== false;
     // Un abonnement actif est renouvelé par home-assistant-js-websocket : ne pas appeler ici son
     // désabonnement (il viserait l'ancien numéro de commande, réattribué sur la nouvelle connexion).
@@ -751,7 +823,7 @@ export class HomeArchitectCard extends LitElement {
         <div class="content">
           ${project ? this._renderCanvas(project, config) : this._renderMessage()}
           ${project && this._warning
-            ? html`<ha-alert class="stale" alert-type="warning">Plan non actualisé : ${this._warning}</ha-alert>`
+            ? html`<ha-alert class="stale" alert-type="warning">${localize('card.stale', { error: this._warning })}</ha-alert>`
             : nothing}
         </div>
       </ha-card>
@@ -759,13 +831,15 @@ export class HomeArchitectCard extends LitElement {
   }
 
   private _renderHeader(title: string | undefined, showToggle: boolean): TemplateResult {
+    const label2d = localize('card.header.view_2d');
+    const label3d = localize('card.header.view_3d');
     return html`
       <div class="card-header">
         <h2 class="card-title">${title ?? 'Home Architect'}</h2>
         ${showToggle ? html`
-          <div class="view-toggle" role="group" aria-label="Mode d'affichage du plan">
-            <button type="button" aria-pressed=${String(!this._is3DMode)} title="Vue en plan 2D" @click=${() => this._setViewMode(false)}>2D</button>
-            <button type="button" aria-pressed=${String(this._is3DMode)} title="Vue 3D isométrique" @click=${() => this._setViewMode(true)}>3D</button>
+          <div class="view-toggle" role="group" aria-label=${localize('card.header.view_mode')}>
+            <button type="button" aria-pressed=${String(!this._is3DMode)} aria-label=${label2d} title=${label2d} @click=${() => this._setViewMode(false)}>2D</button>
+            <button type="button" aria-pressed=${String(this._is3DMode)} aria-label=${label3d} title=${label3d} @click=${() => this._setViewMode(true)}>3D</button>
           </div>
         ` : nothing}
       </div>
@@ -785,6 +859,9 @@ export class HomeArchitectCard extends LitElement {
         .readOnly=${true}
         .showDimensions=${config.showDimensions}
         .showThermalHeatmap=${config.showHeatmap ?? project.showThermalHeatmap ?? false}
+        .showControls=${config.showControls}
+        .animations=${config.animations}
+        .theme=${config.theme}
         .backgroundSrc=${this._backgroundSrc}
         @toggle-3d=${this._onToggle3d}
       ></home-architect-canvas>
@@ -799,23 +876,23 @@ export class HomeArchitectCard extends LitElement {
       case 'deleted':
         return html`
           <div class="message">
-            <ha-alert alert-type="warning">Le plan « ${projectId} » a été supprimé.</ha-alert>
-            <p>Choisissez un autre plan dans l'éditeur de la carte.</p>
+            <ha-alert alert-type="warning">${localize('card.deleted', { id: projectId })}</ha-alert>
+            <p>${localize('card.choose_other')}</p>
           </div>
         `;
       case 'error':
         return html`
           <div class="message">
-            <ha-alert alert-type="error">Impossible de charger le plan « ${projectId} » : ${this._error}</ha-alert>
-            <p>Nouvel essai automatique dans quelques instants.</p>
-            <button type="button" class="retry" @click=${this._retry}>Réessayer</button>
+            <ha-alert alert-type="error">${localize('card.load_error', { id: projectId, error: this._error ?? '' })}</ha-alert>
+            <p>${localize('card.retry_soon')}</p>
+            <button type="button" class="retry" @click=${this._retry}>${localize('card.retry')}</button>
           </div>
         `;
       default:
         return html`
           <div class="message loading" role="status">
             <span class="spinner" aria-hidden="true"></span>
-            <span>Chargement du plan…</span>
+            <span>${localize('card.loading')}</span>
           </div>
         `;
     }
@@ -824,27 +901,25 @@ export class HomeArchitectCard extends LitElement {
   private _renderNotFound(projectId: string): TemplateResult {
     const explicit = this._config?.projectId !== undefined;
     const available = this._available;
-    const refreshHint = this._liveUnsupported
-      ? 'puis rechargez la page'
-      : "la carte s'actualisera d'elle-même";
+    const refresh = localize(this._liveUnsupported ? 'card.not_found.refresh_reload' : 'card.not_found.refresh_live');
     return html`
       <div class="message">
         <ha-alert alert-type="warning">
-          ${explicit ? `Plan « ${projectId} » introuvable sur le serveur.` : "Aucun plan n'est sélectionné pour cette carte."}
+          ${explicit ? localize('card.not_found.title', { id: projectId }) : localize('card.not_found.none_selected')}
         </ha-alert>
         <p>
-          ${explicit
-            ? `S'il vient d'être dessiné, enregistrez-le depuis le studio Home Architect (${refreshHint}) ; sinon, choisissez un autre plan dans l'éditeur de la carte.`
-            : "Choisissez un plan dans l'éditeur de la carte (option project_id)."}
+          ${explicit ? localize('card.not_found.hint', { refresh }) : localize('card.not_found.choose')}
         </p>
         ${available === undefined ? nothing : available.length === 0
-          ? html`<p>Aucun plan n'est encore enregistré.</p>`
+          ? html`<p>${localize('card.not_found.no_projects')}</p>`
           : html`
-            <p>Plans disponibles :</p>
+            <p>${localize('card.not_found.available')}</p>
             <ul>
               ${available.slice(0, MAX_LISTED_PROJECTS).map(p => html`<li><code>${p.id}</code> — ${p.name}</li>`)}
             </ul>
-            ${available.length > MAX_LISTED_PROJECTS ? html`<p>… et ${available.length - MAX_LISTED_PROJECTS} autre(s).</p>` : nothing}
+            ${available.length > MAX_LISTED_PROJECTS
+              ? html`<p>${localize('card.not_found.more', { count: formatNumber(available.length - MAX_LISTED_PROJECTS) })}</p>`
+              : nothing}
           `}
       </div>
     `;
@@ -871,13 +946,18 @@ declare global {
 }
 
 // Sélecteur de cartes de Lovelace. Le bundle peut être évalué deux fois (page restée ouverte
-// pendant une mise à jour) : la carte n'est déclarée qu'une fois.
+// pendant une mise à jour) : la carte n'est déclarée qu'une fois. La description est lue par le
+// sélecteur à son ouverture : l'accesseur la traduit dans la langue de l'interface à ce moment
+// (aucune carte Home Architect n'a forcément encore reçu hass).
 const customCards = (window.customCards ??= []);
 if (!customCards.some(card => card?.type === 'home-architect-card')) {
   customCards.push({
     type: 'home-architect-card',
     name: 'Home Architect Card',
-    description: 'Affichez votre plan de maison interactif 2D/3D avec états des entités en temps réel.',
+    get description() {
+      syncLanguageWithoutHass();
+      return localize('card.picker.description');
+    },
     preview: true,
     documentationURL: DOCUMENTATION_URL,
   });

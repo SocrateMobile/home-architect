@@ -16,6 +16,7 @@ from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 
+from .assets import LEGACY_WWW_FILENAME_RE
 from .const import (
     MAX_PUBLISH_BYTES,
     PROJECT_ID_PATTERN,
@@ -31,6 +32,10 @@ ERR_NOT_READY = "not_ready"
 ERR_WRITE_FAILED = "write_failed"
 
 PROJECT_ID = vol.All(str, vol.Match(PROJECT_ID_PATTERN))
+SVG_CONTENT = vol.All(str, vol.Length(min=1, max=MAX_PUBLISH_BYTES))
+
+# Commandes dépréciées déjà signalées dans le journal (un avertissement par démarrage)
+_DEPRECATION_LOGGED: set[str] = set()
 
 type _StorageHandler = Callable[
     [HomeAssistant, websocket_api.ActiveConnection, dict[str, Any], HomeArchitectStorage],
@@ -57,6 +62,30 @@ def _with_storage(
             connection.send_error(msg["id"], err.code, str(err))
 
     return wrapper
+
+
+def _reject_oversized_svg(connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> bool:
+    """Refuse `svg_content` au-delà de MAX_PUBLISH_BYTES octets (vol.Length compte des caractères)."""
+    size = len(msg["svg_content"].encode("utf-8"))
+    if size <= MAX_PUBLISH_BYTES:
+        return False
+    connection.send_error(
+        msg["id"], "payload_too_large", f"payload_too_large:{size}:{MAX_PUBLISH_BYTES}"
+    )
+    return True
+
+
+def _log_deprecated_once(command: str, replacement: str) -> None:
+    """Avertit une fois par démarrage qu'un ancien frontend utilise une commande dépréciée."""
+    if command in _DEPRECATION_LOGGED:
+        return
+    _DEPRECATION_LOGGED.add(command)
+    _LOGGER.warning(
+        "The %s WebSocket command is deprecated (kept for compatibility): it is sent by a Home "
+        "Architect page loaded before the update; reload that page, which uses %s instead",
+        command,
+        replacement,
+    )
 
 
 @websocket_api.websocket_command({vol.Required("type"): "home_architect/list_projects"})
@@ -156,7 +185,7 @@ async def ws_delete_project(
     {
         vol.Required("type"): "home_architect/publish_svg",
         vol.Required("project_id"): PROJECT_ID,
-        vol.Required("svg_content"): vol.All(str, vol.Length(min=1, max=MAX_PUBLISH_BYTES)),
+        vol.Required("svg_content"): SVG_CONTENT,
         vol.Optional("include_background", default=False): bool,
     }
 )
@@ -169,11 +198,7 @@ async def ws_publish_svg(
     storage: HomeArchitectStorage,
 ) -> None:
     """Publie le plan (SVG assaini) sur une URL publique non devinable."""
-    size = len(msg["svg_content"].encode("utf-8"))
-    if size > MAX_PUBLISH_BYTES:
-        connection.send_error(
-            msg["id"], "payload_too_large", f"payload_too_large:{size}:{MAX_PUBLISH_BYTES}"
-        )
+    if _reject_oversized_svg(connection, msg):
         return
     try:
         info = await storage.async_publish_svg(
@@ -213,8 +238,9 @@ async def ws_unpublish(
 @websocket_api.websocket_command(
     {
         vol.Required("type"): "home_architect/save_svg_to_www",
-        vol.Required("filename"): str,
-        vol.Required("svg_content"): vol.All(str, vol.Length(min=1, max=MAX_PUBLISH_BYTES)),
+        # Ancien format uniquement (plan_<project_id>.svg) : aucun autre fichier de www/
+        vol.Required("filename"): vol.All(str, vol.Match(LEGACY_WWW_FILENAME_RE)),
+        vol.Required("svg_content"): SVG_CONTENT,
     }
 )
 @websocket_api.async_response
@@ -225,11 +251,19 @@ async def ws_save_svg_to_www(
     msg: dict[str, Any],
     storage: HomeArchitectStorage,
 ) -> None:
-    """Enregistre le SVG assaini directement dans /config/www/ pour Lovelace."""
+    """Dépréciée (frontends 1.0.x) : écrit le plan assaini dans /config/www/plan_<id>.svg.
+
+    Conservée pour les pages restées ouvertes sur un ancien frontend ; remplacée par publish_svg.
+    """
+    _log_deprecated_once("home_architect/save_svg_to_www", "home_architect/publish_svg")
+    if _reject_oversized_svg(connection, msg):
+        return
+    # plan_<project_id>.svg (format garanti par le schéma)
+    project_id = msg["filename"].removeprefix("plan_").removesuffix(".svg")
     try:
-        path = await storage.async_save_svg_to_www(msg["filename"], msg["svg_content"])
-    except (InvalidSvgError, StorageWriteError) as err:
-        connection.send_error(msg["id"], ERR_WRITE_FAILED, str(err))
+        path = await storage.async_save_svg_to_www(project_id, msg["svg_content"])
+    except StorageWriteError:
+        connection.send_error(msg["id"], ERR_WRITE_FAILED, "Could not write the SVG file")
         return
     connection.send_result(msg["id"], {"success": True, "path": path})
 

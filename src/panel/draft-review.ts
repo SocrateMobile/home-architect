@@ -2,12 +2,15 @@
  * Brouillons locaux à proposer au chargement du studio (constats F2 et F12).
  *
  * Un brouillon (IndexedDB) n'existe que tant que les modifications d'un plan ne sont pas
- * sauvegardées : il est supprimé après chaque sauvegarde réussie. Au démarrage, chaque brouillon
- * est comparé à la version du serveur pour proposer de le restaurer ou de l'envoyer.
+ * sauvegardées : il est supprimé après chaque sauvegarde réussie. Au démarrage, et à l'ouverture
+ * d'un plan, chaque brouillon est comparé à la version du serveur pour proposer de le restaurer
+ * ou de l'envoyer.
  */
 import { Draft } from '../core/drafts';
 import { ProjectSummary } from '../core/ha-api';
-import { HomeArchitectProject } from '../core/types';
+import { HomeArchitectProject, PublishInfo } from '../core/types';
+import { localize } from '../i18n';
+import '../i18n/locales/panel';
 
 /**
  * - `unsaved` : plan jamais sauvegardé ;
@@ -27,36 +30,51 @@ export interface DraftReview {
   status: DraftStatus;
   /** Révision actuelle du serveur, null si le plan n'y existe pas. */
   serverRevision: number | null;
+  /** Publication actuelle du plan sur le serveur (champ serveur, jamais repris du brouillon). */
+  serverPublish?: PublishInfo;
 }
 
-export const DRAFT_STATUS_LABELS: Record<DraftStatus, string> = {
-  unsaved: 'Plan jamais sauvegardé',
-  newer: 'Plus récent que la version du serveur',
-  outdated: 'Basé sur une ancienne version du serveur (conflit possible)',
-  deleted: "Le plan n'existe plus sur le serveur",
-};
+/** État du plan sur le serveur au moment de la comparaison (null : absent du serveur). */
+export interface ServerState {
+  revision: number;
+  publish?: PublishInfo | null;
+}
+
+/** Libellé traduit de l'état d'un brouillon (dialogue des copies locales, constat F110). */
+export function draftStatusLabel(status: DraftStatus): string {
+  return localize(`panel.drafts.status.${status}`);
+}
+
+/** Classe un brouillon par rapport à la version du serveur. */
+export function reviewDraft(draft: Draft, server: ServerState | null): DraftReview {
+  if (!server) {
+    return { draft, status: draft.baseRevision === null ? 'unsaved' : 'deleted', serverRevision: null };
+  }
+  const review: DraftReview = {
+    draft,
+    status: draft.baseRevision === server.revision ? 'newer' : 'outdated',
+    serverRevision: server.revision,
+  };
+  if (server.publish) review.serverPublish = server.publish;
+  return review;
+}
 
 /** Classe chaque brouillon par rapport à la liste du serveur. */
 export function reviewDrafts(drafts: Draft[], summaries: readonly ProjectSummary[]): DraftReview[] {
-  return drafts.map(draft => {
-    const summary = summaries.find(s => s.id === draft.projectId);
-    if (!summary) {
-      return { draft, status: draft.baseRevision === null ? 'unsaved' : 'deleted', serverRevision: null };
-    }
-    const status: DraftStatus = draft.baseRevision === summary.revision ? 'newer' : 'outdated';
-    return { draft, status, serverRevision: summary.revision };
-  });
+  return drafts.map(draft => reviewDraft(draft, summaries.find(s => s.id === draft.projectId) ?? null));
 }
 
 /**
  * Projet à rouvrir depuis un brouillon. Sa révision est celle sur laquelle il a été commencé :
  * la sauvegarde signalera un conflit si le serveur a changé depuis. Une ancienne copie locale
  * (révision inconnue) est traitée comme un nouveau plan, ce qui provoque aussi un conflit si
- * l'identifiant existe déjà sur le serveur.
+ * l'identifiant existe déjà sur le serveur. La publication, possédée par le serveur, est celle
+ * du serveur (la copie du brouillon peut être périmée).
  */
 export function projectFromDraft(review: DraftReview): HomeArchitectProject {
   const project: HomeArchitectProject = { ...review.draft.project };
   delete project.publish;
+  if (review.serverPublish) project.publish = review.serverPublish;
   if (review.draft.baseRevision === null) delete project.revision;
   else project.revision = review.draft.baseRevision;
   return project;
