@@ -1,5 +1,6 @@
 /**
- * Dialogues, bandeaux et écrans d'attente du studio liés à la persistance et aux mises à jour.
+ * Dialogues, bandeaux et écrans d'attente du studio liés à la persistance et aux mises à jour,
+ * et dialogue « À propos » (version, liens de release et de soutien du projet).
  * Rendus avec Lit dans le Shadow DOM du panneau (styles : ./styles.ts et ceux du panneau) ;
  * toutes les données sont interpolées comme texte (aucun innerHTML).
  */
@@ -7,7 +8,18 @@ import { html, nothing, TemplateResult } from 'lit';
 import { getLevelLabel } from '../core/levels';
 import { VERSION } from '../version';
 import { DRAFT_STATUS_LABELS, DraftReview } from './draft-review';
-import { UpdateInfo } from './update-check';
+import { RELEASES_URL, UpdateInfo } from './update-check';
+
+/** Dépôt officiel du projet (documentation, signalement de problèmes). */
+export const REPOSITORY_URL = 'https://github.com/SocrateMobile/home-architect';
+
+/** Page de soutien du projet (Buy Me A Coffee), ouverte dans un nouvel onglet ; aucune image externe chargée. */
+export const SUPPORT_URL = 'https://www.buymeacoffee.com/Socrate';
+
+/** Lien « Soutenir le projet » (style local .support-link). */
+function renderSupportLink(): TemplateResult {
+  return html`<a class="support-link" href=${SUPPORT_URL} target="_blank" rel="noopener noreferrer">☕ Soutenir le projet</a>`;
+}
 
 // --- Dialogue de choix (conflit, confirmation…) ----------------------------------------------------
 
@@ -179,7 +191,10 @@ export function renderUpdateDialog(info: UpdateInfo, dirtyCount: number, handler
           ` : nothing}
         </div>
         <div class="modal-dialog-footer spread">
-          <a class="release-link" href=${info.releaseUrl} target="_blank" rel="noopener noreferrer">🔗 Voir la release</a>
+          <div class="footer-links">
+            <a class="release-link" href=${info.releaseUrl} target="_blank" rel="noopener noreferrer">🔗 Voir la release</a>
+            ${renderSupportLink()}
+          </div>
           <div class="footer-buttons">
             <button class="btn-dialog-cancel" @click=${handlers.onClose}>Fermer</button>
             <button class="btn-dialog-confirm primary" @click=${handlers.onOpenUpdates}>
@@ -187,6 +202,84 @@ export function renderUpdateDialog(info: UpdateInfo, dirtyCount: number, handler
               <span>Ouvrir les mises à jour</span>
             </button>
           </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// --- À propos ------------------------------------------------------------------------------------
+
+export interface AboutDialogOptions {
+  /** Dernière réponse de check_updates (null : inconnue, ou utilisateur non administrateur). */
+  info: UpdateInfo | null;
+  /** L'utilisateur peut installer les mises à jour (administrateur). */
+  canManageUpdates: boolean;
+  onClose: () => void;
+  /** Ouvre la modale de la mise à jour disponible. */
+  onShowUpdate: () => void;
+  /** Ouvre la page des mises à jour de Home Assistant. */
+  onOpenUpdates: () => void;
+}
+
+function renderUpdateStatus(opts: AboutDialogOptions): TemplateResult {
+  const { info } = opts;
+  if (!opts.canManageUpdates) {
+    return html`<p class="dialog-hint">ℹ️ Les mises à jour sont installées par un administrateur depuis Paramètres › Mises à jour.</p>`;
+  }
+  if (!info) {
+    return html`<p class="dialog-hint">ℹ️ État des mises à jour indisponible pour le moment.</p>`;
+  }
+  return html`
+    ${info.available ? html`
+      <div class="about-status update">
+        <span>🚀 Nouvelle version <strong>v${info.latestVersion}</strong> disponible.</span>
+        <button class="btn-dialog-confirm primary" @click=${opts.onShowUpdate}>Voir la mise à jour</button>
+      </div>
+    ` : html`<div class="about-status">✅ Home Architect est à jour.</div>`}
+    ${info.reloadRequired ? html`
+      <p class="dialog-warning">🔁 Une nouvelle version (v${info.installedVersion}) est installée : rechargez la page pour l'utiliser.</p>
+    ` : nothing}
+  `;
+}
+
+/** Dialogue « À propos » : version, état des mises à jour, liens (release, dépôt, soutien du projet). */
+export function renderAboutDialog(opts: AboutDialogOptions): TemplateResult {
+  const releaseUrl = opts.info?.releaseUrl ?? RELEASES_URL;
+  return html`
+    <div class="modal-backdrop" @click=${(e: MouseEvent) => { if (e.target === e.currentTarget) opts.onClose(); }}>
+      <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="about-title">
+        <div class="modal-dialog-header">
+          <div class="modal-dialog-title-group">
+            <span class="modal-dialog-icon">📐</span>
+            <div>
+              <h3 class="modal-dialog-title" id="about-title">Home Architect Studio</h3>
+              <p class="modal-dialog-subtitle">Plans interactifs pour Home Assistant</p>
+            </div>
+          </div>
+          <button class="btn-dialog-close" title="Fermer" @click=${opts.onClose}>✕</button>
+        </div>
+        <div class="modal-dialog-body">
+          <div class="about-version">
+            <span class="version-label">Version du studio</span>
+            <span class="version-value">v${VERSION}</span>
+            ${opts.info?.loadedBundles ? html`<span class="dialog-hint">Chargé dans la page : ${opts.info.loadedBundles}</span>` : nothing}
+          </div>
+          ${renderUpdateStatus(opts)}
+          <div class="about-links">
+            <a class="release-link" href=${releaseUrl} target="_blank" rel="noopener noreferrer">🔗 Notes de version</a>
+            <a class="release-link" href=${REPOSITORY_URL} target="_blank" rel="noopener noreferrer">📘 Documentation et support</a>
+          </div>
+          <div class="about-support">
+            <span class="dialog-hint">Home Architect est développé bénévolement. Si le projet vous est utile :</span>
+            ${renderSupportLink()}
+          </div>
+        </div>
+        <div class="modal-dialog-footer spread">
+          ${opts.canManageUpdates ? html`
+            <button class="btn-dialog-confirm secondary" @click=${opts.onOpenUpdates}>⚙️ Mises à jour de Home Assistant</button>
+          ` : html`<span></span>`}
+          <button class="btn-dialog-cancel" @click=${opts.onClose}>Fermer</button>
         </div>
       </div>
     </div>

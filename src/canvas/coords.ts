@@ -31,8 +31,12 @@ const FIT_MIN_PLAN_PX = 100;
 
 /** Hauteur d'une « ligne » de molette (WheelEvent.DOM_DELTA_LINE), en pixels. */
 const WHEEL_LINE_HEIGHT_PX = 16;
-/** Borne d'un delta de molette par événement (évite un saut de zoom sur une molette à crans rapides). */
+/**
+ * Bornes d'un delta par événement : molette (crans rapides), et Ctrl + molette, émis à petits pas par le
+ * pincement du pavé tactile mais aussi par Ctrl + cran de souris (≈ 100 px) qu'il ne faut pas multiplier par e.
+ */
 const MAX_WHEEL_DELTA_PX = 240;
+const MAX_PINCH_DELTA_PX = 25;
 /** Sensibilités du zoom : molette ou défilement (par pixel), pincement de pavé tactile (Ctrl + molette). */
 const WHEEL_ZOOM_SENSITIVITY = 0.0015;
 const PINCH_ZOOM_SENSITIVITY = 0.01;
@@ -199,7 +203,8 @@ export function wheelDeltaPixels(delta: number, deltaMode: number, pageHeight: n
  * `pinch` : Ctrl/⌘ + molette, émis par le pincement du pavé tactile, aux deltas plus fins.
  */
 export function wheelZoomFactor(deltaPx: number, pinch: boolean): number {
-  const d = Math.max(-MAX_WHEEL_DELTA_PX, Math.min(MAX_WHEEL_DELTA_PX, deltaPx));
+  const max = pinch ? MAX_PINCH_DELTA_PX : MAX_WHEEL_DELTA_PX;
+  const d = Math.max(-max, Math.min(max, deltaPx));
   return Math.exp(-d * (pinch ? PINCH_ZOOM_SENSITIVITY : WHEEL_ZOOM_SENSITIVITY));
 }
 
