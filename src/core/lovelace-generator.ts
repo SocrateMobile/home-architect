@@ -28,6 +28,8 @@ interface ActionConfig {
 
 /** Clé YAML laissée sans guillemets (identifiant simple) ; toute autre clé est citée. */
 const PLAIN_KEY = /^[A-Za-z_][A-Za-z0-9_]*$/;
+/** Identifiants que YAML 1.1 (PyYAML) lit comme booléen ou null : toujours cités, même en clé. */
+const YAML11_RESERVED_KEY = /^(?:y|n|yes|no|true|false|on|off|null)$/i;
 
 /** Domaines affichés sous forme de valeur (state-label) plutôt que d'icône. */
 const LABEL_DOMAINS = new Set(['sensor', 'climate', 'input_number', 'number', 'counter']);
@@ -98,7 +100,7 @@ function yamlComment(text: string): string {
 }
 
 function yamlKey(key: string): string {
-  return PLAIN_KEY.test(key) ? key : yamlQuote(key);
+  return PLAIN_KEY.test(key) && !YAML11_RESERVED_KEY.test(key) ? key : yamlQuote(key);
 }
 
 function yamlScalar(value: string | number | boolean | null): string {
@@ -154,6 +156,15 @@ function emitYaml(value: YamlValue, indent: number): string[] {
 /** Sérialise une valeur en YAML (bloc), toutes les chaînes entre guillemets. */
 export function toYaml(value: YamlValue): string {
   return `${emitYaml(value, 0).join('\n')}\n`;
+}
+
+/**
+ * Commentaire d'en-tête identifiant le plan. Le YAML ne contient aucun texte dépendant de la langue
+ * de l'interface (il est collé dans des tableaux de bord partagés) : seul le nom choisi par
+ * l'utilisateur (ou l'identifiant du plan) y figure.
+ */
+function planComment(project: HomeArchitectProject): string {
+  return yamlComment(`Home Architect — ${project.name || project.id}`);
 }
 
 /** Configuration d'action : l'action 'navigate' sans chemin retombe sur `fallback`. */
@@ -218,11 +229,7 @@ export class LovelaceGenerator {
    * sont calculées sur le même cadre que le SVG publié.
    */
   public static generatePictureElementsYaml(project: HomeArchitectProject, options: PictureElementsOptions): string {
-    const header = [
-      yamlComment(`Home Architect — carte picture-elements du plan « ${project.name || project.id} »`),
-      yamlComment('Republiez le plan depuis le studio après chaque modification, puis recollez ce code.'),
-    ];
-    return `${header.join('\n')}\n${toYaml(this.buildPictureElementsConfig(project, options))}`;
+    return `${planComment(project)}\n${toYaml(this.buildPictureElementsConfig(project, options))}`;
   }
 
   /** YAML de la carte personnalisée 'home-architect-card' (lit le projet sauvegardé sur le serveur). */
@@ -234,6 +241,6 @@ export class LovelaceGenerator {
       show_header: options?.showHeader ?? true,
       height: options?.height ?? '520px',
     };
-    return `${yamlComment(`Home Architect — carte intégrée du plan « ${project.name || project.id} »`)}\n${toYaml(config)}`;
+    return `${planComment(project)}\n${toYaml(config)}`;
   }
 }

@@ -103,7 +103,7 @@
       /* Carte : éditeur YAML à gauche, tableau de bord simulé à droite. */
       #card-tab { display: grid; grid-template-columns: minmax(280px, 380px) 1fr; }
       #card-tab[hidden] { display: none; }
-      .card-editor { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-right: 1px solid var(--divider-color); min-height: 0; }
+      .card-editor { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-right: 1px solid var(--divider-color); min-height: 0; overflow: auto; }
       .card-editor textarea {
         flex: 1;
         min-height: 200px;
@@ -117,6 +117,9 @@
       }
       .card-editor .row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
       .card-editor .hint { margin: 0; color: var(--secondary-text-color); font-size: 0.8rem; }
+      /* Éditeur visuel (getConfigElement) : il réécrit la première carte du YAML. */
+      .visual-editor { flex: none; padding: 12px; border: 1px solid var(--divider-color); border-radius: 8px; background: var(--card-background-color); }
+      .visual-editor[hidden] { display: none; }
       .dashboard { overflow: auto; padding: 16px; display: flex; flex-wrap: wrap; align-content: flex-start; gap: 16px; }
       .card-slot { width: var(--harness-card-width, 500px); max-width: 100%; }
       .card-error {
@@ -196,9 +199,10 @@
         <div class="card-editor">
           <label for="card-yaml"><strong>Configuration de la carte (YAML)</strong></label>
           <textarea id="card-yaml" spellcheck="false"></textarea>
-          <p class="hint">Un objet pour une carte, une liste pour plusieurs. Ctrl/⌘ + Entrée pour appliquer.</p>
+          <p class="hint">Un objet pour une carte, une liste pour plusieurs. Ctrl/⌘ + Entrée pour appliquer. L'éditeur visuel modifie la première carte et réécrit le YAML (sans les commentaires), comme Home Assistant.</p>
           <div class="row">
             <button type="button" id="btn-apply-card">Appliquer</button>
+            <button type="button" id="btn-visual-editor" aria-expanded="false" aria-controls="visual-editor">Éditeur visuel</button>
             <label>Largeur
               <select id="ctl-card-width">
                 <option value="360px">360 px (mobile)</option>
@@ -208,6 +212,7 @@
               </select>
             </label>
           </div>
+          <div class="visual-editor" id="visual-editor" hidden></div>
         </div>
         <div class="dashboard" id="card-host"></div>
       </section>

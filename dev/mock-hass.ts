@@ -112,6 +112,21 @@ const UPLOAD_MIME_EXTENSIONS: Record<string, string> = {
   'image/svg+xml': 'svg'
 };
 const DATA_URL_RE = /^data:(image\/[a-z0-9.+-]+);base64,([A-Za-z0-9+/=\s]+)$/i;
+/** href d'une <image> examiné par svg_sanitizer._clean_image_data_url (type, paramètres, contenu). */
+const IMAGE_DATA_URL_RE = /^data:image\/(png|jpe?g|webp|gif|svg\+xml)((?:;[^,;]*)*),(.*)$/is;
+const RASTER_DATA_URL_TYPES: Record<string, string> = {
+  png: 'image/png',
+  jpeg: 'image/jpeg',
+  jpg: 'image/jpeg',
+  webp: 'image/webp',
+  gif: 'image/gif'
+};
+const FRAGMENT_RE = /^#[A-Za-z_][A-Za-z0-9_.:-]*$/;
+const BASE64_RE = /^[A-Za-z0-9+/]*={0,2}$/;
+// eslint-disable-next-line no-control-regex -- blancs et caractères de contrôle retirés, comme _INVISIBLE_RE
+const INVISIBLE_RE = /[\s\x00-\x1f\x7f]+/g;
+/** Seul nom accepté par la commande dépréciée save_svg_to_www (ancien plan public www/plan_<id>.svg). */
+const LEGACY_WWW_FILENAME_RE = /^plan_([a-zA-Z0-9_-]{1,64})\.svg$/;
 const RELEASE_URL = 'https://github.com/SocrateMobile/home-architect/releases';
 
 // Règles de sauvegarde du backend (storage.py / assets.py), reproduites pour que le harnais
@@ -196,13 +211,82 @@ async function contentHash(data: ArrayBuffer | string): Promise<string> {
   return hash.toString(16).padStart(16, '0');
 }
 
+function utf8ToBase64(text: string): string {
+  let binary = '';
+  for (const byte of new TextEncoder().encode(text)) binary += String.fromCharCode(byte);
+  return btoa(binary);
+}
+
+function base64ToUtf8(base64: string): string {
+  return new TextDecoder().decode(Uint8Array.from(atob(base64), (char) => char.charCodeAt(0)));
+}
+
+/** Type d'une image raster d'après sa signature (octets en chaîne binaire, comme atob), sinon null. */
+function detectRasterMime(binary: string): string | null {
+  if (binary.startsWith('\x89PNG\r\n\x1a\n')) return 'image/png';
+  if (binary.startsWith('\xff\xd8\xff')) return 'image/jpeg';
+  if (binary.startsWith('GIF87a') || binary.startsWith('GIF89a')) return 'image/gif';
+  if (binary.startsWith('RIFF') && binary.slice(8, 12) === 'WEBP') return 'image/webp';
+  return null;
+}
+
+interface SanitizeOptions {
+  /** Publication sans l'image de fond : les <image> sont retirées. */
+  dropImages?: boolean;
+  /** Document SVG imbriqué dans une <image> : un seul niveau d'imbrication est admis. */
+  nested?: boolean;
+}
+
 /**
- * Approximation du nettoyage serveur (svg_sanitizer.py, liste blanche) : rejette DOCTYPE/ENTITY
- * et les documents invalides, retire scripts, contenus étrangers, animations, liens, gestionnaires
- * on* et références externes. La référence reste l'assainisseur du backend.
+ * href d'une <image>, comme svg_sanitizer._clean_image_data_url : data-URL raster en base64 dont le
+ * contenu est bien du type annoncé, ou SVG imbriqué (base64 ou encodé en pourcentage) assaini à son
+ * tour puis ré-encodé en base64 ; null sinon.
  */
-function sanitizeSvg(source: string, opts: { dropImages?: boolean } = {}): string {
-  if (/<!DOCTYPE|<!ENTITY/i.test(source)) throw new WsCommandError('invalid_svg', 'DOCTYPE et ENTITY sont interdits.');
+function cleanImageHref(value: string, opts: SanitizeOptions): string | null {
+  const match = IMAGE_DATA_URL_RE.exec(value);
+  if (!match) return null;
+  const type = match[1].toLowerCase();
+  const isBase64 = match[2].split(';').some((param) => param.trim().toLowerCase() === 'base64');
+  const payload = match[3];
+  if (type === 'svg+xml') {
+    if (opts.nested) return null;
+    try {
+      const nested = isBase64 ? base64ToUtf8(payload.replace(INVISIBLE_RE, '')) : decodeURIComponent(payload);
+      return `data:image/svg+xml;base64,${utf8ToBase64(sanitizeSvg(nested, { dropImages: opts.dropImages, nested: true }))}`;
+    } catch {
+      return null; // contenu illisible ou refusé : l'image perd son href, comme côté serveur
+    }
+  }
+  const compact = payload.replace(INVISIBLE_RE, '');
+  if (!isBase64 || !BASE64_RE.test(compact)) return null;
+  const mime = RASTER_DATA_URL_TYPES[type];
+  try {
+    // Comme detect_raster_mime : le contenu doit être une image du type annoncé.
+    if (detectRasterMime(atob(compact)) !== mime) return null;
+  } catch {
+    return null;
+  }
+  return `data:${mime};base64,${compact}`;
+}
+
+/** href / xlink:href conservé (sous la forme href), comme svg_sanitizer._clean_href ; null sinon. */
+function cleanHref(element: string, value: string, opts: SanitizeOptions): string | null {
+  const candidate = value.trim();
+  if (candidate.startsWith('#')) return element !== 'image' && FRAGMENT_RE.test(candidate) ? candidate : null;
+  return element === 'image' ? cleanImageHref(candidate, opts) : null;
+}
+
+/**
+ * Approximation du nettoyage serveur (svg_sanitizer.py, liste blanche) : rejette les déclarations
+ * d'entités et les DOCTYPE à sous-ensemble interne (un DOCTYPE simple d'export LibreOffice ou
+ * Illustrator est toléré) ainsi que les documents invalides ; retire scripts, contenus étrangers,
+ * animations, liens, gestionnaires on* et références externes ; une <image> ne garde qu'une
+ * data-URL raster ou un SVG imbriqué assaini. La référence reste l'assainisseur du backend.
+ */
+function sanitizeSvg(source: string, opts: SanitizeOptions = {}): string {
+  if (/<!ENTITY|<!DOCTYPE[^>[]*\[/i.test(source)) {
+    throw new WsCommandError('invalid_svg', 'Les déclarations d’entités (DOCTYPE à sous-ensemble interne, ENTITY) sont interdites.');
+  }
   const doc = new DOMParser().parseFromString(source, 'image/svg+xml');
   const root = doc.documentElement;
   if (doc.getElementsByTagName('parsererror').length > 0 || root.localName !== 'svg') {
@@ -212,13 +296,18 @@ function sanitizeSvg(source: string, opts: { dropImages?: boolean } = {}): strin
   // Publication sans l'image de fond (case non cochée) : le backend retire les <image>.
   if (opts.dropImages) root.querySelectorAll('image').forEach((el) => el.remove());
   for (const el of [root, ...Array.from(root.querySelectorAll('*'))]) {
+    let link: string | null = null;
     for (const attr of Array.from(el.attributes)) {
       const name = attr.name.toLowerCase();
-      const isLink = name === 'href' || name === 'xlink:href';
-      if (name.startsWith('on') || (isLink && !/^(#|data:image\/(png|jpeg|webp|gif);base64,)/i.test(attr.value.trim()))) {
+      if (name === 'href' || name === 'xlink:href') {
+        if (name === 'href' || link === null) link = attr.value; // href l'emporte sur xlink:href
+        el.removeAttribute(attr.name);
+      } else if (name.startsWith('on')) {
         el.removeAttribute(attr.name);
       }
     }
+    const href = link === null ? null : cleanHref(el.localName, link, opts);
+    if (href !== null) el.setAttribute('href', href);
   }
   return new XMLSerializer().serializeToString(root);
 }
@@ -544,6 +633,8 @@ export class MockHomeAssistant {
         return this.publishSvg(msg);
       case 'home_architect/unpublish':
         return this.unpublish(msg);
+      case 'home_architect/save_svg_to_www':
+        return this.saveSvgToWww(msg);
       case 'home_architect/check_updates':
         this.requireAdmin();
         return this.updateStatus();
@@ -774,6 +865,31 @@ export class MockHomeAssistant {
     if (this.legacyWww.delete(projectId)) removed.push(`www/plan_${projectId}.svg`);
     this.notifyProject({ project_id: projectId, revision: revisionOf(project) });
     return { success: true, removed_files: removed };
+  }
+
+  /**
+   * Commande dépréciée des frontends 1.0.x (assets.save_svg_to_www) : seul l'ancien plan public
+   * www/plan_<id>.svg peut être écrit, après assainissement (images conservées). Le harnais ne
+   * sert pas /local/ : seule l'existence du fichier est simulée (legacy_path).
+   */
+  private saveSvgToWww(msg: Json): Json {
+    this.requireAdmin();
+    const filename: unknown = msg.filename;
+    const match = typeof filename === 'string' ? LEGACY_WWW_FILENAME_RE.exec(filename) : null;
+    if (!match) {
+      throw new WsCommandError('invalid_format', "Nom de fichier invalide (plan_<project_id>.svg attendu) @ data['filename']");
+    }
+    if (typeof msg.svg_content !== 'string' || msg.svg_content === '') {
+      throw new WsCommandError('invalid_format', 'svg_content doit être une chaîne non vide.');
+    }
+    const size = utf8Length(msg.svg_content);
+    if (size > MAX_PUBLISH_BYTES) {
+      throw new WsCommandError('payload_too_large', `payload_too_large:${size}:${MAX_PUBLISH_BYTES}`);
+    }
+    sanitizeSvg(msg.svg_content);
+    this.legacyWww.add(match[1]);
+    this.log('event', `Commande dépréciée save_svg_to_www : www/${match[0]} écrit (ancien frontend)`);
+    return { success: true, path: `/local/${match[0]}` };
   }
 
   private publishInfo(projectId: string): Json | undefined {

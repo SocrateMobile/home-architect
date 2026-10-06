@@ -9,6 +9,8 @@ import {
   estimateJsonBytes, legacyCategory, normalizeProject, normalizePublishInfo, stripServerFields
 } from './project-model';
 import { MAX_UPLOAD_BYTES } from './image-utils';
+import { formatNumber, localize } from '../i18n';
+import '../i18n/locales/levels';
 
 /** Résumé léger d'un projet (commande list_projects). */
 export interface ProjectSummary {
@@ -104,8 +106,15 @@ function nonNegativeInt(v: unknown): number | undefined {
   return typeof v === 'number' && Number.isInteger(v) && v >= 0 ? v : undefined;
 }
 
+/** Taille lisible en Mio, une décimale, dans la langue courante (« 2,5 Mo » / « 2.5 MB »). */
 function formatMiB(bytes: number): string {
-  return `${(bytes / (1024 * 1024)).toFixed(1)} Mo`;
+  const value = formatNumber(bytes / (1024 * 1024), { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  return localize('ui.api.size_mib', { value });
+}
+
+/** Message « trop volumineux » d'une clé `ui.api.*` acceptant {size} et {limit}. */
+function tooLargeMessage(key: string, bytes: number, limit: number): string {
+  return localize(key, { size: formatMiB(bytes), limit: formatMiB(limit) });
 }
 
 /**
@@ -132,24 +141,37 @@ export function toHaApiError(err: unknown, size?: SizeContext): HaApiError {
       const serverRevision = match ? Number(match[1]) : undefined;
       return new ConflictError(
         serverRevision === undefined
-          ? 'Le plan a été modifié ailleurs depuis son ouverture.'
-          : `Le plan a été modifié ailleurs depuis son ouverture (révision serveur ${serverRevision}).`,
+          ? localize('ui.api.conflict')
+          : localize('ui.api.conflict_revision', { revision: serverRevision }),
         serverRevision
       );
     }
     case 'unauthorized':
-      return new PermissionDeniedError('Action réservée aux administrateurs Home Assistant.');
+      return new PermissionDeniedError(localize('ui.api.unauthorized'));
+    case 'connection_lost':
+      return new HaApiError(code, localize('ui.api.connection_lost'));
     case 'payload_too_large': {
       // Le backend précise la taille : "payload_too_large:<octets>:<limite>".
       const match = /payload_too_large:(\d+):(\d+)/.exec(message);
       const bytes = match ? Number(match[1]) : size?.bytes ?? 0;
       const limit = match ? Number(match[2]) : size?.limit ?? 0;
       return new PayloadTooLargeError(
-        limit > 0 ? `Données trop volumineuses pour le serveur (${formatMiB(bytes)}, maximum ${formatMiB(limit)}).` : 'Données trop volumineuses pour le serveur.',
+        limit > 0 ? tooLargeMessage('ui.api.payload_too_large_size', bytes, limit) : localize('ui.api.payload_too_large'),
         bytes,
         limit
       );
     }
+    // Codes sans détail utile dans le message du serveur (rédigé en anglais) : texte traduit.
+    // Les autres (invalid_project, invalid_svg…) gardent le message du serveur, qui précise la cause.
+    case 'not_found':
+      return new HaApiError(code, localize('ui.api.project_not_found'));
+    case 'not_ready':
+      return new HaApiError(code, localize('ui.api.not_ready'));
+    case 'save_failed':
+    case 'write_failed':
+      return new HaApiError(code, localize('ui.api.write_failed'));
+    case 'unknown_command':
+      return new HaApiError(code, localize('ui.api.unknown_command'));
     default:
       return new HaApiError(code, message);
   }
@@ -157,7 +179,7 @@ export function toHaApiError(err: unknown, size?: SizeContext): HaApiError {
 
 async function ws<T = unknown>(hass: any, msg: Rec, size?: SizeContext): Promise<T> {
   if (!hass || typeof hass.callWS !== 'function') {
-    throw new HaApiError('not_connected', 'Connexion à Home Assistant indisponible.');
+    throw new HaApiError('not_connected', localize('ui.api.not_connected'));
   }
   try {
     return await hass.callWS(msg);
@@ -168,19 +190,19 @@ async function ws<T = unknown>(hass: any, msg: Rec, size?: SizeContext): Promise
 
 function assertProjectId(projectId: string): void {
   if (typeof projectId !== 'string' || !PROJECT_ID_PATTERN.test(projectId)) {
-    throw new HaApiError('invalid_project_id', `Identifiant de projet invalide : ${String(projectId)}`);
+    throw new HaApiError('invalid_project_id', localize('ui.api.invalid_project_id', { id: String(projectId) }));
   }
 }
 
 function assertAssetId(assetId: string): void {
   if (typeof assetId !== 'string' || !ASSET_ID_PATTERN.test(assetId)) {
-    throw new HaApiError('invalid_asset_id', `Identifiant d'image invalide : ${String(assetId)}`);
+    throw new HaApiError('invalid_asset_id', localize('ui.api.invalid_asset_id', { id: String(assetId) }));
   }
 }
 
 async function authFetch(hass: any, path: string, init?: RequestInit): Promise<Response> {
   if (!hass || typeof hass.fetchWithAuth !== 'function') {
-    throw new HaApiError('not_connected', 'Connexion à Home Assistant indisponible.');
+    throw new HaApiError('not_connected', localize('ui.api.not_connected'));
   }
   try {
     return await hass.fetchWithAuth(path, init);
@@ -193,19 +215,19 @@ function httpError(status: number, size?: SizeContext): HaApiError {
   switch (status) {
     case 401:
     case 403:
-      return new PermissionDeniedError('Action réservée aux administrateurs Home Assistant.');
+      return new PermissionDeniedError(localize('ui.api.unauthorized'));
     case 404:
-      return new HaApiError('not_found', 'Ressource introuvable sur le serveur.');
+      return new HaApiError('not_found', localize('ui.api.not_found'));
     case 413:
-      return new PayloadTooLargeError('Fichier trop volumineux pour le serveur.', size?.bytes ?? 0, size?.limit ?? 0);
+      return new PayloadTooLargeError(localize('ui.api.file_too_large'), size?.bytes ?? 0, size?.limit ?? 0);
     case 415:
-      return new HaApiError('unsupported_media_type', "Format d'image non pris en charge.");
+      return new HaApiError('unsupported_media_type', localize('ui.api.unsupported_media_type'));
     case 400:
-      return new HaApiError('invalid_image', 'Image invalide ou corrompue.');
+      return new HaApiError('invalid_image', localize('ui.api.invalid_image'));
     case 503:
-      return new HaApiError('not_ready', "Home Architect n'est pas encore chargé sur le serveur.");
+      return new HaApiError('not_ready', localize('ui.api.not_ready'));
     default:
-      return new HaApiError('http_error', `Erreur HTTP ${status}.`);
+      return new HaApiError('http_error', localize('ui.api.http_error', { status }));
   }
 }
 
@@ -316,7 +338,7 @@ export async function saveProject(
   const imageUrl = payload.background?.imageUrl;
   if (typeof imageUrl === 'string' && imageUrl.startsWith('data:') && imageUrl.length > MAX_INLINE_DATA_URL_BYTES) {
     throw new PayloadTooLargeError(
-      "L'image de fond doit être téléversée sur le serveur avant la sauvegarde.",
+      localize('ui.api.background_not_uploaded'),
       imageUrl.length,
       MAX_INLINE_DATA_URL_BYTES
     );
@@ -324,7 +346,7 @@ export async function saveProject(
   const bytes = estimateJsonBytes(payload);
   if (bytes > MAX_PROJECT_BYTES) {
     throw new PayloadTooLargeError(
-      `Plan trop volumineux (${formatMiB(bytes)}, maximum ${formatMiB(MAX_PROJECT_BYTES)}).`,
+      tooLargeMessage('ui.api.project_too_large', bytes, MAX_PROJECT_BYTES),
       bytes,
       MAX_PROJECT_BYTES
     );
@@ -364,7 +386,7 @@ export async function uploadBackground(
   const size: SizeContext = { bytes: blob.size, limit: MAX_UPLOAD_BYTES };
   if (blob.size > MAX_UPLOAD_BYTES) {
     throw new PayloadTooLargeError(
-      `Image trop volumineuse (${formatMiB(blob.size)}, maximum ${formatMiB(MAX_UPLOAD_BYTES)}).`,
+      tooLargeMessage('ui.api.image_too_large', blob.size, MAX_UPLOAD_BYTES),
       blob.size,
       MAX_UPLOAD_BYTES
     );
@@ -382,7 +404,7 @@ export async function uploadBackground(
     data = null;
   }
   if (!isRecord(data) || typeof data.asset_id !== 'string' || !ASSET_ID_PATTERN.test(data.asset_id)) {
-    throw new HaApiError('invalid_response', 'Réponse inattendue du serveur après le téléversement.');
+    throw new HaApiError('invalid_response', localize('ui.api.invalid_upload_response'));
   }
   return {
     assetId: data.asset_id,
@@ -457,7 +479,7 @@ export async function publishSvg(
   const bytes = new TextEncoder().encode(svg).length;
   if (bytes > MAX_PUBLISH_BYTES) {
     throw new PayloadTooLargeError(
-      `SVG trop volumineux (${formatMiB(bytes)}, maximum ${formatMiB(MAX_PUBLISH_BYTES)}).`,
+      tooLargeMessage('ui.api.svg_too_large', bytes, MAX_PUBLISH_BYTES),
       bytes,
       MAX_PUBLISH_BYTES
     );
@@ -473,7 +495,7 @@ export async function publishSvg(
     { bytes, limit: MAX_PUBLISH_BYTES }
   );
   const info = normalizePublishInfo(res);
-  if (!info) throw new HaApiError('invalid_response', 'Réponse inattendue du serveur après la publication.');
+  if (!info) throw new HaApiError('invalid_response', localize('ui.api.invalid_publish_response'));
   return info;
 }
 
@@ -514,7 +536,7 @@ export async function subscribeProject(
   assertProjectId(projectId);
   const subscribe = hass?.connection?.subscribeMessage;
   if (typeof subscribe !== 'function') {
-    throw new HaApiError('not_connected', 'Connexion à Home Assistant indisponible.');
+    throw new HaApiError('not_connected', localize('ui.api.not_connected'));
   }
   const onMessage = (msg: unknown) => {
     // L'abonnement est propre à ce projet : on écarte seulement un événement annonçant un autre id.

@@ -1,20 +1,26 @@
 /**
  * Styles des éléments ajoutés au studio pour la persistance et les mises à jour : bandeaux,
  * écran de chargement, dialogues de conflit / brouillons / mise à jour, sélecteur de plans par
- * niveau et indicateur « modifié ». Complètent les styles du panneau (classes .modal-*).
+ * niveau et indicateur « modifié ». Complètent les styles du panneau (classes .modal-*) et
+ * utilisent les mêmes jetons de thème (`--arch-ui-*`, `--studio-*` ; constats F56, F169).
  */
 import { css } from 'lit';
 
 export const persistenceStyles = css`
   /* Indicateur « modifications non sauvegardées » */
   .dirty-dot {
-    color: #f59e0b;
+    color: var(--studio-warning-text);
     font-size: 0.75rem;
     line-height: 1;
   }
 
   button.btn-primary.is-dirty {
-    box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.55);
+    box-shadow: 0 0 0 2px var(--studio-warning-border);
+  }
+
+  /* L'anneau « modifié » remplace celui du focus (même propriété) : les deux sont combinés. */
+  button.btn-primary.is-dirty:focus-visible {
+    box-shadow: 0 0 0 2px var(--studio-warning-border), 0 0 0 4px var(--arch-ui-accent);
   }
 
   button.btn-primary:disabled,
@@ -22,11 +28,12 @@ export const persistenceStyles = css`
     opacity: 0.45;
     cursor: not-allowed;
     box-shadow: none;
+    filter: none;
   }
 
   .dropdown-item:disabled:hover {
     background: transparent;
-    color: #e2e8f0;
+    color: var(--arch-ui-text);
   }
 
   .level-plan-name {
@@ -34,7 +41,7 @@ export const persistenceStyles = css`
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    color: #cbd5e1;
+    color: var(--arch-ui-text-muted);
     font-weight: 500;
   }
 
@@ -45,6 +52,13 @@ export const persistenceStyles = css`
     overflow-y: auto;
   }
 
+  /* Groupe d'un niveau à plusieurs plans (role=group) : même empilement que le menu */
+  .dropdown-menu-popup [role="group"] {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+
   .dropdown-group-label {
     display: flex;
     align-items: center;
@@ -52,7 +66,7 @@ export const persistenceStyles = css`
     padding: 8px 12px 2px;
     font-size: 0.78rem;
     font-weight: 700;
-    color: #94a3b8;
+    color: var(--arch-ui-text-muted);
     text-transform: uppercase;
     letter-spacing: 0.03em;
   }
@@ -62,7 +76,7 @@ export const persistenceStyles = css`
   }
 
   .dropdown-item-meta {
-    color: #64748b;
+    color: var(--arch-ui-text-muted);
     font-size: 0.75rem;
     font-style: italic;
   }
@@ -85,22 +99,23 @@ export const persistenceStyles = css`
     padding: 7px 14px;
     font-size: 0.84rem;
     line-height: 1.4;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    border-bottom: 1px solid var(--arch-ui-border);
+    background: var(--arch-ui-surface);
   }
 
   .notice.info {
-    background: rgba(56, 189, 248, 0.12);
-    color: #bae6fd;
+    background-image: linear-gradient(var(--studio-info-soft), var(--studio-info-soft));
+    color: var(--studio-info-text);
   }
 
   .notice.warning {
-    background: rgba(245, 158, 11, 0.14);
-    color: #fde68a;
+    background-image: linear-gradient(var(--studio-warning-soft), var(--studio-warning-soft));
+    color: var(--studio-warning-text);
   }
 
   .notice.error {
-    background: rgba(239, 68, 68, 0.16);
-    color: #fecaca;
+    background-image: linear-gradient(var(--studio-danger-soft), var(--studio-danger-soft));
+    color: var(--studio-danger-text);
   }
 
   .notice-message {
@@ -108,19 +123,20 @@ export const persistenceStyles = css`
   }
 
   .notice-action {
-    background: rgba(15, 23, 42, 0.55);
-    color: #f8fafc;
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: var(--arch-ui-surface);
+    color: var(--arch-ui-text);
+    border: 1px solid var(--arch-ui-border);
     border-radius: 6px;
     padding: 3px 10px;
     font-size: 0.8rem;
     font-weight: 600;
+    font-family: inherit;
     cursor: pointer;
     white-space: nowrap;
   }
 
   .notice-action:hover {
-    border-color: #38bdf8;
+    border-color: var(--arch-ui-accent);
   }
 
   .notice-close {
@@ -130,7 +146,7 @@ export const persistenceStyles = css`
     cursor: pointer;
     font-size: 0.9rem;
     padding: 2px 4px;
-    opacity: 0.75;
+    opacity: 0.8;
   }
 
   .notice-close:hover {
@@ -146,7 +162,7 @@ export const persistenceStyles = css`
     align-items: center;
     justify-content: center;
     padding: 24px;
-    background: rgba(15, 23, 42, 0.72);
+    background: var(--arch-ui-overlay);
     backdrop-filter: blur(6px);
   }
 
@@ -158,35 +174,30 @@ export const persistenceStyles = css`
     max-width: 440px;
     padding: 22px 26px;
     text-align: center;
-    background: #1e293b;
-    border: 1px solid rgba(56, 189, 248, 0.35);
+    background: var(--arch-ui-surface);
+    border: 1px solid var(--studio-accent-border);
     border-radius: 14px;
-    box-shadow: 0 20px 45px rgba(0, 0, 0, 0.6);
-    color: #e2e8f0;
+    box-shadow: var(--studio-shadow);
+    color: var(--arch-ui-text);
     font-size: 0.92rem;
   }
 
   .loading-box.error {
-    border-color: rgba(239, 68, 68, 0.5);
+    border-color: var(--studio-danger-border);
   }
 
   .spinner {
     width: 26px;
     height: 26px;
     border-radius: 50%;
-    border: 3px solid rgba(56, 189, 248, 0.25);
-    border-top-color: #38bdf8;
+    border: 3px solid var(--studio-accent-soft);
+    border-top-color: var(--arch-ui-accent);
     animation: ha-spin 0.9s linear infinite;
   }
 
+  /* « Réduire les animations » : la règle commune de uiThemeStyles immobilise l'anneau (le message reste affiché). */
   @keyframes ha-spin {
     to { transform: rotate(360deg); }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .spinner {
-      animation-duration: 3s;
-    }
   }
 
   /* Dialogues (complètent .modal-dialog du panneau) */
@@ -198,22 +209,22 @@ export const persistenceStyles = css`
     width: 640px;
   }
 
-  .modal-dialog.warning {
-    border-color: rgba(245, 158, 11, 0.45);
-  }
-
-  .modal-dialog-header.warning {
-    background: rgba(245, 158, 11, 0.1);
-    border-bottom-color: rgba(245, 158, 11, 0.25);
-  }
-
+  .modal-dialog.warning,
   .modal-dialog.update {
-    border-color: rgba(245, 158, 11, 0.45);
+    border-color: var(--studio-warning-border);
   }
 
+  .modal-dialog-header.warning,
   .modal-dialog-header.update {
-    background: linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(217, 119, 6, 0.05));
-    border-bottom-color: rgba(245, 158, 11, 0.25);
+    background: var(--studio-warning-soft);
+    border-bottom-color: var(--studio-warning-border);
+  }
+
+  /* Sous-titre sur un en-tête teinté : plus proche du texte principal (contraste ≥ 4,5:1 en palette claire) */
+  .modal-dialog-header.warning .modal-dialog-subtitle,
+  .modal-dialog-header.update .modal-dialog-subtitle,
+  .modal-dialog-header.danger .modal-dialog-subtitle {
+    color: color-mix(in srgb, var(--arch-ui-text-muted) 60%, var(--arch-ui-text));
   }
 
   .update-icon {
@@ -223,7 +234,7 @@ export const persistenceStyles = css`
     width: 38px;
     height: 38px;
     border-radius: 10px;
-    background: linear-gradient(135deg, #f59e0b, #d97706);
+    background: var(--arch-ui-warning);
   }
 
   .modal-dialog-body {
@@ -247,19 +258,18 @@ export const persistenceStyles = css`
   }
 
   .btn-dialog-confirm.secondary {
-    background: rgba(51, 65, 85, 0.85);
-    color: #f1f5f9;
-    border: 1px solid rgba(255, 255, 255, 0.15);
+    background: var(--arch-ui-surface);
+    color: var(--arch-ui-text);
+    border: 1px solid var(--arch-ui-border);
   }
 
   .btn-dialog-confirm.secondary:hover {
-    background: #334155;
-    border-color: #38bdf8;
+    background: var(--studio-hover);
+    border-color: var(--arch-ui-accent);
   }
 
   .choice-message {
     margin: 0;
-    color: #f1f5f9;
     font-size: 0.92rem;
     line-height: 1.5;
   }
@@ -267,14 +277,14 @@ export const persistenceStyles = css`
   .choice-details {
     margin: 0;
     padding-left: 18px;
-    color: #cbd5e1;
+    color: var(--arch-ui-text-muted);
     font-size: 0.84rem;
     line-height: 1.55;
   }
 
   .dialog-hint {
     margin: 0;
-    color: #94a3b8;
+    color: var(--arch-ui-text-muted);
     font-size: 0.8rem;
     line-height: 1.45;
   }
@@ -283,9 +293,9 @@ export const persistenceStyles = css`
     margin: 0;
     padding: 9px 12px;
     border-radius: 10px;
-    background: rgba(245, 158, 11, 0.1);
-    border: 1px solid rgba(245, 158, 11, 0.3);
-    color: #fde68a;
+    background: var(--studio-warning-soft);
+    border: 1px solid var(--studio-warning-border);
+    color: var(--studio-warning-text);
     font-size: 0.82rem;
     line-height: 1.45;
   }
@@ -307,8 +317,8 @@ export const persistenceStyles = css`
     gap: 10px;
     padding: 10px 12px;
     border-radius: 10px;
-    background: rgba(15, 23, 42, 0.65);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: var(--arch-ui-surface);
+    border: 1px solid var(--arch-ui-border);
   }
 
   .draft-info {
@@ -316,23 +326,22 @@ export const persistenceStyles = css`
     flex-direction: column;
     gap: 2px;
     min-width: 0;
-    color: #f1f5f9;
     font-size: 0.88rem;
   }
 
   .draft-meta {
-    color: #94a3b8;
+    color: var(--arch-ui-text-muted);
     font-size: 0.78rem;
   }
 
   .draft-status {
     font-size: 0.78rem;
-    color: #38bdf8;
+    color: var(--studio-accent-text);
   }
 
   .draft-item.status-outdated .draft-status,
   .draft-item.status-deleted .draft-status {
-    color: #fbbf24;
+    color: var(--studio-warning-text);
   }
 
   .draft-actions {
@@ -352,43 +361,42 @@ export const persistenceStyles = css`
     justify-content: space-around;
     padding: 12px;
     border-radius: 12px;
-    background: rgba(0, 0, 0, 0.35);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: var(--arch-ui-surface);
+    border: 1px solid var(--arch-ui-border);
     text-align: center;
   }
 
   .version-label {
     margin-bottom: 4px;
-    color: #94a3b8;
+    color: var(--arch-ui-text-muted);
     font-size: 11px;
     font-weight: 600;
     text-transform: uppercase;
   }
 
   .version-label.new {
-    color: #f59e0b;
+    color: var(--studio-warning-text);
   }
 
   .version-value {
-    color: #ffffff;
+    color: var(--arch-ui-text);
     font-family: monospace;
     font-size: 16px;
     font-weight: 800;
   }
 
   .version-value.new {
-    color: #10b981;
+    color: var(--studio-success-text);
   }
 
   .version-arrow {
-    color: #f59e0b;
+    color: var(--studio-warning-text);
     font-size: 18px;
     font-weight: 800;
   }
 
   .update-notes-title {
     margin-bottom: 6px;
-    color: #f1f5f9;
     font-size: 12px;
     font-weight: 700;
   }
@@ -398,9 +406,9 @@ export const persistenceStyles = css`
     overflow-y: auto;
     padding: 12px;
     border-radius: 10px;
-    background: rgba(0, 0, 0, 0.4);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    color: #cbd5e1;
+    background: var(--arch-ui-surface-2);
+    border: 1px solid var(--arch-ui-border);
+    color: var(--arch-ui-text);
     font-size: 12px;
     line-height: 1.5;
     white-space: pre-wrap;
@@ -408,12 +416,88 @@ export const persistenceStyles = css`
   }
 
   .release-link {
-    color: #38bdf8;
+    color: var(--studio-accent-text);
     font-size: 12px;
     text-decoration: none;
   }
 
-  .release-link:hover {
+  .release-link:hover,
+  .release-link:focus-visible {
     text-decoration: underline;
+  }
+
+  .footer-links {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px 14px;
+  }
+
+  /* Lien de soutien (Buy Me A Coffee) : style local, aucune image externe chargée (acquis P8).
+     Jaune de la marque et texte noir dans les deux palettes (contraste 14:1). */
+  .support-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    border-radius: 9999px;
+    background: #ffdd00;
+    color: #000000;
+    font-size: 12px;
+    font-weight: 700;
+    text-decoration: none;
+    white-space: nowrap;
+    border: 1px solid rgba(0, 0, 0, 0.25);
+  }
+
+  .support-link:hover {
+    background: #ffe94d;
+  }
+
+  .support-link:focus-visible {
+    background: #ffe94d;
+    box-shadow: 0 0 0 2px var(--arch-ui-surface), 0 0 0 4px var(--arch-ui-text);
+  }
+
+  /* Dialogue « À propos » */
+  .about-version {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .about-status {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px 12px;
+    padding: 9px 12px;
+    border-radius: 10px;
+    background: var(--studio-success-soft);
+    border: 1px solid var(--studio-success-border);
+    color: var(--studio-success-text);
+    font-size: 0.86rem;
+  }
+
+  .about-status.update {
+    background: var(--studio-warning-soft);
+    border-color: var(--studio-warning-border);
+    color: var(--studio-warning-text);
+  }
+
+  .about-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 16px;
+  }
+
+  .about-support {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px 12px;
+    padding-top: 10px;
+    border-top: 1px solid var(--arch-ui-border);
   }
 `;

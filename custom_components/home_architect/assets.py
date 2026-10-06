@@ -5,6 +5,7 @@ Arborescence (sous /config) :
   home_architect/published/<project_id>-<jeton>.svg             plans publiés
   home_architect/backups/plan_<project_id>-<horodatage>.svg     copies d'anciens fichiers www modifiés hors de l'outil
   www/plan_<project_id>.svg                                     anciens plans publics (1.0.x), mis à jour s'ils existent
+                                                                (et écrits par la commande dépréciée save_svg_to_www)
 
 Toutes les méthodes sont SYNCHRONES (E/S disque) : à appeler via
 hass.async_add_executor_job. Module sans import Home Assistant.
@@ -43,6 +44,9 @@ ASSET_ID_RE = re.compile(
 )
 PUBLISHED_FILENAME_RE = re.compile(r"^[a-zA-Z0-9_-]{1,64}-[A-Za-z0-9_-]{20,64}\.svg$")
 PUBLISH_TOKEN_RE = re.compile(r"^[A-Za-z0-9_-]{20,64}$")
+# Nom de l'ancien plan public (www/plan_<project_id>.svg), seul accepté par save_svg_to_www
+# (\Z et non $ : « $ » admettrait un saut de ligne final)
+LEGACY_WWW_FILENAME_RE = re.compile(r"^plan_(?P<project>[a-zA-Z0-9_-]{1,64})\.svg\Z")
 _DATA_URL_RE = re.compile(
     r"^data:(?P<mime>[\w.+/-]+)(?P<params>(?:;[^,;]*)*),(?P<payload>.*)$", re.DOTALL
 )
@@ -137,6 +141,9 @@ class ProjectFiles:
         self.published = data_dir / "published"
         self.backups = data_dir / "backups"
         self._www = www_dir
+        # Empreinte du dernier contenu écrit par l'outil dans chaque ancien fichier www (depuis le
+        # démarrage) : ce fichier n'est pas « retouché hors de l'outil » et n'est pas recopié.
+        self._legacy_written: dict[str, str] = {}
 
     def _relative(self, path: Path) -> str:
         try:
@@ -253,11 +260,9 @@ class ProjectFiles:
         content = sanitize_svg(svg, drop_images=not include_background).encode("utf-8")
         digest = content_hash(content)
         atomic_write(self.published / published_filename(project_id, token), content)
-        legacy = self.legacy_path(project_id)
-        if not legacy.is_file():
+        if not self.legacy_path(project_id).is_file():
             return digest, False
-        self._backup_if_modified(project_id, legacy, previous_hash)
-        atomic_write(legacy, content)
+        self._write_legacy(project_id, content, previous_hash)
         return digest, True
 
     def unpublish(self, project_id: str, token: str | None, previous_hash: str | None) -> list[str]:
@@ -272,6 +277,7 @@ class ProjectFiles:
             self._backup_if_modified(project_id, legacy, previous_hash)
             if (relative := self._unlink(legacy)) is not None:
                 removed.append(relative)
+                self._legacy_written.pop(project_id, None)
         return removed
 
     def remove_stale_published(self, keep: set[str]) -> list[str]:
@@ -294,24 +300,37 @@ class ProjectFiles:
         """Ancien emplacement public /config/www/plan_<id>.svg (servi sous /local/)."""
         return self._www / f"plan_{project_id}.svg"
 
-    def save_svg_to_www(self, filename: str, svg: str) -> str:
-        """Assainit et enregistre un fichier SVG directement dans www/ (ex: plan_rdc.svg)."""
-        safe_name = Path(filename).name
-        if not safe_name.endswith(".svg"):
-            safe_name += ".svg"
-        content = sanitize_svg(svg, drop_images=False).encode("utf-8")
-        target_path = self._www / safe_name
-        atomic_write(target_path, content)
-        return f"/local/{safe_name}"
+    def save_svg_to_www(self, project_id: str, svg: str, known_hash: str | None) -> str:
+        """Commande dépréciée save_svg_to_www : écrit l'ancien plan public www/plan_<id>.svg.
+
+        Le SVG est assaini (images conservées, comme avant la 1.1.0) puis écrit par la même
+        routine que la mise à jour de ce fichier lors d'une publication. `known_hash` : empreinte
+        du dernier plan publié. Retourne l'URL /local/. Lève SvgSanitizeError ou OSError.
+        """
+        content = sanitize_svg(svg).encode("utf-8")
+        self._write_legacy(project_id, content, known_hash)
+        return f"/local/{self.legacy_path(project_id).name}"
 
     def existing_legacy(self, project_ids: list[str]) -> set[str]:
         """Projets dont l'ancien fichier www existe encore."""
         return {pid for pid in project_ids if self.legacy_path(pid).is_file()}
 
+    def _write_legacy(self, project_id: str, content: bytes, known_hash: str | None) -> None:
+        """Écrit l'ancien fichier www, après une copie dans backups/ s'il a été retouché hors de l'outil."""
+        legacy = self.legacy_path(project_id)
+        if legacy.is_file():
+            self._backup_if_modified(project_id, legacy, known_hash)
+        atomic_write(legacy, content)
+        self._legacy_written[project_id] = content_hash(content)
+
     def _backup_if_modified(self, project_id: str, path: Path, known_hash: str | None) -> None:
-        """Copie un ancien fichier www dans backups/ s'il a été modifié hors de l'outil."""
+        """Copie un ancien fichier www dans backups/ s'il a été modifié hors de l'outil.
+
+        Il ne l'a pas été si son contenu est le dernier plan publié (`known_hash`) ou le
+        dernier contenu que l'outil y a écrit.
+        """
         current = path.read_bytes()
-        if known_hash is not None and content_hash(current) == known_hash:
+        if content_hash(current) in (known_hash, self._legacy_written.get(project_id)):
             return
         stamp = time.strftime("%Y%m%d-%H%M%S")
         atomic_write(self.backups / f"plan_{project_id}-{stamp}.svg", current)

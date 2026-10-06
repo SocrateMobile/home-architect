@@ -276,6 +276,13 @@ describe('tailles cohérentes avec l’étalonnage', () => {
     expect(strokeWidth(at(200)) / strokeWidth(at(100))).toBeCloseTo(2);
   });
 
+  it('le halo des étiquettes reprend la couleur de fond du plan', () => {
+    const halo = (svg: string) => /<g id="room-labels"[^>]* stroke="([^"]+)"/.exec(svg)![1];
+    expect(halo(SvgExporter.exportToSvg(fullProject()))).toBe('#0f172a');
+    expect(halo(SvgExporter.exportToSvg(fullProject(), { backgroundColor: '#ffffff' }))).toBe('#ffffff');
+    expect(halo(SvgExporter.exportToSvg(fullProject(), { backgroundColor: 'transparent' }))).toBe('#0f172a');
+  });
+
   it('les étiquettes de pièces sont placées à l’intérieur des pièces concaves', () => {
     const lShape = [{ x: 0, y: 0 }, { x: 6, y: 0 }, { x: 6, y: 1 }, { x: 1, y: 1 }, { x: 1, y: 6 }, { x: 0, y: 6 }];
     const svg = SvgExporter.exportToSvg(project({ pixelsPerMeter: 50, rooms: [room('r1', 'L', lShape)] }));

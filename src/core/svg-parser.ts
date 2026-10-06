@@ -16,6 +16,8 @@
 import { Opening, OpeningType, Point, Room, Wall } from './types';
 import { PolygonUtils } from './polygon';
 import { generateElementId } from './project-model';
+import { localize } from '../i18n';
+import '../i18n/locales/import';
 
 // ---------------------------------------------------------------------------------------------
 // Types publics
@@ -70,10 +72,13 @@ export interface SvgLayerInfo {
   elementCount: number;
 }
 
-/** Forme étiquetée écartée par les bornes de surface (signalée à l'utilisateur). */
+/** Pièce candidate écartée (signalée à l'utilisateur dans l'aperçu). */
 export interface SvgIgnoredRoom {
+  /** Nom issu d'un texte du plan ; '' pour une forme remplie sans étiquette. */
   name: string;
   areaM2: number;
+  /** Surface hors des bornes, ou contour qui se recoupe (surface et rendu faux). */
+  reason: 'area' | 'self_intersecting';
 }
 
 /** Origine de la viewBox retenue : attribut, taille absolue (width/height), emprise du contenu ou défaut. */
@@ -250,34 +255,59 @@ const PRESENTATION_PROPS = new Set([
 const MAX_ELEMENTS = 250_000;
 const MAX_SEGMENTS = 150_000;
 const MAX_USE_DEPTH = 8;
+/** Au-delà, une forme fermée n'est pas une pièce plausible (et le test d'auto-intersection est en O(n²)). */
+const MAX_ROOM_VERTICES = 2000;
+/** Étiquettes d'un même contour comparées entre elles (recherche d'une cloison qui les sépare). */
+const MAX_LABEL_PAIRS = 64;
 
-/** Mots-clés des identifiants, classes et calques (comparés mot à mot, sans accents ni pluriel). */
+/**
+ * Mots-clés des identifiants, classes et calques (comparés mot à mot, sans accents ni pluriel). Ce ne
+ * sont pas des libellés d'interface : chaque rôle reconnaît les termes français ET anglais des logiciels
+ * de plan (exports DWG, Inkscape, SketchUp…), quelle que soit la langue de l'utilisateur.
+ */
 const ROLE_WORDS: Record<string, SemanticRole> = {
   // Cotation, annotations, trames : jamais des murs
   dimension: 'measurement', dim: 'measurement', cotation: 'measurement', cote: 'measurement', mesure: 'measurement',
   measure: 'measurement', measurement: 'measurement', guide: 'measurement', guideline: 'measurement', axis: 'measurement',
   axe: 'measurement', fleche: 'measurement', arrow: 'measurement', tick: 'measurement', anno: 'measurement',
-  annotation: 'measurement', grid: 'measurement', grille: 'measurement', trame: 'measurement',
+  annotation: 'measurement', grid: 'measurement', grille: 'measurement', trame: 'measurement', leader: 'measurement',
+  centerline: 'measurement', centreline: 'measurement',
   // Portes
-  door: 'door', porte: 'door', portillon: 'door', swing: 'door', battant: 'door',
+  door: 'door', doorway: 'door', porte: 'door', portillon: 'door', portail: 'door', gate: 'door', swing: 'door',
+  battant: 'door',
   // Fenêtres
   window: 'window', fenetre: 'window', vitrage: 'window', chassis: 'window', baie: 'window', glazing: 'window',
-  glaz: 'window', velux: 'window',
+  glaz: 'window', velux: 'window', skylight: 'window', lucarne: 'window',
   // Mobilier, équipements, hachures, escaliers, cartouche : ni murs ni pièces
   mobilier: 'ignore', meuble: 'ignore', furniture: 'ignore', furn: 'ignore', equipement: 'ignore', equipment: 'ignore',
-  fixture: 'ignore', fixt: 'ignore', sanitaire: 'ignore', appareil: 'ignore', appliance: 'ignore',
-  electromenager: 'ignore', decor: 'ignore', decoration: 'ignore', plante: 'ignore', vegetation: 'ignore',
-  hatch: 'ignore', hachure: 'ignore', escalier: 'ignore', stair: 'ignore', cartouche: 'ignore', titleblock: 'ignore',
-  legend: 'ignore', legende: 'ignore',
+  fixture: 'ignore', fixt: 'ignore', sanitaire: 'ignore', sanitary: 'ignore', plumbing: 'ignore', appareil: 'ignore',
+  appliance: 'ignore', electromenager: 'ignore', decor: 'ignore', decoration: 'ignore', plante: 'ignore',
+  vegetation: 'ignore', hatch: 'ignore', hachure: 'ignore', escalier: 'ignore', stair: 'ignore', staircase: 'ignore',
+  cartouche: 'ignore', titleblock: 'ignore', legend: 'ignore', legende: 'ignore',
   // Murs
   wall: 'wall', mur: 'wall', cloison: 'wall', facade: 'wall', envelope: 'wall', enveloppe: 'wall', structure: 'wall',
-  partition: 'wall', maconnerie: 'wall'
+  partition: 'wall', maconnerie: 'wall', masonry: 'wall'
 };
 
-const ROOM_WORDS = new Set(['room', 'piece', 'espace', 'zone', 'area', 'chambre', 'salon', 'cuisine', 'sdb', 'sejour', 'local']);
+/** Mots qui balisent une forme comme pièce (français et anglais). */
+const ROOM_WORDS = new Set([
+  'room', 'piece', 'espace', 'space', 'zone', 'area', 'local',
+  'chambre', 'bedroom', 'salon', 'sejour', 'living', 'lounge', 'cuisine', 'kitchen', 'sdb', 'bathroom'
+]);
 
-/** Noms de pièces reconnus pour les pièces approximatives créées autour d'une étiquette. */
-const ROOM_NAME_RE = /\b(salon|sejour|living|chambre|bedroom|cuisine|kitchen|sdb|bain|bains|bathroom|wc|toilettes?|bureau|office|entree|hall|garage|couloir|degagement|cellier|buanderie|dressing)\b/;
+/** Noms de pièces (français et anglais) reconnus pour les pièces approximatives créées autour d'une étiquette. */
+const ROOM_NAME_RE = new RegExp('\\b(' + [
+  'salon', 'sejour', 'living', 'lounge', 'salle a manger', 'dining',
+  'chambre', 'bedroom',
+  'cuisine', 'kitchen',
+  'sdb', 'sde', 'bain', 'bains', 'douche', 'bath', 'bathroom', 'shower',
+  'wc', 'toilettes?', 'toilets?', 'restroom',
+  'bureau', 'office', 'study',
+  'entree', 'entry', 'entrance', 'hall', 'hallway', 'couloir', 'corridor', 'degagement', 'palier', 'landing',
+  'garage', 'atelier', 'workshop',
+  'cellier', 'pantry', 'buanderie', 'laundry', 'utility', 'dressing', 'closet', 'placard', 'debarras', 'storage',
+  'cave', 'cellar'
+].join('|') + ')\\b');
 
 /** Tolérances métriques de la reconnaissance (converties en unités racine selon l'échelle). */
 const TOL = {
@@ -310,6 +340,12 @@ const TOL = {
   openingSpanMin: 0.4,
   openingSpanMax: 3.0,
   bridgeParallelDeg: 3.0,
+  dividerMin: 1.0,
+  dividerMargin: 0.3,
+  dividerCell: 3.0,
+  /** Une cloison s'arrête au plus à une baie (sans battant dessiné) du contour ou d'un autre mur. */
+  dividerReach: 1.0,
+  vertexMerge: 0.005,
   unlabeledRoomMin: 1.5,
   scaleRetry: 0.02
 };
@@ -919,16 +955,19 @@ function collectTextLines(textEl: Element): string[] {
 /** Vrai pour une cote, une surface, une hauteur ou un niveau (« 12,5 m² », « S = 11 m2 », « HSP 2,50 », « 3.40 x 4.20 »). */
 function isMeasurementText(s: string): boolean {
   const rest = normalizeText(s)
-    .replace(/\b(?:m2|m|cm|mm|dm|ml|s|sh|shab|shon|su|surf|surface|hsp|hsf|ht|h|hp|ep|niv|nf|ngf|alt|env|approx|ca|x)\b/g, ' ')
+    .replace(/\b(?:m2|m|cm|mm|dm|ml|s|sh|shab|shon|su|surf|surface|hsp|hsf|ht|h|hp|ep|niv|nf|ngf|alt|env|approx|ca|x|ft|ft2|sq|sqft|sf|in|area)\b/g, ' ')
     .replace(/[^a-z]+/g, '');
   return rest.length === 0;
 }
 
-/** Nom de pièce à partir des lignes d'un texte, sans les surfaces ni les cotes ; '' si rien d'exploitable. */
+/**
+ * Nom de pièce à partir des lignes d'un texte, sans les surfaces ni les cotes ; '' si rien d'exploitable.
+ * Surfaces retirées : « 12,5 m² », « 150 ft² », « 1,215 sq ft », « 140 sq. ft. », « 95 SF ».
+ */
 function cleanLabel(lines: string[]): string {
   const kept = lines
     .map(l => l
-      .replace(/[\s(\-–—:,]*\d+(?:[.,]\d+)?\s*m(?:²|2)(?![a-z])\s*\)?/gi, ' ')
+      .replace(/[\s(\-–—:,]*\d+(?:[.,]\d+)*\s*(?:m(?:²|2)|ft(?:²|2)|sq\.?\s*ft\.?|sf)(?![a-z])\s*\)?/gi, ' ')
       .replace(/\s+/g, ' ')
       .replace(/[\s\-–—:,;(]+$/, '')
       .trim())
@@ -1018,7 +1057,7 @@ class SvgExtractor {
   }
 
   private addLayer(el: Element, parentLayer: number): number {
-    const own = el.getAttribute('inkscape:label') || el.getAttribute('data-name') || el.getAttribute('id') || `Groupe ${this.layers.length + 1}`;
+    const own = el.getAttribute('inkscape:label') || el.getAttribute('data-name') || el.getAttribute('id') || localize('import.parser.group_generic', { n: this.layers.length + 1 });
     const name = parentLayer >= 0 ? `${this.layers[parentLayer].name} › ${own}` : own;
     this.layers.push({ name, count: 0 });
     return this.layers.length - 1;
@@ -1961,6 +2000,30 @@ function pointSegmentDistance(px: number, py: number, ax: number, ay: number, bx
   return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
 }
 
+/** Point de croisement des segments [a, b] et [c, d] (contact compris), null s'ils ne se coupent pas. */
+function segmentCrossing(ax: number, ay: number, bx: number, by: number, cx: number, cy: number, dx: number, dy: number): Point | null {
+  const rx = bx - ax, ry = by - ay;
+  const sx = dx - cx, sy = dy - cy;
+  const den = rx * sy - ry * sx;
+  if (Math.abs(den) <= 1e-12 * Math.hypot(rx, ry) * Math.hypot(sx, sy)) return null;
+  const qx = cx - ax, qy = cy - ay;
+  const t = (qx * sy - qy * sx) / den;
+  const u = (qx * ry - qy * rx) / den;
+  if (t < 0 || t > 1 || u < 0 || u > 1) return null;
+  return { x: ax + t * rx, y: ay + t * ry };
+}
+
+/** Contour sans sommets quasi confondus (bruit de conversion), sommet de fermeture compris. */
+function withoutNearDuplicates(points: Point[], tol: number): Point[] {
+  const out: Point[] = [];
+  for (const p of points) {
+    const prev = out[out.length - 1];
+    if (!prev || Math.hypot(p.x - prev.x, p.y - prev.y) > tol) out.push(p);
+  }
+  while (out.length > 2 && Math.hypot(out[0].x - out[out.length - 1].x, out[0].y - out[out.length - 1].y) <= tol) out.pop();
+  return out;
+}
+
 function polygonAreaAbs(points: Point[]): number {
   let area = 0;
   for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
@@ -2402,38 +2465,45 @@ interface RoomCandidate {
   label: string | null;
 }
 
-/** Couleur et icône d'après le nom (mots entiers, sans accents). */
+/** Couleur et icône d'après le nom (mots entiers français ou anglais, sans accents). */
 function roomStyle(name: string): { color: string; icon: string } {
   const n = normalizeText(name);
-  if (/\b(salon|sejour|living|sam|salle a manger|lounge)\b/.test(n)) return { color: 'rgba(59, 130, 246, 0.28)', icon: 'mdi:sofa' };
+  if (/\b(salon|sejour|living|sam|salle a manger|lounge|dining)\b/.test(n)) return { color: 'rgba(59, 130, 246, 0.28)', icon: 'mdi:sofa' };
   if (/\b(chambre|ch|bed|bedroom|suite|parentale)\b/.test(n)) return { color: 'rgba(139, 92, 246, 0.28)', icon: 'mdi:bed' };
   if (/\b(cuisine|kitchen|kitchenette)\b/.test(n)) return { color: 'rgba(245, 158, 11, 0.28)', icon: 'mdi:silverware-fork-knife' };
-  if (/\b(sdb|sde|bain|bains|douche|bath|bathroom|salle d ?eau)\b/.test(n)) return { color: 'rgba(6, 182, 212, 0.28)', icon: 'mdi:shower' };
-  if (/\b(wc|toilettes?|toilets?)\b/.test(n)) return { color: 'rgba(16, 185, 129, 0.28)', icon: 'mdi:toilet' };
-  if (/\b(bureau|office|travail)\b/.test(n)) return { color: 'rgba(99, 102, 241, 0.28)', icon: 'mdi:desk' };
-  if (/\b(entree|hall|couloir|degagement|corridor|palier)\b/.test(n)) return { color: 'rgba(100, 116, 139, 0.28)', icon: 'mdi:door' };
-  if (/\b(garage|atelier)\b/.test(n)) return { color: 'rgba(120, 113, 108, 0.28)', icon: 'mdi:garage' };
-  if (/\b(terrasse|balcon|patio|loggia)\b/.test(n)) return { color: 'rgba(20, 184, 166, 0.28)', icon: 'mdi:balcony' };
+  if (/\b(sdb|sde|bain|bains|douche|bath|bathroom|shower|salle d ?eau)\b/.test(n)) return { color: 'rgba(6, 182, 212, 0.28)', icon: 'mdi:shower' };
+  if (/\b(wc|toilettes?|toilets?|restroom|lavatory)\b/.test(n)) return { color: 'rgba(16, 185, 129, 0.28)', icon: 'mdi:toilet' };
+  if (/\b(bureau|office|travail|study)\b/.test(n)) return { color: 'rgba(99, 102, 241, 0.28)', icon: 'mdi:desk' };
+  if (/\b(entree|hall|couloir|degagement|corridor|palier|entry|entrance|hallway|landing|foyer)\b/.test(n)) return { color: 'rgba(100, 116, 139, 0.28)', icon: 'mdi:door' };
+  if (/\b(garage|atelier|workshop)\b/.test(n)) return { color: 'rgba(120, 113, 108, 0.28)', icon: 'mdi:garage' };
+  if (/\b(terrasse|balcon|patio|loggia|veranda|terrace|balcony|deck|porch)\b/.test(n)) return { color: 'rgba(20, 184, 166, 0.28)', icon: 'mdi:balcony' };
   return { color: 'rgba(56, 189, 248, 0.25)', icon: 'mdi:home-outline' };
 }
 
 /**
  * Pièces : chaque étiquette va au plus petit contour qui la contient ; une forme sans étiquette n'est une
  * pièce que si elle est explicitement remplie (couleur claire) ou balisée « pièce », et qu'elle n'englobe
- * ni étiquette ni autre pièce (contour du bâtiment). Les bornes de surface sont configurables et les
- * formes étiquetées écartées sont signalées (constats F149, F153).
+ * ni étiquette ni autre pièce (contour du bâtiment). Un contour qui regroupe plusieurs pièces (enveloppe du
+ * bâtiment dont les cloisons sont de simples traits) n'est pas une pièce : étiqueté, il a deux étiquettes
+ * séparées par une cloison et n'en reçoit aucune ; rempli sans étiquette, il est recoupé par une cloison
+ * raccordée aux deux bouts. Placards et pièces imbriquées ne cloisonnent pas leur contour, un épi non plus.
+ * Les bornes de surface sont configurables ; les formes étiquetées hors bornes et les contours qui se
+ * recoupent sont signalés (constats F149, F153, F170).
+ *
+ * `wallLines` : murs reconnus, en unités racine ; `wallCount` : murs créés (après conversion en mètres).
  */
 function detectRooms(
   prims: SvgPrimitives,
   vb: SvgBox,
   mpu: number,
   o: ResolvedOptions,
+  wallLines: WallLine[],
   wallCount: number
 ): { rooms: DetectedRoom[]; ignored: SvgIgnoredRoom[] } {
   const toWorld = (p: Point): Point => ({ x: round2((p.x - vb.x) * mpu), y: round2((p.y - vb.y) * mpu) });
   const candidates: RoomCandidate[] = [];
   prims.shapes.forEach((shape, index) => {
-    if (shape.role !== 'wall') return;
+    if (shape.role !== 'wall' || shape.points.length > MAX_ROOM_VERTICES) return;
     // Fond ou cadre de page : jamais une pièce.
     if (coversPage(shape, vb)) return;
     const areaM2 = polygonAreaAbs(shape.points) * mpu * mpu;
@@ -2458,37 +2528,154 @@ function detectRooms(
   const inside = (c: RoomCandidate, x: number, y: number) =>
     x >= c.shape.minX && x <= c.shape.maxX && y >= c.shape.minY && y <= c.shape.maxY && PolygonUtils.isPointInPolygon({ x, y }, c.points);
 
+  // Murs reconnus (épaisseur comprise), contours candidats et étiquettes, indexés par leur emprise. Les
+  // contours couvrent des surfaces : cellules d'au moins 1/256 de la page (jamais des millions de cellules).
+  const k = 1 / mpu;
+  const cell = Math.max(TOL.dividerCell * k, Math.max(vb.width, vb.height) / 256, 1e-9);
+  const wallGrid = new SpatialGrid<WallLine>(cell);
+  for (const w of wallLines) {
+    const pad = w.thick / 2;
+    wallGrid.insertBox(Math.min(w.ax, w.bx) - pad, Math.min(w.ay, w.by) - pad, Math.max(w.ax, w.bx) + pad, Math.max(w.ay, w.by) + pad, w);
+  }
+  const candidateGrid = new SpatialGrid<RoomCandidate>(cell);
+  const rank = new Map<RoomCandidate, number>();
+  unique.forEach((c, i) => {
+    candidateGrid.insertBox(c.shape.minX, c.shape.minY, c.shape.maxX, c.shape.maxY, c);
+    rank.set(c, i);
+  });
+  const labelGrid = new SpatialGrid<RawLabel>(cell);
+  for (const l of prims.labels) labelGrid.insertBox(l.x, l.y, l.x, l.y, l);
+  /** Étiquettes posées dans `c`. */
+  const labelsIn = (c: RoomCandidate): RawLabel[] => {
+    const out: RawLabel[] = [];
+    labelGrid.query(c.shape.minX, c.shape.minY, c.shape.maxX, c.shape.maxY, l => {
+      if (inside(c, l.x, l.y)) out.push(l);
+    });
+    return out;
+  };
+
+  /**
+   * Point `p` du mur `w` qui fait de `w` une cloison intérieure de `c` : dans `c`, à plus de TOL.dividerMargin
+   * (plus la demi-épaisseur) de son contour, et pas sur le contour d'une forme plus petite incluse dans `c`
+   * (placard, pièce imbriquée, meuble), qui ne sépare pas `c` en plusieurs pièces.
+   */
+  const interiorPoint = (c: RoomCandidate, p: Point, w: WallLine): boolean => {
+    if (!inside(c, p.x, p.y)) return false;
+    if (PolygonUtils.distanceToBoundary(p, c.points) <= w.thick / 2 + TOL.dividerMargin * k) return false;
+    const near = w.thick / 2 + TOL.enclosed * k;
+    const t = TOL.enclosed * k;
+    let onNested = false;
+    candidateGrid.query(p.x - near, p.y - near, p.x + near, p.y + near, d => {
+      if (onNested || d === c || d.areaM2 >= c.areaM2) return;
+      const s = d.shape;
+      if (s.minX < c.shape.minX - t || s.maxX > c.shape.maxX + t || s.minY < c.shape.minY - t || s.maxY > c.shape.maxY + t) return;
+      if (PolygonUtils.distanceToBoundary(p, d.points) <= near) onNested = true;
+    });
+    return !onNested;
+  };
+
+  /**
+   * Contour étiqueté qui regroupe plusieurs pièces (enveloppe du bâtiment dont les cloisons sont de simples
+   * traits) : deux de ses étiquettes sont séparées par une cloison intérieure. Une seule étiquette n'est
+   * jamais retirée à son contour (épi, îlot, meuble dessiné au trait).
+   */
+  const envelopeCache = new Map<RoomCandidate, boolean>();
+  const separatesLabels = (c: RoomCandidate): boolean => {
+    const cached = envelopeCache.get(c);
+    if (cached !== undefined) return cached;
+    const inC = labelsIn(c).slice(0, MAX_LABEL_PAIRS);
+    let result = false;
+    for (let i = 1; i < inC.length && !result; i++) {
+      const a = inC[0], b = inC[i];
+      const seen = new Set<WallLine>();
+      wallGrid.query(Math.min(a.x, b.x), Math.min(a.y, b.y), Math.max(a.x, b.x), Math.max(a.y, b.y), w => {
+        if (result || seen.has(w)) return;
+        seen.add(w);
+        if (lineLength(w) < TOL.dividerMin * k) return;
+        const p = segmentCrossing(a.x, a.y, b.x, b.y, w.ax, w.ay, w.bx, w.by);
+        if (p && interiorPoint(c, p, w)) result = true;
+      });
+    }
+    envelopeCache.set(c, result);
+    return result;
+  };
+
+  /** Extrémité d'une cloison raccordée au contour de `c` ou à un autre mur, à une baie près. */
+  const anchored = (c: RoomCandidate, w: WallLine, x: number, y: number): boolean => {
+    const reach = TOL.dividerReach * k + w.thick / 2;
+    if (PolygonUtils.distanceToBoundary({ x, y }, c.points) <= reach) return true;
+    let found = false;
+    wallGrid.query(x - reach, y - reach, x + reach, y + reach, o => {
+      if (!found && o !== w && pointSegmentDistance(x, y, o.ax, o.ay, o.bx, o.by) <= reach + o.thick / 2) found = true;
+    });
+    return found;
+  };
+
+  /** Forme remplie sans étiquette recoupée par une cloison raccordée aux deux bouts (et non un simple épi). */
+  const partitioned = (c: RoomCandidate): boolean => {
+    let found = false;
+    const seen = new Set<WallLine>();
+    wallGrid.query(c.shape.minX, c.shape.minY, c.shape.maxX, c.shape.maxY, w => {
+      if (found || seen.has(w)) return;
+      seen.add(w);
+      if (lineLength(w) < TOL.dividerMin * k) return;
+      const mid = { x: (w.ax + w.bx) / 2, y: (w.ay + w.by) / 2 };
+      if (interiorPoint(c, mid, w) && anchored(c, w, w.ax, w.ay) && anchored(c, w, w.bx, w.by)) found = true;
+    });
+    return found;
+  };
+
+  /** Étiquettes posées dans un contour candidat (retenu ou écarté) : jamais de pièce approximative pour elles. */
+  const enclosedLabels = new Set<RawLabel>();
   for (const label of prims.labels) {
-    const owner = unique.find(c => inside(c, label.x, label.y));
-    if (owner && owner.label === null) owner.label = label.text;
+    // Contours qui contiennent l'étiquette, du plus petit au plus grand (ordre de `unique`).
+    const containing: RoomCandidate[] = [];
+    candidateGrid.query(label.x, label.y, label.x, label.y, c => {
+      if (inside(c, label.x, label.y)) containing.push(c);
+    });
+    containing.sort((a, b) => (rank.get(a) ?? 0) - (rank.get(b) ?? 0));
+    const owner = containing.find(c => !separatesLabels(c));
+    if (!owner) continue;
+    enclosedLabels.add(label);
+    if (owner.label === null) owner.label = label.text;
   }
 
   const ignored: SvgIgnoredRoom[] = [];
   const accepted: Array<{ candidate: RoomCandidate; worldPolygon: Point[]; areaM2: number; centroid: Point }> = [];
+  /**
+   * Un contour qui se recoupe (« nœud papillon ») n'est pas une pièce : sa surface calculée est fausse
+   * (les lobes s'annulent) et son rendu aussi. Il est écarté et signalé (constat F170).
+   */
+  const accept = (c: RoomCandidate): void => {
+    // Sommets quasi confondus (bruit d'export) : sinon une arête minuscule passe pour un aller-retour.
+    const points = withoutNearDuplicates(c.points, TOL.vertexMerge * k);
+    if (points.length < 3) return;
+    if (PolygonUtils.isSelfIntersecting(points)) {
+      ignored.push({ name: c.label ?? '', areaM2: round2(c.areaM2), reason: 'self_intersecting' });
+      return;
+    }
+    const worldPolygon = points.map(toWorld);
+    accepted.push({ candidate: c, worldPolygon, areaM2: PolygonUtils.computeArea(worldPolygon), centroid: PolygonUtils.calculateCentroid(points) });
+  };
   const minUnlabeled = Math.max(o.minRoomAreaM2, TOL.unlabeledRoomMin);
   for (const c of unique) {
     if (c.label !== null) {
-      if (c.areaM2 >= o.minRoomAreaM2 && c.areaM2 <= o.maxRoomAreaM2) {
-        const worldPolygon = c.points.map(toWorld);
-        accepted.push({ candidate: c, worldPolygon, areaM2: PolygonUtils.computeArea(worldPolygon), centroid: PolygonUtils.calculateCentroid(c.points) });
-      } else {
-        ignored.push({ name: c.label, areaM2: round2(c.areaM2) });
-      }
+      if (c.areaM2 >= o.minRoomAreaM2 && c.areaM2 <= o.maxRoomAreaM2) accept(c);
+      else ignored.push({ name: c.label, areaM2: round2(c.areaM2), reason: 'area' });
       continue;
     }
     const filled = (c.shape.fillExplicit && c.shape.fill === 'light') || c.shape.roomHint;
     if (!filled || c.areaM2 < minUnlabeled || c.areaM2 > o.maxRoomAreaM2) continue;
-    if (prims.labels.some(l => inside(c, l.x, l.y))) continue;
+    if (labelsIn(c).length > 0 || partitioned(c)) continue;
     if (accepted.some(a => inside(c, a.centroid.x, a.centroid.y))) continue;
-    const worldPolygon = c.points.map(toWorld);
-    accepted.push({ candidate: c, worldPolygon, areaM2: PolygonUtils.computeArea(worldPolygon), centroid: PolygonUtils.calculateCentroid(c.points) });
+    accept(c);
   }
   accepted.sort((a, b) => a.candidate.index - b.candidate.index);
 
   const rooms: DetectedRoom[] = [];
   const generic = (polygon: Point[], areaM2: number, n: number): Room => {
     const style = roomStyle('');
-    return { id: '', name: `Pièce ${n}`, polygon, areaM2, color: style.color, icon: style.icon, height: o.defaultHeight };
+    return { id: '', name: localize('import.parser.room_generic', { n }), polygon, areaM2, color: style.color, icon: style.icon, height: o.defaultHeight };
   };
   accepted.forEach((a, i) => {
     const id = generateElementId('room');
@@ -2506,7 +2693,7 @@ function detectRooms(
   // Aucun contour exploitable : pièces approximatives (3,6 m de côté) autour des étiquettes de pièces.
   if (rooms.length === 0 && wallCount >= 4) {
     for (const label of prims.labels) {
-      if (!ROOM_NAME_RE.test(normalizeText(label.text))) continue;
+      if (enclosedLabels.has(label) || !ROOM_NAME_RE.test(normalizeText(label.text))) continue;
       const c = toWorld({ x: label.x, y: label.y });
       const half = 1.8;
       const polygon: Point[] = [
@@ -2592,6 +2779,11 @@ function countStats(walls: Wall[], openings: Opening[], rooms: DetectedRoom[], u
 // Façade
 // ---------------------------------------------------------------------------------------------
 
+/** Message (langue courante) d'une erreur inattendue pendant l'interprétation. */
+function interpretationError(err: unknown): string {
+  return localize('import.parser.failed', { detail: err instanceof Error ? err.message : String(err) });
+}
+
 function failedAnalysis(error: string): SvgAnalysis {
   return {
     success: false,
@@ -2616,10 +2808,10 @@ export class SvgPlanParser {
       const parserError = doc.getElementsByTagName('parsererror')[0];
       if (parserError) {
         const detail = (parserError.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 200);
-        return failedAnalysis(`Fichier SVG invalide${detail ? ` : ${detail}` : '.'}`);
+        return failedAnalysis(detail ? localize('import.parser.invalid_svg_detail', { detail }) : localize('import.error.invalid_svg'));
       }
       const root = doc.documentElement;
-      if (!root || localTag(root) !== 'svg') return failedAnalysis('Aucune balise <svg> racine dans le document.');
+      if (!root || localTag(root) !== 'svg') return failedAnalysis(localize('import.parser.no_root'));
       // Le serveur refuse les DOCTYPE (entités) : le navigateur les a déjà développées, on retire la déclaration.
       if (doc.doctype) doc.removeChild(doc.doctype);
 
@@ -2657,7 +2849,7 @@ export class SvgPlanParser {
         .map((l, i) => ({ id: layerId(i), name: l.name, elementCount: l.count }))
         .filter(l => l.elementCount > 0);
       if (layers.length > 0 && extractor.rootCount > 0) {
-        layers.unshift({ id: layerId(-1), name: 'Éléments hors calque', elementCount: extractor.rootCount });
+        layers.unshift({ id: layerId(-1), name: localize('import.parser.outside_layers'), elementCount: extractor.rootCount });
       }
       return {
         success: true,
@@ -2669,7 +2861,7 @@ export class SvgPlanParser {
         primitives: { segments: extractor.segments, shapes: extractor.shapes, arcs: extractor.arcs, labels: extractor.labels }
       };
     } catch (err) {
-      return failedAnalysis(`Erreur d'interprétation : ${err instanceof Error ? err.message : String(err)}`);
+      return failedAnalysis(interpretationError(err));
     }
   }
 
@@ -2724,7 +2916,7 @@ export class SvgPlanParser {
         if (refBox) reference = 'content';
       }
       mpu = W / (refBox?.width || vb.width);
-      if (!Number.isFinite(mpu) || mpu <= 0) throw new Error('échelle invalide');
+      if (!Number.isFinite(mpu) || mpu <= 0) throw new Error(localize('import.parser.invalid_scale'));
 
       const toWorld = (x: number, y: number): Point => ({ x: round2((x - vb.x) * mpu), y: round2((y - vb.y) * mpu) });
       const walls: Wall[] = [];
@@ -2778,7 +2970,7 @@ export class SvgPlanParser {
         openings.push(opening);
       }
 
-      const { rooms, ignored } = detectRooms(prims, vb, mpu, o, walls.length);
+      const { rooms, ignored } = detectRooms(prims, vb, mpu, o, alive, walls.length);
       const footprint = refBox ? { width: round2(refBox.width * mpu), height: round2(refBox.height * mpu) } : null;
       return {
         ...base,
@@ -2794,7 +2986,7 @@ export class SvgPlanParser {
         measurementLineCount: prims.segments.filter(s => s.role === 'measurement').length
       };
     } catch (err) {
-      return { ...base, error: `Erreur d'interprétation : ${err instanceof Error ? err.message : String(err)}` };
+      return { ...base, error: interpretationError(err) };
     }
   }
 
@@ -2854,9 +3046,12 @@ export function decodeSvgBytes(input: ArrayBuffer | Uint8Array): string {
   let head = '';
   for (let i = 0; i < Math.min(bytes.length, 512); i++) head += String.fromCharCode(bytes[i]);
   const declared = /^\s*<\?xml[^>]*?\bencoding\s*=\s*["']([A-Za-z0-9._:-]+)["']/.exec(head);
-  if (declared) {
+  // Un en-tête « UTF-8 » est souvent écrit par défaut sur un fichier Latin-1 : l'UTF-8 déclaré passe par la
+  // détection stricte ci-dessous (repli windows-1252) au lieu de produire des « � ».
+  const label = declared?.[1].toLowerCase();
+  if (label && label !== 'utf-8' && label !== 'utf8') {
     try {
-      return new TextDecoder(declared[1].toLowerCase()).decode(bytes);
+      return new TextDecoder(label).decode(bytes);
     } catch {
       // Étiquette d'encodage inconnue du navigateur : détection ci-dessous.
     }

@@ -603,17 +603,29 @@ class HomeArchitectStorage:
         self._async_notify(project_id, _revision_of(project))
         return removed
 
-    async def async_save_svg_to_www(self, filename: str, svg: str) -> str:
-        """Assainit et écrit un fichier SVG directement dans /config/www/."""
-        try:
-            return await self.hass.async_add_executor_job(
-                self.files.save_svg_to_www, filename, svg
-            )
-        except SvgSanitizeError as err:
-            raise InvalidSvgError(str(err)) from err
-        except OSError as err:
-            _LOGGER.error("Failed to save SVG %s to www: %s", filename, err)
-            raise StorageWriteError("save_to_www failed") from err
+    async def async_save_svg_to_www(self, project_id: str, svg: str) -> str:
+        """Commande dépréciée save_svg_to_www : écrit l'ancien plan public /config/www/plan_<id>.svg.
+
+        Même routine que la mise à jour de ce fichier par une publication (copie dans backups/
+        s'il a été retouché hors de l'outil). Le projet n'a pas à exister : un ancien frontend
+        synchronise aussi un plan pas encore enregistré. Retourne l'URL /local/ du fichier.
+        """
+        if _PROJECT_ID_RE.match(project_id) is None:
+            raise InvalidProjectError("invalid project id")
+        async with self._lock:
+            publication = self._publications.get(project_id)
+            try:
+                return await self.hass.async_add_executor_job(
+                    self.files.save_svg_to_www,
+                    project_id,
+                    svg,
+                    publication["hash"] if publication else None,
+                )
+            except SvgSanitizeError as err:
+                raise InvalidSvgError(str(err)) from err
+            except OSError as err:
+                _LOGGER.error("Failed to write the legacy plan of project %s to www: %s", project_id, err)
+                raise StorageWriteError("legacy plan write failed") from err
 
     async def async_store_background(self, project_id: str, data: bytes, mime: str) -> dict[str, Any]:
         """Stocke une image de fond téléversée ; retourne {asset_id, mime_type, size}."""

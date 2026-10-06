@@ -1,5 +1,7 @@
-import { nothing, svg, SVGTemplateResult } from 'lit';
-import { FurnitureCategory, FurnitureItem } from './types';
+import { css, nothing, svg, unsafeCSS, SVGTemplateResult } from 'lit';
+import { localize } from '../i18n';
+import { geometryTranslations } from '../i18n/locales/geometry';
+import { FURNITURE_CATEGORIES, FurnitureCategory, FurnitureItem } from './types';
 
 /**
  * Catalogue de mobilier. Chaque symbole est décrit par des primitives en MÈTRES dans le repère
@@ -49,8 +51,12 @@ export type SymbolShape =
 
 /** Définition d'un modèle du catalogue (données et primitives du symbole). */
 export interface FurnitureTemplateDefinition {
-  /** Identifiant persistant dans les projets (ne jamais le renommer). */
+  /** Identifiant persistant dans les projets (ne jamais le renommer). Clé de traduction : `geometry.furniture.<type>`. */
   type: string;
+  /**
+   * Nom par défaut enregistré dans les projets (français, figé comme `type`). Ne pas l'afficher :
+   * utiliser furnitureTemplateName / furnitureDisplayName, qui le traduisent.
+   */
   name: string;
   category: FurnitureCategory;
   width: number;  // in meters (width along X)
@@ -58,7 +64,7 @@ export interface FurnitureTemplateDefinition {
   icon: string;
   /** Couleur de remplissage du corps quand le meuble n'en définit pas (sinon teinte neutre). */
   defaultColor?: string;
-  /** Anciens noms par défaut de ce modèle (projets existants), remplacés par `name` à l'affichage. */
+  /** Anciens noms par défaut de ce modèle (projets existants), traités comme `name` (nom par défaut). */
   legacyNames?: string[];
   /** Épaisseur de trait par défaut, en pixels. */
   strokeWidth?: number;
@@ -87,32 +93,96 @@ export interface FurnitureSymbolOptions {
 /** Sous cette taille (plus petit côté, en pixels), le symbole est réduit à son contour. */
 export const MIN_SYMBOL_DETAIL_PX = 12;
 
-/** Libellés des catégories de mobilier (filtres du volet). */
-export const FURNITURE_CATEGORY_LABELS: Record<FurnitureCategory, string> = {
-  seating: 'Salon',
-  bed: 'Chambre',
-  table: 'Tables',
-  storage: 'Rangements',
-  bathroom: 'Bains',
-  kitchen: 'Cuisine',
-  other: 'Autres'
-};
-
 const CATEGORY_ORDER: FurnitureCategory[] = ['seating', 'bed', 'table', 'storage', 'bathroom', 'kitchen', 'other'];
 
+/**
+ * Libellés des catégories de mobilier (filtres du volet), traduits à la lecture dans la langue
+ * courante : les lire au rendu, ne pas les recopier au chargement d'un module. Clés dans l'ordre
+ * d'affichage (CATEGORY_ORDER, complété par toute catégorie qui n'y figurerait pas).
+ */
+export const FURNITURE_CATEGORY_LABELS: Readonly<Record<FurnitureCategory, string>> = Object.freeze(
+  Object.defineProperties(
+    {} as Record<FurnitureCategory, string>,
+    Object.fromEntries([...new Set([...CATEGORY_ORDER, ...FURNITURE_CATEGORIES])].map(category => [category, {
+      enumerable: true,
+      get: () => localize(`geometry.furniture_category.${category}`)
+    }]))
+  )
+);
+
 const DEFAULT_STROKE_WIDTH = 1.5;
-const STROKE = '#94a3b8';
-const STROKE_SELECTED = '#38bdf8';
-const BODY_FILL = 'rgba(30, 41, 59, 0.85)';
-const BODY_FILL_SELECTED = 'rgba(56, 189, 248, 0.25)';
-const ACCENT_FILL = 'rgba(51, 65, 85, 0.9)';
+const UNKNOWN_FURNITURE_ICON = '📦';
+
+/**
+ * Couleurs des symboles. Rendu Lit (canevas, carte, volet) : jeton CSS `--arch-furniture-<nom>`
+ * (défini par furnitureSymbolStyles, surchargeable par `--ha-arch-furniture-<nom>`) avec la couleur
+ * sombre en repli. SVG exporté (fichier autonome) : couleur sombre littérale.
+ */
+interface ThemedColor {
+  /** Nom du jeton (sans préfixe), absent pour une couleur propre au meuble. */
+  token?: string;
+  /** Couleur de la palette sombre : repli du jeton et valeur du SVG exporté. */
+  value: string;
+}
+
+/** Palettes des symboles : [nom du jeton, couleur sombre, couleur claire]. */
+const SYMBOL_PALETTE = [
+  ['stroke', '#94a3b8', '#475569'],
+  ['selected', '#38bdf8', '#0284c7'],
+  ['fill', 'rgba(30, 41, 59, 0.85)', 'rgba(226, 232, 240, 0.9)'],
+  ['selected-fill', 'rgba(56, 189, 248, 0.25)', 'rgba(2, 132, 199, 0.16)'],
+  ['accent', 'rgba(51, 65, 85, 0.9)', 'rgba(203, 213, 225, 0.95)'],
+  ['soft', 'rgba(241, 245, 249, 0.2)', 'rgba(255, 255, 255, 0.85)'],
+  ['water', 'rgba(2, 132, 199, 0.25)', 'rgba(2, 132, 199, 0.18)'],
+  ['heat', 'rgba(239, 68, 68, 0.2)', 'rgba(220, 38, 38, 0.16)'],
+  ['glass', 'rgba(56, 189, 248, 0.15)', 'rgba(2, 132, 199, 0.12)'],
+  ['highlight', '#cbd5e1', '#334155'],
+  ['frost', '#38bdf8', '#0284c7'],
+  ['brass', '#f59e0b', '#b45309'],
+  ['drain', '#0284c7', '#0369a1']
+] as const;
+
+type SymbolColorName = typeof SYMBOL_PALETTE[number][0];
+
+const SYMBOL_COLORS = Object.fromEntries(
+  SYMBOL_PALETTE.map(([token, dark]) => [token, { token, value: dark }])
+) as Record<SymbolColorName, ThemedColor>;
+
+function paletteDeclarations(scheme: 'dark' | 'light'): string {
+  return SYMBOL_PALETTE
+    .map(([token, dark, light]) => `--arch-furniture-${token}: var(--ha-arch-furniture-${token}, ${scheme === 'dark' ? dark : light});`)
+    .join('\n');
+}
+
+/**
+ * Jetons de couleur des symboles de meubles, à inclure dans les styles de l'hôte qui les affiche
+ * (canevas, volet) : palette sombre par défaut, claire sous `:host([scheme='light'])`.
+ */
+export const furnitureSymbolStyles = css`
+  :host {
+    ${unsafeCSS(paletteDeclarations('dark'))}
+  }
+
+  :host([scheme='light']) {
+    ${unsafeCSS(paletteDeclarations('light'))}
+  }
+`;
+
+/** Couleur propre au meuble acceptée dans un attribut `style` (même règle que normalizeProject). */
+const SAFE_COLOR = /^[#a-zA-Z0-9(),.%\s+-]{1,64}$/;
+const UNSAFE_COLOR = /url\s*\(|expression|image-set/i;
 
 // ------------------------------------------------------------------
 // Aides de construction (toutes les dimensions sont bornées à ≥ 0)
 // ------------------------------------------------------------------
 
+/**
+ * Borne v à [min, max]. Si les bornes se croisent (meuble plus petit que le minimum absolu d'un
+ * décor), la borne haute l'emporte : elle est proportionnelle au meuble, le décor reste donc dans
+ * son emprise (ex. dossier de 12 cm sur un canapé de 10 cm de profondeur).
+ */
 function clamp(v: number, min: number, max: number): number {
-  return Math.min(Math.max(v, min), Math.max(min, max));
+  return Math.min(Math.max(v, min), max);
 }
 
 function rect(x: number, y: number, w: number, h: number, paint: SymbolPaint, r = 0, style: Partial<SymbolShapeStyle> = {}): SymbolShape {
@@ -614,14 +684,40 @@ export function findFurnitureTemplate(type: string): FurnitureCatalogTemplate | 
   return FURNITURE_CATALOG.find(f => f.type === type);
 }
 
+/** Nom d'un modèle du catalogue dans la langue courante ; l'identifiant brut pour un type inconnu. */
+export function furnitureTemplateName(type: string): string {
+  return findFurnitureTemplate(type) ? localize(`geometry.furniture.${type}`) : type;
+}
+
 /**
- * Nom d'affichage d'un meuble : le nom enregistré, sauf s'il s'agit d'un ancien nom par défaut
- * de son modèle (renommage du catalogue), auquel cas le nom actuel du modèle.
+ * Le nom enregistré est-il un nom par défaut du modèle : nom enregistré par défaut, ancien nom
+ * (renommage du catalogue) ou traduction dans l'une des langues (meuble nommé dans une autre langue) ?
+ */
+function isDefaultFurnitureName(template: FurnitureTemplateDefinition, name: string): boolean {
+  return name === template.name
+    || (template.legacyNames?.includes(name) ?? false)
+    || geometryTranslations(`geometry.furniture.${template.type}`).includes(name);
+}
+
+/**
+ * Nom d'affichage d'un meuble : le nom choisi par l'utilisateur, ou, pour un nom par défaut de
+ * son modèle (dans n'importe quelle langue, ou ancien nom), le nom du modèle dans la langue courante.
  */
 export function furnitureDisplayName(item: Pick<FurnitureItem, 'type' | 'name'>): string {
   const template = findFurnitureTemplate(item.type);
-  if (template && (!item.name || template.legacyNames?.includes(item.name))) return template.name;
-  return item.name || template?.name || item.type;
+  if (!template) return item.name || item.type;
+  return !item.name || isDefaultFurnitureName(template, item.name) ? furnitureTemplateName(template.type) : item.name;
+}
+
+/**
+ * Nom à enregistrer dans le projet (normalisation) : le nom choisi par l'utilisateur, ou le nom
+ * enregistré par défaut du modèle (jamais une traduction, pour qu'un projet ne dépende pas de la
+ * langue de l'interface qui l'a sauvegardé).
+ */
+export function canonicalFurnitureName(item: Pick<FurnitureItem, 'type' | 'name'>): string {
+  const template = findFurnitureTemplate(item.type);
+  if (!template) return item.name || item.type;
+  return !item.name || isDefaultFurnitureName(template, item.name) ? template.name : item.name;
 }
 
 // ------------------------------------------------------------------
@@ -629,35 +725,63 @@ export function furnitureDisplayName(item: Pick<FurnitureItem, 'type' | 'name'>)
 // ------------------------------------------------------------------
 
 interface ResolvedPaint {
-  fill: string;
-  stroke: string | null;
+  fill: ThemedColor | null;
+  stroke: ThemedColor | null;
 }
 
 interface ResolvedSymbol {
   shapes: SymbolShape[];
   strokeWidth: number;
-  bodyFill: string;
+  bodyFill: ThemedColor;
   selected: boolean;
   /** Icône de repli (meuble inconnu du catalogue) et sa taille en unités de rendu. */
   icon?: { text: string; size: number };
 }
 
-function resolvePaint(paint: SymbolPaint, selected: boolean, bodyFill: string): ResolvedPaint {
-  const stroke = selected ? STROKE_SELECTED : STROKE;
+/** Couleurs de remplissage (null = 'none') et de trait (null = 'none') d'un rôle de peinture. */
+function resolvePaint(paint: SymbolPaint, selected: boolean, bodyFill: ThemedColor): ResolvedPaint {
+  const c = SYMBOL_COLORS;
+  const stroke = selected ? c.selected : c.stroke;
   switch (paint) {
     case 'body': return { fill: bodyFill, stroke };
-    case 'accent': return { fill: ACCENT_FILL, stroke };
-    case 'soft': return { fill: 'rgba(241, 245, 249, 0.2)', stroke };
-    case 'water': return { fill: 'rgba(2, 132, 199, 0.25)', stroke };
-    case 'heat': return { fill: 'rgba(239, 68, 68, 0.2)', stroke };
-    case 'glass': return { fill: 'rgba(56, 189, 248, 0.15)', stroke };
-    case 'outline': return { fill: 'none', stroke };
-    case 'highlight': return selected ? { fill: STROKE_SELECTED, stroke: STROKE_SELECTED } : { fill: '#cbd5e1', stroke: '#cbd5e1' };
-    case 'frost': return { fill: 'none', stroke: '#38bdf8' };
-    case 'knob': return { fill: selected ? STROKE_SELECTED : STROKE, stroke: null };
-    case 'brass': return { fill: selected ? STROKE_SELECTED : '#f59e0b', stroke: null };
-    case 'drain': return { fill: selected ? STROKE_SELECTED : '#0284c7', stroke: null };
+    case 'accent': return { fill: c.accent, stroke };
+    case 'soft': return { fill: c.soft, stroke };
+    case 'water': return { fill: c.water, stroke };
+    case 'heat': return { fill: c.heat, stroke };
+    case 'glass': return { fill: c.glass, stroke };
+    case 'outline': return { fill: null, stroke };
+    case 'highlight': return selected ? { fill: c.selected, stroke: c.selected } : { fill: c.highlight, stroke: c.highlight };
+    case 'frost': return { fill: null, stroke: c.frost };
+    case 'knob': return { fill: stroke, stroke: null };
+    case 'brass': return { fill: selected ? c.selected : c.brass, stroke: null };
+    case 'drain': return { fill: selected ? c.selected : c.drain, stroke: null };
   }
+}
+
+/** Valeur littérale (SVG exporté). */
+function literal(color: ThemedColor | null): string {
+  return color ? color.value : 'none';
+}
+
+/** Valeur CSS thémable (rendu Lit) : le jeton avec la couleur sombre en repli. */
+function themed(color: ThemedColor | null): string {
+  if (!color) return 'none';
+  return color.token ? `var(--arch-furniture-${color.token}, ${color.value})` : color.value;
+}
+
+/** Couleur acceptée dans un attribut `style` (même règle que normalizeProject), sinon undefined. */
+function safeColor(color: string | undefined): string | undefined {
+  return color && SAFE_COLOR.test(color) && !UNSAFE_COLOR.test(color) ? color : undefined;
+}
+
+/**
+ * Couleur du corps : celle du meuble si elle est sûre, sinon celle du modèle, sinon la teinte
+ * neutre ; la sélection prime.
+ */
+function bodyFillColor(selected: boolean, color: string | undefined, templateColor: string | undefined): ThemedColor {
+  if (selected) return SYMBOL_COLORS['selected-fill'];
+  const value = safeColor(color) ?? safeColor(templateColor);
+  return value ? { value } : SYMBOL_COLORS.fill;
 }
 
 function positive(v: number | undefined): number | undefined {
@@ -682,7 +806,7 @@ function resolveSymbol(
   color?: string,
   icon?: string
 ): ResolvedSymbol {
-  const bodyFill = selected ? BODY_FILL_SELECTED : (color || template?.defaultColor || BODY_FILL);
+  const bodyFill = bodyFillColor(selected, color, template?.defaultColor);
   const detailed = template !== undefined && Math.min(w, l) * scale >= MIN_SYMBOL_DETAIL_PX;
   const resolved: ResolvedSymbol = {
     shapes: detailed ? template.shapes(w, l) : [outline(w, l, 0.06)],
@@ -690,8 +814,9 @@ function resolveSymbol(
     bodyFill,
     selected
   };
-  if (!template && icon && Math.min(w, l) * scale >= MIN_SYMBOL_DETAIL_PX) {
-    resolved.icon = { text: icon, size: clamp(Math.min(w, l) * scale * 0.5, 8, 16) };
+  if (!template && Math.min(w, l) * scale >= MIN_SYMBOL_DETAIL_PX) {
+    // Même repli que l'ancien rendu du canevas pour un type inconnu : 📦 sans icône propre.
+    resolved.icon = { text: icon || UNKNOWN_FURNITURE_ICON, size: clamp(Math.min(w, l) * scale * 0.5, 8, 16) };
   }
   return resolved;
 }
@@ -732,7 +857,7 @@ function shapeAttributes(s: SymbolShape, k: number): Array<[string, string | num
 
 function styleAttributes(s: SymbolShape, sym: ResolvedSymbol): Array<[string, string | number]> {
   const paint = resolvePaint(s.paint, sym.selected, sym.bodyFill);
-  const attrs: Array<[string, string | number]> = [['fill', paint.fill], ['stroke', paint.stroke ?? 'none']];
+  const attrs: Array<[string, string | number]> = [['fill', literal(paint.fill)], ['stroke', literal(paint.stroke)]];
   if (paint.stroke) attrs.push(['stroke-width', s.strokeWidth ?? sym.strokeWidth]);
   if (paint.stroke && s.dash) attrs.push(['stroke-dasharray', s.dash]);
   if (s.opacity !== undefined) attrs.push(['opacity', s.opacity]);
@@ -741,23 +866,24 @@ function styleAttributes(s: SymbolShape, sym: ResolvedSymbol): Array<[string, st
 
 function shapeTemplate(s: SymbolShape, k: number, sym: ResolvedSymbol): SVGTemplateResult {
   const paint = resolvePaint(s.paint, sym.selected, sym.bodyFill);
-  const stroke = paint.stroke ?? 'none';
+  // Couleurs dans `style` : var() n'est pas fiable dans les attributs de présentation SVG.
+  const style = `fill: ${themed(paint.fill)}; stroke: ${themed(paint.stroke)}`;
   const strokeWidth = paint.stroke ? (s.strokeWidth ?? sym.strokeWidth) : nothing;
   const dash = paint.stroke && s.dash ? s.dash : nothing;
   const opacity = s.opacity ?? nothing;
   switch (s.kind) {
     case 'rect':
       return svg`<rect x=${n(s.x * k)} y=${n(s.y * k)} width=${n(s.w * k)} height=${n(s.h * k)} rx=${n((s.r ?? 0) * k)}
-        fill=${paint.fill} stroke=${stroke} stroke-width=${strokeWidth} stroke-dasharray=${dash} opacity=${opacity} />`;
+        style=${style} stroke-width=${strokeWidth} stroke-dasharray=${dash} opacity=${opacity} />`;
     case 'ellipse':
       return svg`<ellipse cx=${n(s.cx * k)} cy=${n(s.cy * k)} rx=${n(s.rx * k)} ry=${n(s.ry * k)}
-        fill=${paint.fill} stroke=${stroke} stroke-width=${strokeWidth} stroke-dasharray=${dash} opacity=${opacity} />`;
+        style=${style} stroke-width=${strokeWidth} stroke-dasharray=${dash} opacity=${opacity} />`;
     case 'line':
       return svg`<line x1=${n(s.x1 * k)} y1=${n(s.y1 * k)} x2=${n(s.x2 * k)} y2=${n(s.y2 * k)}
-        fill=${paint.fill} stroke=${stroke} stroke-width=${strokeWidth} stroke-dasharray=${dash} opacity=${opacity} />`;
+        style=${style} stroke-width=${strokeWidth} stroke-dasharray=${dash} opacity=${opacity} />`;
     case 'path':
       return svg`<path d=${pathData(s.d, k)}
-        fill=${paint.fill} stroke=${stroke} stroke-width=${strokeWidth} stroke-dasharray=${dash} opacity=${opacity} />`;
+        style=${style} stroke-width=${strokeWidth} stroke-dasharray=${dash} opacity=${opacity} />`;
   }
 }
 
@@ -776,7 +902,8 @@ function symbolTemplate(sym: ResolvedSymbol, k: number): SVGTemplateResult {
   return svg`
     <g class="furniture-symbol">
       ${sym.shapes.map(s => shapeTemplate(s, k, sym))}
-      ${sym.icon ? svg`<text x="0" y=${n(sym.icon.size * 0.35)} text-anchor="middle" font-size=${n(sym.icon.size)} fill="#cbd5e1" stroke="none">${sym.icon.text}</text>` : nothing}
+      ${sym.icon ? svg`<text x="0" y=${n(sym.icon.size * 0.35)} text-anchor="middle" font-size=${n(sym.icon.size)}
+        style=${`fill: ${themed(SYMBOL_COLORS.highlight)}; stroke: none`}>${sym.icon.text}</text>` : nothing}
     </g>
   `;
 }
@@ -801,7 +928,7 @@ export function furnitureSymbolMarkup(item: FurnitureSymbolSource, opts: Furnitu
     pairs.map(([name, value]) => `${name}="${escapeXml(String(value))}"`).join(' ');
   const parts = sym.shapes.map(s => `<${s.kind} ${attr([...shapeAttributes(s, k), ...styleAttributes(s, sym)])} />`);
   if (sym.icon) {
-    parts.push(`<text x="0" y="${n(sym.icon.size * 0.35)}" text-anchor="middle" font-size="${n(sym.icon.size)}" fill="#cbd5e1" stroke="none">${escapeXml(sym.icon.text)}</text>`);
+    parts.push(`<text x="0" y="${n(sym.icon.size * 0.35)}" text-anchor="middle" font-size="${n(sym.icon.size)}" fill="${literal(SYMBOL_COLORS.highlight)}" stroke="none">${escapeXml(sym.icon.text)}</text>`);
   }
   return `<g class="furniture-symbol">${parts.join('')}</g>`;
 }
