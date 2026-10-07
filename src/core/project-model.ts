@@ -483,6 +483,9 @@ function normalizeUnsafe(raw: unknown): HomeArchitectProject {
   if (typeof src.showGhostLevel === 'boolean') project.showGhostLevel = src.showGhostLevel;
   const ghostLevelId = optionalString(src.ghostLevelId);
   if (ghostLevelId) project.ghostLevelId = ghostLevelId;
+  const northAngle = toFinite(src.northAngle);
+  if (northAngle !== undefined) project.northAngle = ((northAngle % 360) + 360) % 360;
+  if (typeof src.showCompass === 'boolean') project.showCompass = src.showCompass;
   const exportFrame = normalizeExportFrame(src.exportFrame);
   if (exportFrame) project.exportFrame = exportFrame;
   const publish = normalizePublishInfo(src.publish);

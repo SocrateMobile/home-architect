@@ -534,6 +534,27 @@ export class SvgExporter {
       content += `  </g>\n`;
     }
 
+    // 9. Rose des vents (orientation géographique si showCompass !== false)
+    if (project.showCompass !== false && typeof project.northAngle === 'number') {
+      const angle = ((project.northAngle % 360) + 360) % 360;
+      const compassRadius = Math.max(16, (frame.maxX - frame.minX) * u * 0.035);
+      const compassMargin = compassRadius * 1.4;
+      const cx = (frame.maxX * u) - compassMargin;
+      const cy = (frame.minY * u) + compassMargin;
+      content += `  <g id="compass-rose" transform="translate(${fmt(cx)}, ${fmt(cy)})" pointer-events="none">\n`;
+      content += `    <circle r="${fmt(compassRadius)}" fill="${cutoutFill}" stroke="${COLORS.accent}" stroke-width="1.5" stroke-dasharray="3,3" opacity="0.85" />\n`;
+      content += `    <circle r="${fmt(compassRadius * 0.88)}" fill="none" stroke="${COLORS.frame}" stroke-width="0.75" opacity="0.5" />\n`;
+      content += `    <g transform="rotate(${fmt(angle)})">\n`;
+      content += `      <polygon points="0,${fmt(-compassRadius * 0.82)} ${fmt(compassRadius * 0.22)},0 0,0" fill="#ef4444" />\n`;
+      content += `      <polygon points="0,${fmt(-compassRadius * 0.82)} ${fmt(-compassRadius * 0.22)},0 0,0" fill="#b91c1c" />\n`;
+      content += `      <polygon points="0,${fmt(compassRadius * 0.82)} ${fmt(compassRadius * 0.22)},0 0,0" fill="#94a3b8" />\n`;
+      content += `      <polygon points="0,${fmt(compassRadius * 0.82)} ${fmt(-compassRadius * 0.22)},0 0,0" fill="#64748b" />\n`;
+      content += `      <circle r="${fmt(compassRadius * 0.12)}" fill="#ffffff" stroke="${COLORS.wallStroke}" stroke-width="1" />\n`;
+      content += `      <text y="${fmt(-compassRadius * 0.88)}" text-anchor="middle" fill="#ef4444" font-size="${fmt(compassRadius * 0.42)}" font-weight="800" font-family="${escapeXml(FONT_FAMILY)}">N</text>\n`;
+      content += `    </g>\n`;
+      content += `  </g>\n`;
+    }
+
     return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="${vbX} ${vbY} ${vbW} ${vbH}" width="${vbW}" height="${vbH}" font-family="${escapeXml(FONT_FAMILY)}">
   <title>${escapeXml(project.name || 'Home Architect')}</title>

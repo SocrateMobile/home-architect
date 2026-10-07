@@ -10,6 +10,8 @@ import './components/import-modal';
 import type { ImportModalResult, ImportProjectBackupDetail } from './components/import-modal';
 import './components/rescale-modal';
 import { RescaleModalResult, isValidRescaleFactor } from './components/rescale-modal';
+import './components/orientation-modal';
+import type { OrientationModalResult } from './components/orientation-modal';
 import type { CalibrateConfirmedDetail } from './components/calibrate-modal';
 import type { RoomModalSaveDetail } from './components/room-modal';
 import { TOOL_SHORTCUTS } from './components/toolbar';
@@ -67,7 +69,7 @@ const DRAWER_STORAGE_KEY = 'home-architect:drawer-collapsed';
 const HASS_CONSUMERS = [
   'home-architect-canvas', 'home-architect-entity-drawer', 'home-architect-export-modal',
   'home-architect-save-load-modal', 'home-architect-room-modal', 'home-architect-import-modal',
-  'home-architect-calibrate-modal', 'home-architect-rescale-modal'
+  'home-architect-calibrate-modal', 'home-architect-rescale-modal', 'home-architect-orientation-modal'
 ].join(', ');
 
 /** Séquence secrète de l'easter egg. */
@@ -276,6 +278,9 @@ export class HomeArchitectPanel extends LitElement {
 
   @state()
   private isRescaleModalOpen: boolean = false;
+
+  @state()
+  private isOrientationModalOpen: boolean = false;
 
   @state()
   private rescaleMeasuredMeters: number = 0;
@@ -1287,6 +1292,17 @@ export class HomeArchitectPanel extends LitElement {
     if (this.applyScale(scaleFactor, adjustBackground === true, localize('panel.scale.rescaled'), scaleElements !== false)) this.activeTool = 'select';
   }
 
+  private openOrientationModal() {
+    this.closeDropdown({ restoreFocus: false });
+    this.isOrientationModalOpen = true;
+  }
+
+  private handleOrientationApplied(e: CustomEvent<OrientationModalResult>) {
+    const { northAngle, showCompass } = e.detail ?? {};
+    this.isOrientationModalOpen = false;
+    this.setPreferences({ northAngle, showCompass });
+  }
+
   /** Bornes du facteur d'échelle, formatées pour les messages de refus. */
   private scaleLimits(): { min: string; max: string } {
     return { min: formatNumber(SCALE_FACTOR_LIMITS.min), max: formatNumber(SCALE_FACTOR_LIMITS.max) };
@@ -1694,6 +1710,7 @@ export class HomeArchitectPanel extends LitElement {
     else if (this.selectedRoomForEdit) this.selectedRoomForEdit = null;
     else if (this.isCalibrateModalOpen) this.closeCalibrateModal();
     else if (this.isRescaleModalOpen) this.isRescaleModalOpen = false;
+    else if (this.isOrientationModalOpen) this.isOrientationModalOpen = false;
     else if (this.isImportModalOpen) this.closeImportModal();
     else return false;
     return true;
@@ -1915,7 +1932,7 @@ export class HomeArchitectPanel extends LitElement {
   private isModalOpen(): boolean {
     return this.isWizardOpen || this.isImportModalOpen || this.isExportModalOpen || this.isSaveLoadModalOpen ||
       this.isNewPlanModalOpen || this.isResetModalOpen || this.isCalibrateModalOpen || this.isRescaleModalOpen ||
-      this.isUpdateModalOpen || this.isAboutOpen || this.selectedRoomForEdit !== null || this.persistence.isBlocking();
+      this.isOrientationModalOpen || this.isUpdateModalOpen || this.isAboutOpen || this.selectedRoomForEdit !== null || this.persistence.isBlocking();
   }
 
   /** Bandeau « rechargez la page » quand une nouvelle version a été installée pendant la session (F106). */
@@ -2110,6 +2127,11 @@ export class HomeArchitectPanel extends LitElement {
           label: localize('panel.menu.plan.ghost'),
           checked: this.showGhostLevel,
           run: () => this.setPreferences({ showGhostLevel: !this.showGhostLevel })
+        })}
+        ${this.renderMenuItem({
+          icon: '🧭',
+          label: localize('panel.menu.plan.orientation'),
+          run: () => this.openOrientationModal()
         })}
         <div class="dropdown-divider" role="separator"></div>
         ${this.renderMenuItem({ icon: '⛶', label: localize('panel.menu.plan.fit'), run: () => this.canvas?.fitToScreen() })}
@@ -2694,6 +2716,7 @@ export class HomeArchitectPanel extends LitElement {
               @request-rescale=${this.handleRequestRescale}
               @background-image-loaded=${this.handleBackgroundDropped}
               @placement-done=${this.handlePlacementDone}
+              @open-orientation=${() => this.openOrientationModal()}
             ></home-architect-canvas>
 
             ${this.renderSelectionHud(selection)}
@@ -2776,6 +2799,17 @@ export class HomeArchitectPanel extends LitElement {
             @rescale-confirmed=${this.handleRescaleConfirmed}
             @close=${() => { this.isRescaleModalOpen = false; }}
           ></home-architect-rescale-modal>
+        ` : nothing}
+
+        ${this.isOrientationModalOpen ? html`
+          <home-architect-orientation-modal
+            data-modal
+            .hass=${this.hass}
+            .northAngle=${this.project.northAngle ?? 0}
+            .showCompass=${this.project.showCompass !== false}
+            @orientation-applied=${this.handleOrientationApplied}
+            @close=${() => { this.isOrientationModalOpen = false; }}
+          ></home-architect-orientation-modal>
         ` : nothing}
 
         ${this.isExportModalOpen ? html`

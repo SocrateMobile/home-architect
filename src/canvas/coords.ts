@@ -253,3 +253,16 @@ export function fitViewport(
     zoom
   };
 }
+
+/** Libellé cardinal (Nord, Nord-Est, etc.) d'un angle en degrés. */
+export function cardinalLabel(angleDeg: number): string {
+  const norm = ((Math.round(angleDeg) % 360) + 360) % 360;
+  if (norm >= 338 || norm < 23) return 'Nord';
+  if (norm < 68) return 'Nord-Est';
+  if (norm < 113) return 'Est';
+  if (norm < 158) return 'Sud-Est';
+  if (norm < 203) return 'Sud';
+  if (norm < 248) return 'Sud-Ouest';
+  if (norm < 293) return 'Ouest';
+  return 'Nord-Ouest';
+}
