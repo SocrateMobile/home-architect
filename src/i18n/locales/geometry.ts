@@ -114,7 +114,14 @@ const fr = {
   'geometry.furniture.sink_vanity': 'Meuble vasque',
   'geometry.furniture.kitchen_sink': 'Évier cuisine double',
   'geometry.furniture.cooktop': 'Plaque de cuisson',
-  'geometry.furniture.fridge': 'Réfrigérateur'
+  'geometry.furniture.fridge': 'Réfrigérateur',
+  'geometry.furniture.fridge_us': 'Réfrigérateur américain',
+  'geometry.furniture.dishwasher': 'Lave-vaisselle',
+  'geometry.furniture.washing_machine': 'Lave-linge',
+  'geometry.furniture.double_vanity': 'Meuble double vasque',
+  'geometry.furniture.towel_dryer': 'Sèche-serviettes',
+  'geometry.furniture.mirror': 'Miroir mural',
+  'geometry.furniture.wall_art': 'Tableau / Poster'
 } as const;
 
 /** Clés de l'espace « geometry ». */
@@ -226,7 +233,14 @@ const en: Record<GeometryKey, string> = {
   'geometry.furniture.sink_vanity': 'Bathroom vanity',
   'geometry.furniture.kitchen_sink': 'Double kitchen sink',
   'geometry.furniture.cooktop': 'Cooktop',
-  'geometry.furniture.fridge': 'Refrigerator'
+  'geometry.furniture.fridge': 'Refrigerator',
+  'geometry.furniture.fridge_us': 'American refrigerator',
+  'geometry.furniture.dishwasher': 'Dishwasher',
+  'geometry.furniture.washing_machine': 'Washing machine',
+  'geometry.furniture.double_vanity': 'Double vanity',
+  'geometry.furniture.towel_dryer': 'Towel dryer',
+  'geometry.furniture.mirror': 'Wall mirror',
+  'geometry.furniture.wall_art': 'Wall poster / Artwork'
 };
 
 const dictionaries: Record<Lang, Record<string, string>> = { fr, en };

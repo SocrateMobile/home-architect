@@ -337,6 +337,86 @@ const SHAPES: Record<string, ShapeBuilder> = {
         box(hx, -l / 2 - 0.035, hx + 0.02, -l / 2, 0.75, 1.1, 'metal')
       ]
     };
+  },
+  fridge_us: (w, l) => {
+    return {
+      bodyRole: 'metal',
+      parts: [
+        box(-w / 2, -l / 2, w / 2, l / 2, 0, 1.85, 'body'),
+        box(-0.005, -l / 2 - 0.01, 0.005, -l / 2, 0.05, 1.82, 'dark'),
+        box(-0.04, -l / 2 - 0.035, -0.02, -l / 2, 0.7, 1.5, 'metal'),
+        box(0.02, -l / 2 - 0.035, 0.04, -l / 2, 0.7, 1.5, 'metal'),
+        box(-w / 4 - 0.08, -l / 2 - 0.005, -w / 4 + 0.08, -l / 2, 1.1, 1.4, 'screen')
+      ]
+    };
+  },
+  double_vanity: (w, l) => {
+    const basinRx = (w * 0.35) / 2;
+    const basinRy = (l * 0.65) / 2;
+    return {
+      bodyRole: 'wood',
+      parts: [
+        ...cabinet(w, l, 0.85, 'ceramic'),
+        box(-w / 4 - basinRx, -basinRy, -w / 4 + basinRx, basinRy, 0.85, 0.855, 'water', true),
+        box(w / 4 - basinRx, -basinRy, w / 4 + basinRx, basinRy, 0.85, 0.855, 'water', true),
+        ...tap(-l / 2 + 0.03, 0.85, 0.12)
+      ]
+    };
+  },
+  towel_dryer: (w, l) => {
+    const bars = 5;
+    const parts: Array<FurniturePart | null> = [
+      box(-w / 2 + 0.02, -l / 2, -w / 2 + 0.05, l / 2, 0.6, 1.6, 'metal'),
+      box(w / 2 - 0.05, -l / 2, w / 2 - 0.02, l / 2, 0.6, 1.6, 'metal')
+    ];
+    for (let i = 0; i < bars; i++) {
+      const z = 0.75 + (i * 0.18);
+      parts.push(box(-w / 2 + 0.04, -l / 2 + 0.01, w / 2 - 0.04, l / 2 - 0.01, z, z + 0.025, 'heat'));
+    }
+    return {
+      bodyRole: 'metal',
+      parts
+    };
+  },
+  dishwasher: (w, l) => {
+    return {
+      bodyRole: 'metal',
+      parts: [
+        ...cabinet(w, l, 0.85, 'dark'),
+        box(-w / 2 + 0.03, -l / 2 - 0.01, w / 2 - 0.03, -l / 2, 0.72, 0.82, 'screen'),
+        box(-w / 3, -l / 2 - 0.025, w / 3, -l / 2, 0.65, 0.68, 'metal')
+      ]
+    };
+  },
+  washing_machine: (w, l) => {
+    const drumR = Math.min(w, l) * 0.28;
+    return {
+      bodyRole: 'ceramic',
+      parts: [
+        box(-w / 2, -l / 2, w / 2, l / 2, 0, 0.85, 'body'),
+        box(-w / 2 + 0.04, -l / 2 - 0.005, w / 2 - 0.04, -l / 2, 0.72, 0.82, 'screen'),
+        box(-drumR, -l / 2 - 0.015, drumR, -l / 2, 0.22, 0.22 + drumR * 2, 'glass', true),
+        box(-drumR * 0.6, -l / 2 - 0.008, drumR * 0.6, -l / 2, 0.22 + drumR * 0.4, 0.22 + drumR * 1.6, 'water', true)
+      ]
+    };
+  },
+  mirror: (w, l) => {
+    return {
+      bodyRole: 'glass',
+      parts: [
+        box(-w / 2, -l / 2, w / 2, l / 2, 1.0, 1.8, 'metal'),
+        box(-w / 2 + 0.02, -l / 2 + 0.005, w / 2 - 0.02, l / 2, 1.02, 1.78, 'glass')
+      ]
+    };
+  },
+  wall_art: (w, l) => {
+    return {
+      bodyRole: 'wood',
+      parts: [
+        box(-w / 2, -l / 2, w / 2, l / 2, 1.1, 1.7, 'wood'),
+        box(-w / 2 + 0.03, -l / 2 + 0.01, w / 2 - 0.03, l / 2, 1.13, 1.67, 'body')
+      ]
+    };
   }
 };
 

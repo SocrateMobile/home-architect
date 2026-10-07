@@ -604,9 +604,50 @@ const CATALOG_DEFINITIONS: FurnitureTemplateDefinition[] = [
       ];
     }
   },
+  {
+    type: 'double_vanity',
+    name: 'Meuble double vasque',
+    category: 'bathroom',
+    width: 1.40,
+    length: 0.50,
+    icon: '🫧',
+    shapes: (w, l) => {
+      const bW = (w * 0.35);
+      const basinRy = (l * 0.65) / 2;
+      const tap = Math.min(w, l) * 0.04;
+      const leftX = -w / 4;
+      const rightX = w / 4;
+      return [
+        outline(w, l, 0.06),
+        ellipse(leftX, 0, bW / 2, basinRy, 'water'),
+        ellipse(leftX, -basinRy + tap * 1.2, tap, tap, 'knob'),
+        ellipse(rightX, 0, bW / 2, basinRy, 'water'),
+        ellipse(rightX, -basinRy + tap * 1.2, tap, tap, 'knob')
+      ];
+    }
+  },
+  {
+    type: 'towel_dryer',
+    name: 'Sèche-serviettes',
+    category: 'bathroom',
+    width: 0.55,
+    length: 0.15,
+    icon: '♨️',
+    shapes: (w, l) => {
+      const bars = 4;
+      const step = l / (bars + 1);
+      return [
+        outline(w, l, 0.04),
+        ...Array.from({ length: bars }, (_, i) => {
+          const y = -l / 2 + (i + 1) * step;
+          return line(-w / 2 + 0.04, y, w / 2 - 0.04, y, 'heat', { strokeWidth: 1.5 });
+        })
+      ];
+    }
+  },
 
   // ==========================================
-  // CUISINE (KITCHEN)
+  // CUISINE & ÉLECTROMÉNAGER (KITCHEN)
   // ==========================================
   {
     type: 'kitchen_sink',
@@ -666,6 +707,98 @@ const CATALOG_DEFINITIONS: FurnitureTemplateDefinition[] = [
         line(-w / 2 + w * 0.12, -l / 2 + l * 0.045, -w / 2 + w * 0.3, -l / 2 + l * 0.045, 'frost', { strokeWidth: 2 }),
         // Symbole froid (flocon)
         ...branches
+      ];
+    }
+  },
+  {
+    type: 'fridge_us',
+    name: 'Réfrigérateur américain',
+    category: 'kitchen',
+    width: 0.95,
+    length: 0.75,
+    icon: '🧊',
+    shapes: (w, l) => {
+      return [
+        outline(w, l, 0.05),
+        line(0, -l / 2, 0, l / 2, 'outline', { strokeWidth: 1.8 }),
+        line(-w / 2, -l / 2 + l * 0.1, w / 2, -l / 2 + l * 0.1, 'outline', { strokeWidth: 1.4 }),
+        // Poignées verticales doubles
+        line(-0.04, -l / 2 + 0.02, -0.04, -l / 2 + 0.08, 'brass', { strokeWidth: 2.2 }),
+        line(0.04, -l / 2 + 0.02, 0.04, -l / 2 + 0.08, 'brass', { strokeWidth: 2.2 })
+      ];
+    }
+  },
+  {
+    type: 'dishwasher',
+    name: 'Lave-vaisselle',
+    category: 'kitchen',
+    width: 0.60,
+    length: 0.60,
+    icon: '🍽️',
+    shapes: (w, l) => {
+      const knob = Math.min(w, l) * 0.04;
+      return [
+        outline(w, l, 0.05),
+        line(-w / 2, -l / 2 + l * 0.15, w / 2, -l / 2 + l * 0.15, 'outline', { strokeWidth: 1.5 }),
+        ellipse(-w / 4, -l / 2 + l * 0.075, knob, knob, 'knob'),
+        line(-w * 0.1, -l / 2 + l * 0.075, w * 0.3, -l / 2 + l * 0.075, 'outline', { strokeWidth: 1.5 }),
+        // Panier à vaisselle symbolisé
+        rect(-w / 2 + 0.06, -l / 2 + l * 0.22, w - 0.12, l * 0.65, 'outline', 0.03, { strokeWidth: 1, dash: '3,3', opacity: 0.6 })
+      ];
+    }
+  },
+  {
+    type: 'washing_machine',
+    name: 'Lave-linge',
+    category: 'kitchen',
+    width: 0.60,
+    length: 0.60,
+    icon: '🧺',
+    shapes: (w, l) => {
+      const r = Math.min(w, l) * 0.32;
+      const knob = Math.min(w, l) * 0.035;
+      return [
+        outline(w, l, 0.05),
+        line(-w / 2, -l / 2 + l * 0.15, w / 2, -l / 2 + l * 0.15, 'outline', { strokeWidth: 1.5 }),
+        ellipse(-w / 4, -l / 2 + l * 0.075, knob, knob, 'knob'),
+        ellipse(w / 4, -l / 2 + l * 0.075, knob * 1.5, knob * 1.5, 'knob'),
+        // Hublot tambour
+        ellipse(0, l * 0.08, r, r, 'glass', { strokeWidth: 2 }),
+        ellipse(0, l * 0.08, r * 0.5, r * 0.5, 'water', { strokeWidth: 1.2 })
+      ];
+    }
+  },
+
+  // ==========================================
+  // DÉCORATION & MIROIRS (OTHER)
+  // ==========================================
+  {
+    type: 'mirror',
+    name: 'Miroir mural',
+    category: 'other',
+    width: 0.80,
+    length: 0.12,
+    icon: '🪞',
+    shapes: (w, l) => {
+      return [
+        outline(w, l, 0.04),
+        rect(-w / 2 + 0.02, -l / 2 + 0.02, w - 0.04, l - 0.04, 'glass', 0.02),
+        line(-w / 3, -l / 4, -w / 6, l / 4, 'highlight', { strokeWidth: 1.2, opacity: 0.8 })
+      ];
+    }
+  },
+  {
+    type: 'wall_art',
+    name: 'Tableau / Poster',
+    category: 'other',
+    width: 0.90,
+    length: 0.10,
+    icon: '🖼️',
+    shapes: (w, l) => {
+      return [
+        outline(w, l, 0.04),
+        rect(-w / 2 + 0.02, -l / 2 + 0.02, w - 0.04, l - 0.04, 'accent', 0.01),
+        line(-w / 2 + 0.04, 0, w / 2 - 0.04, 0, 'highlight', { strokeWidth: 1.2 })
       ];
     }
   }
