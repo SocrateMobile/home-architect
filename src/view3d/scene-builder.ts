@@ -632,18 +632,33 @@ export interface SunLighting {
   isNight: boolean;
 }
 
+export type SunLightingMode = 'auto' | 'day' | 'night';
+
 /**
  * Calcule l'éclairage et la direction 3D du soleil en temps réel depuis l'intégration `sun.sun` de Home Assistant.
- * Si non disponible ou si `sun.sun` est sous l'horizon, fournit une ambiance réaliste (nuit étoilée ou crépuscule).
+ * Supporte le mode automatique (synchro sun.sun), jour forcé ('day') ou nuit forcée ('night').
  */
-export function calculateSunLighting(hass: HassDisplayContext | undefined, forceNight = false, northAngleDeg = 0): SunLighting {
+export function calculateSunLighting(
+  hass: HassDisplayContext | undefined,
+  modeOrForceNight: SunLightingMode | boolean = 'auto',
+  northAngleDeg = 0
+): SunLighting {
+  const mode: SunLightingMode =
+    typeof modeOrForceNight === 'boolean'
+      ? (modeOrForceNight ? 'night' : 'auto')
+      : modeOrForceNight;
+
   const sunState = hass?.states?.['sun.sun'];
   let elevation = toFiniteNumber(sunState?.attributes?.elevation);
   let azimuth = toFiniteNumber(sunState?.attributes?.azimuth);
 
-  if (forceNight) {
+  if (mode === 'night') {
     elevation = -15;
     azimuth = 0;
+  } else if (mode === 'day') {
+    // Mode jour forcé : plein jour éclatant à 50° d'élévation, orienté sud-ouest pour des ombres réalistes
+    elevation = 50;
+    azimuth = 210;
   } else if (elevation === null || azimuth === null) {
     // Repli jour par défaut (soleil à 45° sud-ouest)
     elevation = 45;

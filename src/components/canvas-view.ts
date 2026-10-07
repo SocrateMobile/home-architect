@@ -442,9 +442,45 @@ export class HomeArchitectCanvas extends LitElement {
   @state()
   private walkthrough3D = false;
 
-  /** Ambiance jour/nuit dans la vue 3D WebGL. */
+  /** Ambiance lumineuse 3D ('auto' = synchro sun.sun, 'day' = jour forcé, 'night' = nuit forcée). */
+  @state()
+  private lightingMode3D: 'auto' | 'day' | 'night' = 'auto';
+
+  /** Rétrocompatibilité interne nightMode. */
   @state()
   private nightMode3D = false;
+
+  private cycleLightingMode3D(): void {
+    if (this.lightingMode3D === 'auto') {
+      this.lightingMode3D = 'day';
+      this.nightMode3D = false;
+      this.flashHint('Éclairage : Jour forcé ☀️');
+    } else if (this.lightingMode3D === 'day') {
+      this.lightingMode3D = 'night';
+      this.nightMode3D = true;
+      this.flashHint('Éclairage : Nuit forcée 🌙');
+    } else {
+      this.lightingMode3D = 'auto';
+      this.nightMode3D = false;
+      this.flashHint('Éclairage : Auto ⛅ (synchro sun.sun)');
+    }
+  }
+
+  private get lightingModeIcon(): string {
+    switch (this.lightingMode3D) {
+      case 'day': return '☀️';
+      case 'night': return '🌙';
+      default: return '⛅';
+    }
+  }
+
+  private get lightingModeTitle(): string {
+    switch (this.lightingMode3D) {
+      case 'day': return 'Éclairage : Jour forcé (soleil de midi) — Cliquer pour forcer la Nuit (🌙)';
+      case 'night': return 'Éclairage : Nuit forcée (lampes allumées) — Cliquer pour mode Auto (⛅)';
+      default: return 'Éclairage : Automatique (synchro soleil sun.sun) — Cliquer pour forcer le Jour (☀️)';
+    }
+  }
 
   /** Caméra de départ transmise à la vue WebGL quand elle s'affiche (transition depuis la caméra courante). */
   private view3dIntro: View3DIntro | null = null;
@@ -3473,13 +3509,13 @@ export class HomeArchitectCanvas extends LitElement {
           </button>
 
           <button
-            class="hud-btn ${this.nightMode3D ? 'active' : ''}"
-            @click=${() => { this.nightMode3D = !this.nightMode3D; }}
-            title="Ambiance Jour / Nuit (cycle solaire et lampes)"
-            aria-label="Ambiance Jour et Nuit"
-            aria-pressed=${this.nightMode3D ? 'true' : 'false'}
+            class="hud-btn ${this.lightingMode3D !== 'auto' ? 'active' : ''}"
+            @click=${() => this.cycleLightingMode3D()}
+            title=${this.lightingModeTitle}
+            aria-label=${this.lightingModeTitle}
+            aria-pressed=${this.lightingMode3D !== 'auto' ? 'true' : 'false'}
           >
-            ${this.nightMode3D ? '🌙' : '☀️'}
+            ${this.lightingModeIcon}
           </button>
         ` : nothing}
 
@@ -3592,7 +3628,8 @@ export class HomeArchitectCanvas extends LitElement {
         .shadows=${this.shadows}
         .cutWalls=${this.cutWalls}
         .walkthrough=${this.walkthrough3D}
-        .nightMode=${this.nightMode3D}
+        .lightingMode=${this.lightingMode3D}
+        .nightMode=${this.lightingMode3D === 'night'}
         .intro=${this.view3dIntro}
         @view3d-pick=${this.handleView3DPick}
         @view3d-camera=${this.handleView3DCamera}
