@@ -13,6 +13,8 @@ export interface RescaleModalResult {
   scaleFactor: number;
   /** False si le projet n'a pas de calque de fond (hasBackground=false) ou si l'utilisateur a décoché l'option. */
   adjustBackground: boolean;
+  /** True pour mettre aussi à l'échelle les épaisseurs des murs, dimensions des portes, fenêtres et meubles. */
+  scaleElements: boolean;
 }
 
 /** Bornes du facteur de mise à l'échelle : une saisie en millimètres ou en kilomètres en sort. */
@@ -330,6 +332,9 @@ export class HomeArchitectRescaleModal extends LitElement {
   private adjustBackground: boolean = true;
 
   @state()
+  private scaleElements: boolean = true;
+
+  @state()
   private unusualConfirmed: boolean = false;
 
   private readonly i18n = new LocalizeController(this);
@@ -445,11 +450,25 @@ export class HomeArchitectRescaleModal extends LitElement {
         currentMeters: this.measuredMeters,
         targetMeters: ev.target,
         scaleFactor: ev.factor,
-        adjustBackground: this.backgroundOptionVisible && this.adjustBackground
+        adjustBackground: this.backgroundOptionVisible && this.adjustBackground,
+        scaleElements: this.scaleElements
       },
       bubbles: true,
       composed: true
     }));
+  }
+
+  private renderScaleElementsImpact() {
+    return html`
+      <label class="check-row">
+        <input
+          type="checkbox"
+          .checked=${this.scaleElements}
+          @change=${(e: Event) => this.scaleElements = (e.target as HTMLInputElement).checked}
+        />
+        <span>${localize('geometry.rescale.scale_elements')}</span>
+      </label>
+    `;
   }
 
   private renderBackgroundImpact() {
@@ -589,6 +608,7 @@ export class HomeArchitectRescaleModal extends LitElement {
                 ))
                 : null}
             </ul>
+            ${this.renderScaleElementsImpact()}
             ${this.renderBackgroundImpact()}
           </div>
         </div>

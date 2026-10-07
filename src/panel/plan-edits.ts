@@ -317,19 +317,38 @@ function scaledRoomArea(room: Room, oldWalls: Wall[], polygon: Point[], walls: W
   return wasInterior ? PolygonUtils.computeInteriorArea(polygon, walls).areaM2 : PolygonUtils.computeArea(polygon);
 }
 
+export interface ScalePlanOptions {
+  adjustBackground: boolean;
+  scaleElements?: boolean;
+}
+
 /**
  * Met le plan à l'échelle d'un facteur `k` (autour de l'origine) : positions des murs, des pièces,
- * des entités, des meubles et des ouvertures sur leur mur. Les dimensions physiques (épaisseurs,
- * hauteurs, largeurs des ouvertures, dimensions des meubles) sont conservées (constat F49) et les
- * ouvertures re-bornées à leur mur (constat F44). Le calque de fond suit (échelle et position × k) si
+ * des entités, des meubles et des ouvertures sur leur mur. Les dimensions physiques (épaisseurs des murs,
+ * largeurs des ouvertures, dimensions des meubles) sont également mises à l'échelle si `scaleElements` (défaut true).
+ * Les ouvertures sont re-bornées à leur mur (constat F44). Le calque de fond suit (échelle et position × k) si
  * `adjustBackground`. pixelsPerMeter, échelle d'affichage et d'export, ne change jamais (constats F71, F141).
  */
-export function scalePlan(project: HomeArchitectProject, k: number, opts: { adjustBackground: boolean }): ScaleOutcome {
+export function scalePlan(project: HomeArchitectProject, k: number, opts: ScalePlanOptions): ScaleOutcome {
   const scale = (p: Point): Point => roundPoint({ x: p.x * k, y: p.y * k });
-  const walls = project.walls.map(w => ({ ...w, start: scale(w.start), end: scale(w.end) }));
+  const scaleElements = opts.scaleElements ?? true;
+
+  const walls = project.walls.map(w => ({
+    ...w,
+    start: scale(w.start),
+    end: scale(w.end),
+    ...(scaleElements ? { thickness: Math.max(0.01, round(w.thickness * k)) } : {})
+  }));
   const wallById = new Map(walls.map(w => [w.id, w]));
 
-  const openings = project.openings.map(op => ({ ...op, offset: round(op.offset * k) }));
+  const openings = project.openings.map(op => ({
+    ...op,
+    offset: round(op.offset * k),
+    ...(scaleElements ? {
+      width: Math.max(0.1, round(op.width * k)),
+      ...(op.height ? { height: Math.max(0.1, round(op.height * k)) } : {})
+    } : {})
+  }));
   let openingConflicts = 0;
   for (let i = 0; i < openings.length; i++) {
     const op = openings[i];
@@ -345,7 +364,14 @@ export function scalePlan(project: HomeArchitectProject, k: number, opts: { adju
     return { ...r, polygon, areaM2: scaledRoomArea(r, project.walls, polygon, walls) };
   });
   const bindings = project.bindings.map(b => ({ ...b, position: scale(b.position) }));
-  const furniture = (project.furniture ?? []).map(f => ({ ...f, position: scale(f.position) }));
+  const furniture = (project.furniture ?? []).map(f => ({
+    ...f,
+    position: scale(f.position),
+    ...(scaleElements ? {
+      width: Math.max(0.05, round(f.width * k)),
+      length: Math.max(0.05, round(f.length * k))
+    } : {})
+  }));
 
   const bg = project.background;
   const background = bg && opts.adjustBackground

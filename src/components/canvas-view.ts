@@ -2021,7 +2021,7 @@ export class HomeArchitectCanvas extends LitElement {
   }
 
   private handleRoomDblClick(e: MouseEvent, room: Room): void {
-    if (!this.canSelect || this.activeTool !== 'select') return;
+    if (!this.canSelect) return;
     e.stopPropagation();
     this.emitRoomSelected(room);
   }
@@ -3691,7 +3691,7 @@ export class HomeArchitectCanvas extends LitElement {
 
       <div class="canvas-hint" role="status" ?hidden=${!this.hint}>${this.hint ?? ''}</div>
 
-      ${!this.isDashboardMode ? html`
+      ${!this.isDashboardMode && !this.webgl3D ? html`
         <div class="coords-hud ${selectionCount(sel) > 0 ? 'selection-active' : ''}" aria-hidden="true">
           <span class="coords-key">X:</span>
           <span class="coords-x"></span>

@@ -1276,7 +1276,7 @@ export class HomeArchitectPanel extends LitElement {
   }
 
   private handleRescaleConfirmed(e: CustomEvent<RescaleModalResult>) {
-    const { scaleFactor, adjustBackground } = e.detail ?? {};
+    const { scaleFactor, adjustBackground, scaleElements } = e.detail ?? {};
     this.isRescaleModalOpen = false;
     // Revalidé avant toute modification : facteur fini et borné (constat F141).
     if (!isValidRescaleFactor(scaleFactor)) {
@@ -1284,7 +1284,7 @@ export class HomeArchitectPanel extends LitElement {
       return;
     }
     if (Math.abs(scaleFactor - 1) < 1e-4) return;
-    if (this.applyScale(scaleFactor, adjustBackground === true, localize('panel.scale.rescaled'))) this.activeTool = 'select';
+    if (this.applyScale(scaleFactor, adjustBackground === true, localize('panel.scale.rescaled'), scaleElements !== false)) this.activeTool = 'select';
   }
 
   /** Bornes du facteur d'échelle, formatées pour les messages de refus. */
@@ -1293,11 +1293,11 @@ export class HomeArchitectPanel extends LitElement {
   }
 
   /**
-   * Met le plan à l'échelle (positions × k) en conservant les dimensions physiques : épaisseurs,
-   * hauteurs, largeurs des ouvertures et meubles (constat F49). Renvoie false si rien n'a été appliqué.
+   * Met le plan à l'échelle (positions × k). Épaisseurs, ouvertures et meubles sont également mis à l'échelle
+   * proportionnellement si scaleElements=true. Renvoie false si rien n'a été appliqué.
    */
-  private applyScale(k: number, adjustBackground: boolean, label: string): boolean {
-    const { project, openingConflicts } = scalePlan(this.project, k, { adjustBackground });
+  private applyScale(k: number, adjustBackground: boolean, label: string, scaleElements: boolean = true): boolean {
+    const { project, openingConflicts } = scalePlan(this.project, k, { adjustBackground, scaleElements });
     if (!this.commitProject(project)) return false;
     const message = localize('panel.toast.scaled', {
       label,
@@ -1382,6 +1382,13 @@ export class HomeArchitectPanel extends LitElement {
       this.selectedElements = { ...this.selectedElements, roomIds: this.selectedElements.roomIds.filter(id => id !== roomId) };
     }
     this.showToast(localize('panel.toast.room_deleted'));
+  }
+
+  private openSelectedRoomModal(roomId: string): void {
+    const room = this.project.rooms.find(r => r.id === roomId);
+    if (room) {
+      this.selectedRoomForEdit = room;
+    }
   }
 
   private handleUndo() {
@@ -2126,6 +2133,9 @@ export class HomeArchitectPanel extends LitElement {
     const selectedBinding = selection.bindingIds.length > 0
       ? this.project.bindings.find(b => b.id === selection.bindingIds[0])
       : null;
+    const selectedRoom = selection.roomIds.length === 1
+      ? this.project.rooms.find(r => r.id === selection.roomIds[0])
+      : null;
     const selectedFurniture = (selection.furnitureIds ?? []).length > 0
       ? (this.project.furniture ?? []).find(f => f.id === selection.furnitureIds?.[0])
       : undefined;
@@ -2147,6 +2157,20 @@ export class HomeArchitectPanel extends LitElement {
             <span aria-hidden="true">🎯</span>
             <span>${this.getSelectedSummary(selection)}</span>
           </span>
+
+          ${selectedRoom ? html`
+            <div class="hud-options-group" role="group" aria-labelledby="hud-room-label">
+              <span class="hud-label" id="hud-room-label">${localize('panel.hud.room')}</span>
+              <button
+                class="hud-opt-btn"
+                ?disabled=${this.readOnly}
+                @click=${() => this.openSelectedRoomModal(selectedRoom.id)}
+                title=${localize('panel.hud.edit_room_title')}
+              >
+                <span aria-hidden="true">✏️</span> ${localize('panel.hud.edit_room')}
+              </button>
+            </div>
+          ` : nothing}
 
           ${selection.wallIds.length > 0 ? html`
             <div class="hud-options-group" role="group" aria-labelledby="hud-thickness-label">
