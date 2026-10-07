@@ -54,7 +54,7 @@ type RemoteEvent = { project_id: string; revision: number; deleted?: boolean };
 type LoadState = 'idle' | 'loading' | 'ready' | 'error';
 
 /** Préférences enregistrées avec le plan, modifiées sans entrée d'historique (voir setPreferences). */
-export type ProjectPreferences = Partial<Pick<HomeArchitectProject, 'grid' | 'showDimensions' | 'showThermalHeatmap' | 'showGhostLevel'>>;
+export type ProjectPreferences = Partial<Pick<HomeArchitectProject, 'grid' | 'showDimensions' | 'showThermalHeatmap' | 'showGhostLevel' | 'northAngle' | 'showCompass'>>;
 
 /** Élément hôte : le panneau du studio. */
 export type PersistenceHost = ReactiveControllerHost & { readonly hass: any; readonly isConnected: boolean };

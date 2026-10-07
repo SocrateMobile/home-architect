@@ -53,7 +53,7 @@ _PROJECT_ID_RE = re.compile(PROJECT_ID_PATTERN)
 _EXTERNAL_IMAGE_URL_RE = re.compile(r"^(?:https?://|/)[^\s\x00-\x1f\x7f]*$", re.IGNORECASE)
 _LIST_FIELDS = ("walls", "openings", "rooms", "bindings", "furniture")
 _OBJECT_FIELDS = ("grid", "background", "exportFrame")
-_NUMBER_FIELDS = ("pixelsPerMeter", "defaultCeilingHeight")
+_NUMBER_FIELDS = ("pixelsPerMeter", "defaultCeilingHeight", "northAngle")
 # Champs possédés par le serveur : ignorés en entrée de save_project
 _SERVER_FIELDS = frozenset({"publish", "revision", "schema_version", "updated_at"})
 _MAX_NAME_LENGTH = 200

@@ -393,6 +393,7 @@ describe('normalizeProject', () => {
   it('conserve préférences d’affichage, cadre d’export et publication', () => {
     const p = normalizeProject({
       showDimensions: false, showThermalHeatmap: true, showGhostLevel: 'oui', ghostLevelId: 'sous-sol',
+      northAngle: 450, showCompass: false,
       exportFrame: { minX: -1, minY: 0, maxX: 10, maxY: 8 },
       publish,
     });
@@ -400,9 +401,14 @@ describe('normalizeProject', () => {
     expect(p.showThermalHeatmap).toBe(true);
     expect(p.showGhostLevel).toBeUndefined();
     expect(p.ghostLevelId).toBe('sous-sol');
+    expect(p.northAngle).toBe(90);
+    expect(p.showCompass).toBe(false);
     expect(p.exportFrame).toEqual({ minX: -1, minY: 0, maxX: 10, maxY: 8 });
     expect(p.publish).toEqual(publish);
     expect(normalizeProject({ exportFrame: { minX: 5, minY: 0, maxX: 1, maxY: 8 } }).exportFrame).toBeUndefined();
+    expect(normalizeProject({ northAngle: -90 }).northAngle).toBe(270);
+    expect(normalizeProject({ northAngle: NaN }).northAngle).toBeUndefined();
+    expect(normalizeProject({ showCompass: 'oui' }).showCompass).toBeUndefined();
   });
 
   it('ignore les clés inconnues', () => {

@@ -880,7 +880,7 @@ export class HomeArchitect3DView extends LitElement {
     });
 
     // Ambiance lumineuse solaire et ombres en temps réel (sun.sun ou simulation jour/nuit)
-    const sunData = calculateSunLighting(hass, this.nightMode);
+    const sunData = calculateSunLighting(hass, this.nightMode, this.project?.northAngle ?? 0);
     toColor(sunData.color, t.sun.color);
     t.sun.intensity = sunData.intensity;
     t.sky.intensity = sunData.ambientIntensity;

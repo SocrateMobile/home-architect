@@ -487,6 +487,13 @@ describe('view3d / état des entités', () => {
     // 4. Force nuit (bouton 🌙 du HUD)
     const forced = calculateSunLighting(dayHass, true);
     expect(forced.isNight).toBe(true);
+
+    // 5. Prise en compte de l'orientation du plan (northAngleDeg)
+    // Azimut réel 180° (Sud). Si le plan a son Nord pivoté de 90° (Est à l'écran),
+    // l'azimut relatif du soleil devient 180 - 90 = 90° (Est du plan).
+    const rotatedDay = calculateSunLighting(dayHass, false, 90);
+    expect(rotatedDay.isNight).toBe(false);
+    expect(rotatedDay.dirX).toBeGreaterThan(0); // Vient de l'est relatif (azimut 90°)
   });
 });
 

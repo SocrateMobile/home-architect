@@ -636,7 +636,7 @@ export interface SunLighting {
  * Calcule l'éclairage et la direction 3D du soleil en temps réel depuis l'intégration `sun.sun` de Home Assistant.
  * Si non disponible ou si `sun.sun` est sous l'horizon, fournit une ambiance réaliste (nuit étoilée ou crépuscule).
  */
-export function calculateSunLighting(hass: HassDisplayContext | undefined, forceNight = false): SunLighting {
+export function calculateSunLighting(hass: HassDisplayContext | undefined, forceNight = false, northAngleDeg = 0): SunLighting {
   const sunState = hass?.states?.['sun.sun'];
   let elevation = toFiniteNumber(sunState?.attributes?.elevation);
   let azimuth = toFiniteNumber(sunState?.attributes?.azimuth);
@@ -652,8 +652,9 @@ export function calculateSunLighting(hass: HassDisplayContext | undefined, force
 
   const elevRad = (elevation * Math.PI) / 180;
   // Azimuth en géodésie : 0° = Nord, 90° = Est, 180° = Sud, 270° = Ouest.
-  // Dans le repère plan (x: Est / droite, z: Sud / bas) :
-  const azRad = (azimuth * Math.PI) / 180;
+  // Dans le repère plan (x: Est / droite, z: Sud / bas), ajusté selon l'orientation du Nord du plan :
+  const relAzimuth = ((azimuth - (northAngleDeg || 0)) % 360 + 360) % 360;
+  const azRad = (relAzimuth * Math.PI) / 180;
   const dirX = Math.sin(azRad) * Math.cos(Math.max(0.08, elevRad));
   const dirY = Math.sin(Math.max(0.08, elevRad));
   const dirZ = Math.cos(azRad) * Math.cos(Math.max(0.08, elevRad));

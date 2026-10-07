@@ -1276,7 +1276,84 @@ export const canvasStyles = css`
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
   }
 
+  /* Boussole / Rose des vents interactive (Nord géographique) */
+  .compass-hud {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    background: var(--arch-hud-bg);
+    backdrop-filter: blur(12px);
+    border: 1px solid var(--arch-hud-border);
+    border-radius: 24px;
+    padding: 6px 8px;
+    cursor: pointer;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+    z-index: 45;
+    user-select: none;
+    transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+
+  .compass-hud:hover {
+    transform: scale(1.05);
+    border-color: var(--arch-primary);
+    box-shadow: 0 6px 24px rgba(59, 130, 246, 0.3);
+  }
+
+  .compass-hud:active {
+    transform: scale(0.96);
+  }
+
+  .compass-hud-dial {
+    position: relative;
+    width: 38px;
+    height: 38px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .compass-hud-svg {
+    width: 100%;
+    height: 100%;
+    transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  .compass-hud-bg {
+    fill: var(--arch-surface-card, rgba(30, 41, 59, 0.7));
+    stroke: var(--arch-border, rgba(255, 255, 255, 0.1));
+    stroke-width: 1.5;
+  }
+
+  .compass-hud-n-fixed {
+    position: absolute;
+    top: -2px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 8px;
+    font-weight: 900;
+    color: #ef4444;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+    pointer-events: none;
+  }
+
+  .compass-hud-badge {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--arch-surface-text);
+    font-family: var(--arch-font-mono, monospace);
+    letter-spacing: -0.02em;
+  }
+
   /* HUD compact : téléphone, carte étroite (constat F126) */
+  :host([compact]) .compass-hud {
+    top: 12px;
+    right: 12px;
+    padding: 4px 6px;
+  }
   :host([compact]) .canvas-hud {
     bottom: 12px;
     right: 12px;

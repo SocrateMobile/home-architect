@@ -124,6 +124,8 @@ export interface HomeArchitectProject {
   showThermalHeatmap?: boolean;
   showGhostLevel?: boolean;
   ghostLevelId?: string;
+  northAngle?: number; // Orientation du Nord géographique en degrés [0, 360) (0° = haut du plan, sens horaire)
+  showCompass?: boolean; // Afficher la boussole sur le plan (défaut true)
   exportFrame?: ExportFrame; // Cadre figé pour les positions % de picture-elements
   publish?: PublishInfo;     // Lecture seule, injecté par le serveur ; retiré avant la sauvegarde
 }

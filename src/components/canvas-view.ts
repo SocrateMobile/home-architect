@@ -20,7 +20,7 @@ import type { DrawerItemPayload } from './entity-drawer';
 import {
   CanvasSize, ViewGeometry, REFERENCE_PIXELS_PER_METER, canvasCenter, clampZoom, clientToLocal, clientToWorld,
   defaultZoom, displayZoom, fitViewport, localToClient, localToView, panViewport, rotateVector, viewToWorld,
-  wheelDeltaPixels, wheelZoomFactor, worldToClient, worldToView, zoomViewportAt
+  wheelDeltaPixels, wheelZoomFactor, worldToClient, worldToView, zoomViewportAt, cardinalLabel
 } from '../canvas/coords';
 import { PointerTracker, distance, exceedsTapSlop, midpoint, pinchViewport } from '../canvas/gestures';
 import {
@@ -3651,6 +3651,45 @@ export class HomeArchitectCanvas extends LitElement {
     `;
   }
 
+  private handleCompassClick(e: MouseEvent) {
+    e.stopPropagation();
+    this.dispatchEvent(new CustomEvent('open-orientation', { bubbles: true, composed: true }));
+  }
+
+  private renderCompassWidget() {
+    if (this.project.showCompass === false) return nothing;
+    const angle = ((Math.round(this.project.northAngle ?? 0) % 360) + 360) % 360;
+    const card = cardinalLabel(angle);
+    return html`
+      <div
+        class="compass-hud"
+        @click=${this.handleCompassClick}
+        title="Orientation du Nord : ${angle}° (${card}) — Cliquer pour modifier"
+        aria-label="Orientation du Nord géographique (${angle}°)"
+        role="button"
+        tabindex="0"
+      >
+        <div class="compass-hud-dial">
+          <svg viewBox="0 0 44 44" class="compass-hud-svg" aria-hidden="true" style="transform: rotate(${angle}deg)">
+            <circle cx="22" cy="22" r="19" class="compass-hud-bg" />
+            <!-- Repère Nord (Aiguille rouge vif) -->
+            <polygon points="22,5 18,22 22,20" fill="#ef4444" />
+            <polygon points="22,5 26,22 22,20" fill="#dc2626" />
+            <circle cx="22" cy="9" r="2.5" fill="#ef4444" />
+            <!-- Repère Sud (Aiguille argentée / gris clair) -->
+            <polygon points="22,39 18,22 22,24" fill="#94a3b8" />
+            <polygon points="22,39 26,22 22,24" fill="#64748b" />
+            <!-- Pivot central -->
+            <circle cx="22" cy="22" r="3" fill="#ffffff" />
+            <circle cx="22" cy="22" r="1.5" fill="#3b82f6" />
+          </svg>
+          <span class="compass-hud-n-fixed">N</span>
+        </div>
+        <span class="compass-hud-badge">${angle}°</span>
+      </div>
+    `;
+  }
+
   render() {
     const helpMsg = this.getHelpMessage();
     // Taille mise en cache par le ResizeObserver : centre de la rotation de vue (v1.0.29)
@@ -3690,6 +3729,8 @@ export class HomeArchitectCanvas extends LitElement {
       ${helpMsg && !this.hasToast ? html`<div class="help-hud">${helpMsg}</div>` : nothing}
 
       <div class="canvas-hint" role="status" ?hidden=${!this.hint}>${this.hint ?? ''}</div>
+
+      ${this.renderCompassWidget()}
 
       ${!this.isDashboardMode && !this.webgl3D ? html`
         <div class="coords-hud ${selectionCount(sel) > 0 ? 'selection-active' : ''}" aria-hidden="true">
