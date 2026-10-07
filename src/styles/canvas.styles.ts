@@ -1080,6 +1080,49 @@ export const canvasStyles = css`
     padding: 6px 10px;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
     z-index: 50;
+    touch-action: none;
+  }
+
+  .hud-drag-handle {
+    background: transparent;
+    border: none;
+    color: var(--arch-hud-text, var(--arch-ui-text-muted, #94a3b8));
+    cursor: grab;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 4px;
+    height: 32px;
+    border-radius: 6px;
+    user-select: none;
+    touch-action: none;
+    font-size: 13px;
+    line-height: 1;
+    opacity: 0.65;
+    transition: opacity 0.15s ease, background-color 0.15s ease, color 0.15s ease;
+  }
+
+  .hud-drag-handle:hover,
+  .hud-drag-handle.dragging {
+    opacity: 1;
+    color: var(--arch-accent, #3b82f6);
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  .hud-drag-handle.dragging {
+    cursor: grabbing;
+  }
+
+  .hud-drag-handle:focus-visible {
+    outline: 2px solid var(--arch-accent, #3b82f6);
+    outline-offset: 1px;
+    opacity: 1;
+  }
+
+  .grip-dots {
+    letter-spacing: -1.5px;
+    font-weight: bold;
+    user-select: none;
   }
 
   .hud-btn {
@@ -1183,7 +1226,8 @@ export const canvasStyles = css`
     color: var(--arch-surface-muted);
     font-family: ui-monospace, SFMono-Regular, monospace;
     z-index: 50;
-    pointer-events: none;
+    pointer-events: auto;
+    touch-action: none;
     white-space: nowrap;
     display: flex;
     align-items: center;
@@ -1262,17 +1306,20 @@ export const canvasStyles = css`
     width: max-content;
     max-width: calc(100% - 32px);
     box-sizing: border-box;
-    text-align: center;
+    display: flex;
+    align-items: center;
+    gap: 8px;
     background: var(--arch-hud-bg);
     backdrop-filter: blur(12px);
     border: 1px solid var(--arch-accent-soft);
     border-radius: 20px;
-    padding: 6px 16px;
+    padding: 4px 14px 4px 8px;
     font-size: 12px;
     font-weight: 500;
     color: var(--arch-hud-text);
     z-index: 50;
-    pointer-events: none;
+    pointer-events: auto;
+    touch-action: none;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
   }
 
@@ -1294,6 +1341,7 @@ export const canvasStyles = css`
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
     z-index: 45;
     user-select: none;
+    touch-action: none;
     transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
   }
 

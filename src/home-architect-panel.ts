@@ -54,6 +54,7 @@ import {
   effectiveCeilingHeight, geometryStats, inheritDefaultHeight, mapChanged, parseWizardRequest, reshapeOpenings,
   scaleBackgroundLayer, scalePlan, sideBySideOffset, translateGeometry, wizardRoomOrigin
 } from './panel/plan-edits';
+import { DraggableHudController, renderDragHandle } from './components/draggable-hud';
 
 /** URL d'image de fond externe conservée par normalizeProject (http(s) ou chemin absolu, sans espace ni caractère de contrôle). */
 const EXTERNAL_IMAGE_URL = /^(?:https?:\/\/|\/)[^\s\p{Cc}]*$/iu;
@@ -663,6 +664,13 @@ export class HomeArchitectPanel extends LitElement {
   private toastMessage: string | null = null;
   private toastTimeout: ReturnType<typeof setTimeout> | null = null;
 
+  /** Contrôleur de déplacement de la barre d'actions de sélection. */
+  private selectionHudDrag: DraggableHudController = new DraggableHudController(
+    () => this.renderRoot.querySelector<HTMLElement>('.selection-hud'),
+    () => this.renderRoot.querySelector<HTMLElement>('.canvas-area') || this,
+    { storageKey: 'home_architect_selection_hud_pos', onPositionChanged: () => this.requestUpdate() }
+  );
+
   connectedCallback() {
     super.connectedCallback();
     // Langue et palette suivent HA dès l'insertion (hass peut précéder la connexion).
@@ -789,6 +797,7 @@ export class HomeArchitectPanel extends LitElement {
       if (menu) focusMenuItem(menu, this.pendingMenuFocus);
       this.pendingMenuFocus = null;
     }
+    this.selectionHudDrag.applyStoredPosition();
   }
 
   /** Plein écran natif quitté (Échap du navigateur, geste système) : état et classe synchronisés. */
@@ -2191,8 +2200,18 @@ export class HomeArchitectPanel extends LitElement {
     const clearLabel = localize('panel.hud.clear_selection');
 
     return html`
-      <div class="selection-hud" role="region" aria-label=${localize('panel.hud.region')}>
+      <div
+        class="selection-hud"
+        role="region"
+        aria-label=${localize('panel.hud.region')}
+        style=${this.selectionHudDrag.styleString}
+        @pointerdown=${this.selectionHudDrag.handlePointerDown}
+        @pointermove=${this.selectionHudDrag.handlePointerMove}
+        @pointerup=${this.selectionHudDrag.handlePointerUp}
+        @pointercancel=${this.selectionHudDrag.handlePointerUp}
+      >
         <div class="selection-hud-main">
+          ${renderDragHandle(this.selectionHudDrag, 'Déplacer la barre de sélection')}
           <span class="selection-info">
             <span aria-hidden="true">🎯</span>
             <span>${this.getSelectedSummary(selection)}</span>

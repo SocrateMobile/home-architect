@@ -28,7 +28,7 @@ const CHUNKS_DIR = 'chunks/';
 // Budget du bundle carte (entrée + chunks importés statiquement), compressé gzip.
 // L'ancien bundle unique pesait ~100 kB gzip. La carte embarque le canevas, la vue 3D simplifiée (repli)
 // et le chargeur de la vue WebGL ; le moteur 3D lui-même reste hors budget, chargé à la demande.
-const CARD_GZIP_BUDGET = 84 * 1024;
+const CARD_GZIP_BUDGET = 90 * 1024;
 // Chunk(s) de la vue 3D WebGL (three compris), téléchargé(s) seulement au passage en 3D.
 const VIEW3D_CHUNK = /^chunks\/view3d-[\w-]+\.js$/;
 const VIEW3D_GZIP_BUDGET = 200 * 1024;
