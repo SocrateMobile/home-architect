@@ -247,7 +247,7 @@ const NON_RENDERED = new Set([
 
 /** Propriétés de présentation lues sur les attributs, les règles CSS et l'attribut style. */
 const PRESENTATION_PROPS = new Set([
-  'fill', 'fill-opacity', 'stroke', 'stroke-width', 'stroke-opacity', 'stroke-dasharray', 'opacity', 'display',
+  'fill', 'fill-opacity', 'stroke', 'stroke-width', 'stroke-opacity', 'stroke-dasharray', 'stroke-dashoffset', 'opacity', 'display',
   'visibility', 'font-size', 'text-anchor', 'marker', 'marker-start', 'marker-mid', 'marker-end', 'color'
 ]);
 
@@ -266,12 +266,14 @@ const MAX_LABEL_PAIRS = 64;
  * de plan (exports DWG, Inkscape, SketchUp…), quelle que soit la langue de l'utilisateur.
  */
 const ROLE_WORDS: Record<string, SemanticRole> = {
-  // Cotation, annotations, trames : jamais des murs
-  dimension: 'measurement', dim: 'measurement', cotation: 'measurement', cote: 'measurement', mesure: 'measurement',
+  // Cotation, annotations, trames, pointillés, flèches : jamais des murs
+  dimension: 'measurement', dim: 'measurement', cotation: 'measurement', cote: 'measurement', cotes: 'measurement', mesure: 'measurement',
   measure: 'measurement', measurement: 'measurement', guide: 'measurement', guideline: 'measurement', axis: 'measurement',
   axe: 'measurement', fleche: 'measurement', arrow: 'measurement', tick: 'measurement', anno: 'measurement',
   annotation: 'measurement', grid: 'measurement', grille: 'measurement', trame: 'measurement', leader: 'measurement',
-  centerline: 'measurement', centreline: 'measurement',
+  centerline: 'measurement', centreline: 'measurement', dashed: 'measurement', dash: 'measurement',
+  pointille: 'measurement', pointilles: 'measurement', dot: 'measurement', dotted: 'measurement',
+  tirete: 'measurement', tirets: 'measurement', coffrage: 'measurement', cot: 'measurement', dimline: 'measurement',
   // Portes
   door: 'door', doorway: 'door', porte: 'door', portillon: 'door', portail: 'door', gate: 'door', swing: 'door',
   battant: 'door',
@@ -292,21 +294,23 @@ const ROLE_WORDS: Record<string, SemanticRole> = {
 /** Mots qui balisent une forme comme pièce (français et anglais). */
 const ROOM_WORDS = new Set([
   'room', 'piece', 'espace', 'space', 'zone', 'area', 'local',
-  'chambre', 'bedroom', 'salon', 'sejour', 'living', 'lounge', 'cuisine', 'kitchen', 'sdb', 'bathroom'
+  'chambre', 'bedroom', 'salon', 'sejour', 'living', 'lounge', 'cuisine', 'kitchen', 'sdb', 'bathroom',
+  'cabinet', 'bureau', 'entree', 'degt', 'degagement'
 ]);
 
-/** Noms de pièces (français et anglais) reconnus pour les pièces approximatives créées autour d'une étiquette. */
+/** Noms de pièces (français et anglais) reconnus pour les pièces créées autour d'une étiquette. */
 const ROOM_NAME_RE = new RegExp('\\b(' + [
-  'salon', 'sejour', 'living', 'lounge', 'salle a manger', 'dining',
-  'chambre', 'bedroom',
-  'cuisine', 'kitchen',
-  'sdb', 'sde', 'bain', 'bains', 'douche', 'bath', 'bathroom', 'shower',
-  'wc', 'toilettes?', 'toilets?', 'restroom',
-  'bureau', 'office', 'study',
-  'entree', 'entry', 'entrance', 'hall', 'hallway', 'couloir', 'corridor', 'degagement', 'palier', 'landing',
+  'salon', 'sejour', 'living', 'lounge', 'salle a manger', 'dining', 'sam',
+  'chambre', 'bedroom', 'ch\\d*', 'suite', 'parentale',
+  'cuisine', 'kitchen', 'kitchenette',
+  'sdb', 'sde', 'sd', 'bain', 'bains', 'douche', 'bath', 'bathroom', 'shower', 'salle d ?eau',
+  'wc', 'toilettes?', 'toilets?', 'restroom', 'lavatory',
+  'bureau', 'office', 'study', 'cabinet', 'consultation',
+  'entree', 'entry', 'entrance', 'hall', 'hallway', 'couloir', 'corridor', 'degagement', 'degt', 'degat', 'palier', 'landing', 'foyer',
   'garage', 'atelier', 'workshop',
-  'cellier', 'pantry', 'buanderie', 'laundry', 'utility', 'dressing', 'closet', 'placard', 'debarras', 'storage',
-  'cave', 'cellar'
+  'cellier', 'cell', 'pantry', 'buanderie', 'buand', 'lingerie', 'laundry', 'utility', 'dressing', 'closet', 'placard', 'plac', 'pl', 'debarras', 'storage',
+  'cave', 'cellar', 'grenier', 'mezzanine', 'reserve', 'chaufferie',
+  'balcon', 'terrasse', 'loggia', 'veranda', 'patio', 'piece'
 ].join('|') + ')\\b');
 
 /** Tolérances métriques de la reconnaissance (converties en unités racine selon l'échelle). */
@@ -952,25 +956,34 @@ function collectTextLines(textEl: Element): string[] {
   return lines;
 }
 
-/** Vrai pour une cote, une surface, une hauteur ou un niveau (« 12,5 m² », « S = 11 m2 », « HSP 2,50 », « 3.40 x 4.20 »). */
+/** Vrai pour une cote, une surface, une hauteur, un niveau ou une annotation de mesure (« 12,5 m² », « HSP 2,50 », « 3.40 x 4.20 », « 4,19 m (mur à mur) », « Coffrage 1.22 x 0.26 m »). */
 function isMeasurementText(s: string): boolean {
-  const rest = normalizeText(s)
-    .replace(/\b(?:m2|m|cm|mm|dm|ml|s|sh|shab|shon|su|surf|surface|hsp|hsf|ht|h|hp|ep|niv|nf|ngf|alt|env|approx|ca|x|ft|ft2|sq|sqft|sf|in|area)\b/g, ' ')
+  const norm = normalizeText(s);
+  const rest = norm
+    .replace(/\b\d+(?:[.,]\d+)?\s*[xX*×]\s*\d+(?:[.,]\d+)?(?:\s*[xX*×]\s*\d+(?:[.,]\d+)?)?(?:\s*(?:m|cm|mm))?\b/g, ' ')
+    .replace(/\b(?:m2|m|cm|mm|dm|ml|s|sh|shab|shon|su|surf|surface|hsp|hsf|ht|h|hp|ep|epaisseur|niv|nf|ngf|alt|env|approx|ca|x|par|ft|ft2|sq|sqft|sf|in|area)\b/g, ' ')
+    .replace(/\b(?:mur|coffrage|hors|tout|nu|brut|fini|clair|passage|axe|cote|cotes|reelles|reel|tot|total|larg|largeur|long|longueur|haut|hauteur)\b/g, ' ')
     .replace(/[^a-z]+/g, '');
   return rest.length === 0;
 }
 
 /**
  * Nom de pièce à partir des lignes d'un texte, sans les surfaces ni les cotes ; '' si rien d'exploitable.
- * Surfaces retirées : « 12,5 m² », « 150 ft² », « 1,215 sq ft », « 140 sq. ft. », « 95 SF ».
+ * Retire les surfaces, cotes linéaires, cotes au format L x l, préfixes de mesure et annotations entre parenthèses.
  */
 function cleanLabel(lines: string[]): string {
   const kept = lines
-    .map(l => l
-      .replace(/[\s(\-–—:,]*\d+(?:[.,]\d+)*\s*(?:m(?:²|2)|ft(?:²|2)|sq\.?\s*ft\.?|sf)(?![a-z])\s*\)?/gi, ' ')
-      .replace(/\s+/g, ' ')
-      .replace(/[\s\-–—:,;(]+$/, '')
-      .trim())
+    .map(l => {
+      return l
+        .replace(/[\s(\-–—:,]*\d+(?:[.,]\d+)*\s*(?:m(?:²|2)|ft(?:²|2)|sq\.?\s*ft\.?|sf)(?![a-z])\s*\)?/gi, ' ')
+        .replace(/\b\d+(?:[.,]\d+)?\s*[xX*×]\s*\d+(?:[.,]\d+)?(?:\s*[xX*×]\s*\d+(?:[.,]\d+)?)?(?:\s*(?:m|cm|mm))?\b/g, ' ')
+        .replace(/\b\d+(?:[.,]\d+)?\s*(?:m|cm|mm)\b/gi, ' ')
+        .replace(/\([^)]*(?:cote|coffrage|mur|hsp|haut|larg|long|dim)[^)]*\)/gi, ' ')
+        .replace(/\b(?:largeur|longueur|hauteur|hsp|cotes?|surface|surf)\s*:\s*/gi, ' ')
+        .replace(/\s+/g, ' ')
+        .replace(/[\s\-–—:,;(]+$/, '')
+        .trim();
+    })
     .filter(l => l && !isMeasurementText(l));
   const text = kept.join(' ').trim();
   return text.length > 0 && text.length <= 60 ? text : '';
@@ -1041,7 +1054,8 @@ class SvgExtractor {
     const attrs = el.attributes;
     for (let i = 0; i < attrs.length; i++) {
       const a = attrs[i];
-      if (PRESENTATION_PROPS.has(a.name)) out[a.name] = a.value.trim();
+      const name = a.name.toLowerCase();
+      if (PRESENTATION_PROPS.has(name)) out[name] = a.value.trim();
     }
     if (this.css.size > 0) {
       for (const rule of this.css.match(el, tag)) Object.assign(out, rule.decls);
@@ -1512,7 +1526,7 @@ class SvgExtractor {
   }
 
   private extractText(el: Element, st: WalkState): void {
-    if (st.style.hidden || st.role === 'measurement' || st.role === 'ignore') return;
+    if (st.style.hidden || st.role === 'ignore') return;
     const lines = collectTextLines(el);
     const text = cleanLabel(lines);
     if (!text) return;
@@ -2197,9 +2211,76 @@ function buildWalls(prims: SvgPrimitives, vb: SvgBox, mpu: number, o: ResolvedOp
     if (Math.max(s.maxX - s.minX, s.maxY - s.minY) < TOL.smallObject * k) small.add(i);
   });
 
+  // Détection des pointillés (suites de petits segments colinéaires alignés) : indications de mesure / structure
+  const shortDashTol = 0.4 * k;
+  const dashedSegments = new Set<RawSegment>();
+  const shortSegGrid = new SpatialGrid<RawSegment>(gridSize(shortDashTol * 2, extent));
+  const shortSegs: RawSegment[] = [];
+  for (const s of prims.segments) {
+    const l = Math.hypot(s.bx - s.ax, s.by - s.ay);
+    if (l >= TOL.minSegment * k && l <= shortDashTol) {
+      shortSegs.push(s);
+      shortSegGrid.insertBox(Math.min(s.ax, s.bx), Math.min(s.ay, s.by), Math.max(s.ax, s.bx), Math.max(s.ay, s.by), s);
+    }
+  }
+
+  for (const s of shortSegs) {
+    if (dashedSegments.has(s)) continue;
+    const sLen = Math.hypot(s.bx - s.ax, s.by - s.ay);
+    if (sLen === 0) continue;
+    const sDx = (s.bx - s.ax) / sLen;
+    const sDy = (s.by - s.ay) / sLen;
+    let collinearCount = 0;
+    const pad = 0.3 * k;
+    shortSegGrid.query(
+      Math.min(s.ax, s.bx) - pad, Math.min(s.ay, s.by) - pad,
+      Math.max(s.ax, s.bx) + pad, Math.max(s.ay, s.by) + pad,
+      o => {
+        if (o === s) return;
+        const oLen = Math.hypot(o.bx - o.ax, o.by - o.ay);
+        if (oLen === 0) return;
+        const oDx = (o.bx - o.ax) / oLen;
+        const oDy = (o.by - o.ay) / oLen;
+        if (Math.abs(sDx * oDx + sDy * oDy) > 0.98) {
+          const perp = Math.abs((o.ax - s.ax) * sDy - (o.ay - s.ay) * sDx);
+          if (perp < 0.04 * k) {
+            const d1 = Math.hypot(o.ax - s.bx, o.ay - s.by);
+            const d2 = Math.hypot(o.bx - s.ax, o.by - s.ay);
+            if (d1 < 0.25 * k || d2 < 0.25 * k) collinearCount++;
+          }
+        }
+      }
+    );
+    if (collinearCount >= 2) dashedSegments.add(s);
+  }
+
+  // Détection des flèches géométriques ou ticks aux extrémités
+  const arrowTol = 0.20 * k;
+  const smallShapeGrid = new SpatialGrid<RawShape>(gridSize(arrowTol * 4, extent));
+  for (const shapeIdx of small) {
+    const sh = prims.shapes[shapeIdx];
+    smallShapeGrid.insertBox(sh.minX, sh.minY, sh.maxX, sh.maxY, sh);
+  }
+
+  const hasArrowAt = (x: number, y: number): boolean => {
+    let found = false;
+    smallShapeGrid.query(x - arrowTol, y - arrowTol, x + arrowTol, y + arrowTol, () => {
+      found = true;
+    });
+    if (found) return true;
+    let branches = 0;
+    shortSegGrid.query(x - arrowTol, y - arrowTol, x + arrowTol, y + arrowTol, s => {
+      if (Math.hypot(s.ax - x, s.ay - y) <= arrowTol || Math.hypot(s.bx - x, s.by - y) <= arrowTol) branches++;
+    });
+    return branches >= 2;
+  };
+  const isArrowMeasurement = (s: RawSegment): boolean => hasArrowAt(s.ax, s.ay) && hasArrowAt(s.bx, s.by);
+
   // 3. Traits candidats
   const candidates = prims.segments.filter(s =>
     s.role === 'wall' &&
+    !dashedSegments.has(s) &&
+    !isArrowMeasurement(s) &&
     (s.stroke > 0 || s.fill === 'dark') &&
     !(s.shape >= 0 && small.has(s.shape)) &&
     Math.hypot(s.bx - s.ax, s.by - s.ay) >= TOL.minSegment * k &&
@@ -2473,8 +2554,10 @@ function roomStyle(name: string): { color: string; icon: string } {
   if (/\b(cuisine|kitchen|kitchenette)\b/.test(n)) return { color: 'rgba(245, 158, 11, 0.28)', icon: 'mdi:silverware-fork-knife' };
   if (/\b(sdb|sde|bain|bains|douche|bath|bathroom|shower|salle d ?eau)\b/.test(n)) return { color: 'rgba(6, 182, 212, 0.28)', icon: 'mdi:shower' };
   if (/\b(wc|toilettes?|toilets?|restroom|lavatory)\b/.test(n)) return { color: 'rgba(16, 185, 129, 0.28)', icon: 'mdi:toilet' };
-  if (/\b(bureau|office|travail|study)\b/.test(n)) return { color: 'rgba(99, 102, 241, 0.28)', icon: 'mdi:desk' };
-  if (/\b(entree|hall|couloir|degagement|corridor|palier|entry|entrance|hallway|landing|foyer)\b/.test(n)) return { color: 'rgba(100, 116, 139, 0.28)', icon: 'mdi:door' };
+  if (/\b(bureau|office|travail|study|cabinet|consultation)\b/.test(n)) return { color: 'rgba(99, 102, 241, 0.28)', icon: 'mdi:desk' };
+  if (/\b(entree|hall|couloir|degagement|degt|degat|corridor|palier|entry|entrance|hallway|landing|foyer)\b/.test(n)) return { color: 'rgba(100, 116, 139, 0.28)', icon: 'mdi:door' };
+  if (/\b(buand|buanderie|lingerie|laundry)\b/.test(n)) return { color: 'rgba(100, 116, 139, 0.28)', icon: 'mdi:washing-machine' };
+  if (/\b(cellier|cell|placard|plac|pl|dressing|debarras|storage|reserve)\b/.test(n)) return { color: 'rgba(148, 163, 184, 0.28)', icon: 'mdi:wardrobe' };
   if (/\b(garage|atelier|workshop)\b/.test(n)) return { color: 'rgba(120, 113, 108, 0.28)', icon: 'mdi:garage' };
   if (/\b(terrasse|balcon|patio|loggia|veranda|terrace|balcony|deck|porch)\b/.test(n)) return { color: 'rgba(20, 184, 166, 0.28)', icon: 'mdi:balcony' };
   return { color: 'rgba(56, 189, 248, 0.25)', icon: 'mdi:home-outline' };
@@ -2680,7 +2763,18 @@ function detectRooms(
   accepted.forEach((a, i) => {
     const id = generateElementId('room');
     const g = { ...generic(a.worldPolygon, a.areaM2, i + 1), id };
-    const name = a.candidate.label;
+    let name = a.candidate.label;
+    if (!name) {
+      const closeLabel = prims.labels.find(l =>
+        !enclosedLabels.has(l) &&
+        ROOM_NAME_RE.test(normalizeText(l.text)) &&
+        Math.hypot(toWorld({ x: l.x, y: l.y }).x - a.centroid.x, toWorld({ x: l.x, y: l.y }).y - a.centroid.y) < 2.5
+      );
+      if (closeLabel) {
+        name = closeLabel.text;
+        enclosedLabels.add(closeLabel);
+      }
+    }
     const style = name ? roomStyle(name) : null;
     rooms.push({
       named: name && style ? { ...g, name, color: style.color, icon: style.icon } : g,
@@ -2690,11 +2784,13 @@ function detectRooms(
     });
   });
 
-  // Aucun contour exploitable : pièces approximatives (3,6 m de côté) autour des étiquettes de pièces.
-  if (rooms.length === 0 && wallCount >= 4) {
+  // Détection des pièces autour des étiquettes de pièces restantes (délimitées par les murs ou emprise par défaut)
+  if (wallCount >= 4) {
     for (const label of prims.labels) {
       if (enclosedLabels.has(label) || !ROOM_NAME_RE.test(normalizeText(label.text))) continue;
       const c = toWorld({ x: label.x, y: label.y });
+      if (rooms.some(r => !r.labelOnly && PolygonUtils.containsPoint(c, r.generic.polygon))) continue;
+
       const half = 1.8;
       const polygon: Point[] = [
         { x: round2(c.x - half), y: round2(c.y - half) },
@@ -2704,10 +2800,16 @@ function detectRooms(
       ];
       const style = roomStyle(label.text);
       const room: Room = {
-        id: generateElementId('room'), name: label.text, polygon, areaM2: PolygonUtils.computeArea(polygon),
-        color: style.color, icon: style.icon, height: o.defaultHeight
+        id: generateElementId('room'),
+        name: label.text,
+        polygon,
+        areaM2: PolygonUtils.computeArea(polygon),
+        color: style.color,
+        icon: style.icon,
+        height: o.defaultHeight
       };
       rooms.push({ named: room, generic: room, fromLabel: true, labelOnly: true });
+      enclosedLabels.add(label);
     }
   }
   return { rooms, ignored };

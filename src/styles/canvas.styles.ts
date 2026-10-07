@@ -1200,15 +1200,15 @@ export const canvasStyles = css`
    * au-dessus du HUD au lieu de le chevaucher ; le HUD 3D, avec ses préréglages et la coupe des murs, est
    * plus large (≈ 690 px, constat F126).
    */
-  @container architect-canvas (max-width: 1080px) {
+  @container architect-canvas (max-width: 1400px) {
     .coords-hud {
       bottom: 76px;
     }
   }
 
   @container architect-canvas (max-width: 1740px) {
-    .canvas-container.mode-3d ~ .coords-hud:not(.selection-active) {
-      bottom: 76px;
+    .canvas-container.mode-3d ~ .coords-hud {
+      display: none;
     }
   }
 

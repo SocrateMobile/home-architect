@@ -616,3 +616,53 @@ describe('robustesse et préparation du calque (F156)', () => {
     expect(decodeSvgBytes(new TextEncoder().encode('<?xml version="1.0" encoding="utf-8"?><svg><text>Séjour</text></svg>'))).toContain('Séjour');
   });
 });
+
+describe('lignes de cotes, pointillés et reconnaissance de pièces (améliorations v2.0)', () => {
+  it('exclut les lignes en pointillés des murs et les classe en mesure', () => {
+    // Un rectangle représentant une pièce avec une ligne en pointillés au milieu
+    const content = svg(`
+      <rect x="0" y="0" width="400" height="400" ${STROKE}/>
+      <line x1="0" y1="200" x2="400" y2="200" stroke="#666" stroke-width="1" stroke-dasharray="4,4"/>
+      <text x="100" y="100">Salon</text>
+    `);
+    const r = parse(content, { totalWidthMeters: 4 });
+    // Les 4 murs du rectangle doivent être présents, mais pas la ligne pointillée
+    expect(r.walls.length).toBe(4);
+    expect(r.stats.ignoredMeasurementLinesCount).toBeGreaterThanOrEqual(1);
+  });
+
+  it('exclut les lignes de cotes avec flèches aux extrémités des murs', () => {
+    // Ligne avec marqueurs de flèches ou annotation de cote
+    const content = svg(`
+      <defs>
+        <marker id="arrow" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 0 L 10 5 L 0 10 z" />
+        </marker>
+      </defs>
+      <rect x="0" y="0" width="500" height="400" ${STROKE}/>
+      <line x1="20" y1="380" x2="480" y2="380" stroke="#000" stroke-width="1" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+      <text x="250" y="375">4.80 m</text>
+      <text x="200" y="200">Séjour</text>
+    `);
+    const r = parse(content, { totalWidthMeters: 5 });
+    // Les 4 murs extérieurs, pas la ligne de cote
+    expect(r.walls.length).toBe(4);
+    expect(r.rooms.some(rm => rm.name === 'Séjour')).toBe(true);
+  });
+
+  it('reconnaît les noms de pièces complexes avec cotes ou abréviations (Cabinet / Séjour, Dégt)', () => {
+    const content = svg(`
+      <rect x="0" y="0" width="600" height="400" ${STROKE}/>
+      <line x1="300" y1="0" x2="300" y2="400" ${STROKE}/>
+      <text x="100" y="150">Cabinet / Séjour (Cotes réelles)</text>
+      <text x="100" y="180">24,5 m²</text>
+      <text x="400" y="150">Dégt</text>
+      <text x="400" y="180">1,00 m²</text>
+    `);
+    const r = parse(content, { totalWidthMeters: 6 });
+    const names = r.rooms.map(rm => rm.name);
+    expect(names.some(n => n.includes('Cabinet') || n.includes('Séjour'))).toBe(true);
+    expect(names.some(n => n.includes('Dégt'))).toBe(true);
+  });
+});
+

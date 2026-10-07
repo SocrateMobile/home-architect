@@ -330,7 +330,7 @@ export class HomeArchitect3DView extends LitElement {
 
     .walkthrough-hud {
       position: absolute;
-      bottom: 20px;
+      bottom: 80px;
       left: 50%;
       transform: translateX(-50%);
       background: rgba(15, 23, 42, 0.88);
