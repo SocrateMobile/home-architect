@@ -535,6 +535,24 @@ export class HomeArchitectPanel extends LitElement {
     this.applyWindowFormat(type, sashCount, width);
   }
 
+  private updateSelectedOpeningsWidth(width: number) {
+    this.currentOpeningWidth = width;
+    const reshape = reshapeOpenings(this.project, this.selectedElements.openingIds, op =>
+      op.width !== width ? { ...op, width } : op
+    );
+    const committed = !!reshape.openings && this.commitProject({ ...this.project, openings: reshape.openings });
+    const notes: string[] = [];
+    if (reshape.adjusted > 0) notes.push(localizeCount('panel.toast.windows_adjusted', reshape.adjusted));
+    if (reshape.refused > 0) notes.push(localizeCount('panel.toast.windows_refused', reshape.refused));
+    if (committed) {
+      this.showToast(localizeCount('panel.toast.doors_updated', reshape.updated, {
+        notes: notes.length ? localize('panel.common.parenthesized', { text: notes.join(', ') }) : ''
+      }));
+    } else if (reshape.refused > 0) {
+      this.showToast(localize('panel.toast.window_format_refused', { notes: notes.join(', ') }));
+    }
+  }
+
   private updateSelectedWallsThickness(thickness: number) {
     this.currentThickness = thickness;
     const newWalls = this.wallsWithThickness(thickness);
@@ -2211,6 +2229,12 @@ export class HomeArchitectPanel extends LitElement {
               ${option(this.doorFlipSide && !this.doorFlipDirection, localize('panel.hud.door_left_out'), localize('panel.hud.door_left_out_title'), () => this.updateSelectedDoorConfig(true, false))}
               ${option(this.doorFlipSide && this.doorFlipDirection, localize('panel.hud.door_right_out'), localize('panel.hud.door_right_out_title'), () => this.updateSelectedDoorConfig(true, true))}
             </div>
+            <div class="hud-options-group" role="group" aria-label=${localize('panel.hud.opening_width')}>
+              <span class="hud-label">${localize('panel.hud.opening_width')}</span>
+              ${[0.73, 0.83, 0.90, 1.20].map(w =>
+                option(this.currentOpeningWidth === w, formatLength(w), localize('panel.hud.opening_width_title'), () => this.updateSelectedOpeningsWidth(w))
+              )}
+            </div>
           ` : nothing}
 
           ${hasWindow ? html`
@@ -2219,6 +2243,12 @@ export class HomeArchitectPanel extends LitElement {
               ${option(this.windowSashCount === 1, localize('panel.hud.window_single'), localize('panel.hud.window_single_title', { size: formatLength(0.90) }), () => this.updateSelectedWindowConfig('window', 1, 0.90))}
               ${option(this.windowSashCount === 2, localize('panel.hud.window_double'), localize('panel.hud.window_double_title', { size: formatLength(1.40) }), () => this.updateSelectedWindowConfig('window', 2, 1.40))}
               ${option(false, localize('panel.hud.window_bay'), localize('panel.hud.window_bay_title', { size: formatLength(2.00) }), () => this.updateSelectedWindowConfig('french_window', 2, 2.00))}
+            </div>
+            <div class="hud-options-group" role="group" aria-label=${localize('panel.hud.opening_width')}>
+              <span class="hud-label">${localize('panel.hud.opening_width')}</span>
+              ${[0.80, 1.00, 1.20, 1.40, 1.80, 2.00, 2.40].map(w =>
+                option(this.currentOpeningWidth === w, formatLength(w), localize('panel.hud.opening_width_title'), () => this.updateSelectedOpeningsWidth(w))
+              )}
             </div>
           ` : nothing}
 
