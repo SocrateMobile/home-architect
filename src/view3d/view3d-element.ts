@@ -20,7 +20,7 @@ import { Rgba, scaleRgb } from './colors';
 import { MaterialSet, readPalette, toColor } from './materials';
 import { MarkerDisplay, MarkerLayer, RoomLabelLayer } from './labels';
 import {
-  FloorLook, OpeningState, SceneModel, buildSceneModel, calculateSunLighting, floorColor, floorLooks, lightSources,
+  FloorLook, OpeningState, SceneModel, SunLightingMode, buildSceneModel, calculateSunLighting, floorColor, floorLooks, lightSources,
   markerModels, openingState, sceneSignature, sceneSummary
 } from './scene-builder';
 import { BuiltScene, buildSceneObjects, disposeObject, pickRefOf, poseLeaf } from './scene-objects';
@@ -417,7 +417,11 @@ export class HomeArchitect3DView extends LitElement {
   @property({ type: Boolean })
   public walkthrough = false;
 
-  /** Ambiance lumineuse jour/nuit (cycle solaire ou simulation nocturne avec lampes chaleureuses). */
+  /** Ambiance lumineuse ('auto' = cycle solaire sun.sun, 'day' = plein jour forcé, 'night' = nuit forcée). */
+  @property({ type: String })
+  public lightingMode: SunLightingMode = 'auto';
+
+  /** Ambiance lumineuse jour/nuit rétrocompatible (true = 'night', false = 'auto'/'day'). */
   @property({ type: Boolean })
   public nightMode = false;
 
@@ -567,7 +571,7 @@ export class HomeArchitect3DView extends LitElement {
     if (changed.has('shadows')) this.applyShadows();
     if (changed.has('dashboard')) this.applyTouchPolicy();
     if (changed.has('animations')) t.controls.enableDamping = this.motionAllowed();
-    if (changed.has('nightMode')) this.applyEntityState(false);
+    if (changed.has('lightingMode') || changed.has('nightMode')) this.applyEntityState(false);
     if (changed.has('walkthrough')) this.applyWalkthroughMode();
     this.requestRender();
   }
@@ -857,6 +861,13 @@ export class HomeArchitect3DView extends LitElement {
     const hass = this.hass;
 
     // Lampes toujours présentes (éteintes : intensité nulle) : leur nombre ne change jamais, aucun shader n'est recompilé.
+    // Ambiance lumineuse solaire et ombres en temps réel (sun.sun ou simulation jour/nuit)
+    const effectiveMode: SunLightingMode =
+      this.lightingMode !== 'auto'
+        ? this.lightingMode
+        : (this.nightMode ? 'night' : 'auto');
+    const sunData = calculateSunLighting(hass, effectiveMode, this.project?.northAngle ?? 0);
+
     const lights = lightSources(this.project, hass);
     t.lamps.forEach((lamp, i) => {
       const source = lights[i];
@@ -868,7 +879,7 @@ export class HomeArchitect3DView extends LitElement {
       lamp.position.set(source.position.x, source.height, source.position.y);
       toColor(source.color, lamp.color);
       // Mode nuit : les lampes intérieures ressortent avec plus d'éclat chaleureux
-      const boost = this.nightMode ? 1.6 : 1.0;
+      const boost = sunData.isNight ? 1.6 : 1.0;
       lamp.intensity = LAMP_INTENSITY * Math.max(0.15, source.level) * boost;
       if (this.shadows && i < 2) {
         lamp.castShadow = true;
@@ -879,8 +890,6 @@ export class HomeArchitect3DView extends LitElement {
       }
     });
 
-    // Ambiance lumineuse solaire et ombres en temps réel (sun.sun ou simulation jour/nuit)
-    const sunData = calculateSunLighting(hass, this.nightMode, this.project?.northAngle ?? 0);
     toColor(sunData.color, t.sun.color);
     t.sun.intensity = sunData.intensity;
     t.sky.intensity = sunData.ambientIntensity;

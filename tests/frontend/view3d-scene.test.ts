@@ -484,11 +484,20 @@ describe('view3d / état des entités', () => {
     expect(night.intensity).toBeLessThan(0.3);
     expect(night.color).toEqual(rgba(59, 130, 246)); // Teinte lunaire bleutée
 
-    // 4. Force nuit (bouton 🌙 du HUD)
+    // 4. Force nuit (mode 'night' ou booléen true)
     const forced = calculateSunLighting(dayHass, true);
     expect(forced.isNight).toBe(true);
+    const forcedNightStr = calculateSunLighting(dayHass, 'night');
+    expect(forcedNightStr.isNight).toBe(true);
 
-    // 5. Prise en compte de l'orientation du plan (northAngleDeg)
+    // 5. Force jour (mode 'day' même en pleine nuit avec sun.sun sous l'horizon)
+    const forcedDay = calculateSunLighting(nightHass, 'day');
+    expect(forcedDay.isNight).toBe(false);
+    expect(forcedDay.elevationDeg).toBe(50);
+    expect(forcedDay.intensity).toBeGreaterThan(1.2);
+    expect(forcedDay.color).toEqual(rgba(255, 255, 255));
+
+    // 6. Prise en compte de l'orientation du plan (northAngleDeg)
     // Azimut réel 180° (Sud). Si le plan a son Nord pivoté de 90° (Est à l'écran),
     // l'azimut relatif du soleil devient 180 - 90 = 90° (Est du plan).
     const rotatedDay = calculateSunLighting(dayHass, false, 90);

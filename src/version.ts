@@ -1,4 +1,4 @@
-export const VERSION = '2.0.1';
+export const VERSION = '2.0.2';
 
 /**
  * Registre des bundles frontend chargés dans la page (constat F106).
