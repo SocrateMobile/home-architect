@@ -1,6 +1,6 @@
 {
   "name": "home-architect",
-  "version": "2.0.3",
+  "version": "2.0.4",
   "private": true,
   "type": "module",
   "description": "Interactive, CAD-like Floor Plan Creator and Automation Dashboard for Home Assistant",
