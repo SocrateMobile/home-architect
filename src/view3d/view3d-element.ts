@@ -25,6 +25,7 @@ import {
 } from './scene-builder';
 import { BuiltScene, buildSceneObjects, disposeObject, pickRefOf, poseLeaf } from './scene-objects';
 import { disposeFloorTextures } from './textures';
+import { DraggableHudController, renderDragHandle } from '../components/draggable-hud';
 
 /**
  * Vue 3D WebGL du plan (`<home-architect-3d-view>`), chargée à la demande par le canevas (chunk séparé,
@@ -347,6 +348,42 @@ export class HomeArchitect3DView extends LitElement {
       box-shadow: 0 4px 20px rgba(0, 0, 0, 0.45);
       pointer-events: auto;
       z-index: 50;
+      touch-action: none;
+    }
+
+    .walkthrough-hud .hud-drag-handle {
+      background: transparent;
+      border: none;
+      color: rgba(255, 255, 255, 0.7);
+      cursor: grab;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 4px;
+      height: 24px;
+      border-radius: 4px;
+      user-select: none;
+      touch-action: none;
+      font-size: 13px;
+      line-height: 1;
+      opacity: 0.7;
+      transition: opacity 0.15s ease, background-color 0.15s ease, color 0.15s ease;
+    }
+
+    .walkthrough-hud .hud-drag-handle:hover,
+    .walkthrough-hud .hud-drag-handle.dragging {
+      opacity: 1;
+      color: #38bdf8;
+      background: rgba(255, 255, 255, 0.12);
+    }
+
+    .walkthrough-hud .hud-drag-handle.dragging {
+      cursor: grabbing;
+    }
+
+    .walkthrough-hud .grip-dots {
+      letter-spacing: -1.5px;
+      font-weight: bold;
       user-select: none;
     }
 
@@ -430,6 +467,13 @@ export class HomeArchitect3DView extends LitElement {
    * vue est retirée du document, pour les retrouver si elle y revient.
    */
   public intro: View3DIntro | null = null;
+
+  /** Contrôleur de déplacement du bandeau de visite virtuelle. */
+  private walkthroughHudDrag: DraggableHudController = new DraggableHudController(
+    () => this.renderRoot.querySelector<HTMLElement>('.walkthrough-hud'),
+    () => this,
+    { storageKey: 'home_architect_walkthrough_hud_pos', onPositionChanged: () => this.requestUpdate() }
+  );
 
   private three: Context3D | null = null;
   private frame: number | null = null;
@@ -573,6 +617,7 @@ export class HomeArchitect3DView extends LitElement {
     if (changed.has('animations')) t.controls.enableDamping = this.motionAllowed();
     if (changed.has('lightingMode') || changed.has('nightMode')) this.applyEntityState(false);
     if (changed.has('walkthrough')) this.applyWalkthroughMode();
+    this.walkthroughHudDrag.applyStoredPosition();
     this.requestRender();
   }
 
@@ -580,7 +625,17 @@ export class HomeArchitect3DView extends LitElement {
     return html`
       <div class="stage"></div>
       ${this.walkthrough ? html`
-        <div class="walkthrough-hud" role="status" aria-live="polite">
+        <div
+          class="walkthrough-hud"
+          role="status"
+          aria-live="polite"
+          style=${this.walkthroughHudDrag.styleString}
+          @pointerdown=${this.walkthroughHudDrag.handlePointerDown}
+          @pointermove=${this.walkthroughHudDrag.handlePointerMove}
+          @pointerup=${this.walkthroughHudDrag.handlePointerUp}
+          @pointercancel=${this.walkthroughHudDrag.handlePointerUp}
+        >
+          ${renderDragHandle(this.walkthroughHudDrag, 'Déplacer la barre de navigation')}
           <span class="walkthrough-hud-badge">🚶 Visite virtuelle</span>
           <span><kbd>Z</kbd><kbd>Q</kbd><kbd>S</kbd><kbd>D</kbd> / Flèches pour marcher</span>
           <span>• Glisser pour pivoter à 360°</span>

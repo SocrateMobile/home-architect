@@ -48,9 +48,10 @@ import { isView3DReady, loadView3D, markView3DFailed } from '../view3d/loader';
 import type {
   HomeArchitect3DView, View3DCameraDetail, View3DHoverDetail, View3DIntro, View3DMessageDetail, View3DPickDetail
 } from '../view3d/view3d-element';
+import { DraggableHudController, renderDragHandle } from './draggable-hud';
 
-/** Un appui sur le HUD (zoom, cadrage, rotation, 2D/3D, coordonnées, aide) ne trace jamais rien (v1.0.27). */
-const HUD_SELECTOR = '.canvas-hud, .coords-hud, .help-hud, button';
+/** Un appui sur le HUD (zoom, cadrage, rotation, 2D/3D, coordonnées, aide, boussole) ne trace jamais rien (v1.0.27). */
+const HUD_SELECTOR = '.canvas-hud, .coords-hud, .help-hud, .compass-hud, .hud-drag-handle, button';
 
 /** Éléments du plan : en 3D, un appui sur l'un d'eux ne lance pas d'orbite. */
 const PLAN_OBJECT_SELECTOR =
@@ -481,6 +482,31 @@ export class HomeArchitectCanvas extends LitElement {
       default: return 'Éclairage : Automatique (synchro soleil sun.sun) — Cliquer pour forcer le Jour (☀️)';
     }
   }
+
+  /** Contrôleurs de déplacement (cliquer-glisser) des barres d'outils et d'informations. */
+  private canvasHudDrag: DraggableHudController = new DraggableHudController(
+    () => this.renderRoot.querySelector<HTMLElement>('.canvas-hud'),
+    () => this.renderRoot.querySelector<HTMLElement>('.canvas-container') || this,
+    { storageKey: 'home_architect_canvas_hud_pos', onPositionChanged: () => this.requestUpdate() }
+  );
+
+  private coordsHudDrag: DraggableHudController = new DraggableHudController(
+    () => this.renderRoot.querySelector<HTMLElement>('.coords-hud'),
+    () => this.renderRoot.querySelector<HTMLElement>('.canvas-container') || this,
+    { storageKey: 'home_architect_coords_hud_pos', onPositionChanged: () => this.requestUpdate() }
+  );
+
+  private helpHudDrag: DraggableHudController = new DraggableHudController(
+    () => this.renderRoot.querySelector<HTMLElement>('.help-hud'),
+    () => this.renderRoot.querySelector<HTMLElement>('.canvas-container') || this,
+    { storageKey: 'home_architect_help_hud_pos', onPositionChanged: () => this.requestUpdate() }
+  );
+
+  private compassHudDrag: DraggableHudController = new DraggableHudController(
+    () => this.renderRoot.querySelector<HTMLElement>('.compass-hud'),
+    () => this.renderRoot.querySelector<HTMLElement>('.canvas-container') || this,
+    { storageKey: 'home_architect_compass_hud_pos', onPositionChanged: () => this.requestUpdate() }
+  );
 
   /** Caméra de départ transmise à la vue WebGL quand elle s'affiche (transition depuis la caméra courante). */
   private view3dIntro: View3DIntro | null = null;
@@ -2286,6 +2312,10 @@ export class HomeArchitectCanvas extends LitElement {
     }
     if (changed.has('isDashboardMode')) this.syncKeyboardSupport();
     this.paintCoords();
+    this.canvasHudDrag.applyStoredPosition();
+    this.coordsHudDrag.applyStoredPosition();
+    this.helpHudDrag.applyStoredPosition();
+    this.compassHudDrag.applyStoredPosition();
   }
 
   /**
@@ -3476,7 +3506,17 @@ export class HomeArchitectCanvas extends LitElement {
   private renderControls() {
     const is3D = this.is3DMode;
     return html`
-      <div class="canvas-hud" role="toolbar" aria-label="Contrôles de la vue">
+      <div
+        class="canvas-hud"
+        role="toolbar"
+        aria-label="Contrôles de la vue"
+        style=${this.canvasHudDrag.styleString}
+        @pointerdown=${this.canvasHudDrag.handlePointerDown}
+        @pointermove=${this.canvasHudDrag.handlePointerMove}
+        @pointerup=${this.canvasHudDrag.handlePointerUp}
+        @pointercancel=${this.canvasHudDrag.handlePointerUp}
+      >
+        ${renderDragHandle(this.canvasHudDrag, 'Déplacer les contrôles de la vue')}
         <button
           class="hud-btn ${is3D ? 'active' : ''}"
           @click=${this.toggle3DMode}
@@ -3690,6 +3730,7 @@ export class HomeArchitectCanvas extends LitElement {
 
   private handleCompassClick(e: MouseEvent) {
     e.stopPropagation();
+    if (this.compassHudDrag.hasMoved) return;
     this.dispatchEvent(new CustomEvent('open-orientation', { bubbles: true, composed: true }));
   }
 
@@ -3700,8 +3741,14 @@ export class HomeArchitectCanvas extends LitElement {
     return html`
       <div
         class="compass-hud"
+        style=${this.compassHudDrag.styleString}
+        @pointerdown=${this.compassHudDrag.handlePointerDown}
+        @pointermove=${this.compassHudDrag.handlePointerMove}
+        @pointerup=${this.compassHudDrag.handlePointerUp}
+        @pointercancel=${this.compassHudDrag.handlePointerUp}
+        @dblclick=${this.compassHudDrag.reset}
         @click=${this.handleCompassClick}
-        title="Orientation du Nord : ${angle}° (${card}) — Cliquer pour modifier"
+        title="Orientation du Nord : ${angle}° (${card}) — Cliquer pour modifier, glisser pour déplacer"
         aria-label="Orientation du Nord géographique (${angle}°)"
         role="button"
         tabindex="0"
@@ -3763,14 +3810,35 @@ export class HomeArchitectCanvas extends LitElement {
       </div>
 
       <!-- HUD hors du conteneur interactif : un clic sur le HUD n'atteint jamais les outils du plan -->
-      ${helpMsg && !this.hasToast ? html`<div class="help-hud">${helpMsg}</div>` : nothing}
+      ${helpMsg && !this.hasToast ? html`
+        <div
+          class="help-hud"
+          style=${this.helpHudDrag.styleString}
+          @pointerdown=${this.helpHudDrag.handlePointerDown}
+          @pointermove=${this.helpHudDrag.handlePointerMove}
+          @pointerup=${this.helpHudDrag.handlePointerUp}
+          @pointercancel=${this.helpHudDrag.handlePointerUp}
+        >
+          ${renderDragHandle(this.helpHudDrag, "Déplacer le message d'aide")}
+          <span>${helpMsg}</span>
+        </div>
+      ` : nothing}
 
       <div class="canvas-hint" role="status" ?hidden=${!this.hint}>${this.hint ?? ''}</div>
 
       ${this.renderCompassWidget()}
 
       ${!this.isDashboardMode && !this.webgl3D ? html`
-        <div class="coords-hud ${selectionCount(sel) > 0 ? 'selection-active' : ''}" aria-hidden="true">
+        <div
+          class="coords-hud ${selectionCount(sel) > 0 ? 'selection-active' : ''}"
+          style=${this.coordsHudDrag.styleString}
+          @pointerdown=${this.coordsHudDrag.handlePointerDown}
+          @pointermove=${this.coordsHudDrag.handlePointerMove}
+          @pointerup=${this.coordsHudDrag.handlePointerUp}
+          @pointercancel=${this.coordsHudDrag.handlePointerUp}
+          aria-hidden="true"
+        >
+          ${renderDragHandle(this.coordsHudDrag, 'Déplacer les coordonnées')}
           <span class="coords-key">X:</span>
           <span class="coords-x"></span>
           <span class="coords-sep">|</span>

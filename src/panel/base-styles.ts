@@ -392,6 +392,49 @@ export const panelBaseStyles = css`
     animation: popSelectionBottom 0.2s ease-out;
     max-width: min(92vw, calc(100% - 24px));
     box-sizing: border-box;
+    touch-action: none;
+  }
+
+  .selection-hud .hud-drag-handle {
+    background: transparent;
+    border: none;
+    color: var(--arch-ui-text-muted, #94a3b8);
+    cursor: grab;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 4px;
+    height: 30px;
+    border-radius: 6px;
+    user-select: none;
+    touch-action: none;
+    font-size: 13px;
+    line-height: 1;
+    opacity: 0.65;
+    transition: opacity 0.15s ease, background-color 0.15s ease, color 0.15s ease;
+  }
+
+  .selection-hud .hud-drag-handle:hover,
+  .selection-hud .hud-drag-handle.dragging {
+    opacity: 1;
+    color: var(--arch-ui-accent, #3b82f6);
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  .selection-hud .hud-drag-handle.dragging {
+    cursor: grabbing;
+  }
+
+  .selection-hud .hud-drag-handle:focus-visible {
+    outline: 2px solid var(--arch-ui-accent, #3b82f6);
+    outline-offset: 1px;
+    opacity: 1;
+  }
+
+  .selection-hud .grip-dots {
+    letter-spacing: -1.5px;
+    font-weight: bold;
+    user-select: none;
   }
 
   @keyframes popSelectionBottom {
