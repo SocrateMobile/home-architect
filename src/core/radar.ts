@@ -82,18 +82,24 @@ export function extractRadarCandidatePrefixes(entityId: string): string[] {
   if (!objectId) return [];
 
   const suffixes = [
+    '_presence_brute_toute_cible',
+    '_presence_brute',
+    '_presence_immobile',
     '_presence_humaine_alongee',
     '_presence_humaine_allongee',
     '_presence_humaine_debout',
     '_presence_humaine',
+    '_presence_humain',
     '_presence_chat_animal',
     '_presence_animale',
+    '_presence_chat',
     '_presence_detectee',
     '_presence',
     '_occupancy',
     '_motion',
     '_moving_target',
     '_still_target',
+    '_toute_cible',
     '_cible_1_x',
     '_cible_1_y',
     '_cible_1_distance',
@@ -126,29 +132,142 @@ export function extractRadarCandidatePrefixes(entityId: string): string[] {
   return [...prefixes];
 }
 
+export interface HaEntityRegistryEntry {
+  entity_id: string;
+  device_id?: string;
+  area_id?: string;
+  name?: string;
+  [key: string]: unknown;
+}
+
+export type HaEntityRegistryMap = Record<string, HaEntityRegistryEntry>;
+
 /**
- * Auto-découvre les entités X, Y, Distance, Résolution (Cibles 1 à 3) et le seuil Humain/Chat
- * dans `hass.states` à partir de l'entité liée sur le plan.
+ * Auto-découvre les entités X, Y, Distance, Résolution (Cibles 1 à 3) et le seuil Humain/Chat.
+ *
+ * Cascade en 3 passes d'analyse automatique :
+ * 1. Niveau Hardware (device_id) : Si `entitiesRegistry` est fourni, filtre les entités du même équipement physique.
+ * 2. Niveau Sémantique (Préfixes & Multilingue) : FR/EN (cible_1_x, target_1_x, coordinate, etc.) avec sous-chaîne commune.
+ * 3. Validation de type : Unités de mesure physiques (mm, cm, m, distance) et domaines appropriés (sensor / number).
  */
 export function discoverRadarEntities(
   entityId: string,
-  states: RadarStatesMap | undefined
-): { targets: RadarTargetConfig[]; thresholdEntityId?: string } {
+  states: RadarStatesMap | undefined,
+  entitiesRegistry?: HaEntityRegistryMap | Record<string, any>
+): { targets: RadarTargetConfig[]; thresholdEntityId?: string; deviceId?: string } {
   if (!states) return { targets: [] };
   const allIds = Object.keys(states);
   if (allIds.length === 0) return { targets: [] };
 
   const stateSet = new Set(allIds);
-  const prefixes = extractRadarCandidatePrefixes(entityId);
 
+  const isNumericOrDistanceSensor = (id: string): boolean => {
+    if (!id.startsWith('sensor.')) return false;
+    const entry = states[id];
+    if (!entry) return false;
+    const uom = String(entry.attributes?.unit_of_measurement || '').toLowerCase();
+    if (uom && (uom === '°c' || uom === 'dbm' || uom === 'v' || uom === 'ma' || uom === 'w' || uom === 'kwh' || uom === '%')) {
+      return false;
+    }
+    return true;
+  };
+
+  // Helper pour trouver les cibles dans un groupe d'IDs candidats
+  const extractTargetsFromIdList = (candidateIds: string[]): { targets: RadarTargetConfig[]; thresholdEntityId?: string } => {
+    const targets: RadarTargetConfig[] = [];
+
+    const matchCandidate = (patterns: RegExp[]): string | undefined => {
+      for (const id of candidateIds) {
+        for (const p of patterns) {
+          if (p.test(id)) return id;
+        }
+      }
+      return undefined;
+    };
+
+    for (let i = 1; i <= 3; i++) {
+      const xPatterns = [
+        new RegExp(`(?:cible|target|c|t)[-_ ]?0?${i}[-_ ]?(?:x(?:_coordinate|_pos)?|coord_x)$`, 'i'),
+        new RegExp(`(?:^|\\W)x[-_ ]?0?${i}(?:$|\\W)`, 'i')
+      ];
+      const yPatterns = [
+        new RegExp(`(?:cible|target|c|t)[-_ ]?0?${i}[-_ ]?(?:y(?:_coordinate|_pos)?|coord_y)$`, 'i'),
+        new RegExp(`(?:^|\\W)y[-_ ]?0?${i}(?:$|\\W)`, 'i')
+      ];
+      const distPatterns = [
+        new RegExp(`(?:cible|target|c|t)[-_ ]?0?${i}[-_ ]?(?:dist|distance)$`, 'i')
+      ];
+      const resPatterns = [
+        new RegExp(`(?:cible|target|c|t)[-_ ]?0?${i}[-_ ]?(?:res|resolution|energy)$`, 'i')
+      ];
+
+      const xId = matchCandidate(xPatterns);
+      const yId = matchCandidate(yPatterns);
+
+      if (xId && yId && isNumericOrDistanceSensor(xId) && isNumericOrDistanceSensor(yId)) {
+        const distId = matchCandidate(distPatterns);
+        const resId = matchCandidate(resPatterns);
+        targets.push({
+          label: `Cible ${i}`,
+          xEntityId: xId,
+          yEntityId: yId,
+          distanceEntityId: distId,
+          resolutionEntityId: resId,
+          color: DEFAULT_TARGET_COLORS[(i - 1) % DEFAULT_TARGET_COLORS.length],
+        });
+      }
+    }
+
+    let thresholdEntityId: string | undefined;
+    const thresholdPatterns = [
+      /(?:seuil.*(?:humain|resolution|chat)|(?:human|resolution).*threshold)/i
+    ];
+    for (const id of candidateIds) {
+      if (id.startsWith('number.') || id.startsWith('input_number.')) {
+        for (const p of thresholdPatterns) {
+          if (p.test(id)) {
+            thresholdEntityId = id;
+            break;
+          }
+        }
+        if (thresholdEntityId) break;
+      }
+    }
+
+    return { targets, thresholdEntityId };
+  };
+
+  // =========================================================================
+  // NIVEAU 1 : Device ID Matching (Matériel physique exact)
+  // =========================================================================
+  if (entitiesRegistry && typeof entitiesRegistry === 'object') {
+    const sourceReg = entitiesRegistry[entityId];
+    const deviceId = sourceReg?.device_id;
+    if (deviceId && typeof deviceId === 'string') {
+      const deviceEntityIds = Object.keys(entitiesRegistry).filter(id => {
+        const entry = entitiesRegistry[id];
+        return entry?.device_id === deviceId && stateSet.has(id);
+      });
+      if (deviceEntityIds.length > 0) {
+        const res = extractTargetsFromIdList(deviceEntityIds);
+        if (res.targets.length > 0) {
+          return { ...res, deviceId };
+        }
+      }
+    }
+  }
+
+  // =========================================================================
+  // NIVEAU 2 : Sémantique par préfixes candidats
+  // =========================================================================
+  const prefixes = extractRadarCandidatePrefixes(entityId);
   const findSensor = (candidates: string[]): string | undefined => {
     for (const c of candidates) {
-      if (stateSet.has(c)) return c;
+      if (stateSet.has(c) && isNumericOrDistanceSensor(c)) return c;
     }
     return undefined;
   };
 
-  // Recherche par préfixes candidats d'abord
   for (const prefix of prefixes) {
     const targets: RadarTargetConfig[] = [];
     for (let i = 1; i <= 3; i++) {
@@ -157,23 +276,31 @@ export function discoverRadarEntities(
         `sensor.${prefix}_radar_cible_${i}_x`,
         `sensor.${prefix}_target_${i}_x`,
         `sensor.${prefix}_target_${i}_x_coordinate`,
+        `sensor.${prefix}_t${i}_x`,
+        `sensor.${prefix}_c${i}_x`,
       ]);
       const yId = findSensor([
         `sensor.${prefix}_cible_${i}_y`,
         `sensor.${prefix}_radar_cible_${i}_y`,
         `sensor.${prefix}_target_${i}_y`,
         `sensor.${prefix}_target_${i}_y_coordinate`,
+        `sensor.${prefix}_t${i}_y`,
+        `sensor.${prefix}_c${i}_y`,
       ]);
       if (xId && yId) {
         const distId = findSensor([
           `sensor.${prefix}_cible_${i}_distance`,
           `sensor.${prefix}_radar_cible_${i}_distance`,
           `sensor.${prefix}_target_${i}_distance`,
+          `sensor.${prefix}_t${i}_dist`,
+          `sensor.${prefix}_c${i}_dist`,
         ]);
         const resId = findSensor([
           `sensor.${prefix}_cible_${i}_resolution`,
           `sensor.${prefix}_radar_cible_${i}_resolution`,
           `sensor.${prefix}_target_${i}_resolution`,
+          `sensor.${prefix}_t${i}_res`,
+          `sensor.${prefix}_c${i}_res`,
         ]);
         targets.push({
           label: `Cible ${i}`,
@@ -187,21 +314,23 @@ export function discoverRadarEntities(
     }
 
     if (targets.length > 0) {
-      const thresholdEntityId = findSensor([
+      const thresholdEntityId = [
         `number.${prefix}_seuil_de_resolution_humain`,
         `number.${prefix}_radar_seuil_de_resolution_humain`,
         `number.${prefix}_seuil_humain_chat`,
         `number.${prefix}_human_threshold`,
         `input_number.${prefix}_seuil_de_resolution_humain`,
-      ]);
+      ].find(id => stateSet.has(id));
       return { targets, thresholdEntityId };
     }
   }
 
-  // Repli : chercher dans tout hass.states un capteur *_cible_1_x ou *_target_1_x partageant le plus long préfixe commun
+  // =========================================================================
+  // NIVEAU 3 : Repli par sous-chaîne commune la plus longue
+  // =========================================================================
   const dot = entityId.indexOf('.');
   const obj = dot >= 0 ? entityId.slice(dot + 1) : entityId;
-  const x1Regex = /^sensor\.(.+?)_(?:radar_)?(?:cible|target)_1_x$/;
+  const x1Regex = /^sensor\.(.+?)_(?:radar_)?(?:cible|target|c|t)_?1_?x(?:_coordinate)?$/i;
   let bestPrefix: string | null = null;
   let bestScore = 0;
 
@@ -209,17 +338,23 @@ export function discoverRadarEntities(
     const m = x1Regex.exec(id);
     if (!m) continue;
     const candidatePrefix = m[1];
-    let common = 0;
-    const minLen = Math.min(obj.length, candidatePrefix.length);
-    while (common < minLen && obj[common] === candidatePrefix[common]) common++;
-    if (common >= 4 && common > bestScore) {
-      bestScore = common;
+    let score = 0;
+    if (obj.includes(candidatePrefix) || candidatePrefix.includes(obj)) {
+      score = candidatePrefix.length * 2;
+    } else {
+      let common = 0;
+      const minLen = Math.min(obj.length, candidatePrefix.length);
+      while (common < minLen && obj[common] === candidatePrefix[common]) common++;
+      if (common >= 4) score = common;
+    }
+    if (score > bestScore) {
+      bestScore = score;
       bestPrefix = candidatePrefix;
     }
   }
 
   if (bestPrefix) {
-    return discoverRadarEntities(`binary_sensor.${bestPrefix}_presence`, states);
+    return discoverRadarEntities(`binary_sensor.${bestPrefix}_presence`, states, entitiesRegistry);
   }
 
   return { targets: [] };

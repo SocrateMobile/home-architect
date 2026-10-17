@@ -12,6 +12,7 @@ import {
   buildRadarConeSvgPath,
   computeAffineMatrix,
   computeRadarZoneBoundsMm,
+  DEFAULT_TARGET_COLORS,
   createDefaultRadarConfig,
   discoverRadarEntities,
   discoverRadarZoneEntities,
@@ -409,6 +410,15 @@ export class HomeArchitectRadarModal extends LitElement {
     const existing = this.binding?.radarConfig;
     if (existing) {
       this.config = JSON.parse(JSON.stringify(existing));
+      if (!this.config.targets || this.config.targets.length === 0) {
+        const discovered = discoverRadarEntities(this.binding?.entityId || '', this.hass?.states, this.hass?.entities);
+        if (discovered.targets.length > 0) {
+          this.config.targets = discovered.targets;
+        }
+        if (!this.config.thresholdEntityId && discovered.thresholdEntityId) {
+          this.config.thresholdEntityId = discovered.thresholdEntityId;
+        }
+      }
       this.capturedCorners = this.config.calibrationPoints.map(cp => ({
         id: cp.id,
         label: cp.label,
@@ -417,7 +427,7 @@ export class HomeArchitectRadarModal extends LitElement {
       this.currentStep = this.capturedCorners.length + 1;
       this.wizardFinished = this.capturedCorners.length >= 3;
     } else {
-      const discovered = discoverRadarEntities(this.binding?.entityId || '', this.hass?.states);
+      const discovered = discoverRadarEntities(this.binding?.entityId || '', this.hass?.states, this.hass?.entities);
       this.config = {
         ...createDefaultRadarConfig(),
         targets: discovered.targets,
@@ -537,12 +547,27 @@ export class HomeArchitectRadarModal extends LitElement {
 
   private updateTargetEntity(targetIdx: number, field: keyof RadarTargetConfig, value: string) {
     const targets = [...this.config.targets];
-    if (!targets[targetIdx]) return;
+    if (!targets[targetIdx]) {
+      targets[targetIdx] = {
+        label: `Cible ${targetIdx + 1}`,
+        xEntityId: '',
+        yEntityId: '',
+        color: DEFAULT_TARGET_COLORS[targetIdx % DEFAULT_TARGET_COLORS.length],
+      };
+    }
     targets[targetIdx] = {
       ...targets[targetIdx],
       [field]: value.trim() || undefined
     };
     this.config = { ...this.config, targets };
+    this.pollLiveTarget();
+  }
+
+  private updateThresholdEntity(value: string) {
+    this.config = {
+      ...this.config,
+      thresholdEntityId: value.trim() || undefined
+    };
     this.pollLiveTarget();
   }
 
@@ -943,8 +968,21 @@ export class HomeArchitectRadarModal extends LitElement {
 
             <!-- Sélection Auto / Manuelle des entités X/Y des cibles -->
             <details class="entity-mapping-details">
-              <summary>Capteurs Cibles X/Y (Auto / Manuel)</summary>
+              <summary>Capteurs Cibles X/Y & Seuil (Auto / Manuel)</summary>
               <div class="entity-mapping-grid">
+                <datalist id="radar-sensor-options">
+                  ${Object.keys(this.hass?.states || {})
+                    .filter(id => id.startsWith('sensor.') && (id.includes('cible') || id.includes('target') || id.includes('_x') || id.includes('_y') || id.includes('dist') || id.includes('radar')))
+                    .slice(0, 100)
+                    .map(id => html`<option value=${id}></option>`)}
+                </datalist>
+                <datalist id="radar-number-options">
+                  ${Object.keys(this.hass?.states || {})
+                    .filter(id => (id.startsWith('number.') || id.startsWith('input_number.')) && (id.includes('seuil') || id.includes('threshold') || id.includes('radar') || id.includes('humain')))
+                    .slice(0, 50)
+                    .map(id => html`<option value=${id}></option>`)}
+                </datalist>
+
                 ${[0, 1, 2].map(idx => {
                   const t = this.config.targets[idx] || { index: (idx + 1) as 1 | 2 | 3, xEntityId: '', yEntityId: '' };
                   return html`
@@ -953,6 +991,7 @@ export class HomeArchitectRadarModal extends LitElement {
                       <input
                         type="text"
                         class="form-input"
+                        list="radar-sensor-options"
                         placeholder="sensor.*_cible_${idx + 1}_x"
                         .value=${t.xEntityId || ''}
                         @change=${(e: Event) => this.updateTargetEntity(idx, 'xEntityId', (e.target as HTMLInputElement).value)}
@@ -960,6 +999,7 @@ export class HomeArchitectRadarModal extends LitElement {
                       <input
                         type="text"
                         class="form-input"
+                        list="radar-sensor-options"
                         placeholder="sensor.*_cible_${idx + 1}_y"
                         .value=${t.yEntityId || ''}
                         @change=${(e: Event) => this.updateTargetEntity(idx, 'yEntityId', (e.target as HTMLInputElement).value)}
@@ -967,6 +1007,18 @@ export class HomeArchitectRadarModal extends LitElement {
                     </div>
                   `;
                 })}
+
+                <div class="form-field" style="grid-column: 1 / -1;">
+                  <label>Seuil de distinction Humain / Animal</label>
+                  <input
+                    type="text"
+                    class="form-input"
+                    list="radar-number-options"
+                    placeholder="number.*_seuil_de_resolution_humain"
+                    .value=${this.config.thresholdEntityId || ''}
+                    @change=${(e: Event) => this.updateThresholdEntity((e.target as HTMLInputElement).value)}
+                  />
+                </div>
               </div>
             </details>
           </div>

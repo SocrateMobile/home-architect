@@ -53,6 +53,73 @@ describe('Radar Discovery Engine', () => {
     expect(result.thresholdEntityId).toBe('number.d1_mini_radar_salon2_seuil_de_resolution_humain');
   });
 
+  it('discovers targets via device_id registry even with custom, mismatched names', () => {
+    const mockEntities = {
+      'binary_sensor.custom_livingroom_presence_detector': {
+        entity_id: 'binary_sensor.custom_livingroom_presence_detector',
+        device_id: 'dev_radar_123',
+      },
+      'sensor.ld2450_hardware_target_1_x': {
+        entity_id: 'sensor.ld2450_hardware_target_1_x',
+        device_id: 'dev_radar_123',
+      },
+      'sensor.ld2450_hardware_target_1_y': {
+        entity_id: 'sensor.ld2450_hardware_target_1_y',
+        device_id: 'dev_radar_123',
+      },
+      'sensor.ld2450_hardware_target_1_dist': {
+        entity_id: 'sensor.ld2450_hardware_target_1_dist',
+        device_id: 'dev_radar_123',
+      },
+      'number.ld2450_hardware_resolution_threshold': {
+        entity_id: 'number.ld2450_hardware_resolution_threshold',
+        device_id: 'dev_radar_123',
+      },
+      'sensor.another_device_x': {
+        entity_id: 'sensor.another_device_x',
+        device_id: 'dev_other_999',
+      },
+    };
+
+    const mockStates: Record<string, { state: string }> = {
+      'binary_sensor.custom_livingroom_presence_detector': { state: 'on' },
+      'sensor.ld2450_hardware_target_1_x': { state: '1500' },
+      'sensor.ld2450_hardware_target_1_y': { state: '2200' },
+      'sensor.ld2450_hardware_target_1_dist': { state: '2662' },
+      'number.ld2450_hardware_resolution_threshold': { state: '350' },
+      'sensor.another_device_x': { state: '999' },
+    };
+
+    const result = discoverRadarEntities(
+      'binary_sensor.custom_livingroom_presence_detector',
+      mockStates,
+      mockEntities
+    );
+
+    expect(result.deviceId).toBe('dev_radar_123');
+    expect(result.targets).toHaveLength(1);
+    expect(result.targets[0].xEntityId).toBe('sensor.ld2450_hardware_target_1_x');
+    expect(result.targets[0].yEntityId).toBe('sensor.ld2450_hardware_target_1_y');
+    expect(result.targets[0].distanceEntityId).toBe('sensor.ld2450_hardware_target_1_dist');
+    expect(result.thresholdEntityId).toBe('number.ld2450_hardware_resolution_threshold');
+  });
+
+  it('discovers English target coordinates and thresholds', () => {
+    const mockStates: Record<string, { state: string }> = {
+      'binary_sensor.office_radar_motion': { state: 'on' },
+      'sensor.office_radar_target_1_x_coordinate': { state: '800' },
+      'sensor.office_radar_target_1_y_coordinate': { state: '1400' },
+      'sensor.office_radar_target_1_distance': { state: '1612' },
+      'number.office_radar_human_threshold': { state: '300' },
+    };
+
+    const result = discoverRadarEntities('binary_sensor.office_radar_motion', mockStates);
+    expect(result.targets).toHaveLength(1);
+    expect(result.targets[0].xEntityId).toBe('sensor.office_radar_target_1_x_coordinate');
+    expect(result.targets[0].yEntityId).toBe('sensor.office_radar_target_1_y_coordinate');
+    expect(result.thresholdEntityId).toBe('number.office_radar_human_threshold');
+  });
+
   it('detects likely radar bindings accurately', () => {
     expect(isLikelyRadarBinding({ id: 'b1', entityId: 'binary_sensor.radar_cuisine', position: { x: 1, y: 1 } })).toBe(true);
     expect(isLikelyRadarBinding({ id: 'b2', entityId: 'light.salon', position: { x: 1, y: 1 } })).toBe(false);
