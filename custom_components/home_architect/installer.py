@@ -115,6 +115,7 @@ def _extract_and_replace(hass: HomeAssistant, version: str, zip_bytes: bytes) ->
             for member in zf.infolist():
                 if not member.filename.startswith(prefix) or member.filename.endswith("/"):
                     continue
+                rel_name = member.filename[len(prefix):]
                 target_file = (tmp_path / rel_name).resolve()
                 if not target_file.is_relative_to(tmp_path.resolve()):
                     raise HomeAssistantError(f"Chemin non sécurisé dans l'archive : {member.filename}")
