@@ -323,6 +323,7 @@ export function getFloorTexture(type: FloorTextureType): Texture | null {
   texture.wrapT = RepeatWrapping;
   texture.repeat.set(repeatScaleX, repeatScaleY);
   texture.colorSpace = SRGBColorSpace;
+  texture.userData = { sharedFloorTexture: true };
 
   TEXTURE_CACHE.set(type, texture);
   return texture;

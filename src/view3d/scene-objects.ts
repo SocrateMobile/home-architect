@@ -348,7 +348,10 @@ export function disposeObject(root: Object3D, keep: ReadonlySet<Material> = new 
     for (const m of Array.isArray(material) ? material : material ? [material] : []) {
       if (keep.has(m)) continue;
       for (const value of Object.values(m)) {
-        if (value instanceof Texture) value.dispose();
+        if (value instanceof Texture) {
+          if ((value as any).userData?.sharedFloorTexture) continue;
+          value.dispose();
+        }
       }
       m.dispose();
     }

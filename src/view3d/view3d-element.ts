@@ -26,6 +26,7 @@ import {
 import { BuiltScene, buildSceneObjects, disposeObject, pickRefOf, poseLeaf } from './scene-objects';
 import { disposeFloorTextures } from './textures';
 import { DraggableHudController, renderDragHandle } from '../components/draggable-hud';
+import { isEditableTarget, hasPrimaryModifier } from '../core/keyboard';
 
 /**
  * Vue 3D WebGL du plan (`<home-architect-3d-view>`), chargée à la demande par le canevas (chunk séparé,
@@ -1200,7 +1201,7 @@ export class HomeArchitect3DView extends LitElement {
   };
 
   private readonly onKeyDown = (e: KeyboardEvent): void => {
-    if (!this.walkthrough) return;
+    if (!this.walkthrough || hasPrimaryModifier(e) || isEditableTarget(e)) return;
     const tag = (e.target as HTMLElement)?.tagName?.toLowerCase();
     if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
     const code = e.code.toLowerCase();
