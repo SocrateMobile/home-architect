@@ -293,6 +293,40 @@ export const panelBaseStyles = css`
     color: var(--studio-accent-text);
   }
 
+  /* Infobulles instantanées sur les boutons de la barre supérieure et du HUD de sélection */
+  header.top-bar button[title]:not([title=""]),
+  .selection-hud button[title]:not([title=""]) {
+    position: relative;
+  }
+
+  header.top-bar button[title]:not([title=""]):not([aria-expanded="true"]):hover::after,
+  header.top-bar button[title]:not([title=""]):not([aria-expanded="true"]):focus-visible::after,
+  .selection-hud button[title]:not([title=""]):hover::after,
+  .selection-hud button[title]:not([title=""]):focus-visible::after {
+    content: attr(title);
+    position: absolute;
+    left: 50%;
+    top: calc(100% + 8px);
+    transform: translateX(-50%);
+    background: var(--arch-ui-surface);
+    color: var(--arch-ui-text);
+    border: 1px solid var(--arch-ui-border);
+    border-radius: 7px;
+    padding: 5px 10px;
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+    box-shadow: 0 8px 22px rgba(0, 0, 0, 0.32);
+    pointer-events: none;
+    z-index: 120;
+  }
+
+  .selection-hud button[title]:not([title=""]):hover::after,
+  .selection-hud button[title]:not([title=""]):focus-visible::after {
+    top: auto;
+    bottom: calc(100% + 8px);
+  }
+
   button.btn-history {
     padding: 6px 10px;
     gap: 5px;

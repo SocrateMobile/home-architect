@@ -584,6 +584,53 @@ export class HomeArchitectToolbar extends LitElement {
       color: var(--tb-accent-ink);
       flex-shrink: 0;
     }
+
+    /* Infobulle instantanée au survol/focus des outils */
+    .instant-tooltip {
+      position: absolute;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--tb-flyout-bg);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--arch-ui-border);
+      color: var(--arch-ui-text);
+      padding: 6px 11px;
+      border-radius: 8px;
+      font-size: 12.5px;
+      font-weight: 600;
+      white-space: nowrap;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+      pointer-events: none;
+      z-index: 80;
+      transform: translateY(-50%);
+      animation: tbTooltipFade 0.1s ease-out;
+    }
+
+    .instant-tooltip.right {
+      left: calc(100% + 10px);
+    }
+
+    .instant-tooltip.left {
+      right: calc(100% + 10px);
+    }
+
+    .instant-tooltip kbd {
+      display: inline-block;
+      padding: 1px 6px;
+      font-size: 11px;
+      font-weight: 700;
+      font-family: monospace;
+      color: var(--tb-accent-ink);
+      background: var(--arch-ui-bg);
+      border: 1px solid color-mix(in srgb, var(--arch-ui-accent) 40%, transparent);
+      border-radius: 4px;
+    }
+
+    @keyframes tbTooltipFade {
+      from { opacity: 0; transform: translateY(-50%) scale(0.96); }
+      to { opacity: 1; transform: translateY(-50%) scale(1); }
+    }
   `];
 
   @property({ type: String })
@@ -624,6 +671,9 @@ export class HomeArchitectToolbar extends LitElement {
 
   @state()
   private activeSubmenu: Submenu = 'none';
+
+  @state()
+  private hoveredToolInfo: { text: string; shortcut?: string; topPx: number; side: 'right' | 'left' } | null = null;
 
   /** Re-rendu au changement de langue. */
   private readonly i18n = new LocalizeController(this);
@@ -1034,6 +1084,28 @@ export class HomeArchitectToolbar extends LitElement {
     handleMenuKeydown(e, e.currentTarget as HTMLElement, opts => this.closeSubmenu(opts));
   }
 
+  private showToolTooltip(b: ToolButton, e: Event) {
+    const btn = e.currentTarget as HTMLElement | null;
+    if (!btn) return;
+    const hostRect = this.getBoundingClientRect();
+    const btnRect = btn.getBoundingClientRect();
+    const bounds = this.getBoundsRect();
+    const topPx = Math.round(btnRect.top - hostRect.top + btnRect.height / 2);
+    const spaceRight = bounds ? bounds.right - hostRect.right : 300;
+    const side: 'right' | 'left' = spaceRight < 200 ? 'left' : 'right';
+    const cleanText = b.shortcut ? b.title.replace(` (${b.shortcut.toUpperCase()})`, '') : b.title;
+    this.hoveredToolInfo = {
+      text: cleanText,
+      shortcut: b.shortcut,
+      topPx,
+      side,
+    };
+  }
+
+  private hideToolTooltip = () => {
+    this.hoveredToolInfo = null;
+  };
+
   /** Bouton d'outil : nom accessible traduit, état enfoncé et sous-menu annoncés. */
   private renderTool(b: ToolButton) {
     const open = b.submenu !== undefined && this.activeSubmenu === b.submenu;
@@ -1056,7 +1128,11 @@ export class HomeArchitectToolbar extends LitElement {
         aria-controls=${open ? FLYOUT_ID : nothing}
         aria-keyshortcuts=${b.shortcut ? b.shortcut.toUpperCase() : nothing}
         title=${b.title}
-        @click=${b.onClick}
+        @pointerenter=${(e: Event) => this.showToolTooltip(b, e)}
+        @pointerleave=${this.hideToolTooltip}
+        @focus=${(e: Event) => this.showToolTooltip(b, e)}
+        @blur=${this.hideToolTooltip}
+        @click=${(e: MouseEvent) => { this.hideToolTooltip(); b.onClick(e); }}
       >
         ${typeof b.icon === 'string' ? html`<span aria-hidden="true">${b.icon}</span>` : b.icon}
         ${b.submenu ? html`<span class="submenu-indicator" aria-hidden="true">▾</span>` : nothing}
@@ -1474,6 +1550,21 @@ export class HomeArchitectToolbar extends LitElement {
           onClick: (e) => this.toggleSubmenu('grid', e),
         })}
       </div>
+
+      <!-- ============================================== -->
+      <!-- INFOBULLE INSTANTANÉE                          -->
+      <!-- ============================================== -->
+      ${this.hoveredToolInfo && this.activeSubmenu === 'none' && !this.isDragging ? html`
+        <div
+          class="instant-tooltip ${this.hoveredToolInfo.side}"
+          style="top: ${this.hoveredToolInfo.topPx}px"
+          role="tooltip"
+          aria-hidden="true"
+        >
+          <span>${this.hoveredToolInfo.text}</span>
+          ${this.hoveredToolInfo.shortcut ? html`<kbd>${this.hoveredToolInfo.shortcut.toUpperCase()}</kbd>` : nothing}
+        </div>
+      ` : nothing}
 
       <!-- ============================================== -->
       <!-- SOUS-MENU FLYOUT                               -->

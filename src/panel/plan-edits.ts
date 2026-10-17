@@ -363,7 +363,40 @@ export function scalePlan(project: HomeArchitectProject, k: number, opts: ScaleP
     const polygon = r.polygon.map(scale);
     return { ...r, polygon, areaM2: scaledRoomArea(r, project.walls, polygon, walls) };
   });
-  const bindings = project.bindings.map(b => ({ ...b, position: scale(b.position) }));
+  const bindings = project.bindings.map(b => {
+    const position = scale(b.position);
+    if (!b.radarConfig) return { ...b, position };
+    const cfg = b.radarConfig;
+    const calibrationPoints = cfg.calibrationPoints.map(cp => ({
+      ...cp,
+      planMeters: scale(cp.planMeters),
+    }));
+    const zones = cfg.zones?.map(z => ({
+      ...z,
+      p1: scale(z.p1),
+      p2: scale(z.p2),
+    }));
+    const affineMatrix = cfg.affineMatrix
+      ? {
+        a: cfg.affineMatrix.a * k,
+        b: cfg.affineMatrix.b * k,
+        tx: cfg.affineMatrix.tx * k,
+        c: cfg.affineMatrix.c * k,
+        d: cfg.affineMatrix.d * k,
+        ty: cfg.affineMatrix.ty * k,
+      }
+      : undefined;
+    return {
+      ...b,
+      position,
+      radarConfig: {
+        ...cfg,
+        calibrationPoints,
+        ...(zones ? { zones } : {}),
+        ...(affineMatrix ? { affineMatrix } : {}),
+      },
+    };
+  });
   const furniture = (project.furniture ?? []).map(f => ({
     ...f,
     position: scale(f.position),

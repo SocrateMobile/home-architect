@@ -8,6 +8,7 @@ import { HassDisplayContext, HassEntityState, TemperatureReading, roomAppearance
 import { Rgba, kelvinToRgb, mixRgb, parseCssColor, rgba, scaleRgb } from './colors';
 import { FurnitureRole, furnitureShape } from './furniture3d';
 import { FloorTextureType, detectFloorTexture } from './textures';
+import { getFurniturePreset, getWallPreset } from '../core/materials';
 
 /**
  * Modèle de la vue 3D (module PUR, sans three ni DOM, testé par tests/frontend/view3d-scene.test.ts).
@@ -203,9 +204,16 @@ interface OpeningCut {
  * chaque baie l'allège, au-dessus le linteau. Les faces des tranches pleines forment les tableaux.
  */
 export function wallPrisms(wall: Wall, polygon: readonly Point[], height: number, cuts: readonly OpeningCut[]): Prism[] {
-  const full = (poly: Point[], bottom: number, top: number): Prism => ({
-    polygon: poly, bottom, top, role: 'wall', topRole: top >= height - 1e-6 ? 'wall-top' : undefined
-  });
+  const wallColor = wall.texture && wall.texture !== 'paint'
+    ? parseCssColor(getWallPreset(wall.texture).defaultColor)
+    : null;
+  const full = (poly: Point[], bottom: number, top: number): Prism => {
+    const p: Prism = {
+      polygon: poly, bottom, top, role: 'wall', topRole: top >= height - 1e-6 ? 'wall-top' : undefined
+    };
+    if (wallColor) p.color = { ...wallColor, a: 1 };
+    return p;
+  };
   const length = Math.hypot(wall.end.x - wall.start.x, wall.end.y - wall.start.y);
   if (cuts.length === 0 || !(length > 0)) return [full([...polygon], 0, height)];
 
@@ -403,7 +411,10 @@ export function furnitureModel(item: FurnitureItem): FurnitureModel {
   const cos = Math.cos(rad);
   const sin = Math.sin(rad);
   const place = (p: Point): Point => ({ x: item.position.x + p.x * cos - p.y * sin, y: item.position.y + p.x * sin + p.y * cos });
-  const color = parseCssColor(item.color);
+  const matColor = !item.color && item.material && item.material !== 'default'
+    ? getFurniturePreset(item.material).defaultColor
+    : undefined;
+  const color = parseCssColor(item.color ?? matColor);
   return {
     itemId: item.id,
     prisms: shape.parts.map(part => {

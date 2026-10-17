@@ -1,7 +1,7 @@
 import { Point, Wall, GridConfig, WallSnapResult, Opening } from './types';
 
-/** Pas de grille proposés à l'utilisateur (m), dans les bornes appliquées par normalizeProject [0,05 ; 2]. */
-export const GRID_SIZE_PRESETS: readonly number[] = [0.05, 0.10, 0.25, 0.50, 1.00];
+/** Pas de grille proposés à l'utilisateur (m), dans les bornes appliquées par normalizeProject [0,01 ; 2]. */
+export const GRID_SIZE_PRESETS: readonly number[] = [0.01, 0.02, 0.05, 0.10, 0.25, 0.50, 1.00];
 
 /** Tolérances d'accrochage par défaut, en pixels écran (converties en mètres selon l'échelle d'affichage). */
 export const SNAP_TOLERANCES_PX = { vertex: 12, guide: 8, wall: 10 } as const;

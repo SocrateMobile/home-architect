@@ -12,6 +12,9 @@ import './components/rescale-modal';
 import { RescaleModalResult, isValidRescaleFactor } from './components/rescale-modal';
 import './components/orientation-modal';
 import type { OrientationModalResult } from './components/orientation-modal';
+import './components/radar-calibrate-modal';
+import type { RadarCalibrationModalResult } from './components/radar-calibrate-modal';
+import { isLikelyRadarBinding } from './core/radar';
 import type { CalibrateConfirmedDetail } from './components/calibrate-modal';
 import type { RoomModalSaveDetail } from './components/room-modal';
 import { TOOL_SHORTCUTS } from './components/toolbar';
@@ -29,9 +32,10 @@ import { isAdmin, installUpdate } from './core/ha-api';
 import { dataUrlToBlob } from './core/image-utils';
 import { findFurnitureTemplate, furnitureDisplayName } from './core/furniture-catalog';
 import {
-  ActiveTool, BackgroundPlan, ExportFrame, GridConfig, HomeArchitectProject, Point, PublishInfo, Room, SelectedElements,
-  Wall
+  ActiveTool, BackgroundPlan, EntityBinding, ExportFrame, FloorTexture, FurnitureMaterial, GridConfig, HomeArchitectProject, Point, PublishInfo, Room, SelectedElements,
+  Wall, WallTexture
 } from './core/types';
+import { FLOOR_MATERIAL_CATALOG, FURNITURE_MATERIAL_CATALOG, WALL_MATERIAL_CATALOG, materialLabel } from './core/materials';
 import type { SvgParseResult } from './core/svg-parser';
 import { LANGUAGE_CHANGED_KEY, LocalizeController, formatNumber, localize, setLanguage } from './i18n';
 import './i18n/locales/panel';
@@ -70,7 +74,8 @@ const DRAWER_STORAGE_KEY = 'home-architect:drawer-collapsed';
 const HASS_CONSUMERS = [
   'home-architect-canvas', 'home-architect-entity-drawer', 'home-architect-export-modal',
   'home-architect-save-load-modal', 'home-architect-room-modal', 'home-architect-import-modal',
-  'home-architect-calibrate-modal', 'home-architect-rescale-modal', 'home-architect-orientation-modal'
+  'home-architect-calibrate-modal', 'home-architect-rescale-modal', 'home-architect-orientation-modal',
+  'home-architect-radar-modal'
 ].join(', ');
 
 /** Séquence secrète de l'easter egg. */
@@ -282,6 +287,12 @@ export class HomeArchitectPanel extends LitElement {
 
   @state()
   private isOrientationModalOpen: boolean = false;
+
+  @state()
+  private isRadarModalOpen: boolean = false;
+
+  @state()
+  private selectedRadarBindingForCalibrate: EntityBinding | null = null;
 
   @state()
   private rescaleMeasuredMeters: number = 0;
@@ -1057,7 +1068,7 @@ export class HomeArchitectPanel extends LitElement {
     const projectId = this.project.id;
     const background = await this.externalBackground(url);
     if (!background || this.project.id !== projectId) return;
-    if (this.commitProject({ ...this.project, background })) {
+    if (this.commitProject({ ...this.project, background, grid: { ...this.project.grid, snapToGrid: false } })) {
       this.activeTool = 'calibrate';
       this.showToast(localize('panel.toast.pasted_url_loaded'));
     }
@@ -1127,7 +1138,7 @@ export class HomeArchitectPanel extends LitElement {
     if (!background || this.project.id !== projectId) return;
     const metersPerPixel = detail.mode === 'auto_dimension' ? importMetersPerPixel(detail, background) : null;
     const placed = metersPerPixel !== null ? { ...background, scale: metersPerPixel * this.project.pixelsPerMeter } : background;
-    if (!this.commitProject({ ...this.project, background: placed })) return;
+    if (!this.commitProject({ ...this.project, background: placed, grid: { ...this.project.grid, snapToGrid: false } })) return;
 
     if (metersPerPixel !== null) {
       this.activeTool = 'wall';
@@ -1330,6 +1341,32 @@ export class HomeArchitectPanel extends LitElement {
     this.setPreferences({ northAngle, showCompass });
   }
 
+  private openRadarModal(binding: EntityBinding) {
+    this.selectedRadarBindingForCalibrate = binding;
+    this.isRadarModalOpen = true;
+  }
+
+  private closeRadarModal() {
+    this.isRadarModalOpen = false;
+    this.selectedRadarBindingForCalibrate = null;
+  }
+
+  private handleRadarCalibrated(e: CustomEvent<RadarCalibrationModalResult>) {
+    const radarConfig = e.detail?.radarConfig;
+    const binding = this.selectedRadarBindingForCalibrate;
+    this.closeRadarModal();
+    if (!radarConfig || !binding) return;
+
+    const newBindings = mapChanged(this.project.bindings, b => {
+      if (b.id !== binding.id) return b;
+      return { ...b, radarConfig };
+    });
+
+    if (newBindings && this.commitProject({ ...this.project, bindings: newBindings })) {
+      this.showToast('Calibrage radar enregistré.');
+    }
+  }
+
   /** Bornes du facteur d'échelle, formatées pour les messages de refus. */
   private scaleLimits(): { min: string; max: string } {
     return { min: formatNumber(SCALE_FACTOR_LIMITS.min), max: formatNumber(SCALE_FACTOR_LIMITS.max) };
@@ -1395,7 +1432,7 @@ export class HomeArchitectPanel extends LitElement {
     if (next !== this.project && this.commitProject(next)) this.showToast(localize('panel.toast.ceiling_inherited', { items }));
   }
 
-  /** Modale pièce : nom, couleur, hauteur (propre ou héritée du projet, constat F150) et zone HA. */
+  /** Modale pièce : nom, couleur, texture de sol, hauteur (propre ou héritée du projet, constat F150) et zone HA. */
   private handleSaveRoom(e: CustomEvent<RoomModalSaveDetail>) {
     const detail = e.detail;
     this.selectedRoomForEdit = null;
@@ -1407,7 +1444,9 @@ export class HomeArchitectPanel extends LitElement {
       else next.height = detail.height;
       if (detail.area_id) next.area_id = detail.area_id;
       else delete next.area_id;
-      const unchanged = next.name === r.name && next.color === r.color && next.height === r.height && next.area_id === r.area_id;
+      if (detail.texture && detail.texture !== 'none') next.texture = detail.texture;
+      else delete next.texture;
+      const unchanged = next.name === r.name && next.color === r.color && next.height === r.height && next.area_id === r.area_id && (next.texture ?? 'none') === (r.texture ?? 'none');
       return unchanged ? r : next;
     });
     if (updatedRooms && this.commitProject({ ...this.project, rooms: updatedRooms })) {
@@ -1481,6 +1520,48 @@ export class HomeArchitectPanel extends LitElement {
     });
     // Glisser dans le sélecteur de couleur : une seule entrée d'historique.
     if (furniture) this.commitProject({ ...this.project, furniture }, { coalesceKey: 'furniture-color' });
+  }
+
+  /** Texture de sol des pièces sélectionnées (HUD). */
+  private updateSelectedRoomTexture(texture: FloorTexture) {
+    const ids = this.selectedElements.roomIds ?? [];
+    if (ids.length === 0) return;
+    const rooms = mapChanged(this.project.rooms, r => {
+      if (!ids.includes(r.id) || (r.texture ?? 'none') === texture) return r;
+      const next: Room = { ...r };
+      if (texture && texture !== 'none') next.texture = texture;
+      else delete next.texture;
+      return next;
+    });
+    if (rooms) this.commitProject({ ...this.project, rooms });
+  }
+
+  /** Texture de parement des murs sélectionnés (HUD). */
+  private updateSelectedWallsTexture(texture: WallTexture) {
+    const ids = this.selectedElements.wallIds ?? [];
+    if (ids.length === 0) return;
+    const walls = mapChanged(this.project.walls, w => {
+      if (!ids.includes(w.id) || (w.texture ?? 'paint') === texture) return w;
+      const next: Wall = { ...w };
+      if (texture && texture !== 'paint') next.texture = texture;
+      else delete next.texture;
+      return next;
+    });
+    if (walls) this.commitProject({ ...this.project, walls });
+  }
+
+  /** Matériau des meubles sélectionnés (HUD). */
+  private updateSelectedFurnitureMaterial(material: FurnitureMaterial) {
+    const ids = this.selectedElements.furnitureIds ?? [];
+    if (ids.length === 0) return;
+    const furniture = mapChanged(this.project.furniture ?? [], f => {
+      if (!ids.includes(f.id) || (f.material ?? 'default') === material) return f;
+      const next = { ...f };
+      if (material && material !== 'default') next.material = material;
+      else delete next.material;
+      return next;
+    });
+    if (furniture) this.commitProject({ ...this.project, furniture });
   }
 
   /** Sélection limitée aux éléments qui existent encore dans le plan (identifiants périmés ignorés, constat F130). */
@@ -1736,6 +1817,7 @@ export class HomeArchitectPanel extends LitElement {
     else if (this.isSaveLoadModalOpen) this.isSaveLoadModalOpen = false;
     else if (this.selectedRoomForEdit) this.selectedRoomForEdit = null;
     else if (this.isCalibrateModalOpen) this.closeCalibrateModal();
+    else if (this.isRadarModalOpen) this.closeRadarModal();
     else if (this.isRescaleModalOpen) this.isRescaleModalOpen = false;
     else if (this.isOrientationModalOpen) this.isOrientationModalOpen = false;
     else if (this.isImportModalOpen) this.closeImportModal();
@@ -1958,7 +2040,7 @@ export class HomeArchitectPanel extends LitElement {
   /** Au moins une modale ou un dialogue du studio est ouvert. */
   private isModalOpen(): boolean {
     return this.isWizardOpen || this.isImportModalOpen || this.isExportModalOpen || this.isSaveLoadModalOpen ||
-      this.isNewPlanModalOpen || this.isResetModalOpen || this.isCalibrateModalOpen || this.isRescaleModalOpen ||
+      this.isNewPlanModalOpen || this.isResetModalOpen || this.isCalibrateModalOpen || this.isRadarModalOpen || this.isRescaleModalOpen ||
       this.isOrientationModalOpen || this.isUpdateModalOpen || this.isAboutOpen || this.selectedRoomForEdit !== null || this.persistence.isBlocking();
   }
 
@@ -2188,6 +2270,9 @@ export class HomeArchitectPanel extends LitElement {
     const selectedFurniture = (selection.furnitureIds ?? []).length > 0
       ? (this.project.furniture ?? []).find(f => f.id === selection.furnitureIds?.[0])
       : undefined;
+    const selectedWall = selection.wallIds.length > 0
+      ? this.project.walls.find(w => w.id === selection.wallIds[0])
+      : undefined;
     const hasDoor = selection.openingIds.some(id => this.project.openings.find(op => op.id === id)?.type === 'door');
     const hasWindow = selection.openingIds.some(id => {
       const op = this.project.openings.find(o => o.id === id);
@@ -2228,6 +2313,19 @@ export class HomeArchitectPanel extends LitElement {
               >
                 <span aria-hidden="true">✏️</span> ${localize('panel.hud.edit_room')}
               </button>
+              <label class="hud-color" title="Revêtement / Texture du sol (2D & 3D)">
+                <span class="hud-label">Sol</span>
+                <select
+                  class="hud-texture-select"
+                  ?disabled=${this.readOnly}
+                  .value=${selectedRoom.texture ?? 'none'}
+                  @change=${(e: Event) => this.updateSelectedRoomTexture((e.target as HTMLSelectElement).value as FloorTexture)}
+                >
+                  ${FLOOR_MATERIAL_CATALOG.map(m => html`
+                    <option value=${m.id} ?selected=${(selectedRoom.texture ?? 'none') === m.id}>${m.icon} ${materialLabel(m)}</option>
+                  `)}
+                </select>
+              </label>
             </div>
           ` : nothing}
 
@@ -2237,6 +2335,19 @@ export class HomeArchitectPanel extends LitElement {
               ${option(this.currentThickness === 0.10, localize('panel.hud.thin', { size: formatCentimeters(0.10) }), localize('panel.thickness.partition', { size: formatCentimeters(0.10) }), () => this.updateSelectedWallsThickness(0.10))}
               ${option(this.currentThickness === 0.20, localize('panel.hud.medium', { size: formatCentimeters(0.20) }), localize('panel.hud.medium_title', { size: formatCentimeters(0.20) }), () => this.updateSelectedWallsThickness(0.20))}
               ${option(this.currentThickness === 0.30, localize('panel.hud.thick', { size: formatCentimeters(0.30) }), localize('panel.thickness.load_bearing', { size: formatCentimeters(0.30) }), () => this.updateSelectedWallsThickness(0.30))}
+              <label class="hud-color" title="Revêtement / Texture des murs sélectionnés (2D & 3D)">
+                <span class="hud-label">Parement</span>
+                <select
+                  class="hud-texture-select"
+                  ?disabled=${this.readOnly}
+                  .value=${selectedWall?.texture ?? 'paint'}
+                  @change=${(e: Event) => this.updateSelectedWallsTexture((e.target as HTMLSelectElement).value as WallTexture)}
+                >
+                  ${WALL_MATERIAL_CATALOG.map(m => html`
+                    <option value=${m.id} ?selected=${(selectedWall?.texture ?? 'paint') === m.id}>${m.icon} ${materialLabel(m)}</option>
+                  `)}
+                </select>
+              </label>
             </div>
           ` : nothing}
 
@@ -2292,6 +2403,19 @@ export class HomeArchitectPanel extends LitElement {
                   <span aria-hidden="true">↺</span>
                 </button>
               ` : nothing}
+              <label class="hud-color" title="Matériau / Texture du mobilier (2D & 3D)">
+                <span class="hud-label">Matériau</span>
+                <select
+                  class="hud-texture-select"
+                  ?disabled=${this.readOnly}
+                  .value=${selectedFurniture.material ?? 'default'}
+                  @change=${(e: Event) => this.updateSelectedFurnitureMaterial((e.target as HTMLSelectElement).value as FurnitureMaterial)}
+                >
+                  ${FURNITURE_MATERIAL_CATALOG.map(m => html`
+                    <option value=${m.id} ?selected=${(selectedFurniture.material ?? 'default') === m.id}>${m.icon} ${materialLabel(m)}</option>
+                  `)}
+                </select>
+              </label>
             </div>
           ` : nothing}
 
@@ -2308,6 +2432,17 @@ export class HomeArchitectPanel extends LitElement {
                 <span>${localize('panel.hud.icon_picker')}</span>
                 <span aria-hidden="true">${this.isIconPickerOpen ? '▴' : '▾'}</span>
               </button>
+
+              ${isLikelyRadarBinding(selectedBinding, this.hass?.states) ? html`
+                <button
+                  class="hud-opt-btn"
+                  @click=${() => this.openRadarModal(selectedBinding)}
+                  title=${localize('panel.hud.calibrate_radar_title')}
+                >
+                  <span aria-hidden="true">🎯</span>
+                  <span>${localize('panel.hud.calibrate_radar')}</span>
+                </button>
+              ` : nothing}
             </div>
           ` : nothing}
 
@@ -2859,6 +2994,17 @@ export class HomeArchitectPanel extends LitElement {
             @orientation-applied=${this.handleOrientationApplied}
             @close=${() => { this.isOrientationModalOpen = false; }}
           ></home-architect-orientation-modal>
+        ` : nothing}
+
+        ${this.isRadarModalOpen && this.selectedRadarBindingForCalibrate ? html`
+          <home-architect-radar-modal
+            data-modal
+            .binding=${this.selectedRadarBindingForCalibrate}
+            .room=${this.project.rooms.find(r => r.id === this.selectedRadarBindingForCalibrate?.roomId)}
+            .hass=${this.hass}
+            @radar-calibrated=${this.handleRadarCalibrated}
+            @close=${this.closeRadarModal}
+          ></home-architect-radar-modal>
         ` : nothing}
 
         ${this.isExportModalOpen ? html`

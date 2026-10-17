@@ -1,5 +1,6 @@
 import { EntityBinding, Opening, Room } from '../core/types';
 import { bindingDisplayName, entityDomain } from '../core/project-model';
+import { collectRadarEntityIds } from '../core/radar';
 
 /**
  * Affichage des entités HA sur le plan (module pur, testé par tests/frontend/canvas-render.test.ts) :
@@ -558,9 +559,10 @@ export function describeEntity(binding: EntityBinding, hass: HassDisplayContext 
 // Nouveau rendu seulement si une entité affichée change (constat F34)
 // ------------------------------------------------------------------
 
-/** Entités affichées par le plan : épingles, et capteurs liés aux ouvertures (dont la vue 3D montre l'état). */
+/** Entités affichées par le plan : épingles, cibles radar associées, et capteurs liés aux ouvertures. */
 export function boundEntityIds(bindings: readonly EntityBinding[], openings: readonly Pick<Opening, 'entityId'>[] = []): string[] {
-  const ids = [...bindings.map(b => b.entityId), ...openings.map(o => o.entityId)];
+  const radarIds = bindings.flatMap(b => collectRadarEntityIds(b.radarConfig));
+  const ids = [...bindings.map(b => b.entityId), ...radarIds, ...openings.map(o => o.entityId)];
   return [...new Set(ids.filter((id): id is string => typeof id === 'string'))];
 }
 

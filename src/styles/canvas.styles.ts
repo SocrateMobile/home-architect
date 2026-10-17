@@ -938,6 +938,60 @@ export const canvasStyles = css`
     100% { transform: scale(2.375); opacity: 0; }
   }
 
+  /* Cône de détection radar sur le plan 2D */
+  .radar-cone-sweep {
+    fill: var(--arch-accent-faint, rgba(56, 189, 248, 0.12));
+    stroke: var(--arch-accent, #38bdf8);
+    stroke-width: 1.5;
+    stroke-dasharray: 5, 4;
+    opacity: 0.65;
+  }
+
+  /* Cibles radar suivies en temps réel */
+  .radar-live-target {
+    transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .radar-target-halo {
+    fill: none;
+    stroke-width: 2;
+    animation: radarTargetPulse 1.8s infinite ease-out;
+  }
+
+  @keyframes radarTargetPulse {
+    0% { transform: scale(0.6); opacity: 0.9; }
+    100% { transform: scale(1.6); opacity: 0; }
+  }
+
+  .radar-target-dot {
+    stroke: #ffffff;
+    stroke-width: 2;
+    filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.45));
+  }
+
+  .radar-target-icon {
+    font-size: 11px;
+    text-anchor: middle;
+    dominant-baseline: central;
+    pointer-events: none;
+  }
+
+  .radar-target-pill rect {
+    fill: var(--arch-surface, #1e293b);
+    stroke: var(--arch-surface-border, rgba(255, 255, 255, 0.15));
+    stroke-width: 1;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+  }
+
+  .radar-target-pill text {
+    fill: var(--arch-surface-text, #ffffff);
+    font-size: 8.5px;
+    font-weight: 700;
+    text-anchor: middle;
+    dominant-baseline: central;
+    font-family: ui-monospace, SFMono-Regular, monospace;
+  }
+
   .soundwave-pulse {
     fill: none;
     stroke: var(--arch-media);

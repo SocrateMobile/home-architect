@@ -1,7 +1,10 @@
 import {
-  BackgroundPlan, EntityBinding, ExportFrame, FURNITURE_CATEGORIES, FurnitureCategory, FurnitureItem,
-  GridConfig, HomeArchitectProject, OPENING_TYPES, Opening, OpeningType, Point, PROJECT_SCHEMA_VERSION,
-  PublishInfo, Room, TAP_ACTION_TYPES, TapActionType, WALL_TYPES, Wall, WallType
+  BackgroundPlan, EntityBinding, ExportFrame, FLOOR_TEXTURES, FloorTexture, FURNITURE_CATEGORIES,
+  FurnitureCategory, FURNITURE_MATERIALS, FurnitureItem, FurnitureMaterial, GridConfig,
+  HomeArchitectProject, OPENING_TYPES, Opening, OpeningType, Point, PROJECT_SCHEMA_VERSION,
+  PublishInfo, RadarAffineMatrix, RadarCalibrationPoint, RadarConfig, RadarTargetConfig,
+  RadarZoneConfig, Room, TAP_ACTION_TYPES, TapActionType, WALL_TEXTURES, WALL_TYPES, Wall,
+  WallTexture, WallType
 } from './types';
 import { PolygonUtils } from './polygon';
 import { canonicalFurnitureName, findFurnitureTemplate } from './furniture-catalog';
@@ -57,7 +60,7 @@ const DEFAULT_WALL_THICKNESS = 0.2;
 const MIN_WALL_THICKNESS = 0.02;
 const MAX_WALL_THICKNESS = 1.5;
 const DEFAULT_GRID_SIZE = 0.5;
-const MIN_GRID_SIZE = 0.05;
+const MIN_GRID_SIZE = 0.01;
 const MAX_GRID_SIZE = 2;
 const DEFAULT_OPENING_WIDTH = 0.9;
 const DEFAULT_BACKGROUND_OPACITY = 0.4;
@@ -285,7 +288,11 @@ function normalizeWalls(list: unknown): Wall[] {
       type: oneOf<WallType>(w.type, WALL_TYPES) ?? 'standard',
     };
     const height = positiveOrUndefined(w.height, MAX_HEIGHT);
+    const texture = oneOf<WallTexture>(w.texture, WALL_TEXTURES);
+    const color = safeColor(w.color);
     if (height !== undefined) wall.height = height;
+    if (texture) wall.texture = texture;
+    if (color) wall.color = color;
     walls.push(wall);
   }
   return walls;
@@ -335,15 +342,117 @@ function normalizeRooms(list: unknown): Room[] {
     };
     const areaId = optionalString(r.area_id);
     const color = safeColor(r.color);
+    const texture = oneOf<FloorTexture>(r.texture, FLOOR_TEXTURES);
     const icon = shortIcon(r.icon);
     const height = positiveOrUndefined(r.height, MAX_HEIGHT);
     if (areaId) room.area_id = areaId;
     if (color) room.color = color;
+    if (texture && texture !== 'none') room.texture = texture;
     if (icon) room.icon = icon;
     if (height !== undefined) room.height = height;
     rooms.push(room);
   }
   return rooms;
+}
+
+function normalizeRadarConfig(v: unknown): RadarConfig | undefined {
+  if (!isRecord(v)) return undefined;
+  const targets: RadarTargetConfig[] = [];
+  for (const t of asArray(v.targets).slice(0, 6)) {
+    if (!isRecord(t)) continue;
+    const xEntityId = optionalString(t.xEntityId);
+    const yEntityId = optionalString(t.yEntityId);
+    if (!xEntityId || !ENTITY_ID_PATTERN.test(xEntityId)) continue;
+    if (!yEntityId || !ENTITY_ID_PATTERN.test(yEntityId)) continue;
+    const target: RadarTargetConfig = { xEntityId, yEntityId };
+    const label = boundedString(t.label, 64);
+    const distId = optionalString(t.distanceEntityId);
+    const resId = optionalString(t.resolutionEntityId);
+    const color = safeColor(t.color);
+    if (label) target.label = label;
+    if (distId && ENTITY_ID_PATTERN.test(distId)) target.distanceEntityId = distId;
+    if (resId && ENTITY_ID_PATTERN.test(resId)) target.resolutionEntityId = resId;
+    if (color) target.color = color;
+    targets.push(target);
+  }
+
+  const usedCorners = new Set<string>();
+  const calibrationPoints: RadarCalibrationPoint[] = [];
+  for (const cp of asArray(v.calibrationPoints).slice(0, 32)) {
+    if (!isRecord(cp)) continue;
+    const radarMm = toPoint(cp.radarMm);
+    const planMeters = toPoint(cp.planMeters);
+    if (!radarMm || !planMeters) continue;
+    const id = uniqueId(cp.id, 'corner', usedCorners);
+    const label = boundedString(cp.label, 64) ?? `Coin ${calibrationPoints.length + 1}`;
+    calibrationPoints.push({ id, label, radarMm, planMeters });
+  }
+
+  let affineMatrix: RadarAffineMatrix | undefined;
+  if (isRecord(v.affineMatrix)) {
+    const a = toFinite(v.affineMatrix.a);
+    const b = toFinite(v.affineMatrix.b);
+    const tx = toFinite(v.affineMatrix.tx);
+    const c = toFinite(v.affineMatrix.c);
+    const d = toFinite(v.affineMatrix.d);
+    const ty = toFinite(v.affineMatrix.ty);
+    if (a !== undefined && b !== undefined && tx !== undefined && c !== undefined && d !== undefined && ty !== undefined) {
+      affineMatrix = { a, b, tx, c, d, ty };
+    }
+  }
+
+  const zones: RadarZoneConfig[] = [];
+  for (const z of asArray(v.zones).slice(0, 3)) {
+    if (!isRecord(z)) continue;
+    const idx = toFinite(z.index);
+    if (idx !== 1 && idx !== 2 && idx !== 3) continue;
+    const p1 = toPoint(z.p1);
+    const p2 = toPoint(z.p2);
+    if (!p1 || !p2) continue;
+    const zone: RadarZoneConfig = {
+      index: idx,
+      enabled: z.enabled !== false,
+      p1,
+      p2,
+    };
+    const name = boundedString(z.name, 64);
+    const x1Id = optionalString(z.x1EntityId);
+    const y1Id = optionalString(z.y1EntityId);
+    const x2Id = optionalString(z.x2EntityId);
+    const y2Id = optionalString(z.y2EntityId);
+    if (name) zone.name = name;
+    if (x1Id && ENTITY_ID_PATTERN.test(x1Id)) zone.x1EntityId = x1Id;
+    if (y1Id && ENTITY_ID_PATTERN.test(y1Id)) zone.y1EntityId = y1Id;
+    if (x2Id && ENTITY_ID_PATTERN.test(x2Id)) zone.x2EntityId = x2Id;
+    if (y2Id && ENTITY_ID_PATTERN.test(y2Id)) zone.y2EntityId = y2Id;
+    zones.push(zone);
+  }
+
+  const cfg: RadarConfig = {
+    enabled: v.enabled !== false,
+    orientationDeg: normalizeAngle(finiteOr(v.orientationDeg, 180)),
+    heightMeters: clamp(finiteOr(v.heightMeters, 1.2), 0.05, 10),
+    fovDeg: clamp(finiteOr(v.fovDeg, 120), 10, 360),
+    maxRangeMeters: clamp(finiteOr(v.maxRangeMeters, 6), 0.5, 30),
+    showCone: v.showCone !== false,
+    targets,
+    calibrationPoints,
+  };
+
+  const tiltDeg = toFinite(v.tiltDeg);
+  if (tiltDeg !== undefined) cfg.tiltDeg = clamp(tiltDeg, -85, 85);
+  if (v.invertX === true) cfg.invertX = true;
+  if (typeof v.smoothing === 'boolean') cfg.smoothing = v.smoothing;
+  const unit = oneOf(v.coordinateUnit, ['mm', 'm', 'cm', 'auto'] as const);
+  if (unit) cfg.coordinateUnit = unit;
+  const threshId = optionalString(v.thresholdEntityId);
+  if (threshId && ENTITY_ID_PATTERN.test(threshId)) cfg.thresholdEntityId = threshId;
+  const defThresh = toFinite(v.defaultThresholdMm);
+  if (defThresh !== undefined && defThresh > 0) cfg.defaultThresholdMm = clamp(defThresh, 10, 5000);
+  if (affineMatrix) cfg.affineMatrix = affineMatrix;
+  if (zones.length > 0) cfg.zones = zones;
+
+  return cfg;
 }
 
 function normalizeBindings(list: unknown, legacySchema: boolean): EntityBinding[] {
@@ -373,6 +482,7 @@ function normalizeBindings(list: unknown, legacySchema: boolean): EntityBinding[
     // l'utilisateur) : on l'efface pour appliquer l'action par défaut du domaine.
     const tapAction = action(b.tapAction);
     const holdAction = action(b.holdAction);
+    const radarConfig = normalizeRadarConfig(b.radarConfig);
     if (roomId) binding.roomId = roomId;
     if (icon) binding.icon = icon;
     if (mdiIcon) binding.mdiIcon = mdiIcon;
@@ -380,6 +490,7 @@ function normalizeBindings(list: unknown, legacySchema: boolean): EntityBinding[
     if (tapAction && !(legacySchema && tapAction === 'toggle')) binding.tapAction = tapAction;
     if (holdAction) binding.holdAction = holdAction;
     if (navigationPath) binding.navigationPath = navigationPath;
+    if (radarConfig) binding.radarConfig = radarConfig;
     bindings.push(binding);
   }
   return bindings;
@@ -411,9 +522,11 @@ function normalizeFurniture(list: unknown): FurnitureItem[] {
     };
     const roomId = optionalString(f.roomId);
     const color = safeColor(f.color);
+    const material = oneOf<FurnitureMaterial>(f.material, FURNITURE_MATERIALS);
     const icon = shortIcon(f.icon);
     if (roomId) item.roomId = roomId;
     if (color) item.color = color;
+    if (material && material !== 'default') item.material = material;
     if (icon) item.icon = icon;
     items.push(item);
   }

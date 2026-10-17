@@ -6,7 +6,7 @@ import { styleMap } from 'lit/directives/style-map.js';
 import { canvasStyles } from '../styles/canvas.styles';
 import {
   Point, Wall, Opening, OpeningType, Room, ActiveTool, ViewportTransform, HomeArchitectProject,
-  WallSnapResult, EntityBinding, SelectedElements, FurnitureItem
+  WallSnapResult, EntityBinding, SelectedElements, FurnitureItem, GridConfig
 } from '../core/types';
 import { OpeningFit, SnapResult, SnappingEngine } from '../core/snapping';
 import { PolygonUtils } from '../core/polygon';
@@ -40,6 +40,8 @@ import {
 } from '../canvas/entity-display';
 import { TapGestureRecognizer, planEntityAction, runEntityAction } from '../canvas/entity-actions';
 import { OpeningShape, openingPrimitives } from '../canvas/opening-symbols';
+import { buildRadarConeSvgPath, fuseMultiRadarTargets, readLiveRadarTargets } from '../canvas/radar-render';
+import { renderSvgMaterialPatterns2D } from '../canvas/material-patterns';
 import {
   Camera3D, CameraBasis, cameraBasis, floorMatrix, projectPoint, screenDeltaToFloor, shortestAngleDelta, unprojectFloor
 } from '../canvas/projection';
@@ -1177,9 +1179,24 @@ export class HomeArchitectCanvas extends LitElement {
     this.snapInfo = NO_SNAP;
   }
 
+  /**
+   * Grille effective pour le tracé et le déplacement : lorsqu'un plan de fond importé est visible
+   * et que la grille est supérieure à 2 cm, l'aimantation à la grille grossière est automatiquement
+   * contournée pour permettre de tracer et positionner les murs / éléments au pixel près sur le plan,
+   * tout en conservant l'aimantation aux sommets/murs existants et aux angles (0°/45°/90°).
+   */
+  private get effectiveGrid(): GridConfig {
+    const grid = this.project.grid;
+    const hasVisibleBg = Boolean(this.project.background && this.project.background.visible !== false);
+    if (hasVisibleBg && grid.snapToGrid && (grid.size || 0.5) > 0.02) {
+      return { ...grid, snapToGrid: false };
+    }
+    return grid;
+  }
+
   /** Accrochage d'un point de tracé : grille et bascules de project.grid, tolérances en pixels, Alt = libre. */
   private snapDraw(world: Point, origin: Point | undefined, free: boolean): SnapResult {
-    return snapDrawingPoint(world, this.project.grid, this.project.walls, origin, this.screenPpm, free);
+    return snapDrawingPoint(world, this.effectiveGrid, this.project.walls, origin, this.screenPpm, free);
   }
 
   /** Sommet de pièce : retour sur le premier sommet (fermeture), sinon accrochage depuis le sommet précédent. */
@@ -1638,14 +1655,14 @@ export class HomeArchitectCanvas extends LitElement {
     let target: Point;
     if (it.snap === 'structure') {
       const moving = new Set(set.wallIds);
-      const snap = snapDrawingPoint(raw, this.project.grid, it.base.walls, undefined, this.screenPpm, e.altKey, {
+      const snap = snapDrawingPoint(raw, this.effectiveGrid, it.base.walls, undefined, this.screenPpm, e.altKey, {
         excludeWallIds: set.wallIds,
         excludePoints: it.base.walls.filter(w => moving.has(w.id)).flatMap(w => [w.start, w.end])
       });
       this.setPreview(snap);
       target = snap.point;
-    } else if (it.snap === 'furniture' && this.project.grid.snapToGrid && e.altKey) {
-      const size = this.project.grid.size || 0.5;
+    } else if (it.snap === 'furniture' && this.effectiveGrid.snapToGrid && e.altKey) {
+      const size = this.effectiveGrid.size || 0.5;
       target = { x: SnappingEngine.quantize(raw.x, size), y: SnappingEngine.quantize(raw.y, size) };
     } else {
       target = SnappingEngine.roundPoint(raw);
@@ -1865,7 +1882,7 @@ export class HomeArchitectCanvas extends LitElement {
     if (!wall) return;
     const fixed = it.which === 'start' ? wall.end : wall.start;
     const snap = snapDrawingPoint(
-      this.clientToWorld(e.clientX, e.clientY), this.project.grid, it.base.walls, fixed, this.screenPpm, e.altKey,
+      this.clientToWorld(e.clientX, e.clientY), this.effectiveGrid, it.base.walls, fixed, this.screenPpm, e.altKey,
       { excludeWallIds: [wall.id], excludePoints: [wall[it.which]] }
     );
     this.setPreview(snap);
@@ -1890,7 +1907,7 @@ export class HomeArchitectCanvas extends LitElement {
   /** Poignée de sommet de pièce : surface recalculée, contour qui se recoupe refusé. */
   private updateRoomVertex(it: RoomVertexInteraction, e: PointerEvent): void {
     const snap = snapDrawingPoint(
-      this.clientToWorld(e.clientX, e.clientY), this.project.grid, it.base.walls, undefined, this.screenPpm, e.altKey
+      this.clientToWorld(e.clientX, e.clientY), this.effectiveGrid, it.base.walls, undefined, this.screenPpm, e.altKey
     );
     this.setPreview(snap);
     const next = moveRoomVertex(it.base, it.roomId, it.index, snap.point);
@@ -2717,6 +2734,7 @@ export class HomeArchitectCanvas extends LitElement {
       const look = looks.get(room.id);
       const fill = look?.fill ?? room.color;
       const isSelected = selected.has(room.id);
+      const tex = room.texture && room.texture !== 'none' ? room.texture : null;
 
       return svg`
         <g
@@ -2731,6 +2749,14 @@ export class HomeArchitectCanvas extends LitElement {
             points=${pts}
             style=${styleMap(fill ? { '--room-fill': fill } : {})}
           />
+          ${tex ? svg`
+            <polygon
+              class="room-texture-overlay"
+              points=${pts}
+              fill="url(#arch-tex-floor-${tex})"
+              pointer-events="none"
+            />
+          ` : nothing}
         </g>
       `;
     });
@@ -2830,6 +2856,7 @@ export class HomeArchitectCanvas extends LitElement {
         const nx = -(e.y - s.y) / distPx;
         const ny = (e.x - s.x) / distPx;
         const mid = { x: (s.x + e.x) / 2, y: (s.y + e.y) / 2 };
+        const tex = wall.texture && wall.texture !== 'paint' ? wall.texture : null;
 
         return svg`
           <g
@@ -2838,6 +2865,7 @@ export class HomeArchitectCanvas extends LitElement {
             @pointerdown=${(ev: PointerEvent) => this.handleElementPointerDown({ kind: 'wall', id: wall.id }, ev)}
           >
             ${poly ? svg`<polygon class="wall-rect" points=${plane(poly)} />` : nothing}
+            ${poly && tex ? svg`<polygon class="wall-texture-overlay" points=${plane(poly)} fill="url(#arch-tex-wall-${tex})" pointer-events="none" />` : nothing}
             <line class="wall-centerline" x1=${s.x} y1=${s.y} x2=${e.x} y2=${e.y} />
             ${this.showDimensions && lenMeters >= 0.4 ? svg`
               <g class="wall-dim-badge" transform="translate(${mid.x + nx * 14}, ${mid.y + ny * 14})">
@@ -2964,10 +2992,65 @@ export class HomeArchitectCanvas extends LitElement {
 
   private renderPins2D(views: ReadonlyMap<string, EntityView>) {
     const k = this.screenPpm;
-    return this.displayableBindings(this.project.bindings).map(binding => {
+    const bindings = this.displayableBindings(this.project.bindings);
+
+    // 1. Cônes de détection radar (sous les épingles et cibles)
+    const cones = bindings.map(binding => {
+      const cfg = binding.radarConfig;
+      if (!cfg || !cfg.enabled || !cfg.showCone) return nothing;
+      const radiusPx = (cfg.maxRangeMeters || 6.0) * k;
+      const conePath = buildRadarConeSvgPath(
+        binding.position.x * k,
+        binding.position.y * k,
+        radiusPx,
+        cfg.orientationDeg,
+        cfg.fovDeg
+      );
+      if (!conePath) return nothing;
+      return svg`
+        <g class="radar-cone-group" pointer-events="none">
+          <path class="radar-cone-sweep" d=${conePath} />
+        </g>
+      `;
+    });
+
+    // 2. Épingles d'entités normales
+    const pins = bindings.map(binding => {
       const view = views.get(binding.id);
       return view ? this.renderPin(binding, view, binding.position.x * k, binding.position.y * k) : nothing;
     });
+
+    // 3. Cibles radar en temps réel (suivi des occupants / animaux avec lissage EMA et fusion multi-radars)
+    const rawTargetsByBinding = bindings.map(binding => ({
+      bindingId: binding.id,
+      targets: readLiveRadarTargets(binding, this.hass?.states, { applySmoothing: true })
+    }));
+    const fusedMap = fuseMultiRadarTargets(rawTargetsByBinding);
+    const fusedTargets = Array.from(fusedMap.values()).flat();
+    const targets = fusedTargets.map(target => {
+      const tx = target.planPosition.x * k;
+      const ty = target.planPosition.y * k;
+      const isHuman = target.kind === 'human';
+      const label = `${target.icon} ${target.label}`;
+      const subLabel = `${(target.distanceMm / 1000).toFixed(2)}m`;
+      return svg`
+        <g class="radar-live-target ${isHuman ? 'human' : 'animal'}" transform="translate(${tx}, ${ty})" pointer-events="none">
+          <circle class="radar-target-halo" cx="0" cy="0" r="18" style="stroke: ${target.color};" />
+          <circle class="radar-target-dot" cx="0" cy="0" r="10" style="fill: ${target.color};" />
+          <text class="radar-target-icon" x="0" y="3.5">${target.icon}</text>
+          <g class="radar-target-pill" transform="translate(0, -18)">
+            <rect x="-30" y="-8" width="60" height="15" rx="4" />
+            <text x="0" y="3.5">${label} · ${subLabel}</text>
+          </g>
+        </g>
+      `;
+    });
+
+    return svg`
+      <g class="radar-cones-layer">${cones}</g>
+      <g class="pins-layer">${pins}</g>
+      <g class="radar-targets-layer">${targets}</g>
+    `;
   }
 
   /** Épingles en 3D : toujours face à l'écran, au-dessus des murs, les plus proches devant. */
@@ -3619,7 +3702,7 @@ export class HomeArchitectCanvas extends LitElement {
       ${this.renderSnapIndicator()}
       <g class="plan-layer" transform=${pan}>
         ${guard(
-          [bindings, k, views, this.selectedElements, this.isDashboardMode, this.canSelect],
+          [bindings, k, views, this.entityRevision, this.selectedElements, this.isDashboardMode, this.canSelect],
           () => this.renderPins2D(views)
         )}
       </g>
@@ -3715,6 +3798,9 @@ export class HomeArchitectCanvas extends LitElement {
     return html`
       <div class="viewport-3d-wrapper ${is3D ? 'mode-3d' : ''}">
         <svg class="main-viewport">
+          <defs>
+            ${guard([k], () => renderSvgMaterialPatterns2D(k))}
+          </defs>
           <!-- Rotation de vue 2D autour du centre du canevas ; transform-box et transition (0,35 s, coupée
                si les animations sont réduites) portés par la classe -->
           <g
