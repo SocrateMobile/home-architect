@@ -198,6 +198,8 @@ const fr = {
   'panel.hud.icon_automatic': 'Automatique',
   'panel.hud.icon_free': 'Saisie libre :',
   'panel.hud.icon_free_placeholder': 'Emoji',
+  'panel.hud.calibrate_radar': 'Calibrer Radar',
+  'panel.hud.calibrate_radar_title': 'Calibrer la pièce et ajuster les cibles X/Y de ce radar',
   'panel.hud.delete_title': 'Supprimer les éléments sélectionnés (Touche Suppr / Retour)',
   'panel.hud.clear_selection': 'Désélectionner tout (Échap)',
 
@@ -724,6 +726,8 @@ const en: Record<keyof typeof fr, string> = {
   'panel.hud.icon_automatic': 'Automatic',
   'panel.hud.icon_free': 'Custom:',
   'panel.hud.icon_free_placeholder': 'Emoji',
+  'panel.hud.calibrate_radar': 'Calibrate Radar',
+  'panel.hud.calibrate_radar_title': 'Calibrate room and adjust X/Y target tracking for this radar',
   'panel.hud.delete_title': 'Delete the selected items (Delete / Backspace key)',
   'panel.hud.clear_selection': 'Deselect all (Esc)',
 

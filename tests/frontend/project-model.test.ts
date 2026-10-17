@@ -173,7 +173,7 @@ describe('normalizeProject', () => {
   it('borne échelle, épaisseurs, grille et fond', () => {
     expect(normalizeProject({ pixelsPerMeter: 1 }).pixelsPerMeter).toBe(5);
     expect(normalizeProject({ pixelsPerMeter: 99999 }).pixelsPerMeter).toBe(2000);
-    expect(normalizeProject({ grid: { size: 0.001 } }).grid.size).toBe(0.05);
+    expect(normalizeProject({ grid: { size: 0.001 } }).grid.size).toBe(0.01);
     expect(normalizeProject({ grid: { size: 10 } }).grid.size).toBe(2);
     const p = normalizeProject({
       walls: [{ ...wall('thin'), thickness: 0.001 }, { ...wall('thick', 0, 1, 4, 1), thickness: 5 }],

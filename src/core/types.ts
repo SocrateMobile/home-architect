@@ -10,6 +10,10 @@ export interface Point {
 export const WALL_TYPES = ['standard', 'partition', 'loadbearing', 'exterior'] as const;
 export type WallType = typeof WALL_TYPES[number];
 
+/** Textures et finitions de murs (2D et 3D). */
+export const WALL_TEXTURES = ['paint', 'brick', 'stone', 'wood_cladding', 'concrete', 'plaster'] as const;
+export type WallTexture = typeof WALL_TEXTURES[number];
+
 export interface Wall {
   id: string;
   start: Point;
@@ -17,6 +21,8 @@ export interface Wall {
   thickness: number; // In meters, e.g. 0.20 for 20cm
   height?: number;   // In meters, e.g. 2.50m
   type: WallType;
+  texture?: WallTexture;
+  color?: string;
 }
 
 /** Types d'ouvertures connus (liste d'exécution utilisée pour valider les projets chargés). */
@@ -36,6 +42,22 @@ export interface Opening {
   entityId?: string; // Optional bound sensor (e.g. binary_sensor.door_front)
 }
 
+/** Textures de sol pour les pièces et espaces extérieurs (2D SVG pattern et 3D PBR). */
+export const FLOOR_TEXTURES = [
+  'none',
+  'parquet_oak',
+  'parquet_herringbone',
+  'tiles_light',
+  'tiles_slate',
+  'terracotta',
+  'marble',
+  'concrete',
+  'carpet',
+  'grass',
+  'decking',
+] as const;
+export type FloorTexture = typeof FLOOR_TEXTURES[number];
+
 export interface Room {
   id: string;
   name: string;
@@ -43,6 +65,7 @@ export interface Room {
   polygon: Point[]; // Boundary polygon points in meters
   areaM2: number;   // Calculated area in m²
   color?: string;   // Hex / RGBA color for floor
+  texture?: FloorTexture; // Texture procédurale 2D/3D du sol
   icon?: string;    // MDI icon e.g. 'mdi:sofa'
   height?: number;  // Ceiling height in meters (e.g. 2.50m)
 }
@@ -50,6 +73,72 @@ export interface Room {
 /** Actions possibles sur une entité du plan (tap / appui long). */
 export const TAP_ACTION_TYPES = ['toggle', 'more-info', 'navigate', 'none'] as const;
 export type TapActionType = typeof TAP_ACTION_TYPES[number];
+
+/** Cible suivie par un radar multi-cibles (ex: ESPHome LD2450 Cible 1, 2 ou 3). */
+export interface RadarTargetConfig {
+  label?: string;              // Ex: "Cible 1", "Cible 2", "Cible 3"
+  xEntityId: string;           // Ex: "sensor.d1_mini_radar_salon2_cible_1_x" (en mm ou m)
+  yEntityId: string;           // Ex: "sensor.d1_mini_radar_salon2_cible_1_y" (en mm ou m)
+  distanceEntityId?: string;   // Ex: "sensor.d1_mini_radar_salon2_cible_1_distance" (anti-fantôme d > 0)
+  resolutionEntityId?: string; // Ex: "sensor.d1_mini_radar_salon2_cible_1_resolution" (distinction Humain / Chat)
+  color?: string;              // Couleur d'affichage de la cible (ex: "#00bcd4")
+}
+
+/** Point d'étalonnage associant une mesure brute du radar (mm) à un point sur le plan (m). */
+export interface RadarCalibrationPoint {
+  id: string;
+  label: string;       // Ex: "Coin 1", "Coin 2", "Coin 3", "Coin 4"...
+  radarMm: Point;      // Coordonnées brutes (x, y) capturées par la Cible 1 (en mm)
+  planMeters: Point;   // Position correspondante sur le plan 2D (en mètres)
+}
+
+/** Zone rectangulaire ESPHome LD2450 (Zone 1, 2 ou 3) synchronisable avec Home Assistant. */
+export interface RadarZoneConfig {
+  index: 1 | 2 | 3;
+  name?: string;
+  enabled: boolean;
+  /** Coins opposés du rectangle sur le plan (en mètres). */
+  p1: Point;
+  p2: Point;
+  x1EntityId?: string;
+  y1EntityId?: string;
+  x2EntityId?: string;
+  y2EntityId?: string;
+}
+
+/**
+ * Matrice de transformation affine 2D (moindres carrés sur N >= 3 coins, ou similitude sur 2 coins) :
+ * planX = a * radarX_mm + b * radarY_mm + tx
+ * planY = c * radarX_mm + d * radarY_mm + ty
+ */
+export interface RadarAffineMatrix {
+  a: number;
+  b: number;
+  tx: number;
+  c: number;
+  d: number;
+  ty: number;
+}
+
+/** Configuration et calibrage spatial d'un capteur radar (LD2450 ou autre radar X/Y) sur le plan. */
+export interface RadarConfig {
+  enabled: boolean;
+  orientationDeg: number;      // Direction vers laquelle regarde le radar sur le plan [0, 360) (0° = haut/Nord, 90° = droite/Est)
+  heightMeters: number;        // Hauteur de pose du radar (défaut 1.20 m, réglable par radar ex: 0.20 m à 3.50 m)
+  tiltDeg?: number;            // Inclinaison verticale éventuelle en degrés (défaut 0°)
+  fovDeg: number;              // Angle d'ouverture du cône radar (défaut 120° pour LD2450)
+  maxRangeMeters: number;      // Portée maximale affichée pour le cône (défaut 6.0 m)
+  showCone: boolean;           // Afficher ou masquer le cône de détection sur le plan
+  invertX?: boolean;           // Inverser l'axe X gauche/droite du radar si monté à l'envers
+  smoothing?: boolean;         // Activer le lissage anti-tremblement EMA des cibles (défaut true)
+  coordinateUnit?: 'mm' | 'm' | 'cm' | 'auto'; // Unité des capteurs X/Y (défaut 'auto' : mm pour LD2450)
+  thresholdEntityId?: string;  // Ex: "number.d1_mini_radar_salon2_seuil_de_resolution_humain"
+  defaultThresholdMm?: number; // Seuil par défaut (ex: 320 mm) si thresholdEntityId n'est pas défini
+  targets: RadarTargetConfig[];
+  calibrationPoints: RadarCalibrationPoint[];
+  affineMatrix?: RadarAffineMatrix;
+  zones?: RadarZoneConfig[];
+}
 
 export interface EntityBinding {
   id: string;
@@ -62,6 +151,7 @@ export interface EntityBinding {
   tapAction?: TapActionType;   // undefined = action par défaut du domaine (voir defaultTapAction)
   holdAction?: TapActionType;  // défaut 'more-info'
   navigationPath?: string;
+  radarConfig?: RadarConfig;   // Calibrage spatial et suivi temps réel des cibles X/Y (LD2450, etc.)
 }
 
 export interface BackgroundPlan {
@@ -181,6 +271,10 @@ export interface SelectedElements {
 export const FURNITURE_CATEGORIES = ['seating', 'bed', 'table', 'kitchen', 'bathroom', 'storage', 'other'] as const;
 export type FurnitureCategory = typeof FURNITURE_CATEGORIES[number];
 
+/** Matériaux et textures pour le mobilier (2D et 3D PBR). */
+export const FURNITURE_MATERIALS = ['default', 'oak', 'walnut', 'fabric', 'leather', 'metal', 'glass', 'ceramic'] as const;
+export type FurnitureMaterial = typeof FURNITURE_MATERIALS[number];
+
 export interface FurnitureItem {
   id: string;
   type: string;
@@ -192,6 +286,7 @@ export interface FurnitureItem {
   rotation: number; // Degrés quelconques, normalisés dans [0, 360)
   roomId?: string;
   color?: string;
+  material?: FurnitureMaterial;
   icon?: string;
 }
 

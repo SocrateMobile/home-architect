@@ -17,10 +17,10 @@ const opening = (id: string, wallId: string, offset: number, width: number): Ope
 });
 
 describe('constantes', () => {
-  it('pas de grille dans les bornes de normalizeProject [0,05 ; 2]', () => {
+  it('pas de grille dans les bornes de normalizeProject [0,01 ; 2]', () => {
     expect(GRID_SIZE_PRESETS.length).toBeGreaterThan(2);
     for (const size of GRID_SIZE_PRESETS) {
-      expect(size).toBeGreaterThanOrEqual(0.05);
+      expect(size).toBeGreaterThanOrEqual(0.01);
       expect(size).toBeLessThanOrEqual(2);
     }
   });

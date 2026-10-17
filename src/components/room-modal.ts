@@ -1,6 +1,7 @@
 import { LitElement, html, css, PropertyValues, ReactiveController, ReactiveControllerHost } from 'lit';
 import { property, state } from 'lit/decorators.js';
-import { Room, Wall } from '../core/types';
+import { FloorTexture, Room, Wall } from '../core/types';
+import { FLOOR_MATERIAL_CATALOG, materialLabel } from '../core/materials';
 import { PolygonUtils } from '../core/polygon';
 import { defineElement } from '../core/define';
 import { getEventTarget } from '../core/keyboard';
@@ -46,6 +47,8 @@ export interface RoomModalSaveDetail {
   /** True : la pièce suit la hauteur par défaut du projet (ne pas enregistrer room.height). */
   inheritHeight: boolean;
   color: string;
+  /** Texture procédurale 2D/3D du sol ('none' ou undefined pour couleur unie). */
+  texture?: FloorTexture;
   /** Zone Home Assistant liée (Room.area_id), ou null pour aucune liaison. */
   area_id: string | null;
 }
@@ -574,6 +577,51 @@ export class HomeArchitectRoomModal extends LitElement {
       align-items: center;
       gap: 10px;
     }
+
+    .textures-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(115px, 1fr));
+      gap: 8px;
+      margin-top: 6px;
+    }
+
+    .texture-pill {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 8px;
+      border-radius: 8px;
+      border: 1px solid var(--arch-ui-border);
+      background: var(--arch-ui-surface-2);
+      color: var(--arch-ui-text);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      text-align: left;
+    }
+
+    .texture-pill:hover {
+      border-color: var(--arch-ui-accent);
+    }
+
+    .texture-pill.active {
+      border-color: var(--arch-ui-accent);
+      background: color-mix(in srgb, var(--arch-ui-accent) 18%, var(--arch-ui-surface-2));
+      box-shadow: 0 0 0 1px var(--arch-ui-accent);
+    }
+
+    .texture-swatch-box {
+      width: 22px;
+      height: 22px;
+      border-radius: 5px;
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+    }
   `];
 
   @property({ attribute: false })
@@ -607,6 +655,9 @@ export class HomeArchitectRoomModal extends LitElement {
 
   @state()
   private color: string = DEFAULT_ROOM_COLOR;
+
+  @state()
+  private texture: FloorTexture = 'none';
 
   /** Zones triées, mises en cache par registre hass.areas et par langue (ordre alphabétique). */
   private areaCache: { source: object; lang: string; options: AreaOption[] } | null = null;
@@ -643,6 +694,7 @@ export class HomeArchitectRoomModal extends LitElement {
       this.heightText = formatHeight(customHeight ? this.room.height as number : this.projectDefaultHeight);
       this.areaId = this.room.area_id ?? '';
       this.color = this.room.color || DEFAULT_ROOM_COLOR;
+      this.texture = this.room.texture ?? 'none';
     }
   }
 
@@ -761,6 +813,7 @@ export class HomeArchitectRoomModal extends LitElement {
       height,
       inheritHeight: this.inheritHeight,
       color: this.color,
+      texture: this.texture !== 'none' ? this.texture : undefined,
       area_id: this.areaId || null
     };
     this.dispatchEvent(new CustomEvent<RoomModalSaveDetail>('save-room', {
@@ -819,6 +872,33 @@ export class HomeArchitectRoomModal extends LitElement {
                 tabindex=${i === tabStop ? 0 : -1}
                 @click=${() => this.color = c.color}
               ><span aria-hidden="true">${i === checked ? '✓' : ''}</span></button>
+            `;
+          })}
+        </div>
+      </div>
+    `;
+  }
+
+  private renderTextureField() {
+    return html`
+      <div class="form-group">
+        <span class="form-label" id="room-texture-label">Texture / Revêtement de sol (2D & 3D)</span>
+        <div class="textures-grid" role="radiogroup" aria-labelledby="room-texture-label">
+          ${FLOOR_MATERIAL_CATALOG.map(preset => {
+            const checked = this.texture === preset.id;
+            const label = materialLabel(preset);
+            return html`
+              <button
+                type="button"
+                role="radio"
+                class="texture-pill ${checked ? 'active' : ''}"
+                aria-checked=${checked ? 'true' : 'false'}
+                title=${label}
+                @click=${() => { this.texture = preset.id; }}
+              >
+                <span class="texture-swatch-box" style=${`background: ${preset.previewCss}`} aria-hidden="true">${preset.icon}</span>
+                <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${label}</span>
+              </button>
             `;
           })}
         </div>
@@ -930,6 +1010,9 @@ export class HomeArchitectRoomModal extends LitElement {
 
           <!-- Couleur de sol -->
           ${this.renderColorField()}
+
+          <!-- Texture / Revêtement de sol -->
+          ${this.renderTextureField()}
         </div>
 
         <div class="modal-footer">

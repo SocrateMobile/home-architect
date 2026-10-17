@@ -254,7 +254,38 @@ export function translateSelection(project: HomeArchitectProject, set: MoveSet, 
     ? moved.furniture.map(f => (furnitureIds.has(f.id) ? { ...f, position: shift(f.position) } : f))
     : moved.furniture;
   const bindings = bindingIds.size > 0
-    ? moved.bindings.map(b => (bindingIds.has(b.id) ? { ...b, position: shift(b.position) } : b))
+    ? moved.bindings.map(b => {
+      if (!bindingIds.has(b.id)) return b;
+      const nextPos = shift(b.position);
+      if (!b.radarConfig) return { ...b, position: nextPos };
+      const cfg = b.radarConfig;
+      const calibrationPoints = cfg.calibrationPoints.map(cp => ({
+        ...cp,
+        planMeters: shift(cp.planMeters),
+      }));
+      const zones = cfg.zones?.map(z => ({
+        ...z,
+        p1: shift(z.p1),
+        p2: shift(z.p2),
+      }));
+      const affineMatrix = cfg.affineMatrix
+        ? {
+          ...cfg.affineMatrix,
+          tx: cfg.affineMatrix.tx + delta.x,
+          ty: cfg.affineMatrix.ty + delta.y,
+        }
+        : undefined;
+      return {
+        ...b,
+        position: nextPos,
+        radarConfig: {
+          ...cfg,
+          calibrationPoints,
+          ...(zones ? { zones } : {}),
+          ...(affineMatrix ? { affineMatrix } : {}),
+        },
+      };
+    })
     : moved.bindings;
   if (furniture === moved.furniture && bindings === moved.bindings) return reassignRooms(moved);
   return reassignRooms({ ...moved, furniture, bindings });

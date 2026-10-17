@@ -1,20 +1,151 @@
 import { CanvasTexture, RepeatWrapping, SRGBColorSpace, Texture } from 'three';
 
+const canvasCache = new Map<string, HTMLCanvasElement>();
+
+/**
+ * Génère un canevas HTML 256x256 tuilable en mémoire pour les textures 3D Three.js (`CanvasTexture`).
+ * Mis en cache par clé `(kind, id)` pour éviter toute réallocation GPU.
+ */
+function getProceduralTextureCanvas(
+  kind: 'floor' | 'wall' | 'furniture',
+  id: string
+): HTMLCanvasElement | null {
+  if (typeof document === 'undefined' || !id || id === 'none' || id === 'default' || id === 'paint') {
+    return null;
+  }
+  const cacheKey = `${kind}:${id}`;
+  const cached = canvasCache.get(cacheKey);
+  if (cached) return cached;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 256;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+
+  ctx.fillStyle = '#e5e5e5';
+  ctx.fillRect(0, 0, 256, 256);
+
+  if (id === 'parquet_oak' || id === 'oak' || id === 'walnut' || id === 'wood_cladding' || id === 'decking') {
+    ctx.fillStyle = '#d6c7b2';
+    ctx.fillRect(0, 0, 256, 256);
+    const planks = id === 'decking' ? 8 : 4;
+    const h = 256 / planks;
+    ctx.strokeStyle = 'rgba(60, 35, 15, 0.45)';
+    ctx.lineWidth = id === 'decking' ? 4 : 2;
+    for (let i = 0; i < planks; i++) {
+      const y = i * h;
+      ctx.fillStyle = i % 2 === 0 ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)';
+      ctx.fillRect(0, y, 256, h);
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(256, y);
+      ctx.stroke();
+      const jointX = ((i * 97) % 200) + 28;
+      ctx.beginPath();
+      ctx.moveTo(jointX, y);
+      ctx.lineTo(jointX, y + h);
+      ctx.stroke();
+    }
+  } else if (id === 'parquet_herringbone') {
+    ctx.fillStyle = '#d4c3ad';
+    ctx.fillRect(0, 0, 256, 256);
+    ctx.strokeStyle = 'rgba(65, 38, 15, 0.42)';
+    ctx.lineWidth = 2;
+    for (let y = 0; y <= 256; y += 32) {
+      for (let x = 0; x < 256; x += 64) {
+        ctx.beginPath();
+        ctx.moveTo(x, y + 16);
+        ctx.lineTo(x + 32, y - 16);
+        ctx.lineTo(x + 64, y + 16);
+        ctx.stroke();
+      }
+    }
+  } else if (id === 'tiles_light' || id === 'tiles_slate' || id === 'terracotta') {
+    ctx.fillStyle = '#e8e8e8';
+    ctx.fillRect(0, 0, 256, 256);
+    ctx.strokeStyle = id === 'tiles_slate' ? 'rgba(255,255,255,0.28)' : 'rgba(60,60,60,0.38)';
+    ctx.lineWidth = 3;
+    const step = 64;
+    for (let i = 0; i <= 256; i += step) {
+      ctx.beginPath();
+      ctx.moveTo(i, 0);
+      ctx.lineTo(i, 256);
+      ctx.moveTo(0, i);
+      ctx.lineTo(256, i);
+      ctx.stroke();
+    }
+  } else if (id === 'brick' || id === 'stone') {
+    ctx.fillStyle = '#d6d3d1';
+    ctx.fillRect(0, 0, 256, 256);
+    const rows = 8;
+    const rowH = 256 / rows;
+    ctx.strokeStyle = 'rgba(70, 65, 60, 0.55)';
+    ctx.lineWidth = 3;
+    for (let r = 0; r < rows; r++) {
+      const y = r * rowH;
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(256, y);
+      ctx.stroke();
+      const offset = (r % 2) * 32;
+      for (let x = offset; x < 256; x += 64) {
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.lineTo(x, y + rowH);
+        ctx.stroke();
+      }
+    }
+  } else if (id === 'marble') {
+    ctx.fillStyle = '#f4f4f6';
+    ctx.fillRect(0, 0, 256, 256);
+    ctx.strokeStyle = 'rgba(120, 130, 145, 0.35)';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(0, 40);
+    ctx.bezierCurveTo(90, 80, 160, 20, 256, 90);
+    ctx.moveTo(0, 180);
+    ctx.bezierCurveTo(80, 140, 170, 220, 256, 160);
+    ctx.stroke();
+  } else {
+    for (let i = 0; i < 600; i++) {
+      const x = (i * 73) % 256;
+      const y = (i * 137) % 256;
+      ctx.fillStyle = i % 2 === 0 ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.08)';
+      ctx.fillRect(x, y, 3, 3);
+    }
+  }
+
+  canvasCache.set(cacheKey, canvas);
+  return canvas;
+}
+
+
 /**
  * Générateur de textures architecturales procédurales pour la vue 3D.
  *
  * Inspiré de Sweet Home 3D : génère en mémoire vive des textures HD ultra-légères
- * (parquet à lames avec chanfreins, carrelage grand format avec joints, mosaïque,
- * béton ciré marbré, terrasse en bois et gazon naturel) sans aucune requête réseau,
- * sans fichier image externe et avec 0 ko de surcoût réseau.
+ * (parquet à lames avec chanfreins, point de Hongrie, carrelage grand format avec joints,
+ * ardoise, terre cuite, marbre, mosaïque, béton ciré, terrasse en bois et gazon naturel)
+ * sans aucune requête réseau, sans fichier image externe et avec 0 ko de surcoût réseau.
  */
 
 export type FloorTextureType =
   | 'parquet'
+  | 'parquet_oak'
+  | 'parquet_herringbone'
   | 'tile'
+  | 'tile_light'
+  | 'tiles_light'
+  | 'tile_slate'
+  | 'tiles_slate'
+  | 'terracotta'
+  | 'marble'
   | 'mosaic'
   | 'concrete'
   | 'deck'
+  | 'wood_deck'
+  | 'decking'
   | 'grass'
   | 'carpet'
   | 'none';
@@ -23,10 +154,14 @@ export type FloorTextureType =
 const TEXTURE_CACHE = new Map<FloorTextureType, Texture | null>();
 
 /**
- * Détecte intelligemment la texture de sol la plus appropriée
- * selon le nom de la pièce ou son icône MDI.
+ * Détecte intelligemment la texture de sol la plus appropriée :
+ * utilise d'abord la texture choisie explicitement sur la pièce (`room.texture`),
+ * sinon déduit selon le nom de la pièce ou son icône MDI.
  */
-export function detectFloorTexture(room: { name?: string; icon?: string; color?: string }): FloorTextureType {
+export function detectFloorTexture(room: { name?: string; icon?: string; color?: string; texture?: string }): FloorTextureType {
+  if (room.texture && room.texture !== 'none') {
+    return room.texture as FloorTextureType;
+  }
   const text = `${room.name ?? ''} ${room.icon ?? ''}`
     .toLowerCase()
     .normalize('NFD')
@@ -279,11 +414,14 @@ export function getFloorTexture(type: FloorTextureType): Texture | null {
 
   switch (type) {
     case 'parquet':
+    case 'parquet_oak':
       drawParquet(ctx);
       repeatScaleX = 1;
       repeatScaleY = 1;
       break;
     case 'tile':
+    case 'tile_light':
+    case 'tiles_light':
       drawTile(ctx);
       repeatScaleX = 1 / 1.2;
       repeatScaleY = 1 / 1.2;
@@ -299,6 +437,8 @@ export function getFloorTexture(type: FloorTextureType): Texture | null {
       repeatScaleY = 0.5;
       break;
     case 'deck':
+    case 'wood_deck':
+    case 'decking':
       drawDeck(ctx);
       repeatScaleX = 1;
       repeatScaleY = 1;
@@ -313,6 +453,23 @@ export function getFloorTexture(type: FloorTextureType): Texture | null {
       repeatScaleX = 1;
       repeatScaleY = 1;
       break;
+    case 'parquet_herringbone':
+    case 'tile_slate':
+    case 'tiles_slate':
+    case 'terracotta':
+    case 'marble': {
+      const proc = getProceduralTextureCanvas('floor', type);
+      if (proc) {
+        ctx.drawImage(proc, 0, 0, canvas.width, canvas.height);
+        repeatScaleX = 1;
+        repeatScaleY = 1;
+      } else {
+        drawTile(ctx);
+        repeatScaleX = 1;
+        repeatScaleY = 1;
+      }
+      break;
+    }
     default:
       TEXTURE_CACHE.set(type, null);
       return null;
