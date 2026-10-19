@@ -4,7 +4,7 @@ from datetime import timedelta
 
 DOMAIN = "home_architect"
 NAME = "Home Architect"
-VERSION = "2.0.8"
+VERSION = "2.0.9"
 
 PLATFORMS = ["update"]
 
