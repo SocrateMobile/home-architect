@@ -1,12 +1,18 @@
-"""Constants for Home Architect integration."""
-
+import json
+import os
 from datetime import timedelta
 
 DOMAIN = "home_architect"
 NAME = "Home Architect"
-VERSION = "2.0.9"
 
-PLATFORMS = ["update"]
+_MANIFEST_PATH = os.path.join(os.path.dirname(__file__), "manifest.json")
+try:
+    with open(_MANIFEST_PATH, "r", encoding="utf-8") as _f:
+        VERSION = json.load(_f).get("version", "2.0.10")
+except Exception:
+    VERSION = "2.0.10"
+
+PLATFORMS: list[str] = []
 
 # Stockage (.storage/home_architect.projects)
 STORAGE_VERSION = 2

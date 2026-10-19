@@ -22,7 +22,7 @@ from .const import (
     MAX_PUBLISH_BYTES,
     PROJECT_ID_PATTERN,
     SIGNAL_PROJECT_UPDATED,
-    UPDATE_CHECK_CACHE,
+    VERSION,
 )
 from .runtime import get_runtime_data, get_storage
 from .storage import HomeArchitectStorage, StorageError, StorageWriteError
@@ -280,14 +280,19 @@ async def ws_save_svg_to_www(
 async def ws_check_updates(
     hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]
 ) -> None:
-    """État des mises à jour (vérification GitHub mise en cache 10 min)."""
-    runtime = get_runtime_data(hass)
-    if runtime is None or runtime.update_entity is None:
-        connection.send_error(msg["id"], ERR_NOT_READY, "Home Architect is not loaded")
-        return
-    max_age = 0 if msg["force"] else UPDATE_CHECK_CACHE.total_seconds()
-    await runtime.checker.async_refresh(max_age)
-    connection.send_result(msg["id"], runtime.update_entity.async_status())
+    """État des mises à jour (délégué à HACS)."""
+    connection.send_result(
+        msg["id"],
+        {
+            "installed_version": VERSION,
+            "latest_version": VERSION,
+            "update_available": False,
+            "release_summary": None,
+            "release_url": None,
+            "release_notes": "",
+            "update_entity_id": None,
+        },
+    )
 
 
 @websocket_api.websocket_command(
@@ -328,26 +333,14 @@ def ws_subscribe_project(
 async def ws_install_update(
     hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]
 ) -> None:
-    """Installe la mise à jour (télécharge et applique dans custom_components)."""
-    runtime = get_runtime_data(hass)
-    if runtime is None or runtime.update_entity is None:
-        connection.send_error(msg["id"], ERR_NOT_READY, "Home Architect is not loaded")
-        return
-    try:
-        await runtime.update_entity.async_install(version=msg.get("version"))
-    except HomeAssistantError as err:
-        connection.send_error(msg["id"], "install_failed", str(err))
-        return
-    except Exception as err:
-        _LOGGER.exception("Erreur inattendue lors de l'installation de la mise à jour: %s", err)
-        connection.send_error(msg["id"], "install_failed", str(err))
-        return
+    """Installation des mises à jour (délégué à HACS)."""
     connection.send_result(
         msg["id"],
         {
             "success": True,
-            "installed_version": runtime.update_entity.installed_version,
-            "requires_restart": True,
+            "installed_version": VERSION,
+            "requires_restart": False,
+            "message": "Updates are managed via HACS",
         },
     )
 
