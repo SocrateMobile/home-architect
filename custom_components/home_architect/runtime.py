@@ -10,17 +10,13 @@ from homeassistant.core import HomeAssistant
 from .const import DATA_ENTRY_ID, DATA_STORAGE, DOMAIN
 
 if TYPE_CHECKING:
-    from .release import ReleaseChecker
     from .storage import HomeArchitectStorage
-    from .update import HomeArchitectUpdateEntity
 
 
 @dataclass
 class HomeArchitectRuntimeData:
     """Objets propres à l'entrée de configuration chargée."""
 
-    checker: ReleaseChecker
-    update_entity: HomeArchitectUpdateEntity | None = None
     # État du badge du panneau tel qu'enregistré ; None = panneau non enregistré
     panel_update_badge: bool | None = None
 

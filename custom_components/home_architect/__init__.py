@@ -14,7 +14,6 @@ from homeassistant.helpers.typing import ConfigType
 from .const import DATA_ENTRY_ID, DATA_STORAGE, DOMAIN, FRONTEND_URL_PATH, PLATFORMS
 from .http import async_register_views
 from .panel import async_register_panel, async_unregister_panel, card_module_url
-from .release import ReleaseChecker
 from .runtime import HomeArchitectConfigEntry, HomeArchitectRuntimeData
 from .storage import HomeArchitectStorage
 from .websocket import async_register_websocket_commands
@@ -54,14 +53,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: HomeArchitectConfigEntry
             storage.async_collect_garbage(), f"{DOMAIN}_collect_garbage"
         )
 
-    entry.runtime_data = HomeArchitectRuntimeData(checker=ReleaseChecker(hass))
-    # Enregistré avant l'entité update : c'est ensuite elle qui met à jour le badge.
+    entry.runtime_data = HomeArchitectRuntimeData()
     async_register_panel(hass, entry, update_available=False)
-    try:
-        await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
-    except Exception:
-        async_unregister_panel(hass, entry)
-        raise
 
     domain_data[DATA_ENTRY_ID] = entry.entry_id
     frontend.add_extra_js_url(hass, card_module_url())
@@ -71,9 +64,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: HomeArchitectConfigEntry
 
 async def async_unload_entry(hass: HomeAssistant, entry: HomeArchitectConfigEntry) -> bool:
     """Unload a config entry (le stockage global et les routes restent en place)."""
-    unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
-    if not unload_ok:
-        return False
     async_unregister_panel(hass, entry)
     frontend.remove_extra_js_url(hass, card_module_url())
     hass.data[DOMAIN][DATA_ENTRY_ID] = None
