@@ -2313,7 +2313,7 @@ export class HomeArchitectPanel extends LitElement {
               >
                 <span aria-hidden="true">✏️</span> ${localize('panel.hud.edit_room')}
               </button>
-              <label class="hud-color" title="Revêtement / Texture du sol (2D & 3D)">
+              <label class="hud-color" title="Revêtement / Texture du sol (2D &amp; 3D)">
                 <span class="hud-label">Sol</span>
                 <select
                   class="hud-texture-select"
@@ -2335,7 +2335,7 @@ export class HomeArchitectPanel extends LitElement {
               ${option(this.currentThickness === 0.10, localize('panel.hud.thin', { size: formatCentimeters(0.10) }), localize('panel.thickness.partition', { size: formatCentimeters(0.10) }), () => this.updateSelectedWallsThickness(0.10))}
               ${option(this.currentThickness === 0.20, localize('panel.hud.medium', { size: formatCentimeters(0.20) }), localize('panel.hud.medium_title', { size: formatCentimeters(0.20) }), () => this.updateSelectedWallsThickness(0.20))}
               ${option(this.currentThickness === 0.30, localize('panel.hud.thick', { size: formatCentimeters(0.30) }), localize('panel.thickness.load_bearing', { size: formatCentimeters(0.30) }), () => this.updateSelectedWallsThickness(0.30))}
-              <label class="hud-color" title="Revêtement / Texture des murs sélectionnés (2D & 3D)">
+              <label class="hud-color" title="Revêtement / Texture des murs sélectionnés (2D &amp; 3D)">
                 <span class="hud-label">Parement</span>
                 <select
                   class="hud-texture-select"
@@ -2403,7 +2403,7 @@ export class HomeArchitectPanel extends LitElement {
                   <span aria-hidden="true">↺</span>
                 </button>
               ` : nothing}
-              <label class="hud-color" title="Matériau / Texture du mobilier (2D & 3D)">
+              <label class="hud-color" title="Matériau / Texture du mobilier (2D &amp; 3D)">
                 <span class="hud-label">Matériau</span>
                 <select
                   class="hud-texture-select"
