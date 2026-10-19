@@ -45,7 +45,7 @@ class HomeArchitectUpdateEntity(UpdateEntity):
     _attr_translation_key = "update"
     _attr_should_poll = False
     _attr_supported_features = (
-        UpdateEntityFeature.RELEASE_NOTES | UpdateEntityFeature.INSTALL
+        UpdateEntityFeature.RELEASE_NOTES
     )
     _attr_title = NAME
     _attr_installed_version = VERSION
