@@ -165,7 +165,8 @@ export function discoverRadarEntities(
     if (!id.startsWith('sensor.')) return false;
     const entry = states[id];
     if (!entry) return false;
-    const uom = String(entry.attributes?.unit_of_measurement || '').toLowerCase();
+    const rawUom = entry.attributes?.unit_of_measurement;
+    const uom = typeof rawUom === 'string' ? rawUom.toLowerCase() : '';
     if (uom && (uom === '°c' || uom === 'dbm' || uom === 'v' || uom === 'ma' || uom === 'w' || uom === 'kwh' || uom === '%')) {
       return false;
     }
