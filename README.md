@@ -8,7 +8,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.0.9-blue.svg?style=flat-square" alt="Version 2.0.9" />
+  <img src="https://img.shields.io/badge/version-2.0.11-blue.svg?style=flat-square" alt="Version 2.0.11" />
   <img src="https://img.shields.io/badge/HACS-Custom_Integration-orange.svg?style=flat-square" alt="HACS" />
   <img src="https://img.shields.io/badge/Home_Assistant-2024.1+-blueviolet.svg?style=flat-square" alt="Home Assistant" />
   <img src="https://img.shields.io/badge/license-MIT-green.svg?style=flat-square" alt="License" />
@@ -16,46 +16,130 @@
 </p>
 
 ---
-## 🌟 Fonctionnalités
+
+## 📦 Installation & Configuration
+
+### 1. Installation via HACS
+
+1. Ouvrez **HACS** dans votre barre latérale Home Assistant.
+2. Cliquez sur **Intégrations** puis sur le bouton **+ Explorer et télécharger des dépôts**.
+3. Recherchez **Home Architect**.
+4. Cliquez sur **Télécharger** en bas à droite pour installer la dernière version.
+5. **Redémarrez Home Assistant** pour que la nouvelle intégration soit prise en compte.
+
+### 2. Ajout de l'intégration
+
+Une fois Home Assistant redémarré :
+1. Rendez-vous dans **Paramètres** > **Appareils et services**.
+2. Cliquez sur **Ajouter une intégration** en bas à droite.
+3. Recherchez **Home Architect** et sélectionnez-la.
+4. Validez l'assistant de configuration.
+5. Une entrée **Home Architect** apparaît désormais dans la barre latérale gauche de votre interface (`/home-architect`).
+
+---
+
+## 🖥️ Utilisation du Studio
+
+Cliquez sur **Home Architect** dans la barre latérale pour ouvrir le studio de CAO :
+
+* **Nouveau plan (`📄 Nouveau plan...` ou `Ctrl+N`)** : Créez un étage ou une zone (Sous-Sol, RDC, 1er Étage, Jardin, etc.).
+* **Import d'un plan existant** : Importez une image (PNG, JPG, SVG, WebP) ou collez-la depuis le presse-papier (`Ctrl+V`), ajustez l'échelle métrique avec l'outil règle (📏) et dessinez par-dessus en filigrane.
+* **Mise à l'échelle automatique (Touche `S`)** : Indiquez la mesure réelle d'un mur pour recalculer proportionnellement l'ensemble du plan et des surfaces.
+* **Dessin des murs & cloisons** : Tracez facilement avec accroche magnétique (snapping) angulaire ($0^\circ, 45^\circ, 90^\circ$) et épaisseur au choix (10 cm, 15 cm, 20 cm, 30 cm).
+* **Entités Home Assistant en direct** : Glissez-déposez vos lumières, interrupteurs, thermostats, caméras et capteurs depuis le volet latéral droit.
+* **Visite 3D & Walkthrough (🚶)** : Basculez en mode 3D temps réel avec textures procédurales, calcul d'ensoleillement synchronisé avec `sun.sun` et visite à la première personne (touches ZQSD / Flèches).
+
+---
+
+## 🎴 Carte Lovelace pour Tableau de bord (Dashboard Card)
+
+Home Architect fournit une carte Lovelace dédiée pour afficher vos plans interactifs directement sur vos tableaux de bord.
+
+### Ajout via l'interface graphique
+1. Modifiez votre tableau de bord Lovelace (*Modifier le tableau de bord*).
+2. Cliquez sur **Ajouter une carte** et choisissez **Home Architect Card** (ou ajoutez une carte Manuel).
+3. Sélectionnez votre plan dans la liste déroulante et ajustez les options visuelles.
+
+### Configuration YAML
+
+```yaml
+type: custom:home-architect-card
+project_id: rdc
+title: Rez-de-chaussée
+height: 500px
+view_mode: 2d
+show_header: true
+show_controls: true
+show_dimensions: false
+show_heatmap: false
+animations: true
+theme: auto
+```
+
+### Options de la carte
+
+| Option | Type | Défaut | Description |
+| :--- | :--- | :--- | :--- |
+| `project_id` | `string` | *Optionnel* | Identifiant du plan à afficher (ex: `rdc`, `etage1`). S'il n'est pas spécifié, le premier plan disponible est chargé. |
+| `title` | `string` | *Optionnel* | Titre affiché dans l'en-tête de la carte. |
+| `height` | `string` / `number` | `480px` | Hauteur de la carte sur le tableau de bord (ex: `500px` ou `500`). |
+| `view_mode` | `string` | `2d` | Mode de visualisation initial : `2d` (plan vectoriel) ou `3d` (vue tridimensionnelle interactive). |
+| `show_header` | `boolean` | `true` | Affiche ou masque l'en-tête avec le titre de la carte. |
+| `show_controls` | `boolean` | `true` | Affiche les boutons de contrôle interactifs sur le plan (zoom, recentrage, bascule 2D/3D). |
+| `show_dimensions` | `boolean` | `false` | Affiche les cotes métriques numériques des murs sur la carte. |
+| `show_heatmap` | `boolean` | `false` | Active la visualisation thermique de la température des pièces. |
+| `animations` | `boolean` | `true` | Active les animations en direct des entités (icônes de ventilateurs en rotation, flux). Peut être désactivé sur tablettes murales peu puissantes pour économiser les ressources. |
+| `theme` | `string` | `auto` | Thème visuel du canevas : `auto` (suit le mode sombre/clair de Home Assistant), `light` ou `dark`. |
+
+---
+
+## 🌐 Publication d'un Plan & Accès Public
+
+Home Architect vous permet d'exporter et de publier votre plan d'étage sous forme de fichier vectoriel SVG autonome pour l'intégrer facilement dans des cartes *Picture Elements*, des écrans déportés ou des pages web externes.
+
+### Comment publier un plan ?
+1. Ouvrez le projet dans le studio Home Architect.
+2. Cliquez sur le bouton **Exporter / Publier** dans la barre d'outils.
+3. Choisissez si vous souhaitez inclure l'image de fond ou uniquement le tracé vectoriel, puis cliquez sur **Publier**.
+4. L'outil génère une URL sécurisée avec un jeton cryptographique unique :
+   ```text
+   /api/home_architect/published/<identifiant_projet>-<jeton_secret>.svg
+   ```
+
+### ⚠️ Avertissement de sécurité & Confidentialité
+> [!IMPORTANT]
+> **Accès sans authentification** : Un plan publié est accessible publiquement via son URL par **toute personne disposant du lien**, sans nécessiter de connexion ni de compte Home Assistant (`requires_auth = False`). Cela permet son utilisation directe dans des cartes locales ou des afficheurs connectés.
+>
+> **Protection cryptographique** :
+> * L'URL intègre un jeton aléatoire de haute entropie généré de façon sécurisée (imprévisible et non devinable).
+> * Les requêtes sont protégées contre les attaques temporelles (*timing attacks*) via une validation en temps constant (`hmac.compare_digest`).
+> * Le SVG est assaini à la publication et servi avec des en-têtes de sécurité stricts (Content Security Policy restrictive `sandbox`, `X-Content-Type-Options: nosniff`).
+> * Aucun fichier n'est écrit dans le dossier public `/config/www`.
+
+### Comment dépublier un plan ?
+Pour révoquer immédiatement l'accès à un plan publié :
+1. Ouvrez le plan dans le studio Home Architect.
+2. Cliquez sur l'outil **Exporter / Publier**.
+3. Cliquez sur le bouton **Dépublier (Unpublish)**.
+4. Le fichier publié et son jeton d'accès sont immédiatement détruits sur le serveur. Toute requête ultérieure sur l'ancienne URL retournera une erreur `404 Not Found`. Si vous republiez le plan ultérieurement, un nouveau jeton aléatoire sera généré.
+
+---
+
+## 🌟 Fonctionnalités Détaillées
 
 * **Moteur 3D temps réel nouvelle génération (WebGL / Three.js)** :
-  * **Textures architecturales procédurales** : Parquet chêne en lames décalées, grands carreaux de carrelage 60×60, mosaïque salle de bain, béton ciré contemporain, terrasse bois caillebotis, pelouse extérieure et moquette douce — générées mathématiquement en canevas avec projection métrique UV sans alourdir le bundle.
-  * **Visite virtuelle à la première personne (Walkthrough 🚶)** : Hauteur des yeux humaine (1.65 m), pilotage fluide clavier (ZQSD / WASD / Flèches), course (`Shift`), orientation 360° souris/toucher et HUD d'aide.
-  * **Simulation solaire dynamique connectée à `sun.sun`** : Course du soleil en direct d'après les coordonnées GPS de Home Assistant (azimut, élévation, projections d'ombres douces PCF Soft Shadows, teintes chaleureuses de Golden Hour au lever/coucher, ambiance nocturne avec illumination douce des lampes intérieures).
+  * **Textures architecturales procédurales** : Parquet chêne, grands carreaux 60×60, mosaïque, béton ciré, terrasse bois, pelouse et moquette — générées mathématiquement en canevas avec projection métrique UV sans alourdir le bundle.
+  * **Visite virtuelle à la première personne (Walkthrough 🚶)** : Hauteur des yeux humaine (1.65 m), pilotage fluide clavier (ZQSD / Flèches), course (`Shift`), orientation 360° souris/toucher et HUD d'aide.
+  * **Simulation solaire dynamique connectée à `sun.sun`** : Course du soleil en direct d'après les coordonnées GPS de Home Assistant (azimut, élévation, ombres douces PCF, Golden Hour, ambiance nocturne avec illumination douce des lampes).
   * **Empilement multi-niveaux 3D** : Visualisation tridimensionnelle des dalles de sol, trémies et niveaux inférieurs en filigrane sous le plan actif.
   * **Coupe à mi-hauteur des murs (✂️)** : Visualisation instantanée de l'intérieur des pièces et du mobilier.
-* **Nouveau plan & Réinitialisation sécurisée (Reset)** :
-  * **Créer un nouveau plan (`📄 Nouveau plan...` ou `Ctrl+N` / `Cmd+N`)** : dialogue assisté pour nommer le plan et choisir son niveau ou sa catégorie (RDC, Sous-Sol, Étages, Jardin, Autre) avec réinitialisation de la feuille et recentrage automatique.
-  * **Effacer le plan (`🗑️ Effacer le plan (Reset)...`)** : dialogue de confirmation avec récapitulatif des éléments supprimés (murs, ouvrants, pièces, entités, meubles, calque de fond) et sécurité totale via l'historique d'annulation (`Ctrl+Z`).
-* **Fonction « Mettre à l'échelle » (Recalcul automatique de toutes les cotes)** :
-  * Outil de référence dédié (`📐` ou touche `S`) : sélectionnez un mur ou tracez un segment entre deux points de référence sur le plan.
-  * Saisie de la dimension réelle souhaitée en mètres (ex: `4.80 m`).
-  * **Recalcul proportionnel instantané** de l'ensemble du projet : longueurs de tous les murs, cotes dynamiques, ouvertures, surfaces des pièces ($m^2$) et calque de fond image.
-* **Bouton d'import automatisé & Décalque vectoriel** :
-  * Dialogue dédié guidé avec glisser-déposer de plan (PNG, JPG, SVG, WebP) et support natif du presse-papier (`Cmd+V` / `Ctrl+V`).
-  * Étalonnage automatique instantané : saisissez la largeur globale de la maison (ex: 12 m) pour calibrer le projet en 1 clic sans tracer.
-  * Outil règle d'étalonnage assisté (📏) pour mesurer un mur spécifique.
-  * Réglage d'opacité en filigrane pour redessiner facilement par-dessus le plan original.
-* **Boîte à outils déplaçable (Floating & Draggable Toolbar)** :
-  * Déplacement libre de la barre d'outils CAD par glisser-déposer sur toute la surface de l'écran avec poignée de préhension.
-  * Mémorisation automatique de la position préférée dans le navigateur (`localStorage`).
-* **Volet latéral des Entités HA toujours visible (Docked Sidebar)** :
-  * Volet latéral ancré en permanence à droite de la fenêtre pour avoir sous les yeux toutes ses lumières, prises, capteurs et thermostats.
-  * Recherche textuelle instantanée, filtres par domaine (Lumières, Capteurs, Climat, Prises, Caméras).
-  * Glisser-déposer direct sur une pièce avec détection automatique de la zone (area/room) et état en direct.
-* **Moteur de dessin vectoriel SVG pur sous Lit** : Zéro dépendance graphique lourde, bundle ultra-léger, netteté vectorielle infinie.
-* **Système métrique mondial** : Coordonnées réelles en mètres ($m$), échelle configurable ($px/m$).
 * **Accroche magnétique intelligente (Snapping)** :
   * Grille métrique adaptative ($0.50\,\text{m}, 1.0\,\text{m}$).
   * Contraintes angulaires automatiques ($0^\circ, 45^\circ, 90^\circ, 135^\circ, 180^\circ$).
   * Accrochage automatique sur les sommets (vertices) des murs voisins.
-* **Tracé de mur rectangulaire avec épaisseur** :
-  * Épaisseurs configurables : cloison 10 cm, mur 15 cm, porteur 20 cm, extérieur 30 cm.
-  * Calcul de polygone épais avec cote dynamique en direct ($m$).
 * **Persistance native Home Assistant** :
   * Stockage atomique dans `.storage/home_architect.projects` via l'API WebSocket Home Assistant.
   * Gestion multi-niveaux (Sous-Sol, RDC, 1er Étage, Jardin).
-* **Panneau latéral Home Assistant** : Accès direct dans la barre de gauche (`/home-architect`).
 
 ---
 
@@ -66,24 +150,22 @@ domolink-plan/
 ├── custom_components/
 │   └── home_architect/
 │       ├── __init__.py           # Enregistrement du composant et du panel
+│       ├── assets.py             # Gestion sécurisée des assets et plans publiés
 │       ├── const.py              # Constantes
-│       ├── config_flow.py        # Assistant UI Home Assistant
-│       ├── storage.py            # Persistance .storage
+│       ├── config_flow.py        # Assistant d'installation Home Assistant
+│       ├── http.py               # Vues HTTP sécurisées pour fonds et plans
+│       ├── storage.py            # Persistance atomique .storage
 │       ├── websocket.py          # Commandes WebSocket
 │       ├── manifest.json         # Manifest HACS / HA
 │       └── frontend/
 │           └── home_architect-panel.js  # Bundle Lit / TypeScript compilé
 ├── src/
-│   ├── components/
-│   │   ├── canvas-view.ts        # Canevas SVG interactif (Zoom, Pan, Snapping, Murs)
-│   │   └── toolbar.ts            # Barre d'outils CAD
-│   ├── core/
-│   │   ├── types.ts              # Modèles géométriques
-│   │   └── snapping.ts           # Moteur d'accroche magnétique
-│   ├── styles/
-│   │   └── canvas.styles.ts      # Styles modernes Glassmorphism
+│   ├── components/               # Composants UI, éditeur de carte et modales
+│   ├── core/                     # Moteur géométrique, snapping, modèles
+│   ├── styles/                   # Styles modernes Glassmorphism & thèmes
+│   ├── view3d/                   # Scène WebGL / Three.js et visite 3D
 │   ├── home-architect-panel.ts   # Composant panneau principal
-│   └── index.ts                  # Point d'entrée
+│   └── home-architect-card.ts    # Carte Lovelace pour tableau de bord
 ├── package.json
 ├── tsconfig.json
 └── vite.config.ts

@@ -17,7 +17,6 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 
-from .assets import LEGACY_WWW_FILENAME_RE
 from .const import (
     MAX_PUBLISH_BYTES,
     PROJECT_ID_PATTERN,
@@ -238,40 +237,6 @@ async def ws_unpublish(
 @websocket_api.require_admin
 @websocket_api.websocket_command(
     {
-        vol.Required("type"): "home_architect/save_svg_to_www",
-        # Ancien format uniquement (plan_<project_id>.svg) : aucun autre fichier de www/
-        vol.Required("filename"): vol.All(str, vol.Match(LEGACY_WWW_FILENAME_RE)),
-        vol.Required("svg_content"): SVG_CONTENT,
-    }
-)
-@websocket_api.async_response
-@_with_storage
-async def ws_save_svg_to_www(
-    hass: HomeAssistant,
-    connection: websocket_api.ActiveConnection,
-    msg: dict[str, Any],
-    storage: HomeArchitectStorage,
-) -> None:
-    """Dépréciée (frontends 1.0.x) : écrit le plan assaini dans /config/www/plan_<id>.svg.
-
-    Conservée pour les pages restées ouvertes sur un ancien frontend ; remplacée par publish_svg.
-    """
-    _log_deprecated_once("home_architect/save_svg_to_www", "home_architect/publish_svg")
-    if _reject_oversized_svg(connection, msg):
-        return
-    # plan_<project_id>.svg (format garanti par le schéma)
-    project_id = msg["filename"].removeprefix("plan_").removesuffix(".svg")
-    try:
-        path = await storage.async_save_svg_to_www(project_id, msg["svg_content"])
-    except StorageWriteError:
-        connection.send_error(msg["id"], ERR_WRITE_FAILED, "Could not write the SVG file")
-        return
-    connection.send_result(msg["id"], {"success": True, "path": path})
-
-
-@websocket_api.require_admin
-@websocket_api.websocket_command(
-    {
         vol.Required("type"): "home_architect/check_updates",
         vol.Optional("force", default=False): bool,
     }
@@ -356,7 +321,6 @@ def async_register_websocket_commands(hass: HomeAssistant) -> None:
         ws_delete_project,
         ws_publish_svg,
         ws_unpublish,
-        ws_save_svg_to_www,
         ws_check_updates,
         ws_install_update,
         ws_subscribe_project,
