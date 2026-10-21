@@ -253,17 +253,14 @@ class ProjectFiles:
         include_background: bool,
         previous_hash: str | None,
     ) -> tuple[str, bool]:
-        """Assainit et écrit le plan publié (et l'ancien fichier www s'il existe).
+        """Assainit et écrit le plan publié (uniquement sous data_dir/published, jamais dans www).
 
-        Retourne (empreinte, ancien_fichier_www_mis_à_jour). Lève SvgSanitizeError.
+        Retourne (empreinte, False). Lève SvgSanitizeError.
         """
         content = sanitize_svg(svg, drop_images=not include_background).encode("utf-8")
         digest = content_hash(content)
         atomic_write(self.published / published_filename(project_id, token), content)
-        if not self.legacy_path(project_id).is_file():
-            return digest, False
-        self._write_legacy(project_id, content, previous_hash)
-        return digest, True
+        return digest, False
 
     def unpublish(self, project_id: str, token: str | None, previous_hash: str | None) -> list[str]:
         """Supprime le plan publié et l'ancien fichier www (copie conservée s'il a été retouché)."""
@@ -300,28 +297,9 @@ class ProjectFiles:
         """Ancien emplacement public /config/www/plan_<id>.svg (servi sous /local/)."""
         return self._www / f"plan_{project_id}.svg"
 
-    def save_svg_to_www(self, project_id: str, svg: str, known_hash: str | None) -> str:
-        """Commande dépréciée save_svg_to_www : écrit l'ancien plan public www/plan_<id>.svg.
-
-        Le SVG est assaini (images conservées, comme avant la 1.1.0) puis écrit par la même
-        routine que la mise à jour de ce fichier lors d'une publication. `known_hash` : empreinte
-        du dernier plan publié. Retourne l'URL /local/. Lève SvgSanitizeError ou OSError.
-        """
-        content = sanitize_svg(svg).encode("utf-8")
-        self._write_legacy(project_id, content, known_hash)
-        return f"/local/{self.legacy_path(project_id).name}"
-
     def existing_legacy(self, project_ids: list[str]) -> set[str]:
         """Projets dont l'ancien fichier www existe encore."""
         return {pid for pid in project_ids if self.legacy_path(pid).is_file()}
-
-    def _write_legacy(self, project_id: str, content: bytes, known_hash: str | None) -> None:
-        """Écrit l'ancien fichier www, après une copie dans backups/ s'il a été retouché hors de l'outil."""
-        legacy = self.legacy_path(project_id)
-        if legacy.is_file():
-            self._backup_if_modified(project_id, legacy, known_hash)
-        atomic_write(legacy, content)
-        self._legacy_written[project_id] = content_hash(content)
 
     def _backup_if_modified(self, project_id: str, path: Path, known_hash: str | None) -> None:
         """Copie un ancien fichier www dans backups/ s'il a été modifié hors de l'outil.
