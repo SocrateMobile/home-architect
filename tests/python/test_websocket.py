@@ -296,14 +296,10 @@ async def test_project_count_is_limited(admin_ws: MockHAClientWebSocket) -> None
 
 
 async def test_install_update_command(admin_ws: MockHAClientWebSocket) -> None:
-    """La commande install_update installe la version et renvoie requires_restart."""
-    with patch("custom_components.home_architect.installer.async_install_update", new_callable=AsyncMock) as mock_install:
-        res = await _call(admin_ws, type="home_architect/install_update", version="9.2.0")
-        assert res["success"] is True
-        assert res["result"] == {
-            "success": True,
-            "installed_version": "9.2.0",
-            "requires_restart": True,
-        }
-        mock_install.assert_awaited_once()
+    """La commande install_update délègue les mises à jour à HACS."""
+    res = await _call(admin_ws, type="home_architect/install_update", version="9.2.0")
+    assert res["success"] is True
+    assert res["result"]["success"] is True
+    assert res["result"]["requires_restart"] is False
+    assert res["result"]["message"] == "Updates are managed via HACS"
 
