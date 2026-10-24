@@ -104,6 +104,7 @@ const fr = {
   'geometry.furniture.bed_single': 'Lit simple',
   'geometry.furniture.nightstand': 'Table de chevet',
   'geometry.furniture.wardrobe': 'Armoire dressing',
+  'geometry.furniture.open_wardrobe': 'Dressing ouvert (sans portes)',
   'geometry.furniture.dining_table_6': 'Table repas (6 chaises)',
   'geometry.furniture.desk': 'Bureau avec fauteuil',
   'geometry.furniture.chair_starck': 'Chaise médaillon transparente',
@@ -121,7 +122,8 @@ const fr = {
   'geometry.furniture.double_vanity': 'Meuble double vasque',
   'geometry.furniture.towel_dryer': 'Sèche-serviettes',
   'geometry.furniture.mirror': 'Miroir mural',
-  'geometry.furniture.wall_art': 'Tableau / Poster'
+  'geometry.furniture.wall_art': 'Tableau / Poster',
+  'geometry.furniture.straight_stairs': 'Escalier droit'
 } as const;
 
 /** Clés de l'espace « geometry ». */
@@ -223,6 +225,7 @@ const en: Record<GeometryKey, string> = {
   'geometry.furniture.bed_single': 'Single bed',
   'geometry.furniture.nightstand': 'Nightstand',
   'geometry.furniture.wardrobe': 'Wardrobe',
+  'geometry.furniture.open_wardrobe': 'Open wardrobe (no doors)',
   'geometry.furniture.dining_table_6': 'Dining table (6 chairs)',
   'geometry.furniture.desk': 'Desk with chair',
   'geometry.furniture.chair_starck': 'Clear medallion chair',
@@ -240,7 +243,8 @@ const en: Record<GeometryKey, string> = {
   'geometry.furniture.double_vanity': 'Double vanity',
   'geometry.furniture.towel_dryer': 'Towel dryer',
   'geometry.furniture.mirror': 'Wall mirror',
-  'geometry.furniture.wall_art': 'Wall poster / Artwork'
+  'geometry.furniture.wall_art': 'Wall poster / Artwork',
+  'geometry.furniture.straight_stairs': 'Straight staircase'
 };
 
 const dictionaries: Record<Lang, Record<string, string>> = { fr, en };

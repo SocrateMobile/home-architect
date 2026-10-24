@@ -200,6 +200,34 @@ const SHAPES: Record<string, ShapeBuilder> = {
       ]
     };
   },
+  open_wardrobe: (w, l) => ({
+    bodyRole: 'wood',
+    parts: [
+      box(-w / 2, -l / 2, w / 2, l / 2, 0, 0.06, 'dark'),
+      box(-w / 2, -l / 2, -w / 2 + 0.03, l / 2, 0.06, 2.0, 'wood'),
+      box(w / 2 - 0.03, -l / 2, w / 2, l / 2, 0.06, 2.0, 'wood'),
+      box(-w / 2, -l / 2, w / 2, -l / 2 + 0.02, 0.06, 2.0, 'wood'),
+      box(-w / 2 + w / 3, -l / 2, -w / 2 + w / 3 + 0.02, l / 2, 0.06, 1.95, 'wood'),
+      box(-w / 2 + (w * 2) / 3, -l / 2, -w / 2 + (w * 2) / 3 + 0.02, l / 2, 0.06, 1.95, 'wood'),
+      box(-w / 2, -l / 2, w / 2, l / 2, 1.95, 2.0, 'wood'),
+      box(-w / 2, -l / 2, -w / 2 + w / 3, l / 2, 0.5, 0.53, 'wood'),
+      box(-w / 2, -l / 2, -w / 2 + w / 3, l / 2, 1.0, 1.03, 'wood'),
+      box(-w / 2 + w / 3 + 0.02, 0, -w / 2 + (w * 2) / 3, 0.02, 1.7, 1.73, 'metal')
+    ]
+  }),
+  straight_stairs: (w, l) => {
+    const steps = 12;
+    const stepL = l / steps;
+    const stepH = 2.50 / steps;
+    const parts = [];
+    for (let i = 0; i < steps; i++) {
+      parts.push(box(-w / 2, -l / 2 + i * stepL, w / 2, l / 2, 0, (i + 1) * stepH, 'wood'));
+    }
+    return {
+      bodyRole: 'wood',
+      parts
+    };
+  },
   dining_table_6: (w, l) => {
     // Six chaises comme le symbole 2D : trois de chaque côté long, à l'extérieur du plateau.
     const chairW = w * 0.24;

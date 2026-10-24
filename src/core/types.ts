@@ -144,6 +144,7 @@ export interface EntityBinding {
   id: string;
   entityId: string;
   position: Point; // In meters
+  elevation?: number; // In meters above floor (0 = floor/socket, 1.10 = switch, 2.50 = ceiling)
   roomId?: string;
   icon?: string;
   mdiIcon?: string;

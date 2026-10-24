@@ -695,6 +695,12 @@ export class HomeArchitectEntityDrawer extends LitElement {
   @state()
   private showSecondary: boolean = false;
 
+  @property({ attribute: false })
+  public placedEntityIds: ReadonlySet<string> = new Set();
+
+  @state()
+  private hidePlaced: boolean = true;
+
   @state()
   private visibleLimit: number = PAGE_SIZE;
 
@@ -799,7 +805,14 @@ export class HomeArchitectEntityDrawer extends LitElement {
   }
 
   private getFiltered(rows: EntityRow[], areaFilter: string): EntityRow[] {
-    const key = [this.entitySearch.trim(), this.activeCategory, areaFilter, this.showSecondary ? '1' : '0'].join('\u0000');
+    const key = [
+      this.entitySearch.trim(),
+      this.activeCategory,
+      areaFilter,
+      this.showSecondary ? '1' : '0',
+      this.hidePlaced ? '1' : '0',
+      this.placedEntityIds.size.toString()
+    ].join('\u0000');
     if (this.filteredFor && this.filteredFor.rows === rows && this.filteredFor.key === key) return this.filtered;
 
     const filter = ENTITY_FILTERS.find(f => f.id === this.activeCategory);
@@ -807,6 +820,7 @@ export class HomeArchitectEntityDrawer extends LitElement {
     const terms = normalizeSearch(this.entitySearch.trim()).split(/\s+/).filter(Boolean);
     this.filtered = rows.filter(r =>
       (this.showSecondary || !r.secondary) &&
+      (!this.hidePlaced || !this.placedEntityIds.has(r.entityId)) &&
       (domains === null || domains.has(r.domain)) &&
       (areaFilter === ALL_AREAS || r.areaId === areaFilter) &&
       terms.every(t => r.searchText.includes(t))
@@ -963,6 +977,14 @@ export class HomeArchitectEntityDrawer extends LitElement {
               ${areaOptions.map(a => html`<option value=${a.id} ?selected=${areaFilter === a.id}>${a.name}</option>`)}
             </select>
           ` : nothing}
+          <label class="hidden-toggle" title=${localize('ui.drawer.hide_placed_tooltip')}>
+            <input
+              type="checkbox"
+              .checked=${this.hidePlaced}
+              @change=${(e: Event) => this.setEntityCriteria(() => this.hidePlaced = (e.target as HTMLInputElement).checked)}
+            />
+            <span>${localize('ui.drawer.hide_placed')}</span>
+          </label>
           <label class="hidden-toggle" title=${localize('ui.drawer.show_hidden_tooltip')}>
             <input
               type="checkbox"

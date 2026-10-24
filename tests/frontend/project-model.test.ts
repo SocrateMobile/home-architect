@@ -287,7 +287,7 @@ describe('normalizeProject', () => {
       ],
       furniture: [{ id: 'f', type: 'sofa', position: { x: 0, y: 0 }, color: '"><script>', icon: '🛋️' }],
       bindings: [
-        { id: 'b1', entityId: 'light.a', position: { x: 0, y: 0 }, mdiIcon: 'mdi:lightbulb' },
+        { id: 'b1', entityId: 'light.a', position: { x: 0, y: 0 }, mdiIcon: 'mdi:lightbulb', elevation: 1.1 },
         { id: 'b2', entityId: 'light.b', position: { x: 0, y: 0 }, mdiIcon: 'mdi:"><svg onload=alert(1)>' },
       ],
     });
@@ -301,6 +301,7 @@ describe('normalizeProject', () => {
     expect(p.furniture?.[0].color).toBeUndefined();
     expect(p.furniture?.[0].icon).toBe('🛋️');
     expect(p.bindings[0].mdiIcon).toBe('mdi:lightbulb');
+    expect(p.bindings[0].elevation).toBe(1.1);
     expect(p.bindings[1].mdiIcon).toBeUndefined();
   });
 
