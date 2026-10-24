@@ -68,7 +68,21 @@ export class MarkerLayer {
     }
     for (const model of models) {
       const entry = this.entries.get(model.bindingId) ?? this.create(model.bindingId);
-      entry.object.position.set(model.position.x, MARKER_HEIGHT, model.position.y);
+      // Écartement radial des entités très proches (ex: prises multiples sur une multiprise)
+      const closeNeighbors = models.filter(m =>
+        Math.hypot(m.position.x - model.position.x, m.position.y - model.position.y) < 0.20
+      );
+      let posX = model.position.x;
+      let posZ = model.position.y;
+      if (closeNeighbors.length > 1) {
+        const idx = closeNeighbors.findIndex(m => m.bindingId === model.bindingId);
+        const angle = (idx / closeNeighbors.length) * Math.PI * 2;
+        const radius = 0.25;
+        posX += Math.cos(angle) * radius;
+        posZ += Math.sin(angle) * radius;
+      }
+      const posY = typeof model.elevation === 'number' && model.elevation > 0 ? model.elevation : MARKER_HEIGHT;
+      entry.object.position.set(posX, posY, posZ);
     }
   }
 

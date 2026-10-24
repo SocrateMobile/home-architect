@@ -37,9 +37,10 @@ export function computeWallHeights(walls: readonly Wall[], rooms: readonly Room[
     const adjacent = validRooms.filter(room =>
       PolygonUtils.isPointInPolygon(mid, room.polygon) || PolygonUtils.distanceToBoundary(mid, room.polygon) <= reach
     );
-    heights.set(wall.id, adjacent.length > 0
-      ? Math.max(...adjacent.map(r => r.height || defaultH), wall.height || 0)
-      : (wall.height || defaultH));
+    const explicitHeight = wall.height && wall.height > 0 ? wall.height : undefined;
+    heights.set(wall.id, explicitHeight !== undefined
+      ? explicitHeight
+      : (adjacent.length > 0 ? Math.max(...adjacent.map(r => r.height || defaultH)) : defaultH));
   }
   return heights;
 }

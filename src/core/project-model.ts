@@ -469,6 +469,9 @@ function normalizeBindings(list: unknown, legacySchema: boolean): EntityBinding[
     const icon = shortIcon(b.icon);
     const rawMdi = optionalString(b.mdiIcon);
     const mdiIcon = rawMdi && MDI_ICON.test(rawMdi) ? rawMdi : undefined;
+    const elevation = typeof b.elevation === 'number' && Number.isFinite(b.elevation) && b.elevation >= 0
+      ? Math.round(b.elevation * 100) / 100
+      : undefined;
     const customName = optionalString(b.customName);
     // Chemin interne à HA uniquement (jamais d'URL externe ni de schéma arbitraire passé à history.pushState).
     const rawPath = optionalString(b.navigationPath);
@@ -484,6 +487,7 @@ function normalizeBindings(list: unknown, legacySchema: boolean): EntityBinding[
     const holdAction = action(b.holdAction);
     const radarConfig = normalizeRadarConfig(b.radarConfig);
     if (roomId) binding.roomId = roomId;
+    if (elevation !== undefined) binding.elevation = elevation;
     if (icon) binding.icon = icon;
     if (mdiIcon) binding.mdiIcon = mdiIcon;
     if (customName) binding.customName = customName;

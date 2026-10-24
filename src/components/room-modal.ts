@@ -49,6 +49,8 @@ export interface RoomModalSaveDetail {
   color: string;
   /** Texture procédurale 2D/3D du sol ('none' ou undefined pour couleur unie). */
   texture?: FloorTexture;
+  /** Appliquer cette texture de sol à toutes les pièces du plan. */
+  applyToAllRooms?: boolean;
   /** Zone Home Assistant liée (Room.area_id), ou null pour aucune liaison. */
   area_id: string | null;
 }
@@ -659,6 +661,9 @@ export class HomeArchitectRoomModal extends LitElement {
   @state()
   private texture: FloorTexture = 'none';
 
+  @state()
+  private applyTextureToAllRooms: boolean = false;
+
   /** Zones triées, mises en cache par registre hass.areas et par langue (ordre alphabétique). */
   private areaCache: { source: object; lang: string; options: AreaOption[] } | null = null;
 
@@ -814,6 +819,7 @@ export class HomeArchitectRoomModal extends LitElement {
       inheritHeight: this.inheritHeight,
       color: this.color,
       texture: this.texture !== 'none' ? this.texture : undefined,
+      applyToAllRooms: this.applyTextureToAllRooms,
       area_id: this.areaId || null
     };
     this.dispatchEvent(new CustomEvent<RoomModalSaveDetail>('save-room', {
@@ -901,6 +907,16 @@ export class HomeArchitectRoomModal extends LitElement {
               </button>
             `;
           })}
+        </div>
+        <div style="margin-top: 8px;">
+          <label style="display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--arch-color-text-secondary, #94a3b8); cursor: pointer;">
+            <input
+              type="checkbox"
+              .checked=${this.applyTextureToAllRooms}
+              @change=${(e: Event) => this.applyTextureToAllRooms = (e.target as HTMLInputElement).checked}
+            />
+            <span>Appliquer ce revêtement à toutes les pièces de l'étage</span>
+          </label>
         </div>
       </div>
     `;

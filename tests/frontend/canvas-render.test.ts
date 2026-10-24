@@ -512,10 +512,12 @@ describe('scène 3D des murs', () => {
   it('hauteur des murs : pièce bordée, sinon hauteur propre du mur, sinon défaut du projet', () => {
     const lone = { ...wall('lone', 10, 10, 12, 10), height: 2.2 };
     const bare = wall('bare', 20, 20, 22, 20);
-    const heights = computeWallHeights([...SQUARE_WALLS, lone, bare], [SQUARE_ROOM], 2.4);
+    const half = { ...wall('half', 0, 0, 4, 0), height: 1.2 };
+    const heights = computeWallHeights([...SQUARE_WALLS, lone, bare, half], [SQUARE_ROOM], 2.4);
     expect(heights.get('north')).toBe(3);
     expect(heights.get('lone')).toBe(2.2);
     expect(heights.get('bare')).toBe(2.4);
+    expect(heights.get('half')).toBe(1.2);
   });
 
   it('faces extrudées vers le haut et triées de la plus lointaine à la plus proche, pour chaque préréglage', () => {

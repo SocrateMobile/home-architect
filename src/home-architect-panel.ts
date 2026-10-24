@@ -273,7 +273,7 @@ export class HomeArchitectPanel extends LitElement {
   private isResetModalOpen: boolean = false;
 
   @state()
-  private saveLoadModalTab: 'save' | 'load' = 'save';
+  private saveLoadModalTab: 'save' | 'load' | 'duplicate' = 'save';
 
   @state()
   private isCalibrateModalOpen: boolean = false;
@@ -1438,6 +1438,17 @@ export class HomeArchitectPanel extends LitElement {
     this.selectedRoomForEdit = null;
     if (!detail) return;
     const updatedRooms = mapChanged(this.project.rooms, r => {
+      if (detail.applyToAllRooms && detail.texture) {
+        if (r.id === detail.roomId) {
+          const next: Room = { ...r, name: detail.name, color: detail.color, texture: detail.texture };
+          if (detail.inheritHeight) delete next.height;
+          else next.height = detail.height;
+          if (detail.area_id) next.area_id = detail.area_id;
+          else delete next.area_id;
+          return next;
+        }
+        return { ...r, texture: detail.texture };
+      }
       if (r.id !== detail.roomId) return r;
       const next: Room = { ...r, name: detail.name, color: detail.color };
       if (detail.inheritHeight) delete next.height;
@@ -1548,6 +1559,36 @@ export class HomeArchitectPanel extends LitElement {
       return next;
     });
     if (walls) this.commitProject({ ...this.project, walls });
+  }
+
+  /** Hauteur des murs sélectionnés (HUD). undefined = hérite du plafond. */
+  private updateSelectedWallsHeight(height: number | undefined) {
+    const ids = this.selectedElements.wallIds ?? [];
+    if (ids.length === 0) return;
+    const walls = mapChanged(this.project.walls, w => {
+      if (!ids.includes(w.id) || w.height === height) return w;
+      const next: Wall = { ...w };
+      if (height !== undefined && height > 0) next.height = height;
+      else delete next.height;
+      return next;
+    });
+    if (walls && this.commitProject({ ...this.project, walls })) {
+      this.showToast(height ? `Hauteur de mur définie à ${formatMeters(height)}` : 'Hauteur de mur réinitialisée (plafond)');
+    }
+  }
+
+  /** Applique le parement du mur sélectionné à tous les murs du plan. */
+  private applyWallTextureToAll(texture: WallTexture) {
+    const walls = mapChanged(this.project.walls, w => {
+      if ((w.texture ?? 'paint') === texture) return w;
+      const next: Wall = { ...w };
+      if (texture && texture !== 'paint') next.texture = texture;
+      else delete next.texture;
+      return next;
+    });
+    if (walls && this.commitProject({ ...this.project, walls })) {
+      this.showToast('Parement appliqué à tous les murs du plan');
+    }
   }
 
   /** Matériau des meubles sélectionnés (HUD). */
@@ -1673,15 +1714,46 @@ export class HomeArchitectPanel extends LitElement {
     return 'light';
   }
 
-  private updateSelectedBindingIcon(icon: string, mdi?: string) {
+  private updateSelectedBindingIcon(iconOrMdi: string, explicitMdi?: string) {
     if (!this.selectedElements.bindingIds || this.selectedElements.bindingIds.length === 0) return;
     const bindingId = this.selectedElements.bindingIds[0];
-    // Entrée puis change sur le champ libre : la seconde application, identique, n'est pas empilée.
+    const current = this.project.bindings.find(b => b.id === bindingId);
+    let icon = current?.icon || '⚡';
+    let mdi = explicitMdi ?? current?.mdiIcon;
+
+    if (explicitMdi !== undefined) {
+      icon = iconOrMdi;
+      mdi = explicitMdi;
+    } else {
+      const val = iconOrMdi.trim();
+      if (/^[a-z0-9_-]+:[a-z0-9_-]+$/i.test(val)) {
+        mdi = val.toLowerCase();
+      } else {
+        icon = val;
+      }
+    }
+
     const newBindings = mapChanged(this.project.bindings, b =>
       b.id === bindingId && (b.icon !== icon || b.mdiIcon !== mdi) ? { ...b, icon, mdiIcon: mdi } : b
     );
     if (newBindings && this.commitProject({ ...this.project, bindings: newBindings })) {
-      this.showToast(localize('panel.toast.icon_applied', { icon }));
+      this.showToast(localize('panel.toast.icon_applied', { icon: mdi || icon }));
+    }
+  }
+
+  /** Élévation / Altitude au sol de l'entité liée en 3D (HUD). */
+  private updateSelectedBindingElevation(elevation: number | undefined) {
+    if (!this.selectedElements.bindingIds || this.selectedElements.bindingIds.length === 0) return;
+    const bindingId = this.selectedElements.bindingIds[0];
+    const newBindings = mapChanged(this.project.bindings, b => {
+      if (b.id !== bindingId || b.elevation === elevation) return b;
+      const next = { ...b };
+      if (elevation !== undefined && elevation >= 0) next.elevation = elevation;
+      else delete next.elevation;
+      return next;
+    });
+    if (newBindings && this.commitProject({ ...this.project, bindings: newBindings })) {
+      this.showToast(elevation ? `Altitude définie à ${formatMeters(elevation)}` : 'Altitude réinitialisée (défaut 1.20 m)');
     }
   }
 
@@ -1801,6 +1873,10 @@ export class HomeArchitectPanel extends LitElement {
       return;
     }
     if (this.isFullscreen) void this.toggleFullscreen();
+    if (this.activeTool !== 'select') {
+      this.activeTool = 'select';
+      this.canvas?.resetToolState();
+    }
     this.clearSelection();
   }
 
@@ -1966,9 +2042,22 @@ export class HomeArchitectPanel extends LitElement {
     this.isSaveLoadModalOpen = true;
   }
 
+  private openDuplicateModal() {
+    if (this.readOnly) {
+      this.notifyReadOnly();
+      return;
+    }
+    this.saveLoadModalTab = 'duplicate';
+    this.isSaveLoadModalOpen = true;
+  }
+
   private openLoadModal() {
     this.saveLoadModalTab = 'load';
     this.isSaveLoadModalOpen = true;
+  }
+
+  private get placedEntityIds(): ReadonlySet<string> {
+    return new Set(this.project.bindings.map(b => b.entityId));
   }
 
   // ==========================================
@@ -2185,6 +2274,7 @@ export class HomeArchitectPanel extends LitElement {
         ${this.renderMenuItem({ icon: '📄', label: localize('panel.menu.file.new'), disabled: this.readOnly, run: () => this.openNewPlanModal() })}
         ${this.renderMenuItem({ icon: '📂', label: localize('panel.menu.file.open'), run: () => this.openLoadModal() })}
         ${this.renderMenuItem({ icon: '💾', label: localize('panel.menu.file.save'), disabled: this.readOnly || !ready, run: () => this.openSaveModal() })}
+        ${this.renderMenuItem({ icon: '📑', label: 'Dupliquer vers un autre étage...', disabled: this.readOnly || !ready, run: () => this.openDuplicateModal() })}
         ${dirtyCount > 1 || (dirtyCount === 1 && !activeDirty) ? this.renderMenuItem({
           icon: '🗂️',
           label: localize('panel.menu.file.save_all', { count: formatNumber(dirtyCount) }),
@@ -2335,6 +2425,24 @@ export class HomeArchitectPanel extends LitElement {
               ${option(this.currentThickness === 0.10, localize('panel.hud.thin', { size: formatCentimeters(0.10) }), localize('panel.thickness.partition', { size: formatCentimeters(0.10) }), () => this.updateSelectedWallsThickness(0.10))}
               ${option(this.currentThickness === 0.20, localize('panel.hud.medium', { size: formatCentimeters(0.20) }), localize('panel.hud.medium_title', { size: formatCentimeters(0.20) }), () => this.updateSelectedWallsThickness(0.20))}
               ${option(this.currentThickness === 0.30, localize('panel.hud.thick', { size: formatCentimeters(0.30) }), localize('panel.thickness.load_bearing', { size: formatCentimeters(0.30) }), () => this.updateSelectedWallsThickness(0.30))}
+              <label class="hud-color" title="Hauteur du mur (2.50 m plafond, 1.20 m mi-hauteur / escalier, 1.00 m muret)">
+                <span class="hud-label">Hauteur</span>
+                <select
+                  class="hud-texture-select"
+                  ?disabled=${this.readOnly}
+                  .value=${selectedWall?.height !== undefined ? String(selectedWall.height) : 'default'}
+                  @change=${(e: Event) => {
+                    const v = (e.target as HTMLSelectElement).value;
+                    this.updateSelectedWallsHeight(v === 'default' ? undefined : parseFloat(v));
+                  }}
+                >
+                  <option value="default" ?selected=${selectedWall?.height === undefined}>Plafond (${formatMeters(effectiveCeilingHeight(this.project))})</option>
+                  <option value="1.20" ?selected=${selectedWall?.height === 1.20}>1.20 m (Mi-hauteur / Escalier)</option>
+                  <option value="1.00" ?selected=${selectedWall?.height === 1.00}>1.00 m (Muret)</option>
+                  <option value="0.50" ?selected=${selectedWall?.height === 0.50}>0.50 m (Garde-corps bas)</option>
+                  <option value="1.80" ?selected=${selectedWall?.height === 1.80}>1.80 m (Séparation)</option>
+                </select>
+              </label>
               <label class="hud-color" title="Revêtement / Texture des murs sélectionnés (2D &amp; 3D)">
                 <span class="hud-label">Parement</span>
                 <select
@@ -2348,6 +2456,15 @@ export class HomeArchitectPanel extends LitElement {
                   `)}
                 </select>
               </label>
+              <button
+                type="button"
+                class="hud-opt-btn"
+                style="padding: 2px 6px; font-size: 11px;"
+                title="Appliquer ce parement à tous les murs du plan"
+                @click=${() => this.applyWallTextureToAll(selectedWall?.texture ?? 'paint')}
+              >
+                <span>Tout l'étage</span>
+              </button>
             </div>
           ` : nothing}
 
@@ -2433,6 +2550,27 @@ export class HomeArchitectPanel extends LitElement {
                 <span aria-hidden="true">${this.isIconPickerOpen ? '▴' : '▾'}</span>
               </button>
 
+              <label class="hud-color" title="Altitude / Hauteur au-dessus du sol en 3D">
+                <span class="hud-label">Altitude</span>
+                <select
+                  class="hud-texture-select"
+                  ?disabled=${this.readOnly}
+                  .value=${selectedBinding.elevation !== undefined ? String(selectedBinding.elevation) : 'default'}
+                  @change=${(e: Event) => {
+                    const val = (e.target as HTMLSelectElement).value;
+                    const elev = val === 'default' ? undefined : parseFloat(val);
+                    this.updateSelectedBindingElevation(elev);
+                  }}
+                >
+                  <option value="default" ?selected=${selectedBinding.elevation === undefined}>Auto (1.20 m)</option>
+                  <option value="0.30" ?selected=${selectedBinding.elevation === 0.30}>0.30 m (Prise basse / multiprise)</option>
+                  <option value="0.90" ?selected=${selectedBinding.elevation === 0.90}>0.90 m (Plan de travail)</option>
+                  <option value="1.10" ?selected=${selectedBinding.elevation === 1.10}>1.10 m (Interrupteur)</option>
+                  <option value="1.60" ?selected=${selectedBinding.elevation === 1.60}>1.60 m (Applique / Yeux)</option>
+                  <option value="2.40" ?selected=${selectedBinding.elevation === 2.40}>2.40 m (Plafond / Suspension)</option>
+                </select>
+              </label>
+
               ${isLikelyRadarBinding(selectedBinding, this.hass?.states) ? html`
                 <button
                   class="hud-opt-btn"
@@ -2495,8 +2633,9 @@ export class HomeArchitectPanel extends LitElement {
                 <span>${localize('panel.hud.icon_free')}</span>
                 <input
                   type="text"
-                  placeholder=${localize('panel.hud.icon_free_placeholder')}
-                  maxlength="4"
+                  placeholder="mdi:water-pump, 💡..."
+                  maxlength="64"
+                  .value=${selectedBinding.mdiIcon || selectedBinding.icon || ''}
                   @keydown=${(e: KeyboardEvent) => {
                     if (e.key === 'Enter') {
                       const val = (e.target as HTMLInputElement).value.trim();
@@ -2901,6 +3040,7 @@ export class HomeArchitectPanel extends LitElement {
               @background-image-loaded=${this.handleBackgroundDropped}
               @placement-done=${this.handlePlacementDone}
               @open-orientation=${() => this.openOrientationModal()}
+              @tool-change=${(e: CustomEvent<{ tool: ActiveTool }>) => { this.activeTool = e.detail.tool; }}
             ></home-architect-canvas>
 
             ${this.renderSelectionHud(selection)}
@@ -2914,6 +3054,7 @@ export class HomeArchitectPanel extends LitElement {
           <!-- Volet des entités HA et des meubles : colonne, ou tiroir superposé sur écran étroit -->
           <home-architect-entity-drawer
             .hass=${this.hass}
+            .placedEntityIds=${this.placedEntityIds}
             ?collapsed=${this.isDrawerCollapsed}
             @toggle-collapse=${this.toggleDrawer}
             @drawer-item-picked=${this.handleDrawerItemPicked}

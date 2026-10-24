@@ -1501,7 +1501,7 @@ export class HomeArchitectCanvas extends LitElement {
   }
 
   /** Remet à zéro tout tracé en cours (changement d'outil ou de plan, Échap, passage en 3D ; constat F42). */
-  private resetToolState(): void {
+  public resetToolState(): void {
     this.drawingWallStart = null;
     this.roomDraft = [];
     this.rectStart = null;
@@ -2160,6 +2160,7 @@ export class HomeArchitectCanvas extends LitElement {
       this.cancelInteraction();
       this.resetToolState();
       this.setSelection(emptySelection());
+      this.dispatchEvent(new CustomEvent('tool-change', { detail: { tool: 'select' }, bubbles: true, composed: true }));
       return;
     }
     if (hasCommandModifier(e)) return;

@@ -435,6 +435,27 @@ const CATALOG_DEFINITIONS: FurnitureTemplateDefinition[] = [
       ];
     }
   },
+  {
+    type: 'open_wardrobe',
+    name: 'Dressing ouvert (sans portes)',
+    category: 'storage',
+    width: 1.80,
+    length: 0.55,
+    icon: '👔',
+    shapes: (w, l) => {
+      const m = Math.min(w, l) * 0.08;
+      return [
+        outline(w, l, 0.02),
+        line(-w / 2 + w / 3, -l / 2, -w / 2 + w / 3, l / 2, 'outline'),
+        line(-w / 2 + (w * 2) / 3, -l / 2, -w / 2 + (w * 2) / 3, l / 2, 'outline'),
+        line(-w / 2 + m, -l / 4, -w / 2 + w / 3 - m, -l / 4, 'outline'),
+        line(-w / 2 + m, l / 4, -w / 2 + w / 3 - m, l / 4, 'outline'),
+        line(-w / 2 + (w * 2) / 3 + m, -l / 4, w / 2 - m, -l / 4, 'outline'),
+        line(-w / 2 + (w * 2) / 3 + m, l / 4, w / 2 - m, l / 4, 'outline'),
+        line(-w / 2 + w / 3 + m, 0, -w / 2 + (w * 2) / 3 - m, 0, 'outline', { strokeWidth: 2, opacity: 0.85 })
+      ];
+    }
+  },
 
   // ==========================================
   // REPAS & BUREAU (TABLE)
@@ -800,6 +821,27 @@ const CATALOG_DEFINITIONS: FurnitureTemplateDefinition[] = [
         rect(-w / 2 + 0.02, -l / 2 + 0.02, w - 0.04, l - 0.04, 'accent', 0.01),
         line(-w / 2 + 0.04, 0, w / 2 - 0.04, 0, 'highlight', { strokeWidth: 1.2 })
       ];
+    }
+  },
+  {
+    type: 'straight_stairs',
+    name: 'Escalier droit',
+    category: 'other',
+    width: 0.90,
+    length: 2.80,
+    icon: '🪜',
+    shapes: (w, l) => {
+      const stepCount = 13;
+      const stepHeight = l / stepCount;
+      const shapes: SymbolShape[] = [outline(w, l, 0.02)];
+      for (let i = 1; i < stepCount; i++) {
+        const y = -l / 2 + i * stepHeight;
+        shapes.push(line(-w / 2, y, w / 2, y, 'outline', { strokeWidth: 1.2 }));
+      }
+      shapes.push(line(0, l / 2 - 0.2, 0, -l / 2 + 0.3, 'outline', { strokeWidth: 1.5 }));
+      shapes.push(line(-0.1, -l / 2 + 0.45, 0, -l / 2 + 0.3, 'outline', { strokeWidth: 1.5 }));
+      shapes.push(line(0.1, -l / 2 + 0.45, 0, -l / 2 + 0.3, 'outline', { strokeWidth: 1.5 }));
+      return shapes;
     }
   }
 ];

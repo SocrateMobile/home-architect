@@ -8,7 +8,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.0.11-blue.svg?style=flat-square" alt="Version 2.0.11" />
+  <img src="https://img.shields.io/badge/version-2.0.12-blue.svg?style=flat-square" alt="Version 2.0.12" />
   <img src="https://img.shields.io/badge/HACS-Custom_Integration-orange.svg?style=flat-square" alt="HACS" />
   <img src="https://img.shields.io/badge/Home_Assistant-2024.1+-blueviolet.svg?style=flat-square" alt="Home Assistant" />
   <img src="https://img.shields.io/badge/license-MIT-green.svg?style=flat-square" alt="License" />
@@ -22,10 +22,13 @@
 ### 1. Installation via HACS
 
 1. Ouvrez **HACS** dans votre barre latérale Home Assistant.
-2. Cliquez sur **Intégrations** puis sur le bouton **+ Explorer et télécharger des dépôts**.
-3. Recherchez **Home Architect**.
-4. Cliquez sur **Télécharger** en bas à droite pour installer la dernière version.
-5. **Redémarrez Home Assistant** pour que la nouvelle intégration soit prise en compte.
+2. Cliquez sur le menu avec les trois petits points (en haut à droite) ➔ **Dépôts personnalisés** (*Custom repositories*).
+3. Ajoutez l'URL du dépôt :
+   `https://github.com/SocrateMobile/home-architect`
+   avec le type **Intégration** (*Integration*).
+4. Cliquez sur **Intégrations** puis recherchez **Home Architect**.
+5. Cliquez sur **Télécharger** en bas à droite pour installer la dernière version.
+6. **Redémarrez Home Assistant** pour que la nouvelle intégration soit prise en compte.
 
 ### 2. Ajout de l'intégration
 

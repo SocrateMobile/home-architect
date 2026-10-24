@@ -20,7 +20,7 @@ export const PLAN_CATEGORIES: readonly LevelDef[] = Object.freeze([...KNOWN_LEVE
 const MAX_NAME_LENGTH = 200;
 const MAX_CATEGORY_LENGTH = 64;
 
-type Tab = 'save' | 'load';
+type Tab = 'save' | 'load' | 'duplicate';
 const TABS: readonly Tab[] = ['save', 'load'];
 const TITLE_ID = 'save-load-title';
 const TAB_PANEL_ID = 'save-load-tabpanel';
@@ -808,6 +808,18 @@ export class HomeArchitectSaveLoadModal extends LitElement {
   }
 
   private initForm(project: HomeArchitectProject) {
+    if (this.mode === 'duplicate') {
+      this.planName = localize('panel.persist.copy_name', { name: project.name || localize('ui.saveload.default_plan_name') });
+      const currentCat = project.category ?? legacyCategory(project.id) ?? DEFAULT_LEVEL;
+      let nextCat = currentCat;
+      if (currentCat === 'rdc') nextCat = 'etage1';
+      else if (currentCat === 'sous-sol') nextCat = 'rdc';
+      else if (currentCat === 'etage1') nextCat = 'etage2';
+      else if (currentCat === 'etage2') nextCat = 'etage3';
+      this.planCategory = nextCat;
+      this.customCategoryName = '';
+      return;
+    }
     this.planName = project.name || localize('ui.saveload.default_plan_name');
     const category = project.category ?? legacyCategory(project.id) ?? DEFAULT_LEVEL;
     if (isKnownLevel(category) || category === CUSTOM_CATEGORY) {
@@ -1401,7 +1413,8 @@ export class HomeArchitectSaveLoadModal extends LitElement {
 
   render() {
     const readOnly = this.isReadOnly;
-    const saving = this.activeTab === 'save';
+    const isDuplicate = this.mode === 'duplicate';
+    const saving = this.activeTab === 'save' || isDuplicate;
     const loadTabLabel = this.listState === 'ready'
       ? localize('ui.saveload.tab_load_count', { count: formatNumber(this.rows.length) })
       : localize('ui.saveload.tab_load');
@@ -1418,13 +1431,13 @@ export class HomeArchitectSaveLoadModal extends LitElement {
         <!-- Header -->
         <div class="modal-header">
           <div class="modal-title-group">
-            <span class="modal-icon" aria-hidden="true">${saving ? '💾' : '📂'}</span>
+            <span class="modal-icon" aria-hidden="true">${isDuplicate ? '📑' : (saving ? '💾' : '📂')}</span>
             <div>
               <h2 class="modal-title" id=${TITLE_ID}>
-                ${localize(saving ? 'ui.saveload.title_save' : 'ui.saveload.title_load')}
+                ${isDuplicate ? 'Dupliquer le plan vers un autre étage' : localize(saving ? 'ui.saveload.title_save' : 'ui.saveload.title_load')}
               </h2>
               <p class="modal-subtitle" id="save-load-subtitle">
-                ${localize(saving ? 'ui.saveload.subtitle_save' : 'ui.saveload.subtitle_load')}
+                ${isDuplicate ? 'Choisissez l’étage cible et le nom pour aménager ce nouveau niveau à partir du plan actuel.' : localize(saving ? 'ui.saveload.subtitle_save' : 'ui.saveload.subtitle_load')}
               </p>
             </div>
           </div>
@@ -1438,10 +1451,12 @@ export class HomeArchitectSaveLoadModal extends LitElement {
         </div>
 
         <!-- Onglets Navigation -->
-        <div class="tabs-nav" role="tablist" aria-labelledby=${TITLE_ID} @keydown=${this.handleTabKeyDown}>
-          ${this.renderTab('save', '💾', localize('ui.saveload.tab_save'))}
-          ${this.renderTab('load', '📂', loadTabLabel)}
-        </div>
+        ${!isDuplicate ? html`
+          <div class="tabs-nav" role="tablist" aria-labelledby=${TITLE_ID} @keydown=${this.handleTabKeyDown}>
+            ${this.renderTab('save', '💾', localize('ui.saveload.tab_save'))}
+            ${this.renderTab('load', '📂', loadTabLabel)}
+          </div>
+        ` : nothing}
 
         <!-- Corps du modal -->
         <div class="modal-body" id=${TAB_PANEL_ID} role="tabpanel" aria-labelledby="save-load-tab-${this.activeTab}">
@@ -1453,7 +1468,16 @@ export class HomeArchitectSaveLoadModal extends LitElement {
           <button type="button" class="btn-secondary" @click=${this.handleClose}>
             ${localize(saving && !readOnly ? 'ui.common.cancel' : 'ui.common.close')}
           </button>
-          ${saving && !readOnly ? html`
+          ${isDuplicate && !readOnly ? html`
+            <button
+              type="button"
+              class="btn-primary"
+              @click=${() => this.handleSave(true)}
+            >
+              <span aria-hidden="true">📑</span>
+              <span>Créer la copie pour cet étage</span>
+            </button>
+          ` : (saving && !readOnly ? html`
             <button
               type="button"
               class="btn-secondary"
@@ -1466,7 +1490,7 @@ export class HomeArchitectSaveLoadModal extends LitElement {
               <span aria-hidden="true">💾</span>
               <span>${localize('ui.saveload.save')}</span>
             </button>
-          ` : nothing}
+          ` : nothing)}
         </div>
       </div>
     `;

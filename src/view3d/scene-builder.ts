@@ -154,6 +154,7 @@ export interface MarkerModel {
   bindingId: string;
   entityId: string;
   position: Point;
+  elevation?: number;
 }
 
 // ------------------------------------------------------------------
@@ -583,7 +584,7 @@ export function sceneSignature(
 export function markerModels(bindings: readonly EntityBinding[]): MarkerModel[] {
   return bindings
     .filter(b => typeof b.entityId === 'string' && b.position && Number.isFinite(b.position.x) && Number.isFinite(b.position.y))
-    .map(b => ({ bindingId: b.id, entityId: b.entityId, position: b.position }));
+    .map(b => ({ bindingId: b.id, entityId: b.entityId, position: b.position, elevation: b.elevation }));
 }
 
 function plural(n: number, singular: string, pluralForm: string): string {
