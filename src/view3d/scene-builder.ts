@@ -4,7 +4,7 @@ import { computeWallPolygons } from '../core/svg-exporter';
 import { entityDomain } from '../core/project-model';
 import { computeWallHeights } from '../canvas/scene-3d';
 import { openingVerticalRange, windowSashes } from '../canvas/opening-symbols';
-import { HassDisplayContext, HassEntityState, TemperatureReading, roomAppearance, toFiniteNumber } from '../canvas/entity-display';
+import { HassDisplayContext, HassEntityState, OpeningState, TemperatureReading, openingState, roomAppearance, toFiniteNumber } from '../canvas/entity-display';
 import { Rgba, kelvinToRgb, mixRgb, parseCssColor, rgba, scaleRgb } from './colors';
 import { FurnitureRole, furnitureShape } from './furniture3d';
 import { FloorTextureType, detectFloorTexture } from './textures';
@@ -784,25 +784,8 @@ export function floorLooks(project: HomeArchitectProject, hass: HassDisplayConte
   return looks;
 }
 
-/** État d'une ouverture liée à une entité (capteur d'ouverture, volet, serrure). */
-export interface OpeningState {
-  open: boolean;
-  /** 'unbound' : aucune entité liée ; 'missing' : entité absente ; 'unavailable' : état inconnu. */
-  status: 'ok' | 'unbound' | 'missing' | 'unavailable';
-}
-
-const OPEN_STATES = new Set(['on', 'open', 'opening', 'closing']);
-
-export function openingState(entityId: string | undefined, hass: HassDisplayContext | undefined): OpeningState {
-  if (!entityId) return { open: false, status: 'unbound' };
-  const st = hass?.states?.[entityId];
-  if (!hass?.states) return { open: false, status: 'ok' };
-  if (!st) return { open: false, status: 'missing' };
-  if (st.state === 'unavailable' || st.state === 'unknown') return { open: false, status: 'unavailable' };
-  const position = toFiniteNumber(st.attributes?.current_position);
-  const open = OPEN_STATES.has(st.state) || (entityDomain(entityId) === 'cover' && position !== null && position > 0);
-  return { open, status: 'ok' };
-}
+export type { OpeningState };
+export { openingState };
 
 /** Teinte effective d'un sol : couleur de la pièce (sinon sol par défaut) teintée par la lumière ou la heatmap. */
 export function floorColor(base: Rgba, roomColor: Rgba | null, look: FloorLook | undefined): Rgba {

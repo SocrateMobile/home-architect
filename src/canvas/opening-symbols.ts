@@ -34,8 +34,14 @@ export function windowSashes(op: Pick<Opening, 'width' | 'sashCount'>): 1 | 2 {
 /**
  * Primitives d'une ouverture de largeur op.width dans un mur d'épaisseur `thickness`. La découpe
  * (couleur du fond) déborde de `cutoutOverlap` mètres de chaque côté pour masquer le contour du mur.
+ * `isOpen` : état dynamique lié à une entité (false = fermé, true = ouvert, undefined = représentation architecturale standard).
  */
-export function openingPrimitives(op: OpeningShape, thickness: number, cutoutOverlap: number): OpeningPrimitive[] {
+export function openingPrimitives(
+  op: OpeningShape,
+  thickness: number,
+  cutoutOverlap: number,
+  isOpen?: boolean
+): OpeningPrimitive[] {
   const w = Math.max(0, op.width);
   const half = w / 2;
   const t = Math.max(0, thickness);
@@ -65,15 +71,27 @@ export function openingPrimitives(op: OpeningShape, thickness: number, cutoutOve
   switch (op.type) {
     case 'door': {
       const pivotX = op.flipDirection ? half : -half;
-      out.push(...jambs(), ...leaf(pivotX, op.flipDirection ? -1 : 1, w));
+      const toward = op.flipDirection ? -1 : 1;
+      if (isOpen === false) {
+        out.push(...jambs(), { kind: 'line', role: 'leaf', x1: pivotX, y1: 0, x2: pivotX + toward * w, y2: 0 });
+      } else {
+        out.push(...jambs(), ...leaf(pivotX, toward, w));
+      }
       break;
     }
     case 'double_door':
-      out.push(...jambs(), ...leaf(-half, 1, half), ...leaf(half, -1, half));
+      if (isOpen === false) {
+        out.push(
+          ...jambs(),
+          { kind: 'line', role: 'leaf', x1: -half, y1: 0, x2: 0, y2: 0 },
+          { kind: 'line', role: 'leaf', x1: half, y1: 0, x2: 0, y2: 0 }
+        );
+      } else {
+        out.push(...jambs(), ...leaf(-half, 1, half), ...leaf(half, -1, half));
+      }
       break;
     case 'sliding_door': {
-      // Deux panneaux coulissants qui se recouvrent au centre
-      const panel = w * 0.55;
+      const panel = isOpen === true ? w * 0.35 : w * 0.55;
       out.push(
         frame,
         { kind: 'rect', role: 'panel', x: -half, y: -t / 4 - PANEL / 2, w: panel, h: PANEL },
@@ -82,17 +100,23 @@ export function openingPrimitives(op: OpeningShape, thickness: number, cutoutOve
       break;
     }
     case 'french_window':
-      out.push(
-        frame,
-        { kind: 'rect', role: 'panel', x: -half, y: -t / 4, w: half, h: PANEL },
-        { kind: 'rect', role: 'panel', x: 0, y: t / 4, w: half, h: PANEL }
-      );
+      if (isOpen === true) {
+        out.push(frame, ...leaf(-half, 1, half), ...leaf(half, -1, half));
+      } else {
+        out.push(
+          frame,
+          { kind: 'rect', role: 'panel', x: -half, y: -t / 4, w: half, h: PANEL },
+          { kind: 'rect', role: 'panel', x: 0, y: t / 4, w: half, h: PANEL }
+        );
+      }
       break;
     case 'window':
     default: {
       const inset = Math.min(JAMB, w / 4);
       out.push(frame, { kind: 'line', role: 'glass', x1: -half, y1: 0, x2: half, y2: 0 });
-      if (windowSashes(op) === 2) {
+      if (isOpen === true) {
+        out.push(...leaf(op.flipDirection ? half : -half, op.flipDirection ? -1 : 1, w * 0.45));
+      } else if (windowSashes(op) === 2) {
         out.push(
           { kind: 'line', role: 'mullion', x1: 0, y1: -ht, x2: 0, y2: ht },
           { kind: 'line', role: 'sash', x1: -half + inset, y1: -t / 4, x2: -inset / 2, y2: -t / 4 },

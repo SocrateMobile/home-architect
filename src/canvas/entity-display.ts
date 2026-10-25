@@ -593,3 +593,25 @@ export function hassChangeAffects(
   if (!before || !after) return true;
   return entityIds.some(id => before[id] !== after[id]);
 }
+
+/** État d'une ouverture liée à une entité (capteur d'ouverture, volet, serrure). */
+export interface OpeningState {
+  /** True : vantail ouvert à 90° (porte, fenêtre) ou panneaux coulissés (baie). */
+  open: boolean;
+  /** 'unbound' : aucune entité liée ; 'missing' : entité absente ; 'unavailable' : état inconnu. */
+  status: 'ok' | 'unbound' | 'missing' | 'unavailable';
+}
+
+const OPEN_STATES = new Set(['on', 'open', 'opening', 'closing']);
+
+export function openingState(entityId: string | undefined, hass: HassDisplayContext | undefined): OpeningState {
+  if (!entityId) return { open: false, status: 'unbound' };
+  const st = hass?.states?.[entityId];
+  if (!hass?.states) return { open: false, status: 'ok' };
+  if (!st) return { open: false, status: 'missing' };
+  if (st.state === 'unavailable' || st.state === 'unknown') return { open: false, status: 'unavailable' };
+  const position = toFiniteNumber(st.attributes?.current_position);
+  const open = OPEN_STATES.has(st.state) || (entityDomain(entityId) === 'cover' && position !== null && position > 0);
+  return { open, status: 'ok' };
+}
+
