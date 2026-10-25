@@ -205,8 +205,12 @@ export const canvasStyles = css`
   .canvas-container.dashboard-mode .room-polygon,
   .canvas-container.dashboard-mode .wall-rect,
   .canvas-container.dashboard-mode .furniture-group,
-  .canvas-container.dashboard-mode .opening-element {
+  .canvas-container.dashboard-mode .opening-element:not(.has-entity) {
     cursor: inherit;
+  }
+
+  .canvas-container.dashboard-mode .opening-element.has-entity {
+    cursor: pointer;
   }
 
   .canvas-container.dashboard-mode .entity-pin {
@@ -495,6 +499,35 @@ export const canvasStyles = css`
 
   .opening-panel {
     fill: var(--arch-accent);
+  }
+
+  /* États des ouvrants liés à une entité */
+  .opening-element.state-open .opening-leaf,
+  .opening-element.state-open .opening-swing,
+  .opening-element.state-open .opening-glass,
+  .opening-element.state-open .opening-panel,
+  .opening-element.state-open .opening-frame {
+    stroke: var(--arch-warning, #f59e0b);
+  }
+
+  .opening-element.state-open .opening-swing {
+    fill: rgba(245, 158, 11, 0.22);
+    stroke-width: 1.8;
+  }
+
+  .opening-element.state-open .opening-leaf {
+    stroke-width: 2.8;
+  }
+
+  .opening-element.state-closed .opening-leaf {
+    stroke: var(--arch-opening-closed, #10b981);
+    stroke-width: 2.5;
+  }
+
+  .opening-element.state-unavailable .opening-leaf,
+  .opening-element.state-unavailable .opening-frame {
+    opacity: 0.5;
+    stroke-dasharray: 2, 2;
   }
 
   .opening-preview {

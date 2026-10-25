@@ -36,7 +36,7 @@ import { snapDrawingPoint, snapMeasurePoint, snapToWall } from '../canvas/tool-s
 import { memoizeLast } from '../canvas/memo';
 import {
   EntityView, HassDisplayContext, RoomAppearance, TemperatureReading, boundEntityIds, describeEntity, formatTemperature,
-  hassChangeAffects, roomAppearance
+  hassChangeAffects, openingState, roomAppearance
 } from '../canvas/entity-display';
 import { TapGestureRecognizer, planEntityAction, runEntityAction } from '../canvas/entity-actions';
 import { OpeningShape, openingPrimitives } from '../canvas/opening-symbols';
@@ -2010,6 +2010,31 @@ export class HomeArchitectCanvas extends LitElement {
       this.flashHint(`Entité introuvable : ${payload.entityId}`);
       return false;
     }
+
+    // Dépose sur une ouverture existante (porte, fenêtre...) : lie le capteur à l'ouverture
+    const hitOpening = this.project.openings.find(op => {
+      const wall = this.project.walls.find(w => w.id === op.wallId);
+      if (!wall) return false;
+      const dx = wall.end.x - wall.start.x;
+      const dy = wall.end.y - wall.start.y;
+      const l = Math.hypot(dx, dy);
+      if (l === 0) return false;
+      const ox = wall.start.x + (op.offset / l) * dx;
+      const oy = wall.start.y + (op.offset / l) * dy;
+      return Math.hypot(world.x - ox, world.y - oy) <= Math.max(op.width / 2, 0.45);
+    });
+
+    if (hitOpening) {
+      const updatedOpenings = this.project.openings.map(op =>
+        op.id === hitOpening.id ? { ...op, entityId: payload.entityId } : op
+      );
+      this.commitProject({ ...this.project, openings: updatedOpenings });
+      const name = this.hass?.states?.[payload.entityId]?.attributes?.friendly_name || payload.entityId;
+      this.flashHint(`Capteur « ${name} » lié à l'ouvrant`);
+      this.setSelection(selectOnly({ kind: 'opening', id: hitOpening.id }));
+      return true;
+    }
+
     const binding = createBinding(payload.entityId, world, this.project.rooms);
     this.commitProject({ ...this.project, bindings: [...this.project.bindings, binding] });
     return true;
@@ -2956,13 +2981,29 @@ export class HomeArchitectCanvas extends LitElement {
       const y = (wall.start.y + (op.offset / wallLen) * dy) * k;
       const angleDeg = (Math.atan2(dy, dx) * 180) / Math.PI;
 
+      const state = op.entityId ? openingState(op.entityId, this.hass) : null;
+      const isOpen = state ? state.open : undefined;
+      const statusClass = state
+        ? (state.status === 'unavailable' || state.status === 'missing'
+            ? 'state-unavailable'
+            : (state.open ? 'state-open' : 'state-closed'))
+        : '';
+      const hasEntityClass = op.entityId ? 'has-entity' : '';
+
       return svg`
         <g
-          class="opening-element ${selected.has(op.id) ? 'selected' : ''}"
+          class="opening-element ${selected.has(op.id) ? 'selected' : ''} ${hasEntityClass} ${statusClass}"
           transform="translate(${x}, ${y}) rotate(${angleDeg})"
-          @pointerdown=${(e: PointerEvent) => this.handleElementPointerDown({ kind: 'opening', id: op.id }, e)}
+          @pointerdown=${(e: PointerEvent) => {
+            if (this.isDashboardMode && op.entityId) {
+              e.stopPropagation();
+              this.openMoreInfo(op.entityId);
+              return;
+            }
+            this.handleElementPointerDown({ kind: 'opening', id: op.id }, e);
+          }}
         >
-          ${this.renderOpeningSymbol(op, wall.thickness, k, true)}
+          ${this.renderOpeningSymbol(op, wall.thickness, k, true, isOpen)}
         </g>
       `;
     });
@@ -2972,8 +3013,8 @@ export class HomeArchitectCanvas extends LitElement {
    * Symbole d'une ouverture projeté à `k` px/m (traits en pixels). La découpe, de la couleur du fond,
    * déborde d'un pixel pour masquer le contour du mur.
    */
-  private renderOpeningSymbol(op: OpeningShape, thickness: number, k: number, withCutout: boolean) {
-    return openingPrimitives(op, thickness, 1 / k)
+  private renderOpeningSymbol(op: OpeningShape, thickness: number, k: number, withCutout: boolean, isOpen?: boolean) {
+    return openingPrimitives(op, thickness, 1 / k, isOpen)
       .filter(prim => withCutout || prim.role !== 'cutout')
       .map(prim => {
         switch (prim.kind) {

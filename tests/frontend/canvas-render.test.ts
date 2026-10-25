@@ -409,6 +409,21 @@ describe('openingPrimitives', () => {
     expect(fl && fl.kind === 'line' && fl.y2).toBe(-0.9);
   });
 
+  it('porte et double porte fermées (isOpen === false) : vantaux rabattus dans le mur, sans arc de débattement', () => {
+    const closedDoor = openingPrimitives({ type: 'door', width: 0.9, flipSide: false, flipDirection: false }, 0.2, 0, false);
+    expect(closedDoor.some(p => p.kind === 'arc')).toBe(false);
+    const closedLeaf = closedDoor.find(p => p.role === 'leaf');
+    expect(closedLeaf && closedLeaf.kind === 'line' && closedLeaf.y1 === 0 && closedLeaf.y2 === 0).toBe(true);
+
+    const closedDouble = openingPrimitives({ type: 'double_door', width: 1.6, flipSide: false, flipDirection: false }, 0.2, 0, false);
+    expect(closedDouble.some(p => p.kind === 'arc')).toBe(false);
+    const leaves = closedDouble.filter(p => p.role === 'leaf');
+    expect(leaves).toHaveLength(2);
+    for (const l of leaves) {
+      expect(l.kind === 'line' && l.y1 === 0 && l.y2 === 0).toBe(true);
+    }
+  });
+
   it('double porte : deux vantaux d’une demi-largeur', () => {
     const arcs = openingPrimitives({ type: 'double_door', width: 1.6, flipSide: false, flipDirection: false }, 0.2, 0)
       .filter(p => p.kind === 'arc');

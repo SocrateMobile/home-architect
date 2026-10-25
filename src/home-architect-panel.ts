@@ -4,6 +4,7 @@ import './components/canvas-view';
 import './components/toolbar';
 import './components/wizard-modal';
 import './components/room-modal';
+import './components/opening-modal';
 import './components/calibrate-modal';
 import './components/entity-drawer';
 import './components/import-modal';
@@ -32,7 +33,7 @@ import { isAdmin, installUpdate } from './core/ha-api';
 import { dataUrlToBlob } from './core/image-utils';
 import { findFurnitureTemplate, furnitureDisplayName } from './core/furniture-catalog';
 import {
-  ActiveTool, BackgroundPlan, EntityBinding, ExportFrame, FloorTexture, FurnitureMaterial, GridConfig, HomeArchitectProject, Point, PublishInfo, Room, SelectedElements,
+  ActiveTool, BackgroundPlan, EntityBinding, ExportFrame, FloorTexture, FurnitureMaterial, GridConfig, HomeArchitectProject, Opening, Point, PublishInfo, Room, SelectedElements,
   Wall, WallTexture
 } from './core/types';
 import { FLOOR_MATERIAL_CATALOG, FURNITURE_MATERIAL_CATALOG, WALL_MATERIAL_CATALOG, materialLabel } from './core/materials';
@@ -299,6 +300,9 @@ export class HomeArchitectPanel extends LitElement {
 
   @state()
   private selectedRoomForEdit: Room | null = null;
+
+  @state()
+  private selectedOpeningForEdit: Opening | null = null;
 
   @state()
   private selectedElements: SelectedElements = {
@@ -1484,6 +1488,21 @@ export class HomeArchitectPanel extends LitElement {
     }
   }
 
+  private handleBindOpeningEntity(e: CustomEvent<{ openingId: string; entityId?: string }>): void {
+    const { openingId, entityId } = e.detail;
+    const newOpenings = this.project.openings.map(op => {
+      if (op.id !== openingId) return op;
+      const next = { ...op };
+      if (entityId) next.entityId = entityId;
+      else delete next.entityId;
+      return next;
+    });
+    this.commitProject({ ...this.project, openings: newOpenings });
+    this.selectedOpeningForEdit = null;
+    const name = entityId && this.hass?.states?.[entityId]?.attributes?.friendly_name || entityId;
+    this.showToast(entityId ? `Capteur « ${name} » lié à l'ouvrant` : "Capteur délié de l'ouvrant");
+  }
+
   private handleUndo() {
     if (!this.persistence.undo()) return;
     this.clearSelection();
@@ -2368,6 +2387,9 @@ export class HomeArchitectPanel extends LitElement {
       const op = this.project.openings.find(o => o.id === id);
       return op && (op.type === 'window' || op.type === 'french_window');
     });
+    const selectedOpening = selection.openingIds.length === 1
+      ? this.project.openings.find(o => o.id === selection.openingIds[0])
+      : undefined;
     const option = (active: boolean, label: string, title: string, run: () => void) => html`
       <button class="hud-opt-btn ${active ? 'active' : ''}" aria-pressed=${active ? 'true' : 'false'} title=${title} @click=${run}>${label}</button>
     `;
@@ -2496,6 +2518,42 @@ export class HomeArchitectPanel extends LitElement {
               ${[0.80, 1.00, 1.20, 1.40, 1.80, 2.00, 2.40].map(w =>
                 option(this.currentOpeningWidth === w, formatLength(w), localize('panel.hud.opening_width_title'), () => this.updateSelectedOpeningsWidth(w))
               )}
+            </div>
+          ` : nothing}
+
+          ${selectedOpening ? html`
+            <div class="hud-options-group" role="group" aria-labelledby="hud-sensor-label">
+              <span class="hud-label" id="hud-sensor-label">${localize('panel.hud.sensor')}</span>
+              ${selectedOpening.entityId ? html`
+                <button
+                  type="button"
+                  class="hud-opt-btn active"
+                  style="max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px;"
+                  title="${selectedOpening.entityId}"
+                  @click=${() => { this.selectedOpeningForEdit = selectedOpening; }}
+                >
+                  <span>🚪 ${this.hass?.states?.[selectedOpening.entityId]?.attributes?.friendly_name || selectedOpening.entityId}</span>
+                </button>
+                <button
+                  type="button"
+                  class="hud-opt-btn"
+                  style="padding: 2px 6px;"
+                  title=${localize('panel.hud.unbind_sensor')}
+                  @click=${() => this.handleBindOpeningEntity(new CustomEvent('bind-entity', { detail: { openingId: selectedOpening.id, entityId: undefined } }))}
+                >
+                  <span aria-hidden="true">✕</span>
+                </button>
+              ` : html`
+                <button
+                  type="button"
+                  class="hud-opt-btn"
+                  style="padding: 2px 8px; font-size: 11px;"
+                  title=${localize('panel.hud.bind_sensor_title')}
+                  @click=${() => { this.selectedOpeningForEdit = selectedOpening; }}
+                >
+                  <span>${localize('panel.hud.bind_sensor')}</span>
+                </button>
+              `}
             </div>
           ` : nothing}
 
@@ -3094,6 +3152,16 @@ export class HomeArchitectPanel extends LitElement {
             @delete-room=${this.handleDeleteRoom}
             @close=${() => { this.selectedRoomForEdit = null; }}
           ></home-architect-room-modal>
+        ` : nothing}
+
+        ${this.selectedOpeningForEdit ? html`
+          <home-architect-opening-modal
+            data-modal
+            .opening=${this.selectedOpeningForEdit}
+            .hass=${this.hass}
+            @bind-entity=${this.handleBindOpeningEntity}
+            @close=${() => { this.selectedOpeningForEdit = null; }}
+          ></home-architect-opening-modal>
         ` : nothing}
 
         ${this.isCalibrateModalOpen && this.calibrationData ? html`
