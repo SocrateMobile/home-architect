@@ -591,6 +591,7 @@ export class HomeArchitectCard extends LitElement {
       for (const binding of project?.bindings ?? []) ids.add(binding.entityId);
       for (const opening of project?.openings ?? []) {
         if (opening.entityId) ids.add(opening.entityId);
+        if (opening.coverEntityId) ids.add(opening.coverEntityId);
       }
       this._entityIdsCache = [...ids];
     }

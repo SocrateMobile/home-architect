@@ -321,6 +321,8 @@ function normalizeOpenings(list: unknown, walls: Wall[]): Opening[] {
     if (o.sashCount === 1 || o.sashCount === 2) opening.sashCount = o.sashCount;
     const entityId = optionalString(o.entityId);
     if (entityId && ENTITY_ID_PATTERN.test(entityId)) opening.entityId = entityId;
+    const coverEntityId = optionalString(o.coverEntityId);
+    if (coverEntityId && ENTITY_ID_PATTERN.test(coverEntityId)) opening.coverEntityId = coverEntityId;
     openings.push(opening);
   }
   return openings;

@@ -1,13 +1,14 @@
-import { LitElement, html, css, PropertyValues } from 'lit';
+import { LitElement, html, css, PropertyValues, nothing } from 'lit';
 import { property, state } from 'lit/decorators.js';
 import { Opening } from '../core/types';
 import { entityDomain } from '../core/project-model';
 import { defineElement } from '../core/define';
-import { getEventTarget } from '../core/keyboard';
 import { LocalizeController, localize } from '../i18n';
 import '../i18n/locales/panel';
 import { uiThemeStyles } from '../styles/theme.styles';
 import { DialogFocusController, geometryModalStyles } from './room-modal';
+
+export type OpeningSlot = 'opening' | 'cover';
 
 interface EntityCandidate {
   entityId: string;
@@ -23,9 +24,9 @@ export class HomeArchitectOpeningModal extends LitElement {
     geometryModalStyles,
     css`
       .modal-card {
-        width: 520px;
+        width: 540px;
         max-width: calc(100vw - 32px);
-        max-height: 80vh;
+        max-height: 85vh;
         display: flex;
         flex-direction: column;
       }
@@ -34,6 +35,53 @@ export class HomeArchitectOpeningModal extends LitElement {
         overflow-y: auto;
         padding: 16px 20px;
         flex: 1;
+      }
+
+      .slot-nav {
+        display: flex;
+        gap: 6px;
+        margin-bottom: 16px;
+        background: var(--arch-ui-surface-2, rgba(255, 255, 255, 0.04));
+        padding: 4px;
+        border-radius: 8px;
+        border: 1px solid var(--arch-ui-border, rgba(255, 255, 255, 0.08));
+      }
+
+      .slot-btn {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        padding: 8px 12px;
+        border-radius: 6px;
+        border: none;
+        background: transparent;
+        color: var(--arch-ui-muted, #94a3b8);
+        font-size: 13px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.15s;
+      }
+
+      .slot-btn:hover {
+        color: var(--arch-ui-text, #f8fafc);
+        background: rgba(255, 255, 255, 0.04);
+      }
+
+      .slot-btn.active {
+        background: var(--arch-ui-surface-1, #1e293b);
+        color: var(--arch-ui-accent, #38bdf8);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+      }
+
+      .slot-badge-check {
+        font-size: 10px;
+        padding: 2px 6px;
+        border-radius: 8px;
+        background: rgba(16, 185, 129, 0.2);
+        color: #10b981;
+        font-weight: 600;
       }
 
       .current-binding {
@@ -45,6 +93,13 @@ export class HomeArchitectOpeningModal extends LitElement {
         border: 1px solid var(--arch-ui-border, rgba(255, 255, 255, 0.1));
         border-radius: 8px;
         margin-bottom: 16px;
+      }
+
+      .current-binding.empty {
+        opacity: 0.8;
+        border-style: dashed;
+        color: var(--arch-ui-muted, #94a3b8);
+        font-size: 12px;
       }
 
       .current-binding-info {
@@ -149,7 +204,7 @@ export class HomeArchitectOpeningModal extends LitElement {
         display: flex;
         flex-direction: column;
         gap: 4px;
-        max-height: 280px;
+        max-height: 260px;
         overflow-y: auto;
       }
 
@@ -239,6 +294,9 @@ export class HomeArchitectOpeningModal extends LitElement {
   @property({ attribute: false })
   public opening?: Opening | null;
 
+  @property({ type: String })
+  public activeSlot: OpeningSlot = 'opening';
+
   @state()
   private searchQuery = '';
 
@@ -260,22 +318,33 @@ export class HomeArchitectOpeningModal extends LitElement {
 
   private selectEntity(entityId: string): void {
     if (!this.opening) return;
+    const role = this.activeSlot;
+    if (role === 'cover') {
+      this.opening = { ...this.opening, coverEntityId: entityId };
+    } else {
+      this.opening = { ...this.opening, entityId };
+    }
     this.dispatchEvent(new CustomEvent('bind-entity', {
-      detail: { openingId: this.opening.id, entityId },
+      detail: { openingId: this.opening.id, role, entityId },
       bubbles: true,
       composed: true
     }));
-    this.close();
   }
 
-  private unbind(): void {
+  private unbind(role: OpeningSlot): void {
     if (!this.opening) return;
+    const next = { ...this.opening };
+    if (role === 'cover') {
+      delete next.coverEntityId;
+    } else {
+      delete next.entityId;
+    }
+    this.opening = next;
     this.dispatchEvent(new CustomEvent('bind-entity', {
-      detail: { openingId: this.opening.id, entityId: undefined },
+      detail: { openingId: this.opening.id, role, entityId: undefined },
       bubbles: true,
       composed: true
     }));
-    this.close();
   }
 
   private getCandidates(): EntityCandidate[] {
@@ -284,13 +353,16 @@ export class HomeArchitectOpeningModal extends LitElement {
 
     const query = this.searchQuery.trim().toLowerCase();
     const candidates: EntityCandidate[] = [];
+    const isCoverSlot = this.activeSlot === 'cover';
 
     for (const entityId of Object.keys(states)) {
       const stateObj = states[entityId];
       if (!stateObj) continue;
 
       const domain = entityDomain(entityId);
-      const isRecommended = domain === 'binary_sensor' || domain === 'cover' || domain === 'lock';
+      const isRecommended = isCoverSlot
+        ? domain === 'cover'
+        : (domain === 'binary_sensor' || domain === 'lock');
 
       if (this.activeTab === 'recommended' && !isRecommended) continue;
 
@@ -333,9 +405,13 @@ export class HomeArchitectOpeningModal extends LitElement {
   render() {
     if (!this.opening) return null;
     const candidates = this.getCandidates();
-    const currentEntityId = this.opening.entityId;
+    const isCoverSlot = this.activeSlot === 'cover';
+    const currentEntityId = isCoverSlot ? this.opening.coverEntityId : this.opening.entityId;
     const currentState = currentEntityId ? this.hass?.states?.[currentEntityId] : undefined;
     const currentName = currentState?.attributes?.friendly_name || currentEntityId;
+
+    const contactBound = !!this.opening.entityId;
+    const coverBound = !!this.opening.coverEntityId;
 
     return html`
       <div class="modal-backdrop" @click=${(e: MouseEvent) => { if (e.target === e.currentTarget) this.close(); }}>
@@ -360,18 +436,49 @@ export class HomeArchitectOpeningModal extends LitElement {
           </div>
 
           <div class="modal-body">
+            <!-- Sélecteur de rôle : Capteur d'ouvrant vs Volet roulant -->
+            <div class="slot-nav" role="tablist">
+              <button
+                type="button"
+                role="tab"
+                class="slot-btn ${!isCoverSlot ? 'active' : ''}"
+                aria-selected=${String(!isCoverSlot)}
+                @click=${() => { this.activeSlot = 'opening'; this.searchQuery = ''; }}
+              >
+                <span>${localize('panel.opening_modal.slot_opening')}</span>
+                ${contactBound ? html`<span class="slot-badge-check">✓ lié</span>` : nothing}
+              </button>
+              <button
+                type="button"
+                role="tab"
+                class="slot-btn ${isCoverSlot ? 'active' : ''}"
+                aria-selected=${String(isCoverSlot)}
+                @click=${() => { this.activeSlot = 'cover'; this.searchQuery = ''; }}
+              >
+                <span>${localize('panel.opening_modal.slot_cover')}</span>
+                ${coverBound ? html`<span class="slot-badge-check">✓ lié</span>` : nothing}
+              </button>
+            </div>
+
+            <!-- Entité actuellement liée pour ce slot -->
             ${currentEntityId ? html`
               <div class="current-binding">
                 <div class="current-binding-info">
-                  <span class="current-binding-label">${localize('panel.hud.sensor')}</span>
+                  <span class="current-binding-label">
+                    ${isCoverSlot ? localize('panel.hud.sensor_cover') : localize('panel.hud.sensor_contact')}
+                  </span>
                   <span class="current-binding-name">${currentName}</span>
                   <span class="current-binding-id">${currentEntityId}</span>
                 </div>
-                <button type="button" class="btn-unlink" @click=${this.unbind}>
-                  ${localize('panel.opening_modal.unbind')}
+                <button type="button" class="btn-unlink" @click=${() => this.unbind(this.activeSlot)}>
+                  ${isCoverSlot ? localize('panel.opening_modal.unbind_cover') : localize('panel.opening_modal.unbind_contact')}
                 </button>
               </div>
-            ` : null}
+            ` : html`
+              <div class="current-binding empty">
+                <span>${isCoverSlot ? localize('panel.opening_modal.none_cover') : localize('panel.opening_modal.none_contact')}</span>
+              </div>
+            `}
 
             <div class="search-box">
               <span class="search-icon" aria-hidden="true">🔍</span>
@@ -392,7 +499,7 @@ export class HomeArchitectOpeningModal extends LitElement {
                 aria-selected=${String(this.activeTab === 'recommended')}
                 @click=${() => this.activeTab = 'recommended'}
               >
-                ${localize('panel.opening_modal.tab_openings')}
+                ${isCoverSlot ? localize('panel.opening_modal.tab_covers') : localize('panel.opening_modal.tab_openings')}
               </button>
               <button
                 type="button"
@@ -408,7 +515,7 @@ export class HomeArchitectOpeningModal extends LitElement {
             <div class="entity-list" role="listbox">
               ${candidates.length === 0 ? html`
                 <div class="no-results">${localize('panel.opening_modal.no_results')}</div>
-              ` : candidates.slice(0, 50).map(c => html`
+              ` : candidates.slice(0, 60).map(c => html`
                 <button
                   type="button"
                   class="entity-row ${c.entityId === currentEntityId ? 'selected' : ''}"

@@ -1445,8 +1445,9 @@ export class HomeArchitect3DView extends LitElement {
     if (this.dashboard) {
       // Carte : une ouverture liée ouvre la fiche de son capteur (jamais d'action sur l'appareil).
       const opening = ref?.kind === 'opening' ? this.project.openings.find(o => o.id === ref.id) : undefined;
-      if (opening?.entityId) {
-        runEntityAction({ entityId: opening.entityId, tapAction: 'more-info' }, 'tap', this.actionContext());
+      const targetEntity = opening?.coverEntityId || opening?.entityId;
+      if (targetEntity) {
+        runEntityAction({ entityId: targetEntity, tapAction: 'more-info' }, 'tap', this.actionContext());
       }
       return;
     }

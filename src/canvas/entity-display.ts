@@ -559,10 +559,18 @@ export function describeEntity(binding: EntityBinding, hass: HassDisplayContext 
 // Nouveau rendu seulement si une entité affichée change (constat F34)
 // ------------------------------------------------------------------
 
-/** Entités affichées par le plan : épingles, cibles radar associées, et capteurs liés aux ouvertures. */
-export function boundEntityIds(bindings: readonly EntityBinding[], openings: readonly Pick<Opening, 'entityId'>[] = []): string[] {
+/** Entités affichées par le plan : épingles, cibles radar associées, et capteurs/volets liés aux ouvertures. */
+export function boundEntityIds(
+  bindings: readonly EntityBinding[],
+  openings: readonly Pick<Opening, 'entityId' | 'coverEntityId'>[] = []
+): string[] {
   const radarIds = bindings.flatMap(b => collectRadarEntityIds(b.radarConfig));
-  const ids = [...bindings.map(b => b.entityId), ...radarIds, ...openings.map(o => o.entityId)];
+  const ids = [
+    ...bindings.map(b => b.entityId),
+    ...radarIds,
+    ...openings.map(o => o.entityId),
+    ...openings.map(o => o.coverEntityId)
+  ];
   return [...new Set(ids.filter((id): id is string => typeof id === 'string'))];
 }
 
@@ -594,24 +602,122 @@ export function hassChangeAffects(
   return entityIds.some(id => before[id] !== after[id]);
 }
 
-/** État d'une ouverture liée à une entité (capteur d'ouverture, volet, serrure). */
+/** État d'un volet roulant ou store lié à une ouverture. */
+export interface OpeningCoverState {
+  /** True : le volet est ouvert (ou entrebâillé). */
+  open: boolean;
+  /** True : le volet est entièrement fermé (position 0 ou état 'closed'). */
+  closed: boolean;
+  /** Position numérique (0 = fermé, 100 = ouvert) si disponible. */
+  position: number | null;
+  /** État brut ('open', 'closed', 'opening', 'closing'...). */
+  state: string;
+  status: 'ok' | 'missing' | 'unavailable';
+}
+
+/** État d'une ouverture liée à une entité (capteur d'ouverture et/ou volet). */
 export interface OpeningState {
   /** True : vantail ouvert à 90° (porte, fenêtre) ou panneaux coulissés (baie). */
   open: boolean;
   /** 'unbound' : aucune entité liée ; 'missing' : entité absente ; 'unavailable' : état inconnu. */
   status: 'ok' | 'unbound' | 'missing' | 'unavailable';
+  /** État du volet roulant lié si configuré. */
+  cover?: OpeningCoverState;
 }
 
 const OPEN_STATES = new Set(['on', 'open', 'opening', 'closing']);
 
-export function openingState(entityId: string | undefined, hass: HassDisplayContext | undefined): OpeningState {
-  if (!entityId) return { open: false, status: 'unbound' };
-  const st = hass?.states?.[entityId];
+export function openingState(
+  openingOrEntityId: string | Pick<Opening, 'entityId' | 'coverEntityId'> | undefined,
+  hass: HassDisplayContext | undefined
+): OpeningState {
+  if (!openingOrEntityId) return { open: false, status: 'unbound' };
+
+  let entityId: string | undefined;
+  let coverEntityId: string | undefined;
+
+  if (typeof openingOrEntityId === 'string') {
+    entityId = openingOrEntityId;
+  } else {
+    entityId = openingOrEntityId.entityId;
+    coverEntityId = openingOrEntityId.coverEntityId;
+  }
+
+  if (!entityId && !coverEntityId) return { open: false, status: 'unbound' };
   if (!hass?.states) return { open: false, status: 'ok' };
-  if (!st) return { open: false, status: 'missing' };
-  if (st.state === 'unavailable' || st.state === 'unknown') return { open: false, status: 'unavailable' };
-  const position = toFiniteNumber(st.attributes?.current_position);
-  const open = OPEN_STATES.has(st.state) || (entityDomain(entityId) === 'cover' && position !== null && position > 0);
-  return { open, status: 'ok' };
+
+  let contactOpen = false;
+  let contactStatus: 'ok' | 'missing' | 'unavailable' = 'ok';
+
+  if (entityId) {
+    const st = hass.states[entityId];
+    if (!st) {
+      contactStatus = 'missing';
+    } else if (st.state === 'unavailable' || st.state === 'unknown') {
+      contactStatus = 'unavailable';
+    } else {
+      const isCover = entityDomain(entityId) === 'cover';
+      if (isCover && !coverEntityId) {
+        // Rétrocompatibilité : volet configuré seul sur entityId
+        coverEntityId = entityId;
+      } else {
+        contactOpen = OPEN_STATES.has(st.state);
+      }
+    }
+  }
+
+  let coverStateObj: OpeningCoverState | undefined;
+  if (coverEntityId) {
+    const st = hass.states[coverEntityId];
+    if (!st) {
+      coverStateObj = { open: false, closed: false, position: null, state: 'missing', status: 'missing' };
+    } else if (st.state === 'unavailable' || st.state === 'unknown') {
+      coverStateObj = { open: false, closed: false, position: null, state: st.state, status: 'unavailable' };
+    } else {
+      const position = toFiniteNumber(st.attributes?.current_position);
+      const isCoverOpen = position !== null ? position > 0 : OPEN_STATES.has(st.state);
+      const isCoverClosed = position !== null ? position === 0 : (st.state === 'closed' || st.state === 'off');
+      coverStateObj = {
+        open: isCoverOpen,
+        closed: isCoverClosed,
+        position,
+        state: st.state,
+        status: 'ok'
+      };
+    }
+  }
+
+  // Détermination de l'ouverture du battant (open)
+  let open = false;
+  let status: 'ok' | 'missing' | 'unavailable' = 'ok';
+
+  if (entityId && entityDomain(entityId) !== 'cover') {
+    // Si un capteur d'ouverture (contact) est présent, il régit le battant de la fenêtre
+    open = contactOpen;
+    status = contactStatus;
+  } else if (coverStateObj) {
+    // Si seul un volet est lié (ex: cover seul), il régit open pour compatibilité
+    open = coverStateObj.open;
+    status = coverStateObj.status;
+  } else {
+    open = contactOpen;
+    status = contactStatus;
+  }
+
+  if (entityId && coverEntityId) {
+    if (contactStatus === 'unavailable' && coverStateObj?.status === 'unavailable') {
+      status = 'unavailable';
+    } else if (contactStatus === 'missing' && coverStateObj?.status === 'missing') {
+      status = 'missing';
+    } else {
+      status = 'ok';
+    }
+  }
+
+  const result: OpeningState = { open, status };
+  if (coverStateObj) {
+    result.cover = coverStateObj;
+  }
+  return result;
 }
 
