@@ -35,7 +35,7 @@ import {
 import { snapDrawingPoint, snapMeasurePoint, snapToWall } from '../canvas/tool-snap';
 import { memoizeLast } from '../canvas/memo';
 import {
-  EntityView, HassDisplayContext, RoomAppearance, TemperatureReading, boundEntityIds, describeEntity, formatTemperature,
+  EntityView, HassDisplayContext, OpeningCoverState, RoomAppearance, TemperatureReading, boundEntityIds, describeEntity, formatTemperature,
   hassChangeAffects, openingState, roomAppearance
 } from '../canvas/entity-display';
 import { TapGestureRecognizer, planEntityAction, runEntityAction } from '../canvas/entity-actions';
@@ -2600,9 +2600,9 @@ export class HomeArchitectCanvas extends LitElement {
   private readonly watchedEntityIds = memoizeLast((bindings: readonly EntityBinding[], openings: readonly Opening[]) =>
     boundEntityIds(bindings, openings));
 
-  /** Épingles, et en 3D les capteurs liés aux ouvertures et la position solaire sun.sun. */
+  /** Épingles, capteurs et volets liés aux ouvertures, et en 3D la position solaire sun.sun. */
   private watchedEntities(): string[] {
-    const list = this.watchedEntityIds(this.project.bindings, this.is3DMode ? this.project.openings : NO_OPENINGS);
+    const list = this.watchedEntityIds(this.project.bindings, this.project.openings);
     return this.is3DMode ? [...list, 'sun.sun'] : list;
   }
 
@@ -2981,29 +2981,64 @@ export class HomeArchitectCanvas extends LitElement {
       const y = (wall.start.y + (op.offset / wallLen) * dy) * k;
       const angleDeg = (Math.atan2(dy, dx) * 180) / Math.PI;
 
-      const state = op.entityId ? openingState(op.entityId, this.hass) : null;
+      const state = (op.entityId || op.coverEntityId) ? openingState(op, this.hass) : null;
       const isOpen = state ? state.open : undefined;
       const statusClass = state
         ? (state.status === 'unavailable' || state.status === 'missing'
             ? 'state-unavailable'
             : (state.open ? 'state-open' : 'state-closed'))
         : '';
-      const hasEntityClass = op.entityId ? 'has-entity' : '';
+      const coverClass = state?.cover
+        ? (state.cover.status === 'unavailable' || state.cover.status === 'missing'
+            ? 'cover-unavailable'
+            : (state.cover.closed
+                ? 'cover-closed'
+                : (state.cover.open && state.cover.position !== null && state.cover.position < 95
+                    ? 'cover-partial'
+                    : (state.cover.open ? 'cover-open' : 'cover-closed'))))
+        : '';
+      const hasEntityClass = (op.entityId || op.coverEntityId) ? 'has-entity' : '';
+
+      let titleAttr: string | undefined;
+      if (this.isDashboardMode && (op.entityId || op.coverEntityId)) {
+        const parts: string[] = [];
+        if (op.entityId) {
+          const fn = this.hass?.states?.[op.entityId]?.attributes?.friendly_name || op.entityId;
+          parts.push(`${fn} : ${state?.open ? 'Ouvert' : 'Fermé'}`);
+        }
+        if (op.coverEntityId) {
+          const fn = this.hass?.states?.[op.coverEntityId]?.attributes?.friendly_name || op.coverEntityId;
+          const pos = state?.cover?.position !== null && state?.cover?.position !== undefined ? ` (${state.cover.position}%)` : '';
+          const st = state?.cover?.closed ? 'Fermé' : (state?.cover?.open ? 'Ouvert' : state?.cover?.state || '');
+          parts.push(`Volet ${fn} : ${st}${pos}`);
+        }
+        titleAttr = parts.join(' · ');
+      }
 
       return svg`
         <g
-          class="opening-element ${selected.has(op.id) ? 'selected' : ''} ${hasEntityClass} ${statusClass}"
+          class="opening-element ${selected.has(op.id) ? 'selected' : ''} ${hasEntityClass} ${statusClass} ${coverClass}"
           transform="translate(${x}, ${y}) rotate(${angleDeg})"
+          title=${titleAttr ?? nothing}
           @pointerdown=${(e: PointerEvent) => {
-            if (this.isDashboardMode && op.entityId) {
+            if (this.isDashboardMode && (op.entityId || op.coverEntityId)) {
               e.stopPropagation();
-              this.openMoreInfo(op.entityId);
+              const target = (e.target as SVGElement | null);
+              if (target?.classList.contains('opening-shutter') && op.coverEntityId) {
+                this.openMoreInfo(op.coverEntityId);
+              } else if (op.entityId && (target?.classList.contains('opening-leaf') || target?.classList.contains('opening-swing') || !op.coverEntityId)) {
+                this.openMoreInfo(op.entityId);
+              } else if (op.coverEntityId) {
+                this.openMoreInfo(op.coverEntityId);
+              } else if (op.entityId) {
+                this.openMoreInfo(op.entityId);
+              }
               return;
             }
             this.handleElementPointerDown({ kind: 'opening', id: op.id }, e);
           }}
         >
-          ${this.renderOpeningSymbol(op, wall.thickness, k, true, isOpen)}
+          ${this.renderOpeningSymbol(op, wall.thickness, k, true, isOpen, state?.cover)}
         </g>
       `;
     });
@@ -3013,8 +3048,15 @@ export class HomeArchitectCanvas extends LitElement {
    * Symbole d'une ouverture projeté à `k` px/m (traits en pixels). La découpe, de la couleur du fond,
    * déborde d'un pixel pour masquer le contour du mur.
    */
-  private renderOpeningSymbol(op: OpeningShape, thickness: number, k: number, withCutout: boolean, isOpen?: boolean) {
-    return openingPrimitives(op, thickness, 1 / k, isOpen)
+  private renderOpeningSymbol(
+    op: OpeningShape,
+    thickness: number,
+    k: number,
+    withCutout: boolean,
+    isOpen?: boolean,
+    cover?: OpeningCoverState
+  ) {
+    return openingPrimitives(op, thickness, 1 / k, isOpen, cover)
       .filter(prim => withCutout || prim.role !== 'cutout')
       .map(prim => {
         switch (prim.kind) {
@@ -3832,7 +3874,7 @@ export class HomeArchitectCanvas extends LitElement {
         ${guard([project.rooms, k, looks, sel], () => this.renderRooms(looks))}
         ${guard([project.furniture, k, sel, this.canEdit], () => this.renderFurniture())}
         ${is3D ? nothing : guard([project.walls, k, sel, this.showDimensions], () => this.renderWalls2D())}
-        ${is3D ? nothing : guard([project.openings, project.walls, k, sel], () => this.renderOpenings())}
+        ${is3D ? nothing : guard([project.openings, project.walls, k, sel, this.entityRevision], () => this.renderOpenings())}
         ${is3D ? nothing : guard([project.rooms, k, looks], () => this.renderRoomLabels(looks))}
       </g>
     `;

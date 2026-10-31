@@ -1,4 +1,5 @@
 import { Opening } from '../core/types';
+import type { OpeningCoverState } from './entity-display';
 
 /**
  * Symboles des ouvertures en MÈTRES dans le repère local de l'ouverture (origine au centre, axe X le
@@ -9,7 +10,7 @@ import { Opening } from '../core/types';
  */
 
 /** Rôle d'une primitive (classe CSS `opening-<rôle>`). */
-export type OpeningRole = 'cutout' | 'jamb' | 'frame' | 'leaf' | 'swing' | 'glass' | 'sash' | 'mullion' | 'panel';
+export type OpeningRole = 'cutout' | 'jamb' | 'frame' | 'leaf' | 'swing' | 'glass' | 'sash' | 'mullion' | 'panel' | 'shutter' | 'shutter-guide';
 
 export type OpeningPrimitive =
   | { kind: 'rect'; role: OpeningRole; x: number; y: number; w: number; h: number }
@@ -40,7 +41,8 @@ export function openingPrimitives(
   op: OpeningShape,
   thickness: number,
   cutoutOverlap: number,
-  isOpen?: boolean
+  isOpen?: boolean,
+  cover?: OpeningCoverState
 ): OpeningPrimitive[] {
   const w = Math.max(0, op.width);
   const half = w / 2;
@@ -131,6 +133,31 @@ export function openingPrimitives(
       break;
     }
   }
+
+  // Volet roulant ou store lié (côté extérieur : -side * ht)
+  if (cover) {
+    const extY = -side * ht;
+    const guideLen = Math.min(JAMB, w / 6);
+    out.push(
+      { kind: 'line', role: 'shutter-guide', x1: -half, y1: extY - 0.015 * side, x2: -half, y2: extY + 0.015 * side },
+      { kind: 'line', role: 'shutter-guide', x1: half, y1: extY - 0.015 * side, x2: half, y2: extY + 0.015 * side }
+    );
+    if (cover.closed) {
+      // Volet fermé : tablier protecteur continu
+      out.push({ kind: 'line', role: 'shutter', x1: -half, y1: extY, x2: half, y2: extY });
+    } else if (cover.open && (cover.position === null || cover.position >= 95)) {
+      // Volet complètement ouvert : replié aux extrémités
+      const tab = Math.min(0.08, half * 0.35);
+      out.push(
+        { kind: 'line', role: 'shutter', x1: -half, y1: extY, x2: -half + tab, y2: extY },
+        { kind: 'line', role: 'shutter', x1: half - tab, y1: extY, x2: half, y2: extY }
+      );
+    } else {
+      // Volet entrouvert / partiel : tablier représenté
+      out.push({ kind: 'line', role: 'shutter', x1: -half, y1: extY, x2: half, y2: extY });
+    }
+  }
+
   return out;
 }
 

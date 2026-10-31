@@ -431,6 +431,32 @@ describe('openingPrimitives', () => {
     for (const a of arcs) expect(a.kind === 'arc' && a.r).toBe(0.8);
   });
 
+  it('volet roulant lié : tablier fermé continu ou rétracté si ouvert', () => {
+    // Volet fermé : ligne de volet complète
+    const withClosedCover = openingPrimitives(
+      { type: 'window', width: 1.2, flipSide: false, flipDirection: false },
+      0.2, 0, false,
+      { open: false, closed: true, position: 0, state: 'closed', status: 'ok' }
+    );
+    const shutters = withClosedCover.filter(p => p.role === 'shutter');
+    expect(shutters).toHaveLength(1);
+    expect(shutters[0].kind).toBe('line');
+    if (shutters[0].kind === 'line') {
+      expect(shutters[0].x1).toBe(-0.6);
+      expect(shutters[0].x2).toBe(0.6);
+    }
+    expect(withClosedCover.some(p => p.role === 'shutter-guide')).toBe(true);
+
+    // Volet ouvert : tablier rétracté aux extrémités (2 taquets)
+    const withOpenCover = openingPrimitives(
+      { type: 'window', width: 1.2, flipSide: false, flipDirection: false },
+      0.2, 0, false,
+      { open: true, closed: false, position: 100, state: 'open', status: 'ok' }
+    );
+    const openShutters = withOpenCover.filter(p => p.role === 'shutter');
+    expect(openShutters).toHaveLength(2);
+  });
+
   it('fenêtre : sashCount explicite prioritaire sur la largeur (même règle que l’export)', () => {
     expect(windowSashes({ width: 1.4, sashCount: 1 })).toBe(1);
     expect(windowSashes({ width: 1.4 })).toBe(2);

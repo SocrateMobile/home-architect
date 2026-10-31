@@ -40,6 +40,7 @@ export interface Opening {
   flipDirection: boolean; // Invert open swing direction (left/right)
   sashCount?: number; // 1 = simple ouvrant, 2 = double battants
   entityId?: string; // Optional bound sensor (e.g. binary_sensor.door_front)
+  coverEntityId?: string; // Optional bound cover/shutter (e.g. cover.volet_salon)
 }
 
 /** Textures de sol pour les pièces et espaces extérieurs (2D SVG pattern et 3D PBR). */

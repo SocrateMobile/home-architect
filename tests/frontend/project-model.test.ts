@@ -216,6 +216,36 @@ describe('normalizeProject', () => {
     expect(p.openings[1]).toMatchObject({ type: 'door', offset: 2, width: 0.9 });
   });
 
+  it('préserve et valide les liaisons de capteurs d’ouverture et de volets roulants', () => {
+    const p = normalizeProject({
+      walls: [wall('w1')],
+      openings: [
+        {
+          id: 'o1',
+          wallId: 'w1',
+          type: 'window',
+          offset: 1,
+          width: 1.2,
+          entityId: 'binary_sensor.fenetre_salon',
+          coverEntityId: 'cover.volet_salon',
+        },
+        {
+          id: 'o2',
+          wallId: 'w1',
+          type: 'door',
+          offset: 3,
+          width: 0.9,
+          entityId: 'invalide',
+          coverEntityId: 'bad format',
+        }
+      ]
+    });
+    expect(p.openings[0].entityId).toBe('binary_sensor.fenetre_salon');
+    expect(p.openings[0].coverEntityId).toBe('cover.volet_salon');
+    expect(p.openings[1].entityId).toBeUndefined();
+    expect(p.openings[1].coverEntityId).toBeUndefined();
+  });
+
   it('filtre les pièces de moins de 3 points et recalcule une surface manquante', () => {
     const square = [{ x: 0, y: 0 }, { x: 2, y: 0 }, { x: 2, y: 3 }, { x: 0, y: 3 }];
     const p = normalizeProject({

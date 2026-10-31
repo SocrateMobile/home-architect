@@ -90,17 +90,29 @@ Home Architect intègre une gestion complète et dynamique des menuiseries conne
 * **🪟 Fenêtres** : Fenêtre simple ouvrant, fenêtre 2 battants, baie vitrée coulissante, porte-fenêtre.
 * **Inversion en 1 clic** : Sens d'ouverture intérieur/extérieur (Tirant/Poussant) et charnière gauche/droite via la barre d'outils contextuelle (HUD).
 
-### 2. Lier un capteur à un ouvrant
-Vous pouvez associer n'importe quel capteur (`binary_sensor`), volet (`cover`) ou serrure (`lock`) à une porte ou une fenêtre :
-* **Méthode A (Glisser-Déposer direct)** : Faites glisser une entité depuis le tiroir latéral droit et **déposez-la directement sur la porte ou la fenêtre**.
-* **Méthode B (Menu contextuel HUD)** : Cliquez sur un ouvrant, puis dans le bandeau du bas, cliquez sur **`🔗 Lier un capteur`** et choisissez l'entité voulue dans la recherche rapide.
+### 2. Lier un capteur et un volet à un ouvrant (Double affectation spécialisée)
+Vous pouvez affecter **simultanément** un capteur de contact pour le battant et une entité de volet roulant pour la même fenêtre ou porte :
+* **Double affectation spécialisée** :
+  * **🚪 Capteur d'ouvrant** (`binary_sensor`, `lock`) : suit l'ouverture physique du battant (contact magnétique, détecteur d'ouverture).
+  * **🪟 Volet roulant / Store** (`cover`) : suit la position et l'état du volet motorisé.
+* **Menu contextuel HUD** : En sélectionnant une fenêtre ou porte, le bandeau HUD propose désormais deux boutons dédiés : **`Contact : [🔗 Contact]`** et **`Volet : [🔗 Volet]`**.
+* **Dialogue de sélection complet** : Deux onglets spécialisés avec filtrage intelligent selon le domaine et état de liaison en direct.
 
 ### 3. Visualisation dynamique en temps réel
 * **En 2D** :
-  * **Fermé (`off` / `closed`)** : Le battant de la porte se rabat physiquement fermé dans l'encadrement en teinte discrète (vert/neutre), l'arc de débattement s'efface.
-  * **Ouvert (`on` / `open` ou volet déployé)** : Le battant pivote à $90^\circ$ et son arc s'illumine en **ambre d'alerte (`#f59e0b`)**.
-* **En 3D** : Le vantail 3D s'anime et s'ouvre/se ferme physiquement en temps réel selon l'état de votre capteur.
-* **Sur vos Dashboards** : Survoler l'ouvrant affiche le curseur interactif 👆, et cliquer dessus ouvre immédiatement la boîte de dialogue **`more-info`** de Home Assistant (historique d'ouverture, pilotage du volet, état de serrure).
+  * **Battant de la fenêtre/porte** :
+    * **Fermé (`off` / `closed`)** : Le battant se rabat dans l'encadrement, l'arc de débattement s'efface.
+    * **Ouvert (`on` / `open`)** : Le battant pivote à $90^\circ$ et son arc s'illumine en **ambre d'alerte (`#f59e0b`)**.
+  * **Volet roulant (côté extérieur)** :
+    * **Fermé (`closed` / 0%)** : Tablier protecteur plein bleu (`#2563eb`) continu sur la façade extérieure.
+    * **Entrouvert / Position intermédiaire** : Tablier pointillé/hachuré proportionnel (`#3b82f6`).
+    * **Ouvert (`open` / 100%)** : Tablier rétracté dans son coffre aux extrémités.
+  * *Exemple aération d'été* : Une fenêtre ouverte avec volet baissé affiche simultanément le battant ouvert en ambre et la barre de volet protectrice bleue fermée !
+* **En 3D** : Le vantail s'anime et pivote selon le capteur d'ouverture de la fenêtre.
+* **Sur vos Dashboards (Lovelace)** :
+  * Survoler l'ouvrant affiche le statut combiné (ex. *Fenêtre : Ouverte · Volet Salon : Fermé (0%)*).
+  * Cliquer sur le volet extérieur ouvre le dialogue de pilotage du volet (`cover`).
+  * Cliquer sur le battant ouvre l'historique du capteur de contact.
 
 ---
 

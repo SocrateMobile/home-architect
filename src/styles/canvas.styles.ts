@@ -530,6 +530,43 @@ export const canvasStyles = css`
     stroke-dasharray: 2, 2;
   }
 
+  /* Volet roulant / store lié à une ouverture */
+  .opening-element .opening-shutter {
+    stroke: var(--arch-ui-border, #64748b);
+    stroke-width: 3.5;
+    stroke-linecap: round;
+    transition: stroke 0.2s, stroke-width 0.2s;
+  }
+
+  .opening-element.cover-closed .opening-shutter {
+    stroke: #2563eb;
+    stroke-width: 4.5;
+  }
+
+  .opening-element.cover-partial .opening-shutter {
+    stroke: #3b82f6;
+    stroke-width: 3.5;
+    stroke-dasharray: 4, 3;
+  }
+
+  .opening-element.cover-open .opening-shutter {
+    stroke: rgba(148, 163, 184, 0.45);
+    stroke-width: 2.5;
+    stroke-dasharray: 2, 4;
+  }
+
+  .opening-element.cover-unavailable .opening-shutter {
+    stroke: var(--arch-ui-muted, #94a3b8);
+    opacity: 0.4;
+    stroke-dasharray: 2, 2;
+  }
+
+  .opening-element .opening-shutter-guide {
+    stroke: var(--arch-ui-border, #94a3b8);
+    stroke-width: 1.5;
+    opacity: 0.7;
+  }
+
   .opening-preview {
     opacity: 0.85;
     filter: drop-shadow(0 0 6px var(--arch-accent));

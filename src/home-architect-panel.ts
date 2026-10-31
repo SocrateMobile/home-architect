@@ -305,6 +305,9 @@ export class HomeArchitectPanel extends LitElement {
   private selectedOpeningForEdit: Opening | null = null;
 
   @state()
+  private selectedOpeningSlotForEdit: 'opening' | 'cover' = 'opening';
+
+  @state()
   private selectedElements: SelectedElements = {
     wallIds: [],
     openingIds: [],
@@ -1488,19 +1491,36 @@ export class HomeArchitectPanel extends LitElement {
     }
   }
 
-  private handleBindOpeningEntity(e: CustomEvent<{ openingId: string; entityId?: string }>): void {
-    const { openingId, entityId } = e.detail;
+  private openOpeningModal(opening: Opening, slot: 'opening' | 'cover' = 'opening'): void {
+    this.selectedOpeningSlotForEdit = slot;
+    this.selectedOpeningForEdit = opening;
+  }
+
+  private handleBindOpeningEntity(e: CustomEvent<{ openingId: string; role?: 'opening' | 'cover'; entityId?: string }>): void {
+    const { openingId, role = 'opening', entityId } = e.detail;
+    let targetName: string | undefined;
     const newOpenings = this.project.openings.map(op => {
       if (op.id !== openingId) return op;
       const next = { ...op };
-      if (entityId) next.entityId = entityId;
-      else delete next.entityId;
+      if (role === 'cover') {
+        if (entityId) next.coverEntityId = entityId;
+        else delete next.coverEntityId;
+        targetName = entityId && (this.hass?.states?.[entityId]?.attributes?.friendly_name || entityId);
+      } else {
+        if (entityId) next.entityId = entityId;
+        else delete next.entityId;
+        targetName = entityId && (this.hass?.states?.[entityId]?.attributes?.friendly_name || entityId);
+      }
+      if (this.selectedOpeningForEdit?.id === openingId) {
+        this.selectedOpeningForEdit = next;
+      }
       return next;
     });
     this.commitProject({ ...this.project, openings: newOpenings });
-    this.selectedOpeningForEdit = null;
-    const name = entityId && this.hass?.states?.[entityId]?.attributes?.friendly_name || entityId;
-    this.showToast(entityId ? `Capteur « ${name} » lié à l'ouvrant` : "Capteur délié de l'ouvrant");
+    const toastMsg = role === 'cover'
+      ? (entityId ? `Volet « ${targetName} » lié à l'ouvrant` : "Volet délié de l'ouvrant")
+      : (entityId ? `Capteur « ${targetName} » lié à l'ouvrant` : "Capteur délié de l'ouvrant");
+    this.showToast(toastMsg);
   }
 
   private handleUndo() {
@@ -2522,15 +2542,15 @@ export class HomeArchitectPanel extends LitElement {
           ` : nothing}
 
           ${selectedOpening ? html`
-            <div class="hud-options-group" role="group" aria-labelledby="hud-sensor-label">
-              <span class="hud-label" id="hud-sensor-label">${localize('panel.hud.sensor')}</span>
+            <div class="hud-options-group" role="group" aria-labelledby="hud-contact-label">
+              <span class="hud-label" id="hud-contact-label">${localize('panel.hud.sensor_contact')}</span>
               ${selectedOpening.entityId ? html`
                 <button
                   type="button"
                   class="hud-opt-btn active"
-                  style="max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px;"
+                  style="max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px;"
                   title="${selectedOpening.entityId}"
-                  @click=${() => { this.selectedOpeningForEdit = selectedOpening; }}
+                  @click=${() => this.openOpeningModal(selectedOpening, 'opening')}
                 >
                   <span>🚪 ${this.hass?.states?.[selectedOpening.entityId]?.attributes?.friendly_name || selectedOpening.entityId}</span>
                 </button>
@@ -2539,7 +2559,7 @@ export class HomeArchitectPanel extends LitElement {
                   class="hud-opt-btn"
                   style="padding: 2px 6px;"
                   title=${localize('panel.hud.unbind_sensor')}
-                  @click=${() => this.handleBindOpeningEntity(new CustomEvent('bind-entity', { detail: { openingId: selectedOpening.id, entityId: undefined } }))}
+                  @click=${() => this.handleBindOpeningEntity(new CustomEvent('bind-entity', { detail: { openingId: selectedOpening.id, role: 'opening', entityId: undefined } }))}
                 >
                   <span aria-hidden="true">✕</span>
                 </button>
@@ -2548,10 +2568,44 @@ export class HomeArchitectPanel extends LitElement {
                   type="button"
                   class="hud-opt-btn"
                   style="padding: 2px 8px; font-size: 11px;"
-                  title=${localize('panel.hud.bind_sensor_title')}
-                  @click=${() => { this.selectedOpeningForEdit = selectedOpening; }}
+                  title=${localize('panel.hud.bind_opening_sensor_title')}
+                  @click=${() => this.openOpeningModal(selectedOpening, 'opening')}
                 >
-                  <span>${localize('panel.hud.bind_sensor')}</span>
+                  <span>${localize('panel.hud.bind_opening_sensor')}</span>
+                </button>
+              `}
+            </div>
+
+            <div class="hud-options-group" role="group" aria-labelledby="hud-cover-label">
+              <span class="hud-label" id="hud-cover-label">${localize('panel.hud.sensor_cover')}</span>
+              ${selectedOpening.coverEntityId ? html`
+                <button
+                  type="button"
+                  class="hud-opt-btn active"
+                  style="max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px;"
+                  title="${selectedOpening.coverEntityId}"
+                  @click=${() => this.openOpeningModal(selectedOpening, 'cover')}
+                >
+                  <span>🪟 ${this.hass?.states?.[selectedOpening.coverEntityId]?.attributes?.friendly_name || selectedOpening.coverEntityId}</span>
+                </button>
+                <button
+                  type="button"
+                  class="hud-opt-btn"
+                  style="padding: 2px 6px;"
+                  title=${localize('panel.hud.unbind_cover')}
+                  @click=${() => this.handleBindOpeningEntity(new CustomEvent('bind-entity', { detail: { openingId: selectedOpening.id, role: 'cover', entityId: undefined } }))}
+                >
+                  <span aria-hidden="true">✕</span>
+                </button>
+              ` : html`
+                <button
+                  type="button"
+                  class="hud-opt-btn"
+                  style="padding: 2px 8px; font-size: 11px;"
+                  title=${localize('panel.hud.bind_cover_sensor_title')}
+                  @click=${() => this.openOpeningModal(selectedOpening, 'cover')}
+                >
+                  <span>${localize('panel.hud.bind_cover_sensor')}</span>
                 </button>
               `}
             </div>
@@ -3158,6 +3212,7 @@ export class HomeArchitectPanel extends LitElement {
           <home-architect-opening-modal
             data-modal
             .opening=${this.selectedOpeningForEdit}
+            .activeSlot=${this.selectedOpeningSlotForEdit}
             .hass=${this.hass}
             @bind-entity=${this.handleBindOpeningEntity}
             @close=${() => { this.selectedOpeningForEdit = null; }}

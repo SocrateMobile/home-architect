@@ -448,11 +448,37 @@ describe('view3d / état des entités', () => {
     expect(openingState('lock.porte', h).open).toBe(true);
     expect(openingState('binary_sensor.hs', h)).toEqual({ open: false, status: 'unavailable' });
     expect(openingState('binary_sensor.absent', h)).toEqual({ open: false, status: 'missing' });
+
+    // Double capteur (SebCaps) : fenêtre elle-même + volet lié
+    const dualOpenFermeeVoletFerme = openingState({ entityId: 'binary_sensor.fenetre', coverEntityId: 'cover.volet_ferme' }, hassWith({
+      'binary_sensor.fenetre': st('binary_sensor.fenetre', 'off'),
+      'cover.volet_ferme': st('cover.volet_ferme', 'closed', { current_position: 0 }),
+    }));
+    expect(dualOpenFermeeVoletFerme.open).toBe(false); // battant fermé
+    expect(dualOpenFermeeVoletFerme.cover?.closed).toBe(true);
+    expect(dualOpenFermeeVoletFerme.cover?.open).toBe(false);
+
+    // Fenêtre ouverte + Volet fermé (aération d'été)
+    const dualAere = openingState({ entityId: 'binary_sensor.porte', coverEntityId: 'cover.volet_ferme' }, hassWith({
+      'binary_sensor.porte': st('binary_sensor.porte', 'on'),
+      'cover.volet_ferme': st('cover.volet_ferme', 'closed', { current_position: 0 }),
+    }));
+    expect(dualAere.open).toBe(true); // battant ouvert !
+    expect(dualAere.cover?.closed).toBe(true); // volet fermé !
+
+    // Fenêtre fermée + Volet ouvert
+    const dualOuvert = openingState({ entityId: 'binary_sensor.fenetre', coverEntityId: 'cover.volet' }, hassWith({
+      'binary_sensor.fenetre': st('binary_sensor.fenetre', 'off'),
+      'cover.volet': st('cover.volet', 'open', { current_position: 100 }),
+    }));
+    expect(dualOuvert.open).toBe(false); // battant fermé !
+    expect(dualOuvert.cover?.open).toBe(true); // volet ouvert !
+    expect(dualOuvert.cover?.closed).toBe(false);
   });
 
   it('entités surveillées : épingles et capteurs des ouvertures', () => {
-    expect(boundEntityIds(bindings.slice(0, 1), [{ entityId: 'binary_sensor.porte' }, {}, { entityId: 'light.rouge' }]))
-      .toEqual(['light.rouge', 'binary_sensor.porte']);
+    expect(boundEntityIds(bindings.slice(0, 1), [{ entityId: 'binary_sensor.porte' }, { coverEntityId: 'cover.volet_salon' }, { entityId: 'light.rouge' }]))
+      .toEqual(['light.rouge', 'binary_sensor.porte', 'cover.volet_salon']);
   });
 
   it('calcul de l’éclairage solaire en temps réel selon sun.sun (azimut, élévation, teintes et ombres)', () => {

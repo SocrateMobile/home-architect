@@ -4,7 +4,7 @@ import { computeWallPolygons } from '../core/svg-exporter';
 import { entityDomain } from '../core/project-model';
 import { computeWallHeights } from '../canvas/scene-3d';
 import { openingVerticalRange, windowSashes } from '../canvas/opening-symbols';
-import { HassDisplayContext, HassEntityState, OpeningState, TemperatureReading, openingState, roomAppearance, toFiniteNumber } from '../canvas/entity-display';
+import { HassDisplayContext, HassEntityState, OpeningCoverState, OpeningState, TemperatureReading, openingState, roomAppearance, toFiniteNumber } from '../canvas/entity-display';
 import { Rgba, kelvinToRgb, mixRgb, parseCssColor, rgba, scaleRgb } from './colors';
 import { FurnitureRole, furnitureShape } from './furniture3d';
 import { FloorTextureType, detectFloorTexture } from './textures';
@@ -92,6 +92,7 @@ export interface OpeningModel {
   wallId: string;
   type: OpeningType;
   entityId?: string;
+  coverEntityId?: string;
   /** Hauteurs (m) de la baie dans le mur (bornées à la hauteur affichée). */
   bottom: number;
   top: number;
@@ -389,6 +390,7 @@ function buildOpening(op: Opening, wall: Wall, fullHeight: number, shownHeight: 
 
   const model: OpeningModel = { openingId: op.id, wallId: wall.id, type: op.type, bottom: z0, top, frame, leaves };
   if (op.entityId) model.entityId = op.entityId;
+  if (op.coverEntityId) model.coverEntityId = op.coverEntityId;
   return model;
 }
 
@@ -784,7 +786,7 @@ export function floorLooks(project: HomeArchitectProject, hass: HassDisplayConte
   return looks;
 }
 
-export type { OpeningState };
+export type { OpeningState, OpeningCoverState };
 export { openingState };
 
 /** Teinte effective d'un sol : couleur de la pièce (sinon sol par défaut) teintée par la lumière ou la heatmap. */
