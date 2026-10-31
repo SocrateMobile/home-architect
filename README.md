@@ -8,7 +8,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-3.1.0-blue.svg?style=flat-square" alt="Version 3.1.0" />
+  <img src="https://img.shields.io/badge/version-3.2.0-blue.svg?style=flat-square" alt="Version 3.2.0" />
   <img src="https://img.shields.io/badge/HACS-Custom_Integration-orange.svg?style=flat-square" alt="HACS" />
   <img src="https://img.shields.io/badge/Home_Assistant-2024.1+-blueviolet.svg?style=flat-square" alt="Home Assistant" />
   <img src="https://img.shields.io/badge/license-MIT-green.svg?style=flat-square" alt="License" />
@@ -21,7 +21,7 @@
 
 1. [📦 Installation & Démarrage](#-installation--démarrage-rapide)
 2. [📐 Dessin & Conception 2D (CAO)](#-dessin--conception-2d-cao)
-3. [🚪 Portes, Fenêtres & Ouvrants connectés (Nouveau v3.1.0)](#-portes-fenêtres--ouvrants-connectés-nouveau-v310)
+3. [🚪 Portes, Fenêtres & Ouvrants connectés (Nouveau v3.2.0)](#-portes-fenêtres--ouvrants-connectés-nouveau-v320)
 4. [🛋️ Mobilier & Aménagement intérieur](#️-mobilier--aménagement-intérieur)
 5. [🏠 Pièces automatiques & Revêtements de sol](#-pièces-automatiques--revêtements-de-sol)
 6. [📡 Radars mmWave & Suivi spatial de présence](#-radars-mmwave--suivi-spatial-de-présence)
@@ -74,7 +74,7 @@ Cliquez sur **Home Architect** dans la barre latérale pour ouvrir le studio de 
 
 ---
 
-## 🚪 Portes, Fenêtres & Ouvrants connectés (Nouveau v3.1.0)
+## 🚪 Portes, Fenêtres & Ouvrants connectés (Nouveau v3.2.0)
 
 Home Architect intègre une gestion complète et dynamique des menuiseries connectées à vos capteurs domotiques Home Assistant :
 

@@ -28,6 +28,7 @@ const MANIFEST_JSON_PATH = path.join(ROOT_DIR, 'custom_components', 'home_archit
 const CONST_PY_PATH = path.join(ROOT_DIR, 'custom_components', 'home_architect', 'const.py');
 const VERSION_TS_PATH = path.join(ROOT_DIR, 'src', 'version.ts');
 const README_PATH = path.join(ROOT_DIR, 'README.md');
+const INFO_PATH = path.join(ROOT_DIR, 'info.md');
 
 // SemVer 2.0.0 complet (pré-versions et métadonnées de build comprises), ancré des deux côtés.
 const SEMVER_RE =
@@ -121,6 +122,16 @@ function buildTargets(version) {
   );
   readme = replaceExactlyOnce(readme, /alt="Version [^"]*"/, () => `alt="Version ${version}"`, 'README.md (texte alternatif du badge)');
   targets.push({ filePath: README_PATH, content: readme });
+
+  let info = readFile(INFO_PATH);
+  info = replaceExactlyOnce(
+    info,
+    /(https:\/\/img\.shields\.io\/badge\/version-)(?:[^-\s"'/?]|--)+(-[0-9a-zA-Z]+(?:\.svg)?)(?=[?"'\s)]|$)/m,
+    (_match, prefix, color) => `${prefix}${shieldsEscape(version)}${color}`,
+    'info.md (badge de version)'
+  );
+  info = replaceExactlyOnce(info, /alt="Version [^"]*"/, () => `alt="Version ${version}"`, 'info.md (texte alternatif du badge)');
+  targets.push({ filePath: INFO_PATH, content: info });
 
   return targets;
 }
