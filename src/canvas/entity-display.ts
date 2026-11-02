@@ -688,8 +688,8 @@ export function openingState(
   }
 
   // Détermination de l'ouverture du battant (open)
-  let open = false;
-  let status: 'ok' | 'missing' | 'unavailable' = 'ok';
+  let open: boolean;
+  let status: 'ok' | 'missing' | 'unavailable';
 
   if (entityId && entityDomain(entityId) !== 'cover') {
     // Si un capteur d'ouverture (contact) est présent, il régit le battant de la fenêtre
