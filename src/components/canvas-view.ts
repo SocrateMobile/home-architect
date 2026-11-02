@@ -235,8 +235,6 @@ type Interaction =
 
 const NO_INTERACTION: Interaction = { kind: 'none' };
 
-const NO_OPENINGS: readonly Opening[] = [];
-
 /** Vrai si l'événement vient d'un élément du shadow DOM du canevas correspondant à `selector`. */
 function eventHits(e: Event, host: Element, selector: string): boolean {
   for (const node of e.composedPath()) {

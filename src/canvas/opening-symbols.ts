@@ -137,7 +137,6 @@ export function openingPrimitives(
   // Volet roulant ou store lié (côté extérieur : -side * ht)
   if (cover) {
     const extY = -side * ht;
-    const guideLen = Math.min(JAMB, w / 6);
     out.push(
       { kind: 'line', role: 'shutter-guide', x1: -half, y1: extY - 0.015 * side, x2: -half, y2: extY + 0.015 * side },
       { kind: 'line', role: 'shutter-guide', x1: half, y1: extY - 0.015 * side, x2: half, y2: extY + 0.015 * side }
