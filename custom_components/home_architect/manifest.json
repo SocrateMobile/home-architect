@@ -10,7 +10,7 @@
     "http",
     "websocket_api"
   ],
-  "documentation": "https://github.com/SocrateMobile/home-architect",
+  "documentation": "https://socratemobile.fr/integration.html?id=home-architect",
   "integration_type": "service",
   "iot_class": "calculated",
   "issue_tracker": "https://github.com/SocrateMobile/home-architect/issues",
