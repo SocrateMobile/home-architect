@@ -5,7 +5,7 @@ from datetime import timedelta
 DOMAIN = "home_architect"
 NAME = "Home Architect"
 
-VERSION = "3.2.0"
+VERSION = "3.2.1"
 
 PLATFORMS: list[str] = []
 
